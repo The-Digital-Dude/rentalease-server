@@ -5,6 +5,7 @@ const morgan = require("morgan");
 
 // Import routes
 const authRoutes = require('../routes/auth.routes');
+const { sendWelcomeEmail } = require("../services/email.service");
 
 // Create Express app
 const app = express();
@@ -20,7 +21,8 @@ app.use(morgan('dev'));
 app.use('/api/v1/auth', authRoutes);
 
 // Health check route
-app.get("/health", (req, res) => {
+app.get("/health", async (req, res) => {
+  await sendWelcomeEmail("jubayerjuhan.info@gmail.com", "Jubayer")
   res.status(200).json({
     status: "ok",
     message: "Server is running, With Full Energy 🔥",

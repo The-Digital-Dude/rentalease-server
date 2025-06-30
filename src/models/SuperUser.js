@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const emailService = require('../services/email.service');
 
 const superUserSchema = new mongoose.Schema({
   name: {
@@ -55,6 +56,25 @@ superUserSchema.methods.comparePassword = async function (candidatePassword) {
     throw error;
   }
 };
+
+// Post-save middleware to send welcome email
+superUserSchema.post('save', async function (doc, next) {
+  if (this.isNew) {
+    try {
+      await emailService.sendWelcomeEmail({
+        email: this.email,
+        name: this.name
+      });
+    } catch (error) {
+      // Log error but don't fail the save operation
+      console.error('Failed to send welcome email:', {
+        userId: this._id,
+        error: error.message
+      });
+    }
+  }
+  next();
+});
 
 const SuperUser = mongoose.model('SuperUser', superUserSchema);
 

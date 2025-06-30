@@ -1,5 +1,6 @@
 const app = require('./app');
 const connectDB = require('../config/database');
+const { sendWelcomeEmail } = require('../services/email.service');
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -7,8 +8,14 @@ const HOST = process.env.HOST || '0.0.0.0';
 // Connect to database and start server
 const startServer = async () => {
   try {
+
     // Connect to MongoDB
     await connectDB();
+
+    sendWelcomeEmail({
+      email: "farhad@digitaldude.co.uk",
+      name: "Farhad"
+    })
 
     // Start the server
     app.listen(PORT, HOST, () => {
