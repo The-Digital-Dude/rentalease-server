@@ -129,6 +129,74 @@ class EmailService {
       }
     });
   }
+
+  /**
+   * Send welcome email to new property manager
+   * @param {Object} propertyManager - Property manager object
+   * @param {string} propertyManager.email - Property manager's email
+   * @param {string} propertyManager.name - Property manager's contact person name
+   * @param {string} propertyManager.companyName - Property manager's company name
+   * @returns {Promise} - Email send result
+   */
+  async sendPropertyManagerWelcomeEmail(propertyManager) {
+    if (!propertyManager || !propertyManager.email || !propertyManager.name || !propertyManager.companyName) {
+      throw new Error('Invalid property manager data provided for welcome email');
+    }
+
+    console.log('Sending property manager welcome email to:', {
+      email: propertyManager.email,
+      name: propertyManager.name,
+      companyName: propertyManager.companyName
+    });
+
+    return await this.sendTemplatedEmail({
+      to: propertyManager.email,
+      templateName: 'propertyManagerWelcome',
+      templateData: {
+        name: propertyManager.name,
+        companyName: propertyManager.companyName
+      }
+    });
+  }
+
+  /**
+   * Send password reset OTP email to property manager
+   * @param {Object} propertyManager - Property manager object
+   * @param {string} propertyManager.email - Property manager's email
+   * @param {string} propertyManager.contactPerson - Property manager's contact person name
+   * @param {string} propertyManager.companyName - Property manager's company name
+   * @param {string} otp - OTP code
+   * @param {number} expirationMinutes - OTP expiration time in minutes
+   * @returns {Promise} - Email send result
+   */
+  async sendPropertyManagerPasswordResetOTP(propertyManager, otp, expirationMinutes = 10) {
+    if (!propertyManager || !propertyManager.email || !propertyManager.contactPerson || !propertyManager.companyName) {
+      throw new Error('Invalid property manager data provided for password reset OTP email');
+    }
+
+    if (!otp) {
+      throw new Error('OTP is required for password reset email');
+    }
+
+    console.log('Sending property manager password reset OTP email to:', {
+      email: propertyManager.email,
+      name: propertyManager.contactPerson,
+      companyName: propertyManager.companyName,
+      otpLength: otp.length,
+      expirationMinutes
+    });
+
+    return await this.sendTemplatedEmail({
+      to: propertyManager.email,
+      templateName: 'propertyManagerPasswordResetOTP',
+      templateData: {
+        name: propertyManager.contactPerson,
+        companyName: propertyManager.companyName,
+        otp: otp,
+        expirationMinutes: expirationMinutes
+      }
+    });
+  }
 }
 
 // Create and export a singleton instance
