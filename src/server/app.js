@@ -6,6 +6,7 @@ const morgan = require("morgan");
 // Import routes
 const authRoutes = require('../routes/auth.routes');
 const propertyManagerAuthRoutes = require('../routes/propertyManager.auth.routes');
+const staffRoutes = require('../routes/staff.routes');
 const { sendWelcomeEmail } = require("../services/email.service");
 
 // Create Express app
@@ -21,6 +22,7 @@ app.use(morgan('dev'));
 // Routes
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/property-manager/auth', propertyManagerAuthRoutes);
+app.use('/api/v1/staff', staffRoutes);
 
 // Health check route
 app.get("/health", async (req, res) => {

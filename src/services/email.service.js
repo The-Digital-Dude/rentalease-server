@@ -134,18 +134,18 @@ class EmailService {
    * Send welcome email to new property manager
    * @param {Object} propertyManager - Property manager object
    * @param {string} propertyManager.email - Property manager's email
-   * @param {string} propertyManager.name - Property manager's contact person name
+   * @param {string} propertyManager.contactPerson - Property manager's contact person name
    * @param {string} propertyManager.companyName - Property manager's company name
    * @returns {Promise} - Email send result
    */
   async sendPropertyManagerWelcomeEmail(propertyManager) {
-    if (!propertyManager || !propertyManager.email || !propertyManager.name || !propertyManager.companyName) {
+    if (!propertyManager || !propertyManager.email || !propertyManager.contactPerson || !propertyManager.companyName) {
       throw new Error('Invalid property manager data provided for welcome email');
     }
 
     console.log('Sending property manager welcome email to:', {
       email: propertyManager.email,
-      name: propertyManager.name,
+      contactPerson: propertyManager.contactPerson,
       companyName: propertyManager.companyName
     });
 
@@ -153,8 +153,9 @@ class EmailService {
       to: propertyManager.email,
       templateName: 'propertyManagerWelcome',
       templateData: {
-        name: propertyManager.name,
-        companyName: propertyManager.companyName
+        name: propertyManager.contactPerson,
+        companyName: propertyManager.companyName,
+        email: propertyManager.email
       }
     });
   }
@@ -194,6 +195,134 @@ class EmailService {
         companyName: propertyManager.companyName,
         otp: otp,
         expirationMinutes: expirationMinutes
+      }
+    });
+  }
+
+  /**
+   * Send welcome email to new staff member
+   * @param {Object} staff - Staff object
+   * @param {string} staff.email - Staff's email
+   * @param {string} staff.fullName - Staff's full name
+   * @param {string} staff.tradeType - Staff's trade type
+   * @param {Object} owner - Owner object
+   * @param {string} owner.name - Owner's name
+   * @param {string} owner.type - Owner's type (SuperUser or PropertyManager)
+   * @returns {Promise} - Email send result
+   */
+  async sendStaffWelcomeEmail(staff, owner) {
+    if (!staff || !staff.email || !staff.fullName || !staff.tradeType) {
+      throw new Error('Invalid staff data provided for welcome email');
+    }
+
+    if (!owner || !owner.name || !owner.type) {
+      throw new Error('Invalid owner data provided for staff welcome email');
+    }
+
+    console.log('Sending staff welcome email to:', {
+      email: staff.email,
+      fullName: staff.fullName,
+      tradeType: staff.tradeType,
+      ownerName: owner.name,
+      ownerType: owner.type
+    });
+
+    return await this.sendTemplatedEmail({
+      to: staff.email,
+      templateName: 'staffWelcome',
+      templateData: {
+        staffName: staff.fullName,
+        ownerName: owner.name,
+        ownerType: owner.type,
+        tradeType: staff.tradeType
+      }
+    });
+  }
+
+  /**
+   * Send status update email to staff member
+   * @param {Object} staff - Staff object
+   * @param {string} staff.email - Staff's email
+   * @param {string} staff.fullName - Staff's full name
+   * @param {string} newStatus - New status
+   * @param {Object} owner - Owner object
+   * @param {string} owner.name - Owner's name
+   * @param {string} [reason] - Optional reason for the status change
+   * @returns {Promise} - Email send result
+   */
+  async sendStaffStatusUpdateEmail(staff, newStatus, owner, reason = null) {
+    if (!staff || !staff.email || !staff.fullName) {
+      throw new Error('Invalid staff data provided for status update email');
+    }
+
+    if (!newStatus) {
+      throw new Error('New status is required for status update email');
+    }
+
+    if (!owner || !owner.name) {
+      throw new Error('Invalid owner data provided for staff status update email');
+    }
+
+    console.log('Sending staff status update email to:', {
+      email: staff.email,
+      fullName: staff.fullName,
+      newStatus: newStatus,
+      ownerName: owner.name,
+      reason: reason
+    });
+
+    return await this.sendTemplatedEmail({
+      to: staff.email,
+      templateName: 'staffStatusUpdate',
+      templateData: {
+        staffName: staff.fullName,
+        newStatus: newStatus,
+        ownerName: owner.name,
+        reason: reason
+      }
+    });
+  }
+
+  /**
+   * Send document reminder email to staff member
+   * @param {Object} staff - Staff object
+   * @param {string} staff.email - Staff's email
+   * @param {string} staff.fullName - Staff's full name
+   * @param {string} documentType - Type of document needed
+   * @param {Object} owner - Owner object
+   * @param {string} owner.name - Owner's name
+   * @param {string} [dueDate] - Optional due date for documents
+   * @returns {Promise} - Email send result
+   */
+  async sendStaffDocumentReminderEmail(staff, documentType, owner, dueDate = null) {
+    if (!staff || !staff.email || !staff.fullName) {
+      throw new Error('Invalid staff data provided for document reminder email');
+    }
+
+    if (!documentType) {
+      throw new Error('Document type is required for document reminder email');
+    }
+
+    if (!owner || !owner.name) {
+      throw new Error('Invalid owner data provided for staff document reminder email');
+    }
+
+    console.log('Sending staff document reminder email to:', {
+      email: staff.email,
+      fullName: staff.fullName,
+      documentType: documentType,
+      ownerName: owner.name,
+      dueDate: dueDate
+    });
+
+    return await this.sendTemplatedEmail({
+      to: staff.email,
+      templateName: 'staffDocumentReminder',
+      templateData: {
+        staffName: staff.fullName,
+        documentType: documentType,
+        ownerName: owner.name,
+        dueDate: dueDate
       }
     });
   }

@@ -199,6 +199,59 @@ const authenticate = async (req, res, next) => {
       });
     }
 
+    // Handle different user types
+    if (decoded.type === 'superUser') {
+      // Find the super user in database
+      const superUser = await SuperUser.findById(decoded.id);
+      
+      if (!superUser) {
+        return res.status(401).json({
+          status: 'error',
+          message: 'Super user not found'
+        });
+      }
+
+      // Add super user info to request object
+      req.superUser = {
+        id: superUser._id,
+        name: superUser.name,
+        email: superUser.email
+      };
+    } else if (decoded.type === 'propertyManager') {
+      // Find the property manager in database
+      const PropertyManager = require('../models/PropertyManager');
+      const propertyManager = await PropertyManager.findById(decoded.id);
+      
+      if (!propertyManager) {
+        return res.status(401).json({
+          status: 'error',
+          message: 'Property manager not found'
+        });
+      }
+
+      // Check if property manager account is active
+      if (!propertyManager.isActive()) {
+        return res.status(401).json({
+          status: 'error',
+          message: `Account is ${propertyManager.status.toLowerCase()}. Please contact support.`
+        });
+      }
+
+      // Add property manager info to request object
+      req.propertyManager = {
+        id: propertyManager._id,
+        companyName: propertyManager.companyName,
+        contactPerson: propertyManager.contactPerson,
+        email: propertyManager.email,
+        status: propertyManager.status
+      };
+    } else {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Invalid user type'
+      });
+    }
+
     // Add decoded token info to request
     req.user = decoded;
 

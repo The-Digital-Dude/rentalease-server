@@ -64,7 +64,10 @@ router.post('/register', authenticateSuperUser, async (req, res) => {
     console.log('Property manager created successfully:', {
       propertyManagerId: propertyManager._id,
       companyName: propertyManager.companyName,
+      contactPerson: propertyManager.contactPerson,
+      email: propertyManager.email,
       createdBy: req.superUser.email,
+      welcomeEmailSent: 'Attempting to send welcome email via post-save middleware',
       timestamp: new Date().toISOString()
     });
 

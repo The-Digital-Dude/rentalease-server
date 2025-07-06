@@ -168,14 +168,26 @@ propertyManagerSchema.post('save', async function (doc, next) {
     try {
       await emailService.sendPropertyManagerWelcomeEmail({
         email: this.email,
-        name: this.contactPerson,
+        contactPerson: this.contactPerson,
         companyName: this.companyName
+      });
+      
+      console.log('Welcome email sent successfully to new property manager:', {
+        propertyManagerId: this._id,
+        email: this.email,
+        companyName: this.companyName,
+        contactPerson: this.contactPerson,
+        timestamp: new Date().toISOString()
       });
     } catch (error) {
       // Log error but don't fail the save operation
-      console.error('Failed to send welcome email:', {
+      console.error('Failed to send welcome email to property manager:', {
         propertyManagerId: this._id,
-        error: error.message
+        email: this.email,
+        companyName: this.companyName,
+        contactPerson: this.contactPerson,
+        error: error.message,
+        timestamp: new Date().toISOString()
       });
     }
   }
