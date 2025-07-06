@@ -30,6 +30,19 @@ const superUserSchema = new mongoose.Schema({
   lastUpdated: {
     type: Date,
     default: Date.now
+  },
+  // Password reset OTP fields
+  resetPasswordOTP: {
+    type: String,
+    default: null
+  },
+  resetPasswordOTPExpires: {
+    type: Date,
+    default: null
+  },
+  resetPasswordOTPAttempts: {
+    type: Number,
+    default: 0
   }
 }, {
   timestamps: true

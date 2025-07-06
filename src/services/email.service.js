@@ -93,6 +93,42 @@ class EmailService {
       }
     });
   }
+
+  /**
+   * Send password reset OTP email
+   * @param {Object} user - User object
+   * @param {string} user.email - User's email
+   * @param {string} user.name - User's name
+   * @param {string} otp - OTP code
+   * @param {number} expirationMinutes - OTP expiration time in minutes
+   * @returns {Promise} - Email send result
+   */
+  async sendPasswordResetOTP(user, otp, expirationMinutes = 10) {
+    if (!user || !user.email || !user.name) {
+      throw new Error('Invalid user data provided for password reset OTP email');
+    }
+
+    if (!otp) {
+      throw new Error('OTP is required for password reset email');
+    }
+
+    console.log('Sending password reset OTP email to:', {
+      email: user.email,
+      name: user.name,
+      otpLength: otp.length,
+      expirationMinutes
+    });
+
+    return await this.sendTemplatedEmail({
+      to: user.email,
+      templateName: 'passwordResetOTP',
+      templateData: {
+        name: user.name,
+        otp: otp,
+        expirationMinutes: expirationMinutes
+      }
+    });
+  }
 }
 
 // Create and export a singleton instance
