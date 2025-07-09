@@ -6,6 +6,25 @@ const emailService = require('../services/email.service');
 const { generateOTP, generateOTPExpiration, isOTPExpired, hashOTP, verifyOTP } = require('../utils/otpGenerator');
 const { authenticateSuperUser, authenticatePropertyManager } = require('../middleware/auth.middleware');
 
+// Valid regions enum
+const VALID_REGIONS = [
+  'Sydney Metro',
+  'Melbourne Metro', 
+  'Brisbane Metro',
+  'Perth Metro',
+  'Adelaide Metro',
+  'Darwin Metro',
+  'Hobart Metro',
+  'Canberra Metro',
+  'Regional NSW',
+  'Regional VIC',
+  'Regional QLD',
+  'Regional WA',
+  'Regional SA',
+  'Regional NT',
+  'Regional TAS'
+];
+
 // Register Property Manager (Only Super Users can create Property Managers)
 router.post('/register', authenticateSuperUser, async (req, res) => {
   try {
@@ -25,6 +44,14 @@ router.post('/register', authenticateSuperUser, async (req, res) => {
       return res.status(400).json({
         status: 'error',
         message: 'All fields are required'
+      });
+    }
+
+    // Validate region
+    if (!VALID_REGIONS.includes(region)) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Please select a valid region'
       });
     }
 
@@ -529,8 +556,7 @@ router.patch('/:id', authenticateSuperUser, async (req, res) => {
     }
 
     if (region !== undefined) {
-      const validRegions = ['Sydney Metro', 'Melbourne Metro', 'Brisbane Metro', 'Perth Metro', 'Adelaide Metro', 'Darwin Metro', 'Hobart Metro', 'Canberra Metro', 'Regional NSW', 'Regional VIC', 'Regional QLD', 'Regional WA', 'Regional SA', 'Regional NT', 'Regional TAS'];
-      if (!validRegions.includes(region)) {
+      if (!VALID_REGIONS.includes(region)) {
         return res.status(400).json({
           status: 'error',
           message: 'Please select a valid region'

@@ -44,17 +44,12 @@ const propertyManagerSchema = new mongoose.Schema({
   region: {
     type: String,
     required: [true, 'Region is required'],
-    trim: true,
-    enum: {
-      values: ['Sydney Metro', 'Melbourne Metro', 'Brisbane Metro', 'Perth Metro', 'Adelaide Metro', 'Darwin Metro', 'Hobart Metro', 'Canberra Metro', 'Regional NSW', 'Regional VIC', 'Regional QLD', 'Regional WA', 'Regional SA', 'Regional NT', 'Regional TAS'],
-      message: 'Please select a valid region'
-    }
   },
   compliance: {
     type: String,
     required: [true, 'Compliance level is required'],
     enum: {
-      values: ['Basic Package', 'Standard Package', 'Premium Package', 'Full Package'],
+      values: ['Basic Package','Basic Compliance', 'Standard Package', 'Premium Package', 'Full Package'],
       message: 'Please select a valid compliance package'
     }
   },
