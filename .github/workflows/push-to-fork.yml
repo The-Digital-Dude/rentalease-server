@@ -1,0 +1,20 @@
+name: Push to Fork on Update
+
+on:
+  push:
+    branches:
+      - main  # or whatever branch you want to sync
+
+jobs:
+  sync-to-fork:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source repo
+        uses: actions/checkout@v3
+
+      - name: Push to forked repo
+        run: |
+          git config user.name "GitHub Action"
+          git config user.email "action@github.com"
+          git remote add fork https://x-access-token:${{ secrets.FORK_PUSH_TOKEN }}@github.com/jubayerjuhan/rentalease-server.git
+          git push fork main --force
