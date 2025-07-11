@@ -1,4 +1,4 @@
-const crypto = require('crypto');
+import crypto from 'crypto';
 
 /**
  * Generate a random OTP
@@ -54,7 +54,7 @@ const verifyOTP = (otp, hashedOTP) => {
   return inputHash === hashedOTP;
 };
 
-module.exports = {
+export {
   generateOTP,
   generateOTPExpiration,
   isOTPExpired,

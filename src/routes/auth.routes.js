@@ -1,9 +1,10 @@
-const express = require('express');
+import express from 'express';
+import SuperUser from '../models/SuperUser.js';
+import jwt from 'jsonwebtoken';
+import emailService from '../services/email.service.js';
+import { generateOTP, generateOTPExpiration, isOTPExpired, hashOTP, verifyOTP } from '../utils/otpGenerator.js';
+
 const router = express.Router();
-const SuperUser = require('../models/SuperUser');
-const jwt = require('jsonwebtoken');
-const emailService = require('../services/email.service');
-const { generateOTP, generateOTPExpiration, isOTPExpired, hashOTP, verifyOTP } = require('../utils/otpGenerator');
 
 // Register Super User
 router.post('/register', async (req, res) => {
@@ -393,4 +394,4 @@ router.post('/verify-otp', async (req, res) => {
   }
 });
 
-module.exports = router; 
+export default router; 

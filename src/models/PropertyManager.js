@@ -1,6 +1,6 @@
-const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
-const emailService = require('../services/email.service');
+import mongoose from 'mongoose';
+import bcrypt from 'bcryptjs';
+import emailService from '../services/email.service.js';
 
 const propertyManagerSchema = new mongoose.Schema({
   // Company Information
@@ -198,4 +198,4 @@ propertyManagerSchema.index({ companyName: 1 });
 
 const PropertyManager = mongoose.model('PropertyManager', propertyManagerSchema);
 
-module.exports = PropertyManager; 
+export default PropertyManager; 

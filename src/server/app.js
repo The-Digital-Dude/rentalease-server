@@ -1,13 +1,13 @@
-const express = require("express");
-const cors = require("cors");
-const helmet = require("helmet");
-const morgan = require("morgan");
+import express from "express";
+import cors from "cors";
+import helmet from "helmet";
+import morgan from "morgan";
 
 // Import routes
-const authRoutes = require('../routes/auth.routes');
-const propertyManagerAuthRoutes = require('../routes/propertyManager.auth.routes');
-const staffRoutes = require('../routes/staff.routes');
-const { sendWelcomeEmail } = require("../services/email.service");
+import authRoutes from '../routes/auth.routes.js';
+import propertyManagerAuthRoutes from '../routes/propertyManager.auth.routes.js';
+import staffRoutes from '../routes/staff.routes.js';
+import emailService from "../services/email.service.js";
 
 // Create Express app
 const app = express();
@@ -26,7 +26,7 @@ app.use('/api/v1/staff', staffRoutes);
 
 // Health check route
 app.get("/health", async (req, res) => {
-  await sendWelcomeEmail("jubayerjuhan.info@gmail.com", "Jubayer")
+  await emailService.sendWelcomeEmail({ email: "jubayerjuhan.info@gmail.com", name: "Jubayer" })
   res.status(200).json({
     status: "ok",
     message: "Server is running, With Full Energy 🔥",
@@ -53,4 +53,4 @@ app.use((req, res) => {
   });
 });
 
-module.exports = app; 
+export default app; 

@@ -1,6 +1,6 @@
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 
 // Create uploads directory if it doesn't exist
 const uploadsDir = path.join(process.cwd(), 'uploads');
@@ -58,7 +58,7 @@ const upload = multer({
 });
 
 // Export multer configurations
-module.exports = {
+export default {
   // Single file upload
   single: (fieldName) => upload.single(fieldName),
   

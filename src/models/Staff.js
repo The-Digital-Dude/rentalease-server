@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
 const staffSchema = new mongoose.Schema({
   // Basic Information
@@ -268,4 +268,4 @@ staffSchema.index({ serviceRegions: 1, availabilityStatus: 1 });
 
 const Staff = mongoose.model('Staff', staffSchema);
 
-module.exports = Staff; 
+export default Staff; 

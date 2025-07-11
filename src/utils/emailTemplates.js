@@ -425,4 +425,4 @@ templates.staffWelcome = staffWelcomeTemplate;
 templates.staffStatusUpdate = staffStatusUpdateTemplate;
 templates.staffDocumentReminder = staffDocumentReminderTemplate;
 
-module.exports = templates; 
+export default templates; 

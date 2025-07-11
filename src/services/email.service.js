@@ -1,6 +1,6 @@
-const { Resend } = require('resend');
-const emailConfig = require('../config/email');
-const emailTemplates = require('../utils/emailTemplates');
+import { Resend } from 'resend';
+import emailConfig from '../config/email.js';
+import emailTemplates from '../utils/emailTemplates.js';
 
 class EmailService {
   constructor() {
@@ -330,4 +330,4 @@ class EmailService {
 
 // Create and export a singleton instance
 const emailService = new EmailService();
-module.exports = emailService; 
+export default emailService; 

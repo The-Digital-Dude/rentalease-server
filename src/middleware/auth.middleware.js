@@ -1,5 +1,5 @@
-const jwt = require('jsonwebtoken');
-const SuperUser = require('../models/SuperUser');
+import jwt from 'jsonwebtoken';
+import SuperUser from '../models/SuperUser.js';
 
 /**
  * Middleware to authenticate and authorize super users
@@ -123,7 +123,7 @@ const authenticatePropertyManager = async (req, res, next) => {
     }
 
     // Find the property manager in database
-    const PropertyManager = require('../models/PropertyManager');
+    const { default: PropertyManager } = await import('../models/PropertyManager.js');
     const propertyManager = await PropertyManager.findById(decoded.id);
     
     if (!propertyManager) {
@@ -219,7 +219,7 @@ const authenticate = async (req, res, next) => {
       };
     } else if (decoded.type === 'propertyManager') {
       // Find the property manager in database
-      const PropertyManager = require('../models/PropertyManager');
+      const { default: PropertyManager } = await import('../models/PropertyManager.js');
       const propertyManager = await PropertyManager.findById(decoded.id);
       
       if (!propertyManager) {
@@ -265,7 +265,7 @@ const authenticate = async (req, res, next) => {
   }
 };
 
-module.exports = {
+export {
   authenticateSuperUser,
   authenticatePropertyManager,
   authenticate

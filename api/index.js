@@ -1,3 +1,3 @@
-const app = require('../src/server/app');
+import app from '../src/server/app.js';
 
-module.exports = app; 
+export default app; 

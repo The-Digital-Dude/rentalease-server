@@ -1,8 +1,9 @@
-const express = require('express');
+import express from 'express';
+import Staff from '../models/Staff.js';
+import { authenticateSuperUser, authenticatePropertyManager, authenticate } from '../middleware/auth.middleware.js';
+import fileUpload from '../services/fileUpload.service.js';
+
 const router = express.Router();
-const Staff = require('../models/Staff');
-const { authenticateSuperUser, authenticatePropertyManager, authenticate } = require('../middleware/auth.middleware');
-const fileUpload = require('../services/fileUpload.service');
 
 // Helper function to get owner info based on user type
 const getOwnerInfo = (req) => {
@@ -763,7 +764,7 @@ router.get('/:staffId/documents/:documentId/download', authenticate, async (req,
     }
 
     // Check if file exists
-    const fs = require('fs');
+    const fs = await import('fs');
     if (!fs.existsSync(document.path)) {
       return res.status(404).json({
         status: 'error',
@@ -785,4 +786,4 @@ router.get('/:staffId/documents/:documentId/download', authenticate, async (req,
   }
 });
 
-module.exports = router; 
+export default router; 

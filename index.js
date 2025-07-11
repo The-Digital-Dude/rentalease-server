@@ -1,5 +1,5 @@
-require('dotenv').config();
-const { startServer } = require('./src/server');
+import 'dotenv/config';
+import { startServer } from './src/server/index.js';
 
 // Start the server
 startServer();

@@ -1,10 +1,11 @@
-const express = require('express');
+import express from 'express';
+import PropertyManager from '../models/PropertyManager.js';
+import jwt from 'jsonwebtoken';
+import emailService from '../services/email.service.js';
+import { generateOTP, generateOTPExpiration, isOTPExpired, hashOTP, verifyOTP } from '../utils/otpGenerator.js';
+import { authenticateSuperUser, authenticatePropertyManager } from '../middleware/auth.middleware.js';
+
 const router = express.Router();
-const PropertyManager = require('../models/PropertyManager');
-const jwt = require('jsonwebtoken');
-const emailService = require('../services/email.service');
-const { generateOTP, generateOTPExpiration, isOTPExpired, hashOTP, verifyOTP } = require('../utils/otpGenerator');
-const { authenticateSuperUser, authenticatePropertyManager } = require('../middleware/auth.middleware');
 
 // Valid regions enum
 const VALID_REGIONS = [
@@ -856,4 +857,4 @@ router.get('/:id', authenticateSuperUser, async (req, res) => {
   }
 });
 
-module.exports = router; 
+export default router; 

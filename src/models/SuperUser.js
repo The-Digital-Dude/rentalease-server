@@ -1,6 +1,6 @@
-const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
-const emailService = require('../services/email.service');
+import mongoose from 'mongoose';
+import bcrypt from 'bcryptjs';
+import emailService from '../services/email.service.js';
 
 const superUserSchema = new mongoose.Schema({
   name: {
@@ -91,4 +91,4 @@ superUserSchema.post('save', async function (doc, next) {
 
 const SuperUser = mongoose.model('SuperUser', superUserSchema);
 
-module.exports = SuperUser; 
+export default SuperUser; 
