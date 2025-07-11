@@ -1,32 +1,6 @@
 import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
-
-// Create uploads directory if it doesn't exist
-const uploadsDir = path.join(process.cwd(), 'uploads');
-const staffDocumentsDir = path.join(uploadsDir, 'staff-documents');
-
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
-
-if (!fs.existsSync(staffDocumentsDir)) {
-  fs.mkdirSync(staffDocumentsDir, { recursive: true });
-}
-
-// Configure multer storage
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, staffDocumentsDir);
-  },
-  filename: (req, file, cb) => {
-    // Generate unique filename
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const fileExtension = path.extname(file.originalname);
-    const fileName = `${file.fieldname}-${uniqueSuffix}${fileExtension}`;
-    cb(null, fileName);
-  }
-});
+import { cloudinary } from '../config/cloudinary.js';
+import { Readable } from 'stream';
 
 // File filter to allow only specific file types
 const fileFilter = (req, file, cb) => {
@@ -34,7 +8,7 @@ const fileFilter = (req, file, cb) => {
   const allowedTypes = [
     'application/pdf',
     'image/jpeg',
-    'image/jpg',
+    'image/jpg', 
     'image/png',
     'application/msword',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
@@ -47,22 +21,126 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
-// Configure multer
+// Configure multer for memory storage (files will be uploaded to Cloudinary)
 const upload = multer({
-  storage: storage,
+  storage: multer.memoryStorage(),
   fileFilter: fileFilter,
   limits: {
     fileSize: 10 * 1024 * 1024, // 10MB limit
-    files: 5 // Maximum 5 files per upload
+    files: 6 // Maximum 6 files per upload (3 licensing + 3 insurance)
   }
 });
 
-// Export multer configurations
+// Helper function to upload buffer to Cloudinary
+const uploadToCloudinary = (buffer, options = {}) => {
+  return new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      {
+        resource_type: 'auto', // Automatically detect file type
+        folder: 'staff-documents', // Organize files in folders
+        use_filename: true,
+        unique_filename: true,
+        ...options
+      },
+      (error, result) => {
+        if (error) {
+          reject(error);
+        } else {
+          resolve(result);
+        }
+      }
+    );
+
+    // Create a readable stream from buffer and pipe to Cloudinary
+    const stream = Readable.from(buffer);
+    stream.pipe(uploadStream);
+  });
+};
+
+// Helper function to delete file from Cloudinary
+const deleteFromCloudinary = async (publicId) => {
+  try {
+    const result = await cloudinary.uploader.destroy(publicId);
+    return result;
+  } catch (error) {
+    console.error('Error deleting file from Cloudinary:', error);
+    throw error;
+  }
+};
+
+// Helper function to process uploaded files and upload to Cloudinary
+const processUploadedFiles = async (files, staffId) => {
+  const result = {};
+  
+  if (files) {
+    for (const fieldName of Object.keys(files)) {
+      result[fieldName] = [];
+      
+      for (const file of files[fieldName]) {
+        try {
+          // Upload to Cloudinary
+          const cloudinaryResult = await uploadToCloudinary(file.buffer, {
+            public_id: `staff-${staffId}-${fieldName}-${Date.now()}`,
+            tags: [fieldName, `staff-${staffId}`], // Add tags for organization
+          });
+
+          // Store Cloudinary metadata
+          result[fieldName].push({
+            filename: file.originalname,
+            originalName: file.originalname,
+            mimetype: file.mimetype,
+            size: file.size,
+            cloudinaryId: cloudinaryResult.public_id,
+            cloudinaryUrl: cloudinaryResult.secure_url,
+            cloudinaryVersion: cloudinaryResult.version,
+            uploadDate: new Date()
+          });
+        } catch (error) {
+          console.error(`Error uploading ${file.originalname} to Cloudinary:`, error);
+          // You might want to handle this error differently
+          throw new Error(`Failed to upload ${file.originalname}: ${error.message}`);
+        }
+      }
+    }
+  }
+  
+  return result;
+};
+
+// Helper function to get file info (legacy compatibility)
+const getFileInfo = (file) => {
+  return {
+    filename: file.originalname,
+    originalName: file.originalname,
+    mimetype: file.mimetype,
+    size: file.size,
+    buffer: file.buffer // For memory storage
+  };
+};
+
+// Helper function to delete multiple files from Cloudinary
+const deleteFiles = async (documents) => {
+  const deletePromises = documents.map(doc => {
+    if (doc.cloudinaryId) {
+      return deleteFromCloudinary(doc.cloudinaryId);
+    }
+  }).filter(Boolean);
+
+  try {
+    await Promise.all(deletePromises);
+    console.log(`Successfully deleted ${deletePromises.length} files from Cloudinary`);
+  } catch (error) {
+    console.error('Error deleting some files from Cloudinary:', error);
+    // Don't throw here - we don't want to fail the entire operation if some deletes fail
+  }
+};
+
+// Export multer configurations and helper functions
 export default {
   // Single file upload
   single: (fieldName) => upload.single(fieldName),
   
-  // Multiple files upload for same field
+  // Multiple files upload for same field  
   array: (fieldName, maxCount = 5) => upload.array(fieldName, maxCount),
   
   // Multiple files upload for different fields
@@ -74,47 +152,19 @@ export default {
     { name: 'insuranceDocuments', maxCount: 3 }
   ]),
   
-  // Helper function to delete files
-  deleteFile: (filePath) => {
-    return new Promise((resolve, reject) => {
-      fs.unlink(filePath, (err) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve();
-        }
-      });
-    });
-  },
+  // Cloudinary helper functions
+  uploadToCloudinary,
+  deleteFromCloudinary,
+  processUploadedFiles,
+  deleteFiles,
   
-  // Helper function to get file info
-  getFileInfo: (file) => {
-    return {
-      filename: file.filename,
-      originalName: file.originalname,
-      mimetype: file.mimetype,
-      size: file.size,
-      path: file.path
-    };
-  },
+  // Legacy helper functions  
+  getFileInfo,
   
-  // Helper function to process uploaded files
-  processUploadedFiles: (files) => {
-    const result = {};
-    
-    if (files) {
-      Object.keys(files).forEach(fieldName => {
-        result[fieldName] = files[fieldName].map(file => ({
-          filename: file.filename,
-          originalName: file.originalname,
-          mimetype: file.mimetype,
-          size: file.size,
-          path: file.path,
-          uploadDate: new Date()
-        }));
-      });
-    }
-    
-    return result;
+  // Deprecated - kept for backward compatibility
+  deleteFile: async (filePath) => {
+    console.warn('deleteFile is deprecated. Use deleteFromCloudinary instead.');
+    // Extract public_id from path if needed
+    throw new Error('Legacy deleteFile not supported with Cloudinary');
   }
 }; 

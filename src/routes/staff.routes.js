@@ -1,4 +1,5 @@
 import express from 'express';
+import mongoose from 'mongoose';
 import Staff from '../models/Staff.js';
 import { authenticateSuperUser, authenticatePropertyManager, authenticate } from '../middleware/auth.middleware.js';
 import fileUpload from '../services/fileUpload.service.js';
@@ -76,8 +77,13 @@ router.post('/', authenticate, fileUpload.staffDocuments, async (req, res) => {
       });
     }
 
-    // Process uploaded files
-    const uploadedFiles = fileUpload.processUploadedFiles(req.files);
+    // Process uploaded files and upload to Cloudinary
+    let uploadedFiles = {};
+    if (req.files && Object.keys(req.files).length > 0) {
+      // Generate a temporary ID for file naming
+      const tempStaffId = new mongoose.Types.ObjectId().toString();
+      uploadedFiles = await fileUpload.processUploadedFiles(req.files, tempStaffId);
+    }
 
     // Create new staff member
     const staff = new Staff({
@@ -613,8 +619,8 @@ router.post('/:id/documents', authenticate, fileUpload.staffDocuments, async (re
       });
     }
 
-    // Process uploaded files
-    const uploadedFiles = fileUpload.processUploadedFiles(req.files);
+    // Process uploaded files and upload to Cloudinary
+    const uploadedFiles = await fileUpload.processUploadedFiles(req.files, id);
 
     // Update staff member with new documents
     if (uploadedFiles.licensingDocuments) {
@@ -692,11 +698,13 @@ router.delete('/:staffId/documents/:documentId', authenticate, async (req, res) 
       });
     }
 
-    // Delete physical file
+    // Delete file from Cloudinary
     try {
-      await fileUpload.deleteFile(document.path);
+      if (document.cloudinaryId) {
+        await fileUpload.deleteFromCloudinary(document.cloudinaryId);
+      }
     } catch (fileError) {
-      console.error('Failed to delete physical file:', fileError);
+      console.error('Failed to delete file from Cloudinary:', fileError);
       // Continue with database update even if file deletion fails
     }
 
@@ -763,19 +771,16 @@ router.get('/:staffId/documents/:documentId/download', authenticate, async (req,
       });
     }
 
-    // Check if file exists
-    const fs = await import('fs');
-    if (!fs.existsSync(document.path)) {
+    // Check if Cloudinary URL exists
+    if (!document.cloudinaryUrl) {
       return res.status(404).json({
         status: 'error',
-        message: 'Physical file not found'
+        message: 'File URL not found'
       });
     }
 
-    // Set headers and send file
-    res.setHeader('Content-Type', document.mimetype);
-    res.setHeader('Content-Disposition', `attachment; filename="${document.originalName}"`);
-    res.sendFile(document.path);
+    // Redirect to Cloudinary URL for download
+    res.redirect(document.cloudinaryUrl);
 
   } catch (error) {
     console.error('Download document error:', error);

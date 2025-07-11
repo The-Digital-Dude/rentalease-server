@@ -86,7 +86,13 @@ const staffSchema = new mongoose.Schema({
       type: Date,
       default: Date.now
     },
-    path: String
+    // Legacy field for backward compatibility
+    path: String,
+    
+    // Cloudinary specific fields
+    cloudinaryId: String,
+    cloudinaryUrl: String,
+    cloudinaryVersion: String
   }],
   insuranceDocuments: [{
     filename: String,
@@ -97,7 +103,13 @@ const staffSchema = new mongoose.Schema({
       type: Date,
       default: Date.now
     },
-    path: String
+    // Legacy field for backward compatibility
+    path: String,
+    
+    // Cloudinary specific fields
+    cloudinaryId: String,
+    cloudinaryUrl: String,
+    cloudinaryVersion: String
   }],
   
   // Polymorphic Reference - Staff can belong to either SuperUser or PropertyManager

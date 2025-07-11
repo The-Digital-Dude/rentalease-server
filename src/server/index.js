@@ -1,5 +1,6 @@
 import app from './app.js';
 import connectDB from '../config/database.js';
+import { testCloudinaryConnection } from '../config/cloudinary.js';
 
 const PORT = process.env.PORT || 3000;
 
@@ -9,6 +10,9 @@ const startServer = async () => {
 
     // Connect to MongoDB
     await connectDB();
+
+    // Test Cloudinary connection
+    await testCloudinaryConnection();
 
     console.log(`🔑 PORT: ${PORT}`);
 
