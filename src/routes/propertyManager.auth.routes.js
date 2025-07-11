@@ -133,6 +133,8 @@ router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
 
+    console.log(email, password, 'email and password');
+
     // Validate required fields
     if (!email || !password) {
       return res.status(400).json({
