@@ -408,6 +408,103 @@ router.post('/reset-password', async (req, res) => {
   }
 });
 
+// Verify OTP Only (without password reset) - Property Manager
+router.post('/verify-otp', async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    // Validate required fields
+    if (!email || !otp) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Email and OTP are required'
+      });
+    }
+
+    // Find property manager by email
+    const propertyManager = await PropertyManager.findOne({ email: email.toLowerCase() });
+    if (!propertyManager) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Property manager not found with this email address'
+      });
+    }
+
+    // Check if OTP exists and is not expired
+    if (!propertyManager.resetPasswordOTP || !propertyManager.resetPasswordOTPExpires) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'No password reset request found. Please request a new OTP.'
+      });
+    }
+
+    // Check if OTP is expired
+    if (isOTPExpired(propertyManager.resetPasswordOTPExpires)) {
+      // Clear expired OTP
+      propertyManager.resetPasswordOTP = null;
+      propertyManager.resetPasswordOTPExpires = null;
+      propertyManager.resetPasswordOTPAttempts = 0;
+      await propertyManager.save();
+
+      return res.status(400).json({
+        status: 'error',
+        message: 'OTP has expired. Please request a new one.'
+      });
+    }
+
+    // Check attempt limit (max 5 attempts)
+    if (propertyManager.resetPasswordOTPAttempts >= 5) {
+      // Clear OTP after too many attempts
+      propertyManager.resetPasswordOTP = null;
+      propertyManager.resetPasswordOTPExpires = null;
+      propertyManager.resetPasswordOTPAttempts = 0;
+      await propertyManager.save();
+
+      return res.status(429).json({
+        status: 'error',
+        message: 'Too many invalid attempts. Please request a new OTP.'
+      });
+    }
+
+    // Verify OTP
+    const isOTPValid = verifyOTP(otp, propertyManager.resetPasswordOTP);
+    if (!isOTPValid) {
+      // Increment attempt count
+      propertyManager.resetPasswordOTPAttempts += 1;
+      await propertyManager.save();
+
+      return res.status(400).json({
+        status: 'error',
+        message: `Invalid OTP. ${5 - propertyManager.resetPasswordOTPAttempts} attempts remaining.`
+      });
+    }
+
+    // OTP is valid - don't clear it yet, just confirm it's valid
+    console.log('Property manager OTP verified successfully:', {
+      propertyManagerId: propertyManager._id,
+      email: propertyManager.email,
+      companyName: propertyManager.companyName,
+      timestamp: new Date().toISOString()
+    });
+
+    res.status(200).json({
+      status: 'success',
+      message: 'OTP verified successfully. You can now set your new password.',
+      data: {
+        email: propertyManager.email,
+        verifiedAt: new Date().toISOString(),
+        attemptsRemaining: 5 - propertyManager.resetPasswordOTPAttempts
+      }
+    });
+  } catch (error) {
+    console.error('Property manager verify OTP error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'An error occurred while verifying OTP'
+    });
+  }
+});
+
 // Get Property Manager Profile
 router.get('/profile', authenticatePropertyManager, async (req, res) => {
   try {

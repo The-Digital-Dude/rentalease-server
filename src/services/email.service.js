@@ -43,7 +43,7 @@ class EmailService {
 
       const result = await this.resend.emails.send({
         from,
-        to: ["farhad@digitaldude.co.uk"], // Hardcoded for testing
+        to: [to],
         subject: template.subject,
         html: template.html
       });
