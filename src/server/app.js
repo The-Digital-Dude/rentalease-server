@@ -7,6 +7,7 @@ import morgan from "morgan";
 import authRoutes from '../routes/auth.routes.js';
 import propertyManagerAuthRoutes from '../routes/propertyManager.auth.routes.js';
 import staffRoutes from '../routes/staff.routes.js';
+import jobRoutes from '../routes/job.routes.js';
 import emailService from "../services/email.service.js";
 
 // Create Express app
@@ -23,6 +24,7 @@ app.use(morgan('dev'));
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/property-manager/auth', propertyManagerAuthRoutes);
 app.use('/api/v1/staff', staffRoutes);
+app.use('/api/v1/jobs', jobRoutes);
 
 // Health check route
 app.get("/health", async (req, res) => {
