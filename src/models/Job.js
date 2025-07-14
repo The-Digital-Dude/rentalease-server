@@ -1,6 +1,19 @@
 import mongoose from 'mongoose';
 
+// Function to generate random 6-digit number
+const generateJobNumber = () => {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+};
+
 const jobSchema = new mongoose.Schema({
+  job_id: {
+    type: String,
+    unique: true,
+    required: true,
+    default: function() {
+      return `J-${generateJobNumber()}`;
+    }
+  },
   propertyAddress: {
     type: String,
     required: [true, 'Property address is required'],
@@ -28,7 +41,7 @@ const jobSchema = new mongoose.Schema({
   assignedTechnician: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Staff',
-    required: [true, 'Assigned technician is required']
+    default: null
   },
   status: {
     type: String,
@@ -153,6 +166,7 @@ jobSchema.pre('save', function(next) {
 jobSchema.methods.getFullDetails = function() {
   return {
     id: this._id,
+    job_id: this.job_id,
     propertyAddress: this.propertyAddress,
     jobType: this.jobType,
     dueDate: this.dueDate,
@@ -178,6 +192,7 @@ jobSchema.methods.getFullDetails = function() {
 jobSchema.methods.getSummary = function() {
   return {
     id: this._id,
+    job_id: this.job_id,
     propertyAddress: this.propertyAddress,
     jobType: this.jobType,
     dueDate: this.dueDate,

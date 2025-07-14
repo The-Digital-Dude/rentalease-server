@@ -67,10 +67,15 @@ router.post('/', authenticate, async (req, res) => {
     } = req.body;
 
     // Validate required fields
-    if (!propertyAddress || !jobType || !dueDate || !assignedTechnician) {
+    if (!propertyAddress || !jobType || !dueDate) {
       return res.status(400).json({
         status: 'error',
-        message: 'Required fields: propertyAddress, jobType, dueDate, assignedTechnician'
+        message: 'Please provide all required fields: Property Address, Job Type, and Due Date',
+        details: {
+          propertyAddress: !propertyAddress ? 'Property address is required' : null,
+          jobType: !jobType ? 'Job type is required' : null,
+          dueDate: !dueDate ? 'Due date is required' : null
+        }
       });
     }
 
@@ -81,65 +86,108 @@ router.post('/', authenticate, async (req, res) => {
     if (!ownerInfo || !creatorInfo) {
       return res.status(400).json({
         status: 'error',
-        message: 'Unable to determine user information'
+        message: 'Unable to process your request. Please try logging in again.',
+        details: {
+          auth: 'User authentication information is missing or invalid'
+        }
       });
     }
 
-    // Validate assigned technician exists and belongs to the same owner
-    const technician = await Staff.findOne({
-      _id: assignedTechnician,
-      'owner.ownerType': ownerInfo.ownerType,
-      'owner.ownerId': ownerInfo.ownerId
-    });
+    // Start a session for transaction if we have an assigned technician
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
-    if (!technician) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Assigned technician not found or does not belong to your organization'
-      });
-    }
+    try {
+      let technician = null;
+      // Convert string "null" to actual null
+      const technicianId = assignedTechnician === "null" || !assignedTechnician ? null : assignedTechnician;
+      
+      if (technicianId) {
+        technician = await Staff.findOne({
+          _id: technicianId,
+          'owner.ownerType': ownerInfo.ownerType,
+          'owner.ownerId': ownerInfo.ownerId
+        }).session(session);
 
-    // Check if technician is available
-    if (technician.availabilityStatus !== 'Available') {
-      return res.status(400).json({
-        status: 'error',
-        message: `Technician is currently ${technician.availabilityStatus.toLowerCase()}`
-      });
-    }
-
-    // Create new job
-    const job = new Job({
-      propertyAddress,
-      jobType,
-      dueDate: new Date(dueDate),
-      assignedTechnician,
-      description,
-      priority: priority || 'Medium',
-      estimatedDuration,
-      notes,
-      owner: ownerInfo,
-      createdBy: creatorInfo,
-      lastUpdatedBy: creatorInfo
-    });
-
-    await job.save();
-
-    // Populate technician details for response
-    await job.populate('assignedTechnician', 'fullName tradeType phone email');
-
-    res.status(201).json({
-      status: 'success',
-      message: 'Job created successfully',
-      data: {
-        job: job.getFullDetails()
+        if (!technician) {
+          await session.abortTransaction();
+          session.endSession();
+          return res.status(400).json({
+            status: 'error',
+            message: 'Technician not found',
+            details: {
+              assignedTechnician: 'The selected technician was not found or does not belong to your organization'
+            }
+          });
+        }
       }
-    });
 
+      // Create new job
+      const job = new Job({
+        propertyAddress,
+        jobType,
+        dueDate: new Date(dueDate),
+        assignedTechnician: technicianId,
+        description,
+        priority: priority || 'Medium',
+        estimatedDuration,
+        notes,
+        owner: ownerInfo,
+        createdBy: creatorInfo,
+        lastUpdatedBy: creatorInfo,
+        status: technicianId ? 'Scheduled' : 'Pending'
+      });
+
+      await job.save({ session });
+
+      // Update technician's job count if assigned
+      if (technician) {
+        technician.currentJobs = (technician.currentJobs || 0) + 1;
+        technician.availabilityStatus = technician.currentJobs >= 4 ? 'Busy' : 'Available';
+        await technician.save({ session });
+      }
+
+      // Commit the transaction
+      await session.commitTransaction();
+      session.endSession();
+
+      // Populate technician details for response
+      await job.populate('assignedTechnician', 'fullName tradeType phone email availabilityStatus');
+
+      res.status(201).json({
+        status: 'success',
+        message: 'Job created successfully',
+        data: {
+          job: job.getFullDetails()
+        }
+      });
+    } catch (error) {
+      // If an error occurred, abort the transaction
+      await session.abortTransaction();
+      session.endSession();
+      
+      // Handle validation errors
+      if (error.name === 'ValidationError') {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Please check the form for errors',
+          details: Object.keys(error.errors).reduce((acc, key) => {
+            acc[key] = error.errors[key].message;
+            return acc;
+          }, {})
+        });
+      }
+      
+      throw error;
+    }
   } catch (error) {
     console.error('Create job error:', error);
     res.status(500).json({
       status: 'error',
-      message: error.message || 'Failed to create job'
+      message: 'Unable to create job. Please try again later.',
+      details: {
+        general: 'An unexpected error occurred while processing your request'
+      }
     });
   }
 });
@@ -528,6 +576,108 @@ router.patch('/:id/status', authenticate, async (req, res) => {
     res.status(500).json({
       status: 'error',
       message: 'Failed to update job status'
+    });
+  }
+});
+
+// PATCH - Assign job to technician (super users only)
+router.patch('/:id/assign', authenticateSuperUser, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { technicianId } = req.body;
+
+    // Validate MongoDB ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id) || !mongoose.Types.ObjectId.isValid(technicianId)) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid job ID or technician ID format'
+      });
+    }
+
+    const job = await Job.findById(id);
+    if (!job) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Job not found'
+      });
+    }
+
+    // Check if user has access to this job
+    if (!validateOwnerAccess(job, req)) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Access denied. You do not have permission to assign this job.'
+      });
+    }
+
+    // Find the technician
+    const technician = await Staff.findById(technicianId);
+    if (!technician) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Technician not found'
+      });
+    }
+
+    // Check if technician belongs to the same organization
+    if (technician.owner.ownerType !== job.owner.ownerType || 
+        technician.owner.ownerId.toString() !== job.owner.ownerId.toString()) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Technician does not belong to the same organization'
+      });
+    }
+
+    // Start a session for transaction
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      // Update job
+      job.assignedTechnician = technicianId;
+      job.status = 'Scheduled';
+      job.lastUpdatedBy = getCreatorInfo(req);
+      await job.save({ session });
+
+      // Update technician's status
+      technician.currentJobs = (technician.currentJobs || 0) + 1;
+      technician.availabilityStatus = technician.currentJobs >= 4 ? 'Busy' : 'Available';
+      await technician.save({ session });
+
+      console.log('Technician:', technician);
+
+      // Commit the transaction
+      await session.commitTransaction();
+
+      // Populate technician details for response
+      await job.populate('assignedTechnician', 'fullName tradeType phone email availabilityStatus');
+
+      res.status(200).json({
+        status: 'success',
+        message: 'Job assigned successfully',
+        data: {
+          job: job.getFullDetails(),
+          technician: {
+            id: technician._id,
+            fullName: technician.fullName,
+            currentJobs: technician.currentJobs,
+            availabilityStatus: technician.availabilityStatus
+          }
+        }
+      });
+    } catch (error) {
+      // If an error occurred, abort the transaction
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      // End the session
+      session.endSession();
+    }
+  } catch (error) {
+    console.error('Assign job error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Failed to assign job'
     });
   }
 });

@@ -132,6 +132,11 @@ const staffSchema = new mongoose.Schema({
     enum: ['Active', 'Inactive', 'Suspended', 'Terminated'],
     default: 'Active'
   },
+  currentJobs: {
+    type: Number,
+    default: 0,
+    min: [0, 'Current jobs cannot be negative']
+  },
   rating: {
     type: Number,
     min: 0,
@@ -192,6 +197,7 @@ staffSchema.methods.getFullDetails = function() {
     startDate: this.startDate,
     serviceRegions: this.serviceRegions,
     status: this.status,
+    currentJobs: this.currentJobs,
     rating: this.rating,
     totalJobs: this.totalJobs,
     completedJobs: this.completedJobs,
