@@ -36,32 +36,6 @@ const propertySchema = new mongoose.Schema({
     enum: ['House', 'Apartment', 'Townhouse', 'Commercial', 'Other']
   },
   
-  bedrooms: {
-    type: Number,
-    default: 2,
-    min: [0, 'Bedrooms cannot be negative'],
-    max: [20, 'Bedrooms cannot exceed 20']
-  },
-  
-  bathrooms: {
-    type: Number,
-    default: 1,
-    min: [0, 'Bathrooms cannot be negative'],
-    max: [10, 'Bathrooms cannot exceed 10']
-  },
-  
-  rentAmount: {
-    type: Number,
-    default: 0,
-    min: [0, 'Rent amount cannot be negative']
-  },
-  
-  status: {
-    type: String,
-    default: 'Occupied',
-    enum: ['Available', 'Occupied', 'Maintenance', 'Pending']
-  },
-  
   // Property Management
   propertyManager: {
     type: mongoose.Schema.Types.ObjectId,
@@ -94,6 +68,24 @@ const propertySchema = new mongoose.Schema({
     phone: {
       type: String,
       required: [true, 'Tenant phone is required'],
+      match: [/^\+?[\d\s\-\(\)]+$/, 'Please enter a valid phone number']
+    }
+  },
+
+  // Landlord Information
+  currentLandlord: {
+    name: {
+      type: String,
+      required: [true, 'Landlord name is required']
+    },
+    email: {
+      type: String,
+      required: [true, 'Landlord email is required'],
+      match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Please enter a valid email']
+    },
+    phone: {
+      type: String,
+      required: [true, 'Landlord phone is required'],
       match: [/^\+?[\d\s\-\(\)]+$/, 'Please enter a valid phone number']
     }
   },

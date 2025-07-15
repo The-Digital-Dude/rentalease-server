@@ -88,6 +88,7 @@ router.post('/', authenticate, async (req, res) => {
     const {
       address,
       currentTenant,
+      currentLandlord,
       complianceSchedule,
       notes
     } = req.body;
@@ -104,6 +105,13 @@ router.post('/', authenticate, async (req, res) => {
       return res.status(400).json({
         status: 'error',
         message: 'Complete tenant information (name, email, phone) is required'
+      });
+    }
+
+    if (!currentLandlord || !currentLandlord.name || !currentLandlord.email || !currentLandlord.phone) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Complete landlord information (name, email, phone) is required'
       });
     }
 
@@ -128,7 +136,14 @@ router.post('/', authenticate, async (req, res) => {
     if (!emailRegex.test(currentTenant.email)) {
       return res.status(400).json({
         status: 'error',
-        message: 'Please enter a valid email address'
+        message: 'Please enter a valid tenant email address'
+      });
+    }
+
+    if (!emailRegex.test(currentLandlord.email)) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Please enter a valid landlord email address'
       });
     }
 
@@ -161,13 +176,10 @@ router.post('/', authenticate, async (req, res) => {
     let propertyData = {
       address,
       propertyType: 'House', // Default from form
-      bedrooms: 2, // Default from form
-      bathrooms: 1, // Default from form
-      rentAmount: 0, // Default from form
       propertyManager: propertyManagerId,
       region,
-      status: 'Occupied', // Default from form
       currentTenant,
+      currentLandlord,
       complianceSchedule: complianceSchedule || {},
       notes: notes || '',
       createdBy: creatorInfo
@@ -234,7 +246,7 @@ router.post('/', authenticate, async (req, res) => {
 // Get All Properties
 router.get('/', authenticate, async (req, res) => {
   try {
-    const { status, propertyType, region, state, page = 1, limit = 10, search } = req.query;
+    const { propertyType, region, state, page = 1, limit = 10, search } = req.query;
 
     // Get property manager filter based on user type
     const propertyManagerFilter = getPropertyManagerFilter(req);
@@ -248,7 +260,6 @@ router.get('/', authenticate, async (req, res) => {
     // Build filter object
     const filter = { ...propertyManagerFilter, isActive: true };
     
-    if (status) filter.status = status;
     if (propertyType) filter.propertyType = propertyType;
     if (region) filter.region = region;
     if (state) filter['address.state'] = state;
@@ -284,13 +295,10 @@ router.get('/', authenticate, async (req, res) => {
           address: property.address,
           fullAddress: property.fullAddressString,
           propertyType: property.propertyType,
-          bedrooms: property.bedrooms,
-          bathrooms: property.bathrooms,
-          rentAmount: property.rentAmount,
-          status: property.status,
           region: property.region,
           propertyManager: property.propertyManager,
           currentTenant: property.currentTenant,
+          currentLandlord: property.currentLandlord,
           complianceSchedule: property.complianceSchedule,
           notes: property.notes,
           hasOverdueCompliance: property.hasOverdueCompliance(),
@@ -359,13 +367,10 @@ router.get('/:id', authenticate, async (req, res) => {
           address: property.address,
           fullAddress: property.fullAddressString,
           propertyType: property.propertyType,
-          bedrooms: property.bedrooms,
-          bathrooms: property.bathrooms,
-          rentAmount: property.rentAmount,
-          status: property.status,
           region: property.region,
           propertyManager: property.propertyManager,
           currentTenant: property.currentTenant,
+          currentLandlord: property.currentLandlord,
           complianceSchedule: property.complianceSchedule,
           notes: property.notes,
           hasOverdueCompliance: property.hasOverdueCompliance(),

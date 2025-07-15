@@ -18,12 +18,22 @@ export const createPropertyExample = async (propertyManagerId, createdByUserId, 
         postcode: '3000'
       },
       propertyType: 'Apartment',
-      bedrooms: 2,
-      bathrooms: 2,
-      rentAmount: 650,
       propertyManager: propertyManagerId,
       region: 'Melbourne Metro',
-      status: 'Available',
+      
+      // Tenant Information
+      currentTenant: {
+        name: 'John Smith',
+        email: 'john.smith@email.com',
+        phone: '0412 345 678'
+      },
+      
+      // Landlord Information
+      currentLandlord: {
+        name: 'Sarah Williams',
+        email: 'sarah.williams@email.com',
+        phone: '0423 567 890'
+      },
       
       // Property features
       features: {

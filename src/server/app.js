@@ -30,7 +30,6 @@ app.use('/api/v1/properties', propertyRoutes);
 
 // Health check route
 app.get("/health", async (req, res) => {
-  await emailService.sendWelcomeEmail({ email: "jubayerjuhan.info@gmail.com", name: "Jubayer" })
   res.status(200).json({
     status: "ok",
     message: "Server is running, With Full Energy 🔥",
