@@ -89,19 +89,45 @@ router.post('/register', authenticateSuperUser, async (req, res) => {
 
     await propertyManager.save();
 
+    // Send credentials email to property manager
+    try {
+      await emailService.sendPropertyManagerCredentialsEmail(
+        {
+          email: propertyManager.email,
+          contactPerson: propertyManager.contactPerson,
+          companyName: propertyManager.companyName,
+          abn: propertyManager.abn,
+          region: propertyManager.region,
+          compliance: propertyManager.compliance
+        },
+        password,
+        process.env.FRONTEND_URL || 'https://rentalease-crm.com/login'
+      );
+      
+      console.log('Property manager credentials email sent successfully:', {
+        propertyManagerId: propertyManager._id,
+        email: propertyManager.email,
+        companyName: propertyManager.companyName,
+        timestamp: new Date().toISOString()
+      });
+    } catch (emailError) {
+      console.error('Failed to send property manager credentials email:', emailError);
+      // Continue with response even if email fails
+    }
+
     console.log('Property manager created successfully:', {
       propertyManagerId: propertyManager._id,
       companyName: propertyManager.companyName,
       contactPerson: propertyManager.contactPerson,
       email: propertyManager.email,
       createdBy: req.superUser.email,
-      welcomeEmailSent: 'Attempting to send welcome email via post-save middleware',
+      credentialsEmailSent: 'Credentials email sent with login information',
       timestamp: new Date().toISOString()
     });
 
     res.status(201).json({
       status: 'success',
-      message: 'Property manager registered successfully. Account is pending approval.',
+      message: 'Property manager registered successfully. Credentials email has been sent.',
       data: {
         propertyManager: {
           id: propertyManager._id,
@@ -853,6 +879,131 @@ router.get('/:id', authenticateSuperUser, async (req, res) => {
     res.status(500).json({
       status: 'error',
       message: 'An error occurred while fetching property manager details'
+    });
+  }
+});
+
+// Delete Property Manager (Only Super Users)
+router.delete('/:id', authenticateSuperUser, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Find property manager
+    const propertyManager = await PropertyManager.findById(id);
+    if (!propertyManager) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Property manager not found'
+      });
+    }
+
+    // Store info for logging before deletion
+    const propertyManagerInfo = {
+      id: propertyManager._id,
+      companyName: propertyManager.companyName,
+      contactPerson: propertyManager.contactPerson,
+      email: propertyManager.email,
+      abn: propertyManager.abn,
+      region: propertyManager.region,
+      status: propertyManager.status
+    };
+
+    // Delete the property manager
+    await PropertyManager.findByIdAndDelete(id);
+
+    // Log the deletion
+    console.log('Property manager deleted successfully:', {
+      deletedPropertyManager: propertyManagerInfo,
+      deletedBy: req.superUser.email,
+      timestamp: new Date().toISOString()
+    });
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Property manager deleted successfully',
+      data: {
+        deletedPropertyManager: propertyManagerInfo,
+        deletedBy: req.superUser.name
+      }
+    });
+  } catch (error) {
+    console.error('Delete property manager error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'An error occurred while deleting property manager'
+    });
+  }
+});
+
+// Resend Credentials Email (Only Super Users)
+router.post('/:id/resend-credentials', authenticateSuperUser, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Find property manager
+    const propertyManager = await PropertyManager.findById(id).select('+password');
+    if (!propertyManager) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Property manager not found'
+      });
+    }
+
+    // Generate a new temporary password
+    const newPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
+    
+    // Update the property manager's password
+    propertyManager.password = newPassword;
+    await propertyManager.save();
+
+    // Send credentials email
+    try {
+      await emailService.sendPropertyManagerCredentialsEmail(
+        {
+          email: propertyManager.email,
+          contactPerson: propertyManager.contactPerson,
+          companyName: propertyManager.companyName,
+          abn: propertyManager.abn,
+          region: propertyManager.region,
+          compliance: propertyManager.compliance
+        },
+        newPassword,
+        process.env.FRONTEND_URL || 'https://rentalease-crm.com/login'
+      );
+      
+      console.log('Property manager credentials resent successfully:', {
+        propertyManagerId: propertyManager._id,
+        email: propertyManager.email,
+        companyName: propertyManager.companyName,
+        resentBy: req.superUser.email,
+        timestamp: new Date().toISOString()
+      });
+
+      res.status(200).json({
+        status: 'success',
+        message: 'Credentials email has been resent successfully with a new password',
+        data: {
+          propertyManager: {
+            id: propertyManager._id,
+            companyName: propertyManager.companyName,
+            contactPerson: propertyManager.contactPerson,
+            email: propertyManager.email
+          },
+          resentBy: req.superUser.name
+        }
+      });
+    } catch (emailError) {
+      console.error('Failed to resend property manager credentials email:', emailError);
+      res.status(500).json({
+        status: 'error',
+        message: 'Failed to send credentials email. Please try again.'
+      });
+    }
+  } catch (error) {
+    console.error('Resend credentials error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'An error occurred while resending credentials'
     });
   }
 });

@@ -161,6 +161,53 @@ class EmailService {
   }
 
   /**
+   * Send credentials email to property manager
+   * @param {Object} propertyManager - Property manager object
+   * @param {string} propertyManager.email - Property manager's email
+   * @param {string} propertyManager.contactPerson - Property manager's contact person name
+   * @param {string} propertyManager.companyName - Property manager's company name
+   * @param {string} propertyManager.abn - Property manager's ABN
+   * @param {string} propertyManager.region - Property manager's region
+   * @param {string} propertyManager.compliance - Property manager's compliance level
+   * @param {string} password - Property manager's password
+   * @param {string} [loginUrl] - Login URL for the system
+   * @returns {Promise} - Email send result
+   */
+  async sendPropertyManagerCredentialsEmail(propertyManager, password, loginUrl = null) {
+    if (!propertyManager || !propertyManager.email || !propertyManager.contactPerson || !propertyManager.companyName) {
+      throw new Error('Invalid property manager data provided for credentials email');
+    }
+
+    if (!password) {
+      throw new Error('Password is required for credentials email');
+    }
+
+    console.log('Sending property manager credentials email to:', {
+      email: propertyManager.email,
+      contactPerson: propertyManager.contactPerson,
+      companyName: propertyManager.companyName,
+      abn: propertyManager.abn,
+      region: propertyManager.region,
+      compliance: propertyManager.compliance
+    });
+
+    return await this.sendTemplatedEmail({
+      to: propertyManager.email,
+      templateName: 'propertyManagerCredentials',
+      templateData: {
+        name: propertyManager.contactPerson,
+        companyName: propertyManager.companyName,
+        email: propertyManager.email,
+        password: password,
+        abn: propertyManager.abn,
+        region: propertyManager.region,
+        compliance: propertyManager.compliance,
+        loginUrl: loginUrl
+      }
+    });
+  }
+
+  /**
    * Send password reset OTP email to property manager
    * @param {Object} propertyManager - Property manager object
    * @param {string} propertyManager.email - Property manager's email

@@ -557,10 +557,141 @@ const staffDocumentReminderTemplate = (data) => ({
   `
 });
 
+/**
+ * Email template for property manager credentials
+ * @param {Object} data - Template data
+ * @param {string} data.name - Property manager's contact person name
+ * @param {string} data.companyName - Property manager's company name
+ * @param {string} data.email - Property manager's email
+ * @param {string} data.password - Property manager's password
+ * @param {string} data.abn - Property manager's ABN
+ * @param {string} data.region - Property manager's region
+ * @param {string} data.compliance - Property manager's compliance level
+ * @param {string} data.loginUrl - Login URL for the system
+ * @returns {Object} - Email template configuration
+ */
+const propertyManagerCredentialsTemplate = (data) => ({
+  subject: `Welcome to RentalEase CRM - Your Account Credentials (${data.companyName})`,
+  html: `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+      <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #28a745; margin-bottom: 10px;">🎉 Welcome to RentalEase CRM!</h1>
+          <div style="width: 50px; height: 3px; background-color: #28a745; margin: 0 auto;"></div>
+        </div>
+        
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">Hello ${data.name},</p>
+        
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">
+          Congratulations! Your property management account for <strong>${data.companyName}</strong> has been successfully created and approved. 
+          You can now access the RentalEase CRM system to manage your properties efficiently.
+        </p>
+        
+        <div style="background-color: #e8f5e8; border: 2px solid #28a745; padding: 20px; border-radius: 8px; margin: 25px 0;">
+          <h3 style="color: #1e7e34; margin: 0 0 15px 0; font-size: 18px;">🔐 Your Login Credentials</h3>
+          
+          <div style="background-color: white; padding: 15px; border-radius: 5px; margin-bottom: 15px;">
+            <p style="color: #333; margin: 0 0 10px 0; font-size: 14px;"><strong>📧 Email:</strong></p>
+            <p style="color: #007bff; margin: 0; font-size: 16px; font-weight: bold; word-break: break-all;">${data.email}</p>
+          </div>
+          
+          <div style="background-color: white; padding: 15px; border-radius: 5px; margin-bottom: 15px;">
+            <p style="color: #333; margin: 0 0 10px 0; font-size: 14px;"><strong>🔑 Password:</strong></p>
+            <p style="color: #dc3545; margin: 0; font-size: 16px; font-weight: bold; letter-spacing: 1px; font-family: monospace;">${data.password}</p>
+          </div>
+          
+          <div style="background-color: white; padding: 15px; border-radius: 5px;">
+            <p style="color: #333; margin: 0 0 10px 0; font-size: 14px;"><strong>🌐 Login URL:</strong></p>
+            <p style="color: #007bff; margin: 0; font-size: 16px; font-weight: bold; word-break: break-all;">${data.loginUrl || 'https://rentalease-crm.com/login'}</p>
+          </div>
+        </div>
+        
+        <div style="background-color: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <p style="color: #856404; margin: 0; font-size: 14px;">
+            <strong>🔒 Security Reminder:</strong> Please change your password after your first login for enhanced security. 
+            Keep your login credentials secure and don't share them with unauthorized personnel.
+          </p>
+        </div>
+        
+        <div style="background-color: #f8f9fa; border: 1px solid #dee2e6; padding: 20px; border-radius: 5px; margin: 20px 0;">
+          <h4 style="color: #495057; margin: 0 0 15px 0; font-size: 16px;">📋 Your Company Information</h4>
+          
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold; width: 40%;">Company Name:</td>
+              <td style="padding: 8px 0; color: #333; font-weight: bold;">${data.companyName}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold;">Contact Person:</td>
+              <td style="padding: 8px 0; color: #333;">${data.name}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold;">Email:</td>
+              <td style="padding: 8px 0; color: #333;">${data.email}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold;">ABN:</td>
+              <td style="padding: 8px 0; color: #333;">${data.abn}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold;">Region:</td>
+              <td style="padding: 8px 0; color: #333;">${data.region}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold;">Compliance Level:</td>
+              <td style="padding: 8px 0;">
+                <span style="background-color: #007bff; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold;">
+                  ${data.compliance}
+                </span>
+              </td>
+            </tr>
+          </table>
+        </div>
+        
+        <div style="background-color: #d1ecf1; border: 1px solid #bee5eb; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <h4 style="color: #0c5460; margin: 0 0 10px 0; font-size: 16px;">🚀 What You Can Do Now</h4>
+          <ul style="color: #0c5460; margin: 10px 0 0 20px; line-height: 1.6;">
+            <li>Log in to your dashboard and explore the system</li>
+            <li>Add and manage your properties</li>
+            <li>Create and assign jobs to technicians</li>
+            <li>Monitor job progress and completion</li>
+            <li>Generate reports and track performance</li>
+            <li>Manage staff and technician teams</li>
+          </ul>
+        </div>
+        
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">
+          If you have any questions or need assistance getting started, please don't hesitate to contact our support team. 
+          We're here to help you make the most of the RentalEase CRM system.
+        </p>
+        
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${data.loginUrl || 'https://rentalease-crm.com/login'}" 
+             style="background-color: #28a745; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+            🚀 Login to Your Dashboard
+          </a>
+        </div>
+        
+        <div style="border-top: 1px solid #eee; padding-top: 20px; margin-top: 30px;">
+          <p style="color: #666; font-size: 12px; margin: 0;">
+            This email contains sensitive login information. Please store it securely and delete it after changing your password.
+          </p>
+        </div>
+        
+        <p style="color: #333; margin-top: 30px;">
+          Best regards,<br>
+          <strong>The RentalEase CRM Team</strong>
+        </p>
+      </div>
+    </div>
+  `
+});
+
 // Add new templates to the existing templates object
 templates.staffWelcome = staffWelcomeTemplate;
 templates.staffStatusUpdate = staffStatusUpdateTemplate;
 templates.staffDocumentReminder = staffDocumentReminderTemplate;
 templates.jobAssignment = jobAssignmentTemplate;
+templates.propertyManagerCredentials = propertyManagerCredentialsTemplate;
 
 export default templates; 
