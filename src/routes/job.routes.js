@@ -396,55 +396,117 @@ router.put('/:id', authenticate, async (req, res) => {
       }
     }
 
-    // Validate assigned technician if being updated
-    if (updates.assignedTechnician) {
-      const ownerInfo = getOwnerInfo(req);
-      const technician = await Staff.findOne({
-        _id: updates.assignedTechnician,
-        'owner.ownerType': ownerInfo.ownerType,
-        'owner.ownerId': ownerInfo.ownerId
-      });
+    // Start a session for transaction if technician assignment is changing
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
-      if (!technician) {
-        return res.status(400).json({
-          status: 'error',
-          message: 'Assigned technician not found or does not belong to your organization'
-        });
-      }
-    }
+    try {
+      // Store the current assigned technician before update
+      const previousTechnician = job.assignedTechnician;
+      const newTechnician = updates.assignedTechnician;
 
-    // Update allowed fields
-    const allowedUpdates = canFullEdit 
-      ? ['propertyAddress', 'jobType', 'dueDate', 'assignedTechnician', 'status', 'description', 'priority', 'estimatedDuration', 'actualDuration', 'cost', 'notes']
-      : ['description', 'priority', 'estimatedDuration', 'cost', 'notes'];
+      // Validate assigned technician if being updated
+      if (updates.hasOwnProperty('assignedTechnician') && updates.assignedTechnician) {
+        const ownerInfo = getOwnerInfo(req);
+        const technician = await Staff.findOne({
+          _id: updates.assignedTechnician,
+          'owner.ownerType': ownerInfo.ownerType,
+          'owner.ownerId': ownerInfo.ownerId
+        }).session(session);
 
-    allowedUpdates.forEach(field => {
-      if (updates.hasOwnProperty(field)) {
-        if (field === 'cost') {
-          // Handle nested cost object
-          if (updates.cost.materialCost !== undefined) job.cost.materialCost = updates.cost.materialCost;
-          if (updates.cost.laborCost !== undefined) job.cost.laborCost = updates.cost.laborCost;
-        } else {
-          job[field] = updates[field];
+        if (!technician) {
+          await session.abortTransaction();
+          session.endSession();
+          return res.status(400).json({
+            status: 'error',
+            message: 'Assigned technician not found or does not belong to your organization'
+          });
         }
       }
-    });
 
-    // Update lastUpdatedBy
-    job.lastUpdatedBy = getCreatorInfo(req);
+      // Update allowed fields
+      const allowedUpdates = canFullEdit 
+        ? ['propertyAddress', 'jobType', 'dueDate', 'assignedTechnician', 'status', 'description', 'priority', 'estimatedDuration', 'actualDuration', 'cost', 'notes']
+        : ['description', 'priority', 'estimatedDuration', 'cost', 'notes'];
 
-    await job.save();
+      allowedUpdates.forEach(field => {
+        if (updates.hasOwnProperty(field)) {
+          if (field === 'cost') {
+            // Handle nested cost object
+            if (updates.cost.materialCost !== undefined) job.cost.materialCost = updates.cost.materialCost;
+            if (updates.cost.laborCost !== undefined) job.cost.laborCost = updates.cost.laborCost;
+          } else {
+            job[field] = updates[field];
+          }
+        }
+      });
 
-    // Populate technician details for response
-    await job.populate('assignedTechnician', 'fullName tradeType phone email');
+      // Update lastUpdatedBy
+      job.lastUpdatedBy = getCreatorInfo(req);
 
-    res.status(200).json({
-      status: 'success',
-      message: 'Job updated successfully',
-      data: {
-        job: job.getFullDetails()
+      await job.save({ session });
+
+      // Handle technician job count updates
+      if (canFullEdit && updates.hasOwnProperty('assignedTechnician')) {
+        // If technician was removed (unassigned)
+        if (previousTechnician && (!newTechnician || newTechnician === null)) {
+          const prevTech = await Staff.findById(previousTechnician).session(session);
+          if (prevTech) {
+            prevTech.currentJobs = Math.max(0, (prevTech.currentJobs || 0) - 1);
+            prevTech.availabilityStatus = prevTech.currentJobs < 4 ? 'Available' : 'Busy';
+            await prevTech.save({ session });
+          }
+        }
+        // If technician was assigned to a previously unassigned job
+        else if (!previousTechnician && newTechnician) {
+          const newTech = await Staff.findById(newTechnician).session(session);
+          if (newTech) {
+            newTech.currentJobs = (newTech.currentJobs || 0) + 1;
+            newTech.availabilityStatus = newTech.currentJobs >= 4 ? 'Busy' : 'Available';
+            await newTech.save({ session });
+          }
+        }
+        // If technician was changed from one to another
+        else if (previousTechnician && newTechnician && previousTechnician.toString() !== newTechnician.toString()) {
+          // Decrease previous technician's job count
+          const prevTech = await Staff.findById(previousTechnician).session(session);
+          if (prevTech) {
+            prevTech.currentJobs = Math.max(0, (prevTech.currentJobs || 0) - 1);
+            prevTech.availabilityStatus = prevTech.currentJobs < 4 ? 'Available' : 'Busy';
+            await prevTech.save({ session });
+          }
+
+          // Increase new technician's job count
+          const newTech = await Staff.findById(newTechnician).session(session);
+          if (newTech) {
+            newTech.currentJobs = (newTech.currentJobs || 0) + 1;
+            newTech.availabilityStatus = newTech.currentJobs >= 4 ? 'Busy' : 'Available';
+            await newTech.save({ session });
+          }
+        }
       }
-    });
+
+      // Commit the transaction
+      await session.commitTransaction();
+      session.endSession();
+
+      // Populate technician details for response
+      await job.populate('assignedTechnician', 'fullName tradeType phone email');
+
+      res.status(200).json({
+        status: 'success',
+        message: 'Job updated successfully',
+        data: {
+          job: job.getFullDetails()
+        }
+      });
+
+    } catch (error) {
+      // If an error occurred, abort the transaction
+      await session.abortTransaction();
+      session.endSession();
+      throw error;
+    }
 
   } catch (error) {
     console.error('Update job error:', error);
