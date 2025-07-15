@@ -232,6 +232,143 @@ const propertyManagerPasswordResetOTPTemplate = (data) => ({
   `
 });
 
+/**
+ * Email template for job assignment notifications to technicians
+ * @param {Object} data - Template data
+ * @param {string} data.technicianName - Technician's name
+ * @param {string} data.jobId - Job ID
+ * @param {string} data.propertyAddress - Property address
+ * @param {string} data.jobType - Type of job (Gas, Electrical, etc.)
+ * @param {string} data.dueDate - Due date for the job
+ * @param {string} data.priority - Job priority (Low, Medium, High, Urgent)
+ * @param {string} data.description - Job description
+ * @param {string} data.estimatedDuration - Estimated duration in hours
+ * @param {string} data.assignedBy - Name of person who assigned the job
+ * @param {string} data.assignedByType - Type of assigner (Super User or Property Manager)
+ * @param {string} data.notes - Additional notes
+ * @returns {Object} - Email template configuration
+ */
+const jobAssignmentTemplate = (data) => ({
+  subject: `New Job Assignment - ${data.jobId} | ${data.jobType} at ${data.propertyAddress}`,
+  html: `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+      <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #333; margin-bottom: 10px;">🔧 New Job Assignment</h1>
+          <div style="width: 50px; height: 3px; background-color: #17a2b8; margin: 0 auto;"></div>
+        </div>
+        
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">Hello ${data.technicianName},</p>
+        
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">
+          You have been assigned a new job! Please review the details below and prepare accordingly.
+        </p>
+        
+        <div style="background-color: #e3f2fd; border-left: 4px solid #2196f3; padding: 20px; margin: 20px 0;">
+          <h3 style="color: #1976d2; margin: 0 0 15px 0; font-size: 18px;">📋 Job Details</h3>
+          
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold; width: 40%;">Job ID:</td>
+              <td style="padding: 8px 0; color: #333; font-weight: bold; font-size: 16px;">${data.jobId}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold;">Property Address:</td>
+              <td style="padding: 8px 0; color: #333;">${data.propertyAddress}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold;">Job Type:</td>
+              <td style="padding: 8px 0;">
+                <span style="background-color: #4caf50; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold;">
+                  ${data.jobType}
+                </span>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold;">Due Date:</td>
+              <td style="padding: 8px 0; color: #333; font-weight: bold;">${data.dueDate}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold;">Priority:</td>
+              <td style="padding: 8px 0;">
+                <span style="background-color: ${data.priority === 'Urgent' ? '#f44336' : data.priority === 'High' ? '#ff9800' : data.priority === 'Medium' ? '#2196f3' : '#4caf50'}; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold;">
+                  ${data.priority}
+                </span>
+              </td>
+            </tr>
+            ${data.estimatedDuration ? `
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold;">Estimated Duration:</td>
+              <td style="padding: 8px 0; color: #333;">${data.estimatedDuration} hours</td>
+            </tr>
+            ` : ''}
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold;">Assigned By:</td>
+              <td style="padding: 8px 0; color: #333;">${data.assignedBy} (${data.assignedByType})</td>
+            </tr>
+          </table>
+        </div>
+        
+        ${data.description ? `
+          <div style="background-color: #fff8e1; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0;">
+            <h4 style="color: #f57c00; margin: 0 0 10px 0;">📝 Job Description</h4>
+            <p style="color: #333; margin: 0; line-height: 1.6;">${data.description}</p>
+          </div>
+        ` : ''}
+        
+        ${data.notes ? `
+          <div style="background-color: #f3e5f5; border-left: 4px solid #9c27b0; padding: 15px; margin: 20px 0;">
+            <h4 style="color: #7b1fa2; margin: 0 0 10px 0;">💬 Additional Notes</h4>
+            <p style="color: #333; margin: 0; line-height: 1.6;">${data.notes}</p>
+          </div>
+        ` : ''}
+        
+        <div style="background-color: ${data.priority === 'Urgent' ? '#ffebee' : '#e8f5e8'}; border: 1px solid ${data.priority === 'Urgent' ? '#ffcdd2' : '#c8e6c8'}; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <p style="color: ${data.priority === 'Urgent' ? '#c62828' : '#2e7d32'}; margin: 0; font-size: 14px;">
+            <strong>${data.priority === 'Urgent' ? '🚨 URGENT:' : '✅ Next Steps:'}</strong>
+            ${data.priority === 'Urgent' 
+              ? 'This is an urgent job that requires immediate attention. Please prioritize this assignment and begin work as soon as possible.'
+              : 'Please review the job details carefully and prepare the necessary tools and materials. Contact the property manager or supervisor if you have any questions before starting the work.'
+            }
+          </p>
+        </div>
+        
+        <div style="background-color: #f8f9fa; border: 1px solid #dee2e6; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <h4 style="color: #495057; margin: 0 0 10px 0;">📞 Important Reminders</h4>
+          <ul style="color: #495057; margin: 10px 0 0 20px; line-height: 1.6;">
+            <li>Ensure you have all necessary tools and safety equipment</li>
+            <li>Contact the property owner/tenant before arrival if required</li>
+            <li>Take before and after photos for documentation</li>
+            <li>Update job status once work is completed</li>
+            <li>Report any issues or complications immediately</li>
+          </ul>
+        </div>
+        
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">
+          If you have any questions about this assignment or need to discuss scheduling, please contact ${data.assignedBy} directly.
+        </p>
+        
+        <div style="text-align: center; margin: 30px 0;">
+          <p style="color: #666; font-size: 14px; margin: 0;">
+            Good luck with your assignment! We appreciate your expertise and professionalism.
+          </p>
+        </div>
+        
+        <div style="border-top: 1px solid #eee; padding-top: 20px; margin-top: 30px;">
+          <p style="color: #666; font-size: 12px; margin: 0;">
+            This is an automated message from RentalEase CRM. Please do not reply to this email.
+          </p>
+        </div>
+        
+        <p style="color: #333; margin-top: 30px;">
+          Best regards,<br>
+          <strong>The RentalEase CRM Team</strong>
+        </p>
+      </div>
+    </div>
+  `
+});
+
 // Add more email templates here as needed
 const templates = {
   welcome: welcomeTemplate,
@@ -424,5 +561,6 @@ const staffDocumentReminderTemplate = (data) => ({
 templates.staffWelcome = staffWelcomeTemplate;
 templates.staffStatusUpdate = staffStatusUpdateTemplate;
 templates.staffDocumentReminder = staffDocumentReminderTemplate;
+templates.jobAssignment = jobAssignmentTemplate;
 
 export default templates; 

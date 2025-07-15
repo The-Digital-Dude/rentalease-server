@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import Job from '../models/Job.js';
 import Staff from '../models/Staff.js';
 import { authenticateSuperUser, authenticatePropertyManager, authenticate } from '../middleware/auth.middleware.js';
+import emailService from '../services/email.service.js';
 
 const router = express.Router();
 
@@ -50,6 +51,46 @@ const validateOwnerAccess = (job, req) => {
 // Helper function to check if user can fully edit job (only super users)
 const canFullyEditJob = (req) => {
   return !!req.superUser;
+};
+
+// Helper function to get user information for email notifications
+const getUserInfo = (req) => {
+  if (req.superUser) {
+    return {
+      name: req.superUser.name,
+      type: 'SuperUser'
+    };
+  } else if (req.propertyManager) {
+    return {
+      name: req.propertyManager.contactPerson,
+      type: 'PropertyManager'
+    };
+  }
+  return null;
+};
+
+// Helper function to send job assignment email
+const sendJobAssignmentNotification = async (technician, job, assignedBy) => {
+  try {
+    await emailService.sendJobAssignmentEmail(technician, job, assignedBy);
+    console.log('Job assignment email sent successfully:', {
+      jobId: job.job_id,
+      technicianEmail: technician.email,
+      technicianName: technician.fullName,
+      assignedBy: assignedBy.name,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    // Log error but don't fail the assignment
+    console.error('Failed to send job assignment email:', {
+      jobId: job.job_id,
+      technicianEmail: technician.email,
+      technicianName: technician.fullName,
+      assignedBy: assignedBy.name,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
 };
 
 // CREATE - Add new job
@@ -153,6 +194,15 @@ router.post('/', authenticate, async (req, res) => {
 
       // Populate technician details for response
       await job.populate('assignedTechnician', 'fullName tradeType phone email availabilityStatus');
+
+      // Send email notification to technician if job was assigned during creation
+      if (technician) {
+        const assignedBy = getUserInfo(req);
+        if (assignedBy) {
+          // Send email notification asynchronously (don't wait for it)
+          sendJobAssignmentNotification(technician, job, assignedBy);
+        }
+      }
 
       res.status(201).json({
         status: 'success',
@@ -493,6 +543,27 @@ router.put('/:id', authenticate, async (req, res) => {
       // Populate technician details for response
       await job.populate('assignedTechnician', 'fullName tradeType phone email');
 
+      // Send email notification for technician assignments during updates
+      if (canFullEdit && updates.hasOwnProperty('assignedTechnician')) {
+        const assignedBy = getUserInfo(req);
+        if (assignedBy) {
+          // If technician was assigned to a previously unassigned job
+          if (!previousTechnician && newTechnician) {
+            const newTech = await Staff.findById(newTechnician);
+            if (newTech) {
+              sendJobAssignmentNotification(newTech, job, assignedBy);
+            }
+          }
+          // If technician was changed from one to another (reassignment)
+          else if (previousTechnician && newTechnician && previousTechnician.toString() !== newTechnician.toString()) {
+            const newTech = await Staff.findById(newTechnician);
+            if (newTech) {
+              sendJobAssignmentNotification(newTech, job, assignedBy);
+            }
+          }
+        }
+      }
+
       res.status(200).json({
         status: 'success',
         message: 'Job updated successfully',
@@ -713,6 +784,12 @@ router.patch('/:id/assign', authenticateSuperUser, async (req, res) => {
 
       // Populate technician details for response
       await job.populate('assignedTechnician', 'fullName tradeType phone email availabilityStatus');
+
+      // Send email notification to the assigned technician
+      const assignedBy = getUserInfo(req);
+      if (assignedBy) {
+        sendJobAssignmentNotification(technician, job, assignedBy);
+      }
 
       res.status(200).json({
         status: 'success',

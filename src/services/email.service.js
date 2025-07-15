@@ -326,6 +326,77 @@ class EmailService {
       }
     });
   }
+
+  /**
+   * Send job assignment notification email to technician
+   * @param {Object} technician - Technician object
+   * @param {string} technician.email - Technician's email
+   * @param {string} technician.fullName - Technician's full name
+   * @param {Object} job - Job object
+   * @param {string} job.job_id - Job ID
+   * @param {string} job.propertyAddress - Property address
+   * @param {string} job.jobType - Job type
+   * @param {Date} job.dueDate - Due date
+   * @param {string} job.priority - Job priority
+   * @param {string} [job.description] - Job description
+   * @param {number} [job.estimatedDuration] - Estimated duration in hours
+   * @param {string} [job.notes] - Additional notes
+   * @param {Object} assignedBy - User who assigned the job
+   * @param {string} assignedBy.name - Name of person who assigned
+   * @param {string} assignedBy.type - Type of user (SuperUser or PropertyManager)
+   * @returns {Promise} - Email send result
+   */
+  async sendJobAssignmentEmail(technician, job, assignedBy) {
+    if (!technician || !technician.email || !technician.fullName) {
+      throw new Error('Invalid technician data provided for job assignment email');
+    }
+
+    if (!job || !job.job_id || !job.propertyAddress || !job.jobType || !job.dueDate || !job.priority) {
+      throw new Error('Invalid job data provided for job assignment email');
+    }
+
+    if (!assignedBy || !assignedBy.name || !assignedBy.type) {
+      throw new Error('Invalid assignedBy data provided for job assignment email');
+    }
+
+    // Format the due date for display
+    const formattedDueDate = new Date(job.dueDate).toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+
+    console.log('Sending job assignment email to technician:', {
+      email: technician.email,
+      technicianName: technician.fullName,
+      jobId: job.job_id,
+      jobType: job.jobType,
+      propertyAddress: job.propertyAddress,
+      assignedBy: assignedBy.name,
+      assignedByType: assignedBy.type
+    });
+
+    return await this.sendTemplatedEmail({
+      to: technician.email,
+      templateName: 'jobAssignment',
+      templateData: {
+        technicianName: technician.fullName,
+        jobId: job.job_id,
+        propertyAddress: job.propertyAddress,
+        jobType: job.jobType,
+        dueDate: formattedDueDate,
+        priority: job.priority,
+        description: job.description || '',
+        estimatedDuration: job.estimatedDuration || '',
+        assignedBy: assignedBy.name,
+        assignedByType: assignedBy.type === 'SuperUser' ? 'Super User' : 'Property Manager',
+        notes: job.notes || ''
+      }
+    });
+  }
 }
 
 // Create and export a singleton instance
