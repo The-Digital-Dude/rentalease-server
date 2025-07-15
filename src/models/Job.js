@@ -20,12 +20,17 @@ const jobSchema = new mongoose.Schema({
     trim: true,
     minlength: [5, 'Property address must be at least 5 characters long']
   },
+  property: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Property',
+    default: null
+  },
   jobType: {
     type: String,
     required: [true, 'Job type is required'],
     enum: {
-      values: ['Gas', 'Electrical', 'Smoke', 'Repairs'],
-      message: 'Job type must be one of: Gas, Electrical, Smoke, Repairs'
+      values: ['Gas', 'Electrical', 'Smoke', 'Repairs', 'Pool Safety', 'Routine Inspection'],
+      message: 'Job type must be one of: Gas, Electrical, Smoke, Repairs, Pool Safety, Routine Inspection'
     }
   },
   dueDate: {
