@@ -1,22 +1,30 @@
-import express from 'express';
-import SuperUser from '../models/SuperUser.js';
-import jwt from 'jsonwebtoken';
-import emailService from '../services/email.service.js';
-import { generateOTP, generateOTPExpiration, isOTPExpired, hashOTP, verifyOTP } from '../utils/otpGenerator.js';
+import express from "express";
+import SuperUser from "../models/SuperUser.js";
+import jwt from "jsonwebtoken";
+import emailService from "../services/email.service.js";
+import {
+  generateOTP,
+  generateOTPExpiration,
+  isOTPExpired,
+  hashOTP,
+  verifyOTP,
+} from "../utils/otpGenerator.js";
 
 const router = express.Router();
 
 // Register Super User
-router.post('/register', async (req, res) => {
+router.post("/register", async (req, res) => {
   try {
     const { name, email, password } = req.body;
+
+    console.log(req.body, "Req.Body");
 
     // Check if super user already exists
     const existingSuperUser = await SuperUser.findOne({ email });
     if (existingSuperUser) {
       return res.status(400).json({
-        status: 'error',
-        message: 'Super user already exists'
+        status: "error",
+        message: "Super user already exists",
       });
     }
 
@@ -24,52 +32,52 @@ router.post('/register', async (req, res) => {
     const superUser = new SuperUser({
       name,
       email,
-      password
+      password,
     });
 
     await superUser.save();
 
     // Generate JWT token
     const token = jwt.sign(
-      { 
+      {
         id: superUser._id,
-        type: 'superUser',
-        email: superUser.email
+        type: "superUser",
+        email: superUser.email,
       },
       process.env.JWT_SECRET,
-      { expiresIn: '1d' }
+      { expiresIn: "1d" }
     );
 
     res.status(201).json({
-      status: 'success',
+      status: "success",
       data: {
         superUser: {
           id: superUser._id,
           name: superUser.name,
-          email: superUser.email
+          email: superUser.email,
         },
-        token
-      }
+        token,
+      },
     });
   } catch (error) {
     res.status(500).json({
-      status: 'error',
-      message: error.message
+      status: "error",
+      message: error.message,
     });
   }
 });
 
 // Login Super User
-router.post('/login', async (req, res) => {
+router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
 
     // Find super user and select password
-    const superUser = await SuperUser.findOne({ email }).select('+password');
+    const superUser = await SuperUser.findOne({ email }).select("+password");
     if (!superUser) {
       return res.status(401).json({
-        status: 'error',
-        message: 'Invalid credentials'
+        status: "error",
+        message: "Invalid credentials",
       });
     }
 
@@ -77,51 +85,51 @@ router.post('/login', async (req, res) => {
     const isPasswordValid = await superUser.comparePassword(password);
     if (!isPasswordValid) {
       return res.status(401).json({
-        status: 'error',
-        message: 'Invalid credentials'
+        status: "error",
+        message: "Invalid credentials",
       });
     }
 
     // Generate JWT token
     const token = jwt.sign(
-      { 
+      {
         id: superUser._id,
-        type: 'superUser',
-        email: superUser.email
+        type: "superUser",
+        email: superUser.email,
       },
       process.env.JWT_SECRET,
-      { expiresIn: '1d' }
+      { expiresIn: "1d" }
     );
 
     res.status(200).json({
-      status: 'success',
+      status: "success",
       data: {
         superUser: {
           id: superUser._id,
           name: superUser.name,
-          email: superUser.email
+          email: superUser.email,
         },
-        token
-      }
+        token,
+      },
     });
   } catch (error) {
     res.status(500).json({
-      status: 'error',
-      message: error.message
+      status: "error",
+      message: error.message,
     });
   }
 });
 
 // Forgot Password - Send OTP
-router.post('/forgot-password', async (req, res) => {
+router.post("/forgot-password", async (req, res) => {
   try {
     const { email } = req.body;
 
     // Validate email
     if (!email) {
       return res.status(400).json({
-        status: 'error',
-        message: 'Email is required'
+        status: "error",
+        message: "Email is required",
       });
     }
 
@@ -129,8 +137,8 @@ router.post('/forgot-password', async (req, res) => {
     const user = await SuperUser.findOne({ email: email.toLowerCase() });
     if (!user) {
       return res.status(404).json({
-        status: 'error',
-        message: 'User not found with this email address'
+        status: "error",
+        message: "User not found with this email address",
       });
     }
 
@@ -143,30 +151,30 @@ router.post('/forgot-password', async (req, res) => {
     user.resetPasswordOTP = hashedOTP;
     user.resetPasswordOTPExpires = otpExpiration;
     user.resetPasswordOTPAttempts = 0;
-    
+
     await user.save();
 
     // Send OTP email
     try {
       await emailService.sendPasswordResetOTP(user, otp, 10);
-      
-      console.log('Password reset OTP sent successfully:', {
+
+      console.log("Password reset OTP sent successfully:", {
         userId: user._id,
         email: user.email,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
 
       res.status(200).json({
-        status: 'success',
-        message: 'Password reset OTP has been sent to your email address',
+        status: "success",
+        message: "Password reset OTP has been sent to your email address",
         data: {
           email: user.email,
-          expiresIn: '10 minutes'
-        }
+          expiresIn: "10 minutes",
+        },
       });
     } catch (emailError) {
-      console.error('Failed to send password reset OTP:', emailError);
-      
+      console.error("Failed to send password reset OTP:", emailError);
+
       // Clear OTP data if email sending fails
       user.resetPasswordOTP = null;
       user.resetPasswordOTPExpires = null;
@@ -174,37 +182,37 @@ router.post('/forgot-password', async (req, res) => {
       await user.save();
 
       res.status(500).json({
-        status: 'error',
-        message: 'Failed to send reset email. Please try again.'
+        status: "error",
+        message: "Failed to send reset email. Please try again.",
       });
     }
   } catch (error) {
-    console.error('Forgot password error:', error);
+    console.error("Forgot password error:", error);
     res.status(500).json({
-      status: 'error',
-      message: 'An error occurred while processing your request'
+      status: "error",
+      message: "An error occurred while processing your request",
     });
   }
 });
 
 // Reset Password - Verify OTP and Update Password
-router.post('/reset-password', async (req, res) => {
+router.post("/reset-password", async (req, res) => {
   try {
     const { email, otp, newPassword } = req.body;
 
     // Validate required fields
     if (!email || !otp || !newPassword) {
       return res.status(400).json({
-        status: 'error',
-        message: 'Email, OTP, and new password are required'
+        status: "error",
+        message: "Email, OTP, and new password are required",
       });
     }
 
     // Validate new password length
     if (newPassword.length < 8) {
       return res.status(400).json({
-        status: 'error',
-        message: 'New password must be at least 8 characters long'
+        status: "error",
+        message: "New password must be at least 8 characters long",
       });
     }
 
@@ -212,16 +220,16 @@ router.post('/reset-password', async (req, res) => {
     const user = await SuperUser.findOne({ email: email.toLowerCase() });
     if (!user) {
       return res.status(404).json({
-        status: 'error',
-        message: 'User not found with this email address'
+        status: "error",
+        message: "User not found with this email address",
       });
     }
 
     // Check if OTP exists and is not expired
     if (!user.resetPasswordOTP || !user.resetPasswordOTPExpires) {
       return res.status(400).json({
-        status: 'error',
-        message: 'No password reset request found. Please request a new OTP.'
+        status: "error",
+        message: "No password reset request found. Please request a new OTP.",
       });
     }
 
@@ -234,8 +242,8 @@ router.post('/reset-password', async (req, res) => {
       await user.save();
 
       return res.status(400).json({
-        status: 'error',
-        message: 'OTP has expired. Please request a new one.'
+        status: "error",
+        message: "OTP has expired. Please request a new one.",
       });
     }
 
@@ -248,8 +256,8 @@ router.post('/reset-password', async (req, res) => {
       await user.save();
 
       return res.status(429).json({
-        status: 'error',
-        message: 'Too many invalid attempts. Please request a new OTP.'
+        status: "error",
+        message: "Too many invalid attempts. Please request a new OTP.",
       });
     }
 
@@ -261,8 +269,10 @@ router.post('/reset-password', async (req, res) => {
       await user.save();
 
       return res.status(400).json({
-        status: 'error',
-        message: `Invalid OTP. ${5 - user.resetPasswordOTPAttempts} attempts remaining.`
+        status: "error",
+        message: `Invalid OTP. ${
+          5 - user.resetPasswordOTPAttempts
+        } attempts remaining.`,
       });
     }
 
@@ -272,42 +282,43 @@ router.post('/reset-password', async (req, res) => {
     user.resetPasswordOTPExpires = null;
     user.resetPasswordOTPAttempts = 0;
     user.lastUpdated = new Date();
-    
+
     await user.save();
 
-    console.log('Password reset successful:', {
+    console.log("Password reset successful:", {
       userId: user._id,
       email: user.email,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
 
     res.status(200).json({
-      status: 'success',
-      message: 'Password has been reset successfully. You can now login with your new password.',
+      status: "success",
+      message:
+        "Password has been reset successfully. You can now login with your new password.",
       data: {
         email: user.email,
-        resetAt: new Date().toISOString()
-      }
+        resetAt: new Date().toISOString(),
+      },
     });
   } catch (error) {
-    console.error('Reset password error:', error);
+    console.error("Reset password error:", error);
     res.status(500).json({
-      status: 'error',
-      message: 'An error occurred while resetting your password'
+      status: "error",
+      message: "An error occurred while resetting your password",
     });
   }
 });
 
 // Verify OTP Only (without password reset)
-router.post('/verify-otp', async (req, res) => {
+router.post("/verify-otp", async (req, res) => {
   try {
     const { email, otp } = req.body;
 
     // Validate required fields
     if (!email || !otp) {
       return res.status(400).json({
-        status: 'error',
-        message: 'Email and OTP are required'
+        status: "error",
+        message: "Email and OTP are required",
       });
     }
 
@@ -315,16 +326,16 @@ router.post('/verify-otp', async (req, res) => {
     const user = await SuperUser.findOne({ email: email.toLowerCase() });
     if (!user) {
       return res.status(404).json({
-        status: 'error',
-        message: 'User not found with this email address'
+        status: "error",
+        message: "User not found with this email address",
       });
     }
 
     // Check if OTP exists and is not expired
     if (!user.resetPasswordOTP || !user.resetPasswordOTPExpires) {
       return res.status(400).json({
-        status: 'error',
-        message: 'No password reset request found. Please request a new OTP.'
+        status: "error",
+        message: "No password reset request found. Please request a new OTP.",
       });
     }
 
@@ -337,8 +348,8 @@ router.post('/verify-otp', async (req, res) => {
       await user.save();
 
       return res.status(400).json({
-        status: 'error',
-        message: 'OTP has expired. Please request a new one.'
+        status: "error",
+        message: "OTP has expired. Please request a new one.",
       });
     }
 
@@ -351,8 +362,8 @@ router.post('/verify-otp', async (req, res) => {
       await user.save();
 
       return res.status(429).json({
-        status: 'error',
-        message: 'Too many invalid attempts. Please request a new OTP.'
+        status: "error",
+        message: "Too many invalid attempts. Please request a new OTP.",
       });
     }
 
@@ -364,34 +375,36 @@ router.post('/verify-otp', async (req, res) => {
       await user.save();
 
       return res.status(400).json({
-        status: 'error',
-        message: `Invalid OTP. ${5 - user.resetPasswordOTPAttempts} attempts remaining.`
+        status: "error",
+        message: `Invalid OTP. ${
+          5 - user.resetPasswordOTPAttempts
+        } attempts remaining.`,
       });
     }
 
     // OTP is valid - don't clear it yet, just confirm it's valid
-    console.log('OTP verified successfully:', {
+    console.log("OTP verified successfully:", {
       userId: user._id,
       email: user.email,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
 
     res.status(200).json({
-      status: 'success',
-      message: 'OTP verified successfully. You can now set your new password.',
+      status: "success",
+      message: "OTP verified successfully. You can now set your new password.",
       data: {
         email: user.email,
         verifiedAt: new Date().toISOString(),
-        attemptsRemaining: 5 - user.resetPasswordOTPAttempts
-      }
+        attemptsRemaining: 5 - user.resetPasswordOTPAttempts,
+      },
     });
   } catch (error) {
-    console.error('Verify OTP error:', error);
+    console.error("Verify OTP error:", error);
     res.status(500).json({
-      status: 'error',
-      message: 'An error occurred while verifying OTP'
+      status: "error",
+      message: "An error occurred while verifying OTP",
     });
   }
 });
 
-export default router; 
+export default router;
