@@ -7,15 +7,20 @@ This document provides a comprehensive overview of all API endpoints available i
 ## System Architecture
 
 ### User Types
+
 1. **Super Users** - System administrators with full access
-2. **Property Managers** - Business users managing properties and staff
+2. **Agencies** - Business users managing properties and staff
+3. **Staff** - Workers managed by Super Users or Agencies
+4. **Tenants** - Property occupants with limited access
 
 ### Database Models
+
 - **SuperUser** - System administrators
-- **PropertyManager** - Property management companies
-- **Staff** - Workers managed by Super Users or Property Managers
+- **Agency** - Property management companies
+- **Staff** - Workers managed by Super Users or Agencies
 
 ### Authentication
+
 - **JWT Tokens** with different expiration times
 - **Role-based access control**
 - **OTP-based password reset**
@@ -27,6 +32,7 @@ This document provides a comprehensive overview of all API endpoints available i
 ## Base URL Structure
 
 All API endpoints follow this pattern:
+
 ```
 http://localhost:3000/api/v1/{module}/{resource}
 ```
@@ -34,6 +40,7 @@ http://localhost:3000/api/v1/{module}/{resource}
 ## Authentication Required
 
 Most endpoints require authentication via JWT token:
+
 ```
 Authorization: Bearer <jwt-token>
 ```
@@ -44,14 +51,15 @@ Authorization: Bearer <jwt-token>
 
 **Base URL**: `/api/v1/auth`
 
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| POST | `/register` | Register new Super User | ❌ |
-| POST | `/login` | Login Super User | ❌ |
-| POST | `/forgot-password` | Send password reset OTP | ❌ |
-| POST | `/reset-password` | Reset password with OTP | ❌ |
+| Method | Endpoint           | Description             | Auth Required |
+| ------ | ------------------ | ----------------------- | ------------- |
+| POST   | `/register`        | Register new Super User | ❌            |
+| POST   | `/login`           | Login Super User        | ❌            |
+| POST   | `/forgot-password` | Send password reset OTP | ❌            |
+| POST   | `/reset-password`  | Reset password with OTP | ❌            |
 
 ### Key Features:
+
 - ✅ Account registration and login
 - ✅ Secure password hashing (bcrypt)
 - ✅ OTP-based password reset (10-minute expiration)
@@ -60,44 +68,38 @@ Authorization: Bearer <jwt-token>
 
 ---
 
-# 2. Property Manager Authentication & Management
+# 2. Agency Authentication & Management
 
-**Base URL**: `/api/v1/property-manager/auth`
+**Base URL**: `/api/v1/agency/auth`
 
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| POST | `/register` | Create Property Manager | 🔒 Super User |
-| POST | `/login` | Login Property Manager | ❌ |
-| POST | `/forgot-password` | Send password reset OTP | ❌ |
-| POST | `/reset-password` | Reset password with OTP | ❌ |
-| GET | `/profile` | Get own profile | 🔒 Property Manager |
-| PATCH | `/:id` | Update Property Manager | 🔒 Super User |
-| GET | `/all` | Get all Property Managers | 🔒 Super User |
-| GET | `/:id` | Get single Property Manager | 🔒 Super User |
+| Method | Endpoint           | Description       | Auth Required |
+| ------ | ------------------ | ----------------- | ------------- |
+| POST   | `/register`        | Create Agency     | 🔒 Super User |
+| POST   | `/login`           | Login Agency      | ❌            |
+| POST   | `/forgot-password` | Reset password    | ❌            |
+| GET    | `/profile`         | Get own profile   | 🔒 Agency     |
+| PATCH  | `/:id`             | Update Agency     | 🔒 Super User |
+| GET    | `/all`             | Get all Agencies  | 🔒 Super User |
+| GET    | `/:id`             | Get single Agency | 🔒 Super User |
 
 ### Key Features:
-- ✅ Super User creates Property Manager accounts
-- ✅ Account status management (Pending, Active, Inactive, Suspended)
-- ✅ Company information and ABN validation
-- ✅ Region-based organization
-- ✅ Compliance package management
-- ✅ Outstanding amount tracking
-- ✅ Welcome email automation
 
-### Property Manager Fields:
-```json
-{
-  "companyName": "Company Name",
-  "abn": "11-digit ABN",
-  "contactPerson": "Contact Person Name",
-  "email": "Email Address",
-  "phone": "Phone Number",
-  "region": "Service Region",
-  "compliance": "Compliance Package",
-  "status": "Account Status",
-  "outstandingAmount": "Outstanding Amount"
-}
-```
+- ✅ Super User creates Agency accounts
+- ✅ Secure JWT authentication
+- ✅ Password reset flow
+
+### Agency Fields:
+
+| Field         | Type   | Description                |
+| ------------- | ------ | -------------------------- |
+| companyName   | String | Business name              |
+| abn           | String | Australian Business Number |
+| contactPerson | String | Primary contact name       |
+| email         | String | Business email             |
+| phone         | String | Contact number             |
+| region        | String | Service area               |
+| status        | String | Account status             |
+| compliance    | String | Compliance level           |
 
 ---
 
@@ -105,32 +107,33 @@ Authorization: Bearer <jwt-token>
 
 **Base URL**: `/api/v1/staff`
 
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| POST | `/` | Create new staff member | 🔒 Super User / Property Manager |
-| GET | `/` | Get all staff (with pagination) | 🔒 Super User / Property Manager |
-| GET | `/:id` | Get single staff member | 🔒 Super User / Property Manager |
-| PUT | `/:id` | Update staff member | 🔒 Super User / Property Manager |
-| DELETE | `/:id` | Delete staff member | 🔒 Super User / Property Manager |
+| Method | Endpoint | Description                     | Auth Required          |
+| ------ | -------- | ------------------------------- | ---------------------- |
+| POST   | `/`      | Create new staff member         | 🔒 Super User / Agency |
+| GET    | `/`      | Get all staff (with pagination) | 🔒 Super User / Agency |
+| GET    | `/:id`   | Get single staff member         | 🔒 Super User / Agency |
+| PUT    | `/:id`   | Update staff member             | 🔒 Super User / Agency |
+| DELETE | `/:id`   | Delete staff member             | 🔒 Super User / Agency |
 
 ## File Management
 
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| POST | `/:id/documents` | Upload documents | 🔒 Super User / Property Manager |
-| DELETE | `/:staffId/documents/:documentId` | Delete document | 🔒 Super User / Property Manager |
-| GET | `/:staffId/documents/:documentId/download` | Download document | 🔒 Super User / Property Manager |
+| Method | Endpoint                                   | Description       | Auth Required          |
+| ------ | ------------------------------------------ | ----------------- | ---------------------- |
+| POST   | `/:id/documents`                           | Upload documents  | 🔒 Super User / Agency |
+| DELETE | `/:staffId/documents/:documentId`          | Delete document   | 🔒 Super User / Agency |
+| GET    | `/:staffId/documents/:documentId/download` | Download document | 🔒 Super User / Agency |
 
 ## Advanced Operations
 
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| PATCH | `/bulk/availability` | Bulk update availability | 🔒 Super User / Property Manager |
-| GET | `/analytics/overview` | Get staff analytics | 🔒 Super User / Property Manager |
-| POST | `/search` | Advanced search | 🔒 Super User / Property Manager |
+| Method | Endpoint              | Description              | Auth Required          |
+| ------ | --------------------- | ------------------------ | ---------------------- |
+| PATCH  | `/bulk/availability`  | Bulk update availability | 🔒 Super User / Agency |
+| GET    | `/analytics/overview` | Get staff analytics      | 🔒 Super User / Agency |
+| POST   | `/search`             | Advanced search          | 🔒 Super User / Agency |
 
 ### Key Features:
-- ✅ **Polymorphic Database Design** - Staff can belong to Super Users or Property Managers
+
+- ✅ **Polymorphic Database Design** - Staff can belong to Super Users or Agencies
 - ✅ **Complete CRUD Operations** with validation
 - ✅ **File Upload System** for licensing and insurance documents
 - ✅ **Advanced Search & Filtering** with multiple criteria
@@ -140,6 +143,7 @@ Authorization: Bearer <jwt-token>
 - ✅ **Pagination & Sorting** for large datasets
 
 ### Staff Fields:
+
 ```json
 {
   "fullName": "Staff Member Name",
@@ -158,10 +162,11 @@ Authorization: Bearer <jwt-token>
 ```
 
 ### Polymorphic Owner Reference:
+
 ```json
 {
   "owner": {
-    "ownerType": "SuperUser | PropertyManager",
+    "ownerType": "SuperUser | Agency",
     "ownerId": "ObjectId referencing the owner"
   }
 }
@@ -173,11 +178,12 @@ Authorization: Bearer <jwt-token>
 
 ## Health Check
 
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| GET | `/health` | System health check | ❌ |
+| Method | Endpoint  | Description         | Auth Required |
+| ------ | --------- | ------------------- | ------------- |
+| GET    | `/health` | System health check | ❌            |
 
 ### Response:
+
 ```json
 {
   "status": "ok",
@@ -192,24 +198,25 @@ Authorization: Bearer <jwt-token>
 
 ## Token Types & Expiration
 
-| User Type | Token Expiration | Access Level |
-|-----------|------------------|--------------|
-| Super User | 1 day | Full system access |
-| Property Manager | 7 days | Own data + own staff |
+| User Type  | Token Expiration | Access Level         |
+| ---------- | ---------------- | -------------------- |
+| Super User | 1 day            | Full system access   |
+| Agency     | 7 days           | Own data + own staff |
 
 ## Access Control Matrix
 
-| Endpoint | Super User | Property Manager | Notes |
-|----------|------------|------------------|-------|
-| Super User Auth | ✅ | ❌ | Super User only |
-| Property Manager Creation | ✅ | ❌ | Super User creates PM accounts |
-| Property Manager Login | ❌ | ✅ | Property Manager only |
-| Property Manager Management | ✅ | 🔍 (Own profile only) | Super User manages all, PM sees own |
-| Staff Management | ✅ (All staff) | ✅ (Own staff only) | Owner-based access control |
-| File Operations | ✅ (All files) | ✅ (Own staff files only) | File access follows staff ownership |
-| Analytics | ✅ (System-wide) | ✅ (Own staff only) | Scoped analytics |
+| Endpoint          | Super User       | Agency                    | Notes                                   |
+| ----------------- | ---------------- | ------------------------- | --------------------------------------- |
+| Super User Auth   | ✅               | ❌                        | Super User only                         |
+| Agency Creation   | ✅               | ❌                        | Super User creates Agency accounts      |
+| Agency Login      | ❌               | ✅                        | Agency only                             |
+| Agency Management | ✅               | 🔍 (Own profile only)     | Super User manages all, Agency sees own |
+| Staff Management  | ✅ (All staff)   | ✅ (Own staff only)       | Owner-based access control              |
+| File Operations   | ✅ (All files)   | ✅ (Own staff files only) | File access follows staff ownership     |
+| Analytics         | ✅ (System-wide) | ✅ (Own staff only)       | Scoped analytics                        |
 
 Legend:
+
 - ✅ Full access
 - 🔍 Limited access (own data only)
 - ❌ No access
@@ -219,32 +226,35 @@ Legend:
 # Data Flow & Relationships
 
 ## User Hierarchy
+
 ```
 Super User (System Admin)
-├── Can create/manage Property Managers
+├── Can create/manage Agencies
 ├── Can manage all Staff members
 └── Has full system access
 
-Property Manager (Business User)
+Agency (Business User)
 ├── Created by Super User
 ├── Can manage own Staff members only
 └── Limited to own data access
 ```
 
 ## Staff Ownership Model
+
 ```
 Staff Member
-├── owner.ownerType: "SuperUser" | "PropertyManager"
+├── owner.ownerType: "SuperUser" | "Agency"
 ├── owner.ownerId: ObjectId
 └── Access controlled by ownership
 ```
 
 ## Database Relationships
+
 ```
 SuperUser (1) -----> (*) Staff
-PropertyManager (1) -----> (*) Staff
+Agency (1) -----> (*) Staff
 
-PropertyManager (*) <----- (1) SuperUser (creator)
+Agency (*) <----- (1) SuperUser (creator)
 ```
 
 ---
@@ -254,6 +264,7 @@ PropertyManager (*) <----- (1) SuperUser (creator)
 ## Standard Response Format
 
 ### Success Response:
+
 ```json
 {
   "status": "success",
@@ -265,6 +276,7 @@ PropertyManager (*) <----- (1) SuperUser (creator)
 ```
 
 ### Error Response:
+
 ```json
 {
   "status": "error",
@@ -274,6 +286,7 @@ PropertyManager (*) <----- (1) SuperUser (creator)
 ```
 
 ## Pagination Format:
+
 ```json
 {
   "status": "success",
@@ -296,19 +309,22 @@ PropertyManager (*) <----- (1) SuperUser (creator)
 # Security Features
 
 ## Authentication Security
+
 - ✅ **JWT Tokens** with configurable expiration
 - ✅ **Password Hashing** using bcrypt with salt
 - ✅ **OTP System** for password reset (10-minute expiration)
 - ✅ **Rate Limiting** on OTP attempts (max 5)
-- ✅ **Account Status Validation** for Property Managers
+- ✅ **Account Status Validation** for Agencies
 
 ## Authorization Security
+
 - ✅ **Role-based Access Control** (RBAC)
 - ✅ **Owner-based Resource Access** (users can only access their own data)
-- ✅ **Token Type Validation** (SuperUser vs PropertyManager tokens)
+- ✅ **Token Type Validation** (SuperUser vs Agency tokens)
 - ✅ **Middleware Protection** on all protected routes
 
 ## Data Security
+
 - ✅ **Input Validation** on all endpoints
 - ✅ **Email Uniqueness** validation per owner type
 - ✅ **File Type Validation** for uploads
@@ -316,6 +332,7 @@ PropertyManager (*) <----- (1) SuperUser (creator)
 - ✅ **Secure File Storage** with unique filenames
 
 ## API Security
+
 - ✅ **CORS Configuration**
 - ✅ **Helmet.js** for security headers
 - ✅ **Morgan Logging** for request monitoring
@@ -327,14 +344,16 @@ PropertyManager (*) <----- (1) SuperUser (creator)
 # Email System
 
 ## Email Templates
+
 1. **Super User Welcome** - Professional welcome for new admins
-2. **Property Manager Welcome** - Business welcome with next steps
+2. **Agency Welcome** - Business welcome with next steps
 3. **Password Reset OTP** - Secure OTP delivery for both user types
 4. **Staff Welcome** - Welcome email for new staff members
 5. **Staff Status Update** - Notifications for status changes
 6. **Staff Document Reminder** - Document update reminders
 
 ## Email Service Features
+
 - ✅ **HTML Templates** with professional styling
 - ✅ **Automatic Sending** via post-save middleware
 - ✅ **Error Handling** with fallback logging
@@ -346,10 +365,12 @@ PropertyManager (*) <----- (1) SuperUser (creator)
 # File Upload System
 
 ## Supported File Types
+
 - **Documents**: PDF, DOC, DOCX
 - **Images**: JPG, JPEG, PNG
 
 ## File Organization
+
 ```
 uploads/
 └── staff-documents/
@@ -359,6 +380,7 @@ uploads/
 ```
 
 ## File Operations
+
 - ✅ **Multi-file Upload** (licensing + insurance)
 - ✅ **File Validation** (type, size, count)
 - ✅ **Unique Filenames** to prevent conflicts
@@ -371,18 +393,21 @@ uploads/
 # Performance Features
 
 ## Database Optimization
+
 - ✅ **Strategic Indexes** on frequently queried fields
 - ✅ **Compound Indexes** for complex queries
 - ✅ **Query Optimization** with lean queries
 - ✅ **Pagination** to limit data transfer
 
 ## API Performance
+
 - ✅ **Efficient Filtering** with MongoDB operators
 - ✅ **Bulk Operations** for multiple updates
 - ✅ **Selective Field Return** to reduce payload
 - ✅ **Caching Headers** for static content
 
 ## Search Performance
+
 - ✅ **Indexed Search Fields**
 - ✅ **Regex Optimization** for text search
 - ✅ **Filter Combination** for precise results
@@ -393,6 +418,7 @@ uploads/
 # Development & Testing
 
 ## Environment Setup
+
 ```bash
 # Install dependencies
 pnpm install
@@ -407,6 +433,7 @@ pnpm run dev
 ```
 
 ## Required Dependencies
+
 ```json
 {
   "bcryptjs": "Password hashing",
@@ -422,6 +449,7 @@ pnpm run dev
 ```
 
 ## Testing Recommendations
+
 1. **Unit Tests** for individual functions
 2. **Integration Tests** for API endpoints
 3. **Authentication Tests** for security
@@ -433,6 +461,7 @@ pnpm run dev
 # Deployment Considerations
 
 ## Production Requirements
+
 - ✅ **HTTPS Only** for secure communication
 - ✅ **Environment Variables** for sensitive config
 - ✅ **File Storage** consider cloud storage for scalability
@@ -442,6 +471,7 @@ pnpm run dev
 - ✅ **Monitoring** API performance monitoring
 
 ## Security Hardening
+
 - ✅ **JWT Secret Rotation** regular secret updates
 - ✅ **CORS Configuration** restrict origins in production
 - ✅ **Input Sanitization** additional validation layers
@@ -453,9 +483,11 @@ pnpm run dev
 # API Versioning & Future Considerations
 
 ## Current Version: v1
+
 All endpoints are currently under `/api/v1/`
 
 ## Future Enhancements
+
 - **v2 Considerations**:
   - GraphQL endpoint for complex queries
   - WebSocket support for real-time updates
@@ -467,6 +499,7 @@ All endpoints are currently under `/api/v1/`
   - Advanced role management system
 
 ## Backward Compatibility
+
 - ✅ **Version Path Prefix** allows multiple versions
 - ✅ **Stable API Contract** minimizes breaking changes
 - ✅ **Deprecation Strategy** for future changes
@@ -478,20 +511,24 @@ All endpoints are currently under `/api/v1/`
 ## Common Issues & Solutions
 
 ### Authentication Issues
+
 - **Token Expired**: Check token expiration and re-authenticate
 - **Invalid Credentials**: Verify email/password combination
-- **Account Inactive**: Contact admin to activate Property Manager account
+- **Account Inactive**: Contact admin to activate Agency account
 
 ### File Upload Issues
+
 - **File Too Large**: Check 10MB file size limit
 - **Invalid File Type**: Ensure PDF, DOC, DOCX, or image files
 - **Upload Failed**: Check disk space and file permissions
 
 ### Permission Issues
+
 - **Access Denied**: Verify user type and ownership permissions
 - **Resource Not Found**: Check if resource belongs to authenticated user
 
 ### Performance Issues
+
 - **Slow Queries**: Review pagination and filtering parameters
 - **Large Response**: Use pagination and limit fields returned
 
@@ -500,7 +537,9 @@ All endpoints are currently under `/api/v1/`
 # Support & Maintenance
 
 ## Logging
+
 All operations are logged with:
+
 - ✅ **Request Details** (method, path, user)
 - ✅ **Response Status** (success/error)
 - ✅ **Timestamp** for tracking
@@ -508,6 +547,7 @@ All operations are logged with:
 - ✅ **Security Events** (login attempts, access violations)
 
 ## Monitoring Recommendations
+
 - **API Response Times**
 - **Error Rates**
 - **Authentication Failures**
@@ -522,10 +562,11 @@ All operations are logged with:
 The RentalEase CRM API provides a comprehensive, secure, and scalable foundation for managing users and staff in a property management context. With its thoughtful design, robust security features, and comprehensive documentation, it serves as an excellent foundation for building modern property management applications.
 
 Key strengths:
+
 - 🚀 **Polymorphic Design** for flexible staff ownership
 - 🔒 **Comprehensive Security** with JWT and RBAC
 - 📁 **Complete File Management** with secure uploads
 - 📧 **Professional Email System** with templates
 - 📊 **Advanced Search & Analytics** for business insights
 - 📚 **Thorough Documentation** for easy integration
-- 🔧 **Production Ready** with proper error handling and validation 
+- 🔧 **Production Ready** with proper error handling and validation

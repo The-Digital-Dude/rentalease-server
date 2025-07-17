@@ -1,9 +1,13 @@
-import express from 'express';
-import mongoose from 'mongoose';
-import Job from '../models/Job.js';
-import Staff from '../models/Staff.js';
-import { authenticateSuperUser, authenticatePropertyManager, authenticate } from '../middleware/auth.middleware.js';
-import emailService from '../services/email.service.js';
+import express from "express";
+import mongoose from "mongoose";
+import Job from "../models/Job.js";
+import Staff from "../models/Staff.js";
+import {
+  authenticateSuperUser,
+  authenticateAgency,
+  authenticate,
+} from "../middleware/auth.middleware.js";
+import emailService from "../services/email.service.js";
 
 const router = express.Router();
 
@@ -11,13 +15,13 @@ const router = express.Router();
 const getOwnerInfo = (req) => {
   if (req.superUser) {
     return {
-      ownerType: 'SuperUser',
-      ownerId: req.superUser.id
+      ownerType: "SuperUser",
+      ownerId: req.superUser.id,
     };
-  } else if (req.propertyManager) {
+  } else if (req.agency) {
     return {
-      ownerType: 'PropertyManager',
-      ownerId: req.propertyManager.id
+      ownerType: "Agency",
+      ownerId: req.agency.id,
     };
   }
   return null;
@@ -27,13 +31,13 @@ const getOwnerInfo = (req) => {
 const getCreatorInfo = (req) => {
   if (req.superUser) {
     return {
-      userType: 'SuperUser',
-      userId: req.superUser.id
+      userType: "SuperUser",
+      userId: req.superUser.id,
     };
-  } else if (req.propertyManager) {
+  } else if (req.agency) {
     return {
-      userType: 'PropertyManager',
-      userId: req.propertyManager.id
+      userType: "Agency",
+      userId: req.agency.id,
     };
   }
   return null;
@@ -43,9 +47,11 @@ const getCreatorInfo = (req) => {
 const validateOwnerAccess = (job, req) => {
   const ownerInfo = getOwnerInfo(req);
   if (!ownerInfo) return false;
-  
-  return job.owner.ownerType === ownerInfo.ownerType && 
-         job.owner.ownerId.toString() === ownerInfo.ownerId.toString();
+
+  return (
+    job.owner.ownerType === ownerInfo.ownerType &&
+    job.owner.ownerId.toString() === ownerInfo.ownerId.toString()
+  );
 };
 
 // Helper function to check if user can fully edit job (only super users)
@@ -58,12 +64,12 @@ const getUserInfo = (req) => {
   if (req.superUser) {
     return {
       name: req.superUser.name,
-      type: 'SuperUser'
+      type: "SuperUser",
     };
-  } else if (req.propertyManager) {
+  } else if (req.agency) {
     return {
-      name: req.propertyManager.contactPerson,
-      type: 'PropertyManager'
+      name: req.agency.contactPerson,
+      type: "Agency",
     };
   }
   return null;
@@ -73,28 +79,28 @@ const getUserInfo = (req) => {
 const sendJobAssignmentNotification = async (technician, job, assignedBy) => {
   try {
     await emailService.sendJobAssignmentEmail(technician, job, assignedBy);
-    console.log('Job assignment email sent successfully:', {
+    console.log("Job assignment email sent successfully:", {
       jobId: job.job_id,
       technicianEmail: technician.email,
       technicianName: technician.fullName,
       assignedBy: assignedBy.name,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     // Log error but don't fail the assignment
-    console.error('Failed to send job assignment email:', {
+    console.error("Failed to send job assignment email:", {
       jobId: job.job_id,
       technicianEmail: technician.email,
       technicianName: technician.fullName,
       assignedBy: assignedBy.name,
       error: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 };
 
 // CREATE - Add new job
-router.post('/', authenticate, async (req, res) => {
+router.post("/", authenticate, async (req, res) => {
   try {
     const {
       propertyAddress,
@@ -104,33 +110,36 @@ router.post('/', authenticate, async (req, res) => {
       description,
       priority,
       estimatedDuration,
-      notes
+      notes,
     } = req.body;
 
     // Validate required fields
     if (!propertyAddress || !jobType || !dueDate) {
       return res.status(400).json({
-        status: 'error',
-        message: 'Please provide all required fields: Property Address, Job Type, and Due Date',
+        status: "error",
+        message:
+          "Please provide all required fields: Property Address, Job Type, and Due Date",
         details: {
-          propertyAddress: !propertyAddress ? 'Property address is required' : null,
-          jobType: !jobType ? 'Job type is required' : null,
-          dueDate: !dueDate ? 'Due date is required' : null
-        }
+          propertyAddress: !propertyAddress
+            ? "Property address is required"
+            : null,
+          jobType: !jobType ? "Job type is required" : null,
+          dueDate: !dueDate ? "Due date is required" : null,
+        },
       });
     }
 
     // Get owner and creator information
     const ownerInfo = getOwnerInfo(req);
     const creatorInfo = getCreatorInfo(req);
-    
+
     if (!ownerInfo || !creatorInfo) {
       return res.status(400).json({
-        status: 'error',
-        message: 'Unable to process your request. Please try logging in again.',
+        status: "error",
+        message: "Unable to process your request. Please try logging in again.",
         details: {
-          auth: 'User authentication information is missing or invalid'
-        }
+          auth: "User authentication information is missing or invalid",
+        },
       });
     }
 
@@ -141,24 +150,28 @@ router.post('/', authenticate, async (req, res) => {
     try {
       let technician = null;
       // Convert string "null" to actual null
-      const technicianId = assignedTechnician === "null" || !assignedTechnician ? null : assignedTechnician;
-      
+      const technicianId =
+        assignedTechnician === "null" || !assignedTechnician
+          ? null
+          : assignedTechnician;
+
       if (technicianId) {
         technician = await Staff.findOne({
           _id: technicianId,
-          'owner.ownerType': ownerInfo.ownerType,
-          'owner.ownerId': ownerInfo.ownerId
+          "owner.ownerType": ownerInfo.ownerType,
+          "owner.ownerId": ownerInfo.ownerId,
         }).session(session);
 
         if (!technician) {
           await session.abortTransaction();
           session.endSession();
           return res.status(400).json({
-            status: 'error',
-            message: 'Technician not found',
+            status: "error",
+            message: "Technician not found",
             details: {
-              assignedTechnician: 'The selected technician was not found or does not belong to your organization'
-            }
+              assignedTechnician:
+                "The selected technician was not found or does not belong to your organization",
+            },
           });
         }
       }
@@ -170,13 +183,13 @@ router.post('/', authenticate, async (req, res) => {
         dueDate: new Date(dueDate),
         assignedTechnician: technicianId,
         description,
-        priority: priority || 'Medium',
+        priority: priority || "Medium",
         estimatedDuration,
         notes,
         owner: ownerInfo,
         createdBy: creatorInfo,
         lastUpdatedBy: creatorInfo,
-        status: technicianId ? 'Scheduled' : 'Pending'
+        status: technicianId ? "Scheduled" : "Pending",
       });
 
       await job.save({ session });
@@ -184,7 +197,8 @@ router.post('/', authenticate, async (req, res) => {
       // Update technician's job count if assigned
       if (technician) {
         technician.currentJobs = (technician.currentJobs || 0) + 1;
-        technician.availabilityStatus = technician.currentJobs >= 4 ? 'Busy' : 'Available';
+        technician.availabilityStatus =
+          technician.currentJobs >= 4 ? "Busy" : "Available";
         await technician.save({ session });
       }
 
@@ -193,7 +207,10 @@ router.post('/', authenticate, async (req, res) => {
       session.endSession();
 
       // Populate technician details for response
-      await job.populate('assignedTechnician', 'fullName tradeType phone email availabilityStatus');
+      await job.populate(
+        "assignedTechnician",
+        "fullName tradeType phone email availabilityStatus"
+      );
 
       // Send email notification to technician if job was assigned during creation
       if (technician) {
@@ -205,58 +222,58 @@ router.post('/', authenticate, async (req, res) => {
       }
 
       res.status(201).json({
-        status: 'success',
-        message: 'Job created successfully',
+        status: "success",
+        message: "Job created successfully",
         data: {
-          job: job.getFullDetails()
-        }
+          job: job.getFullDetails(),
+        },
       });
     } catch (error) {
       // If an error occurred, abort the transaction
       await session.abortTransaction();
       session.endSession();
-      
+
       // Handle validation errors
-      if (error.name === 'ValidationError') {
+      if (error.name === "ValidationError") {
         return res.status(400).json({
-          status: 'error',
-          message: 'Please check the form for errors',
+          status: "error",
+          message: "Please check the form for errors",
           details: Object.keys(error.errors).reduce((acc, key) => {
             acc[key] = error.errors[key].message;
             return acc;
-          }, {})
+          }, {}),
         });
       }
-      
+
       throw error;
     }
   } catch (error) {
-    console.error('Create job error:', error);
+    console.error("Create job error:", error);
     res.status(500).json({
-      status: 'error',
-      message: 'Unable to create job. Please try again later.',
+      status: "error",
+      message: "Unable to create job. Please try again later.",
       details: {
-        general: 'An unexpected error occurred while processing your request'
-      }
+        general: "An unexpected error occurred while processing your request",
+      },
     });
   }
 });
 
 // READ - Get all jobs for the authenticated user
-router.get('/', authenticate, async (req, res) => {
+router.get("/", authenticate, async (req, res) => {
   try {
     const ownerInfo = getOwnerInfo(req);
     if (!ownerInfo) {
       return res.status(400).json({
-        status: 'error',
-        message: 'Unable to determine owner information'
+        status: "error",
+        message: "Unable to determine owner information",
       });
     }
 
     // Query parameters for filtering
-    const { 
-      jobType, 
-      status, 
+    const {
+      jobType,
+      status,
       assignedTechnician,
       priority,
       search,
@@ -264,14 +281,14 @@ router.get('/', authenticate, async (req, res) => {
       endDate,
       page = 1,
       limit = 10,
-      sortBy = 'dueDate',
-      sortOrder = 'asc'
+      sortBy = "dueDate",
+      sortOrder = "asc",
     } = req.query;
 
     // Build query
     let query = {
-      'owner.ownerType': ownerInfo.ownerType,
-      'owner.ownerId': ownerInfo.ownerId
+      "owner.ownerType": ownerInfo.ownerType,
+      "owner.ownerId": ownerInfo.ownerId,
     };
 
     // Add filters
@@ -279,20 +296,20 @@ router.get('/', authenticate, async (req, res) => {
     if (status) query.status = status;
     if (assignedTechnician) query.assignedTechnician = assignedTechnician;
     if (priority) query.priority = priority;
-    
+
     // Add date range filter
     if (startDate || endDate) {
       query.dueDate = {};
       if (startDate) query.dueDate.$gte = new Date(startDate);
       if (endDate) query.dueDate.$lte = new Date(endDate);
     }
-    
+
     // Add search functionality
     if (search) {
       query.$or = [
-        { propertyAddress: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } },
-        { notes: { $regex: search, $options: 'i' } }
+        { propertyAddress: { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } },
+        { notes: { $regex: search, $options: "i" } },
       ];
     }
 
@@ -301,8 +318,11 @@ router.get('/', authenticate, async (req, res) => {
 
     // Execute query with pagination and sorting
     const jobs = await Job.find(query)
-      .populate('assignedTechnician', 'fullName tradeType phone email availabilityStatus')
-      .sort({ [sortBy]: sortOrder === 'desc' ? -1 : 1 })
+      .populate(
+        "assignedTechnician",
+        "fullName tradeType phone email availabilityStatus"
+      )
+      .sort({ [sortBy]: sortOrder === "desc" ? -1 : 1 })
       .skip(skip)
       .limit(parseInt(limit));
 
@@ -311,94 +331,110 @@ router.get('/', authenticate, async (req, res) => {
 
     // Get status counts for dashboard
     const statusCounts = await Job.aggregate([
-      { $match: { 'owner.ownerType': ownerInfo.ownerType, 'owner.ownerId': new mongoose.Types.ObjectId(ownerInfo.ownerId) } },
-      { $group: { _id: '$status', count: { $sum: 1 } } }
+      {
+        $match: {
+          "owner.ownerType": ownerInfo.ownerType,
+          "owner.ownerId": new mongoose.Types.ObjectId(ownerInfo.ownerId),
+        },
+      },
+      { $group: { _id: "$status", count: { $sum: 1 } } },
     ]);
 
     res.status(200).json({
-      status: 'success',
-      message: 'Jobs retrieved successfully',
+      status: "success",
+      message: "Jobs retrieved successfully",
       data: {
-        jobs: jobs.map(job => job.getSummary()),
+        jobs: jobs.map((job) => job.getSummary()),
         pagination: {
           currentPage: parseInt(page),
           totalPages: Math.ceil(totalJobs / parseInt(limit)),
           totalItems: totalJobs,
           itemsPerPage: parseInt(limit),
           hasNextPage: skip + jobs.length < totalJobs,
-          hasPrevPage: parseInt(page) > 1
+          hasPrevPage: parseInt(page) > 1,
         },
         statistics: {
           statusCounts: statusCounts.reduce((acc, item) => {
             acc[item._id] = item.count;
             return acc;
           }, {}),
-          totalJobs
-        }
-      }
+          totalJobs,
+        },
+      },
     });
-
   } catch (error) {
-    console.error('Get jobs error:', error);
+    console.error("Get jobs error:", error);
     res.status(500).json({
-      status: 'error',
-      message: 'Failed to retrieve jobs'
+      status: "error",
+      message: "Failed to retrieve jobs",
     });
   }
 });
 
 // READ - Get specific job by ID
-router.get('/:id', authenticate, async (req, res) => {
+router.get("/:id", authenticate, async (req, res) => {
   try {
     const { id } = req.params;
 
     // Validate MongoDB ObjectId
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({
-        status: 'error',
-        message: 'Invalid job ID format'
+        status: "error",
+        message: "Invalid job ID format",
       });
     }
 
     const job = await Job.findById(id)
-      .populate('assignedTechnician', 'fullName tradeType phone email availabilityStatus serviceRegions')
-      .populate('createdBy.userId', 'name email companyName contactPerson', null, { strictPopulate: false })
-      .populate('lastUpdatedBy.userId', 'name email companyName contactPerson', null, { strictPopulate: false });
+      .populate(
+        "assignedTechnician",
+        "fullName tradeType phone email availabilityStatus serviceRegions"
+      )
+      .populate(
+        "createdBy.userId",
+        "name email companyName contactPerson",
+        null,
+        { strictPopulate: false }
+      )
+      .populate(
+        "lastUpdatedBy.userId",
+        "name email companyName contactPerson",
+        null,
+        { strictPopulate: false }
+      );
 
     if (!job) {
       return res.status(404).json({
-        status: 'error',
-        message: 'Job not found'
+        status: "error",
+        message: "Job not found",
       });
     }
 
     // Check if user has access to this job
     if (!validateOwnerAccess(job, req)) {
       return res.status(403).json({
-        status: 'error',
-        message: 'Access denied. You do not have permission to view this job.'
+        status: "error",
+        message: "Access denied. You do not have permission to view this job.",
       });
     }
 
     res.status(200).json({
-      status: 'success',
-      message: 'Job retrieved successfully',
+      status: "success",
+      message: "Job retrieved successfully",
       data: {
-        job: job.getFullDetails()
-      }
+        job: job.getFullDetails(),
+      },
     });
-
   } catch (error) {
-    console.error('Get job error:', error);
+    console.error("Get job error:", error);
     res.status(500).json({
-      status: 'error',
-      message: 'Failed to retrieve job'
+      status: "error",
+      message: "Failed to retrieve job",
     });
   }
 });
 
 // UPDATE - Update job (full edit only for super users)
-router.put('/:id', authenticate, async (req, res) => {
+router.put("/:id", authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const updates = req.body;
@@ -406,8 +442,8 @@ router.put('/:id', authenticate, async (req, res) => {
     // Validate MongoDB ObjectId
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({
-        status: 'error',
-        message: 'Invalid job ID format'
+        status: "error",
+        message: "Invalid job ID format",
       });
     }
 
@@ -415,16 +451,16 @@ router.put('/:id', authenticate, async (req, res) => {
 
     if (!job) {
       return res.status(404).json({
-        status: 'error',
-        message: 'Job not found'
+        status: "error",
+        message: "Job not found",
       });
     }
 
     // Check if user has access to this job
     if (!validateOwnerAccess(job, req)) {
       return res.status(403).json({
-        status: 'error',
-        message: 'Access denied. You do not have permission to edit this job.'
+        status: "error",
+        message: "Access denied. You do not have permission to edit this job.",
       });
     }
 
@@ -432,15 +468,20 @@ router.put('/:id', authenticate, async (req, res) => {
     const canFullEdit = canFullyEditJob(req);
 
     // Define fields that only super users can edit
-    const superUserOnlyFields = ['assignedTechnician', 'jobType', 'dueDate', 'status'];
-    
+    const superUserOnlyFields = [
+      "assignedTechnician",
+      "jobType",
+      "dueDate",
+      "status",
+    ];
+
     // If not a super user, restrict certain field updates
     if (!canFullEdit) {
       for (const field of superUserOnlyFields) {
         if (updates.hasOwnProperty(field)) {
           return res.status(403).json({
-            status: 'error',
-            message: `Only super users can modify ${field}. Contact your administrator.`
+            status: "error",
+            message: `Only super users can modify ${field}. Contact your administrator.`,
           });
         }
       }
@@ -456,35 +497,53 @@ router.put('/:id', authenticate, async (req, res) => {
       const newTechnician = updates.assignedTechnician;
 
       // Validate assigned technician if being updated
-      if (updates.hasOwnProperty('assignedTechnician') && updates.assignedTechnician) {
+      if (
+        updates.hasOwnProperty("assignedTechnician") &&
+        updates.assignedTechnician
+      ) {
         const ownerInfo = getOwnerInfo(req);
         const technician = await Staff.findOne({
           _id: updates.assignedTechnician,
-          'owner.ownerType': ownerInfo.ownerType,
-          'owner.ownerId': ownerInfo.ownerId
+          "owner.ownerType": ownerInfo.ownerType,
+          "owner.ownerId": ownerInfo.ownerId,
         }).session(session);
 
         if (!technician) {
           await session.abortTransaction();
           session.endSession();
           return res.status(400).json({
-            status: 'error',
-            message: 'Assigned technician not found or does not belong to your organization'
+            status: "error",
+            message:
+              "Assigned technician not found or does not belong to your organization",
           });
         }
       }
 
       // Update allowed fields
-      const allowedUpdates = canFullEdit 
-        ? ['propertyAddress', 'jobType', 'dueDate', 'assignedTechnician', 'status', 'description', 'priority', 'estimatedDuration', 'actualDuration', 'cost', 'notes']
-        : ['description', 'priority', 'estimatedDuration', 'cost', 'notes'];
+      const allowedUpdates = canFullEdit
+        ? [
+            "propertyAddress",
+            "jobType",
+            "dueDate",
+            "assignedTechnician",
+            "status",
+            "description",
+            "priority",
+            "estimatedDuration",
+            "actualDuration",
+            "cost",
+            "notes",
+          ]
+        : ["description", "priority", "estimatedDuration", "cost", "notes"];
 
-      allowedUpdates.forEach(field => {
+      allowedUpdates.forEach((field) => {
         if (updates.hasOwnProperty(field)) {
-          if (field === 'cost') {
+          if (field === "cost") {
             // Handle nested cost object
-            if (updates.cost.materialCost !== undefined) job.cost.materialCost = updates.cost.materialCost;
-            if (updates.cost.laborCost !== undefined) job.cost.laborCost = updates.cost.laborCost;
+            if (updates.cost.materialCost !== undefined)
+              job.cost.materialCost = updates.cost.materialCost;
+            if (updates.cost.laborCost !== undefined)
+              job.cost.laborCost = updates.cost.laborCost;
           } else {
             job[field] = updates[field];
           }
@@ -497,13 +556,16 @@ router.put('/:id', authenticate, async (req, res) => {
       await job.save({ session });
 
       // Handle technician job count updates
-      if (canFullEdit && updates.hasOwnProperty('assignedTechnician')) {
+      if (canFullEdit && updates.hasOwnProperty("assignedTechnician")) {
         // If technician was removed (unassigned)
         if (previousTechnician && (!newTechnician || newTechnician === null)) {
-          const prevTech = await Staff.findById(previousTechnician).session(session);
+          const prevTech = await Staff.findById(previousTechnician).session(
+            session
+          );
           if (prevTech) {
             prevTech.currentJobs = Math.max(0, (prevTech.currentJobs || 0) - 1);
-            prevTech.availabilityStatus = prevTech.currentJobs < 4 ? 'Available' : 'Busy';
+            prevTech.availabilityStatus =
+              prevTech.currentJobs < 4 ? "Available" : "Busy";
             await prevTech.save({ session });
           }
         }
@@ -512,17 +574,25 @@ router.put('/:id', authenticate, async (req, res) => {
           const newTech = await Staff.findById(newTechnician).session(session);
           if (newTech) {
             newTech.currentJobs = (newTech.currentJobs || 0) + 1;
-            newTech.availabilityStatus = newTech.currentJobs >= 4 ? 'Busy' : 'Available';
+            newTech.availabilityStatus =
+              newTech.currentJobs >= 4 ? "Busy" : "Available";
             await newTech.save({ session });
           }
         }
         // If technician was changed from one to another
-        else if (previousTechnician && newTechnician && previousTechnician.toString() !== newTechnician.toString()) {
+        else if (
+          previousTechnician &&
+          newTechnician &&
+          previousTechnician.toString() !== newTechnician.toString()
+        ) {
           // Decrease previous technician's job count
-          const prevTech = await Staff.findById(previousTechnician).session(session);
+          const prevTech = await Staff.findById(previousTechnician).session(
+            session
+          );
           if (prevTech) {
             prevTech.currentJobs = Math.max(0, (prevTech.currentJobs || 0) - 1);
-            prevTech.availabilityStatus = prevTech.currentJobs < 4 ? 'Available' : 'Busy';
+            prevTech.availabilityStatus =
+              prevTech.currentJobs < 4 ? "Available" : "Busy";
             await prevTech.save({ session });
           }
 
@@ -530,7 +600,8 @@ router.put('/:id', authenticate, async (req, res) => {
           const newTech = await Staff.findById(newTechnician).session(session);
           if (newTech) {
             newTech.currentJobs = (newTech.currentJobs || 0) + 1;
-            newTech.availabilityStatus = newTech.currentJobs >= 4 ? 'Busy' : 'Available';
+            newTech.availabilityStatus =
+              newTech.currentJobs >= 4 ? "Busy" : "Available";
             await newTech.save({ session });
           }
         }
@@ -541,10 +612,13 @@ router.put('/:id', authenticate, async (req, res) => {
       session.endSession();
 
       // Populate technician details for response
-      await job.populate('assignedTechnician', 'fullName tradeType phone email');
+      await job.populate(
+        "assignedTechnician",
+        "fullName tradeType phone email"
+      );
 
       // Send email notification for technician assignments during updates
-      if (canFullEdit && updates.hasOwnProperty('assignedTechnician')) {
+      if (canFullEdit && updates.hasOwnProperty("assignedTechnician")) {
         const assignedBy = getUserInfo(req);
         if (assignedBy) {
           // If technician was assigned to a previously unassigned job
@@ -555,7 +629,11 @@ router.put('/:id', authenticate, async (req, res) => {
             }
           }
           // If technician was changed from one to another (reassignment)
-          else if (previousTechnician && newTechnician && previousTechnician.toString() !== newTechnician.toString()) {
+          else if (
+            previousTechnician &&
+            newTechnician &&
+            previousTechnician.toString() !== newTechnician.toString()
+          ) {
             const newTech = await Staff.findById(newTechnician);
             if (newTech) {
               sendJobAssignmentNotification(newTech, job, assignedBy);
@@ -565,39 +643,37 @@ router.put('/:id', authenticate, async (req, res) => {
       }
 
       res.status(200).json({
-        status: 'success',
-        message: 'Job updated successfully',
+        status: "success",
+        message: "Job updated successfully",
         data: {
-          job: job.getFullDetails()
-        }
+          job: job.getFullDetails(),
+        },
       });
-
     } catch (error) {
       // If an error occurred, abort the transaction
       await session.abortTransaction();
       session.endSession();
       throw error;
     }
-
   } catch (error) {
-    console.error('Update job error:', error);
+    console.error("Update job error:", error);
     res.status(500).json({
-      status: 'error',
-      message: error.message || 'Failed to update job'
+      status: "error",
+      message: error.message || "Failed to update job",
     });
   }
 });
 
 // DELETE - Delete job (only super users)
-router.delete('/:id', authenticateSuperUser, async (req, res) => {
+router.delete("/:id", authenticateSuperUser, async (req, res) => {
   try {
     const { id } = req.params;
 
     // Validate MongoDB ObjectId
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({
-        status: 'error',
-        message: 'Invalid job ID format'
+        status: "error",
+        message: "Invalid job ID format",
       });
     }
 
@@ -605,40 +681,40 @@ router.delete('/:id', authenticateSuperUser, async (req, res) => {
 
     if (!job) {
       return res.status(404).json({
-        status: 'error',
-        message: 'Job not found'
+        status: "error",
+        message: "Job not found",
       });
     }
 
     // Super users can delete any job, but let's still check ownership for data integrity
     if (!validateOwnerAccess(job, req)) {
       return res.status(403).json({
-        status: 'error',
-        message: 'Access denied. You do not have permission to delete this job.'
+        status: "error",
+        message:
+          "Access denied. You do not have permission to delete this job.",
       });
     }
 
     await Job.findByIdAndDelete(id);
 
     res.status(200).json({
-      status: 'success',
-      message: 'Job deleted successfully',
+      status: "success",
+      message: "Job deleted successfully",
       data: {
-        deletedJobId: id
-      }
+        deletedJobId: id,
+      },
     });
-
   } catch (error) {
-    console.error('Delete job error:', error);
+    console.error("Delete job error:", error);
     res.status(500).json({
-      status: 'error',
-      message: 'Failed to delete job'
+      status: "error",
+      message: "Failed to delete job",
     });
   }
 });
 
 // PATCH - Update job status (quick status updates)
-router.patch('/:id/status', authenticate, async (req, res) => {
+router.patch("/:id/status", authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
@@ -646,23 +722,23 @@ router.patch('/:id/status', authenticate, async (req, res) => {
     // Validate MongoDB ObjectId
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({
-        status: 'error',
-        message: 'Invalid job ID format'
+        status: "error",
+        message: "Invalid job ID format",
       });
     }
 
     if (!status) {
       return res.status(400).json({
-        status: 'error',
-        message: 'Status is required'
+        status: "error",
+        message: "Status is required",
       });
     }
 
-    const validStatuses = ['Pending', 'Scheduled', 'Completed', 'Overdue'];
+    const validStatuses = ["Pending", "Scheduled", "Completed", "Overdue"];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({
-        status: 'error',
-        message: `Status must be one of: ${validStatuses.join(', ')}`
+        status: "error",
+        message: `Status must be one of: ${validStatuses.join(", ")}`,
       });
     }
 
@@ -670,76 +746,80 @@ router.patch('/:id/status', authenticate, async (req, res) => {
 
     if (!job) {
       return res.status(404).json({
-        status: 'error',
-        message: 'Job not found'
+        status: "error",
+        message: "Job not found",
       });
     }
 
     // Check if user has access to this job
     if (!validateOwnerAccess(job, req)) {
       return res.status(403).json({
-        status: 'error',
-        message: 'Access denied. You do not have permission to update this job.'
+        status: "error",
+        message:
+          "Access denied. You do not have permission to update this job.",
       });
     }
 
     // Only super users can change status to certain values
-    if (!canFullyEditJob(req) && ['Scheduled', 'Overdue'].includes(status)) {
+    if (!canFullyEditJob(req) && ["Scheduled", "Overdue"].includes(status)) {
       return res.status(403).json({
-        status: 'error',
-        message: 'Only super users can set status to Scheduled or Overdue'
+        status: "error",
+        message: "Only super users can set status to Scheduled or Overdue",
       });
     }
 
     job.status = status;
     job.lastUpdatedBy = getCreatorInfo(req);
-    
+
     await job.save();
 
     res.status(200).json({
-      status: 'success',
-      message: 'Job status updated successfully',
+      status: "success",
+      message: "Job status updated successfully",
       data: {
-        job: job.getSummary()
-      }
+        job: job.getSummary(),
+      },
     });
-
   } catch (error) {
-    console.error('Update job status error:', error);
+    console.error("Update job status error:", error);
     res.status(500).json({
-      status: 'error',
-      message: 'Failed to update job status'
+      status: "error",
+      message: "Failed to update job status",
     });
   }
 });
 
 // PATCH - Assign job to technician (super users only)
-router.patch('/:id/assign', authenticateSuperUser, async (req, res) => {
+router.patch("/:id/assign", authenticateSuperUser, async (req, res) => {
   try {
     const { id } = req.params;
     const { technicianId } = req.body;
 
     // Validate MongoDB ObjectId
-    if (!mongoose.Types.ObjectId.isValid(id) || !mongoose.Types.ObjectId.isValid(technicianId)) {
+    if (
+      !mongoose.Types.ObjectId.isValid(id) ||
+      !mongoose.Types.ObjectId.isValid(technicianId)
+    ) {
       return res.status(400).json({
-        status: 'error',
-        message: 'Invalid job ID or technician ID format'
+        status: "error",
+        message: "Invalid job ID or technician ID format",
       });
     }
 
     const job = await Job.findById(id);
     if (!job) {
       return res.status(404).json({
-        status: 'error',
-        message: 'Job not found'
+        status: "error",
+        message: "Job not found",
       });
     }
 
     // Check if user has access to this job
     if (!validateOwnerAccess(job, req)) {
       return res.status(403).json({
-        status: 'error',
-        message: 'Access denied. You do not have permission to assign this job.'
+        status: "error",
+        message:
+          "Access denied. You do not have permission to assign this job.",
       });
     }
 
@@ -747,17 +827,19 @@ router.patch('/:id/assign', authenticateSuperUser, async (req, res) => {
     const technician = await Staff.findById(technicianId);
     if (!technician) {
       return res.status(404).json({
-        status: 'error',
-        message: 'Technician not found'
+        status: "error",
+        message: "Technician not found",
       });
     }
 
     // Check if technician belongs to the same organization
-    if (technician.owner.ownerType !== job.owner.ownerType || 
-        technician.owner.ownerId.toString() !== job.owner.ownerId.toString()) {
+    if (
+      technician.owner.ownerType !== job.owner.ownerType ||
+      technician.owner.ownerId.toString() !== job.owner.ownerId.toString()
+    ) {
       return res.status(400).json({
-        status: 'error',
-        message: 'Technician does not belong to the same organization'
+        status: "error",
+        message: "Technician does not belong to the same organization",
       });
     }
 
@@ -768,22 +850,26 @@ router.patch('/:id/assign', authenticateSuperUser, async (req, res) => {
     try {
       // Update job
       job.assignedTechnician = technicianId;
-      job.status = 'Scheduled';
+      job.status = "Scheduled";
       job.lastUpdatedBy = getCreatorInfo(req);
       await job.save({ session });
 
       // Update technician's status
       technician.currentJobs = (technician.currentJobs || 0) + 1;
-      technician.availabilityStatus = technician.currentJobs >= 4 ? 'Busy' : 'Available';
+      technician.availabilityStatus =
+        technician.currentJobs >= 4 ? "Busy" : "Available";
       await technician.save({ session });
 
-      console.log('Technician:', technician);
+      console.log("Technician:", technician);
 
       // Commit the transaction
       await session.commitTransaction();
 
       // Populate technician details for response
-      await job.populate('assignedTechnician', 'fullName tradeType phone email availabilityStatus');
+      await job.populate(
+        "assignedTechnician",
+        "fullName tradeType phone email availabilityStatus"
+      );
 
       // Send email notification to the assigned technician
       const assignedBy = getUserInfo(req);
@@ -792,17 +878,17 @@ router.patch('/:id/assign', authenticateSuperUser, async (req, res) => {
       }
 
       res.status(200).json({
-        status: 'success',
-        message: 'Job assigned successfully',
+        status: "success",
+        message: "Job assigned successfully",
         data: {
           job: job.getFullDetails(),
           technician: {
             id: technician._id,
             fullName: technician.fullName,
             currentJobs: technician.currentJobs,
-            availabilityStatus: technician.availabilityStatus
-          }
-        }
+            availabilityStatus: technician.availabilityStatus,
+          },
+        },
       });
     } catch (error) {
       // If an error occurred, abort the transaction
@@ -813,12 +899,12 @@ router.patch('/:id/assign', authenticateSuperUser, async (req, res) => {
       session.endSession();
     }
   } catch (error) {
-    console.error('Assign job error:', error);
+    console.error("Assign job error:", error);
     res.status(500).json({
-      status: 'error',
-      message: error.message || 'Failed to assign job'
+      status: "error",
+      message: error.message || "Failed to assign job",
     });
   }
 });
 
-export default router; 
+export default router;

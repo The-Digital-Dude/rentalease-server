@@ -1,6 +1,6 @@
-import { Resend } from 'resend';
-import emailConfig from '../config/email.js';
-import emailTemplates from '../utils/emailTemplates.js';
+import { Resend } from "resend";
+import emailConfig from "../config/email.js";
+import emailTemplates from "../utils/emailTemplates.js";
 
 class EmailService {
   constructor() {
@@ -21,48 +21,53 @@ class EmailService {
    * @param {string} [options.from] - Sender email (optional)
    * @returns {Promise} - Email send result
    */
-  async sendTemplatedEmail({ to, templateName, templateData, from = this.defaultFrom }) {
+  async sendTemplatedEmail({
+    to,
+    templateName,
+    templateData,
+    from = this.defaultFrom,
+  }) {
     try {
       if (!emailTemplates[templateName]) {
         throw new Error(`Template "${templateName}" not found`);
       }
 
       if (!emailConfig.resendApiKey) {
-        throw new Error('Resend API key is not configured');
+        throw new Error("Resend API key is not configured");
       }
 
       const template = emailTemplates[templateName](templateData);
 
       console.log(`Preparing to send ${templateName} email...`);
-      console.log('Email details:', {
+      console.log("Email details:", {
         template: templateName,
         to: to,
         from: from,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
 
       const result = await this.resend.emails.send({
         from,
         to: [to],
         subject: template.subject,
-        html: template.html
+        html: template.html,
       });
 
-      console.log('Email sent successfully:', {
+      console.log("Email sent successfully:", {
         messageId: result.id,
         to: to,
         template: templateName,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
 
       return result;
     } catch (error) {
-      console.error('Error sending email:', {
+      console.error("Error sending email:", {
         error: error.message,
         templateName,
         to,
         timestamp: new Date().toISOString(),
-        stack: error.stack
+        stack: error.stack,
       });
       throw error;
     }
@@ -77,20 +82,20 @@ class EmailService {
    */
   async sendWelcomeEmail(user) {
     if (!user || !user.email || !user.name) {
-      throw new Error('Invalid user data provided for welcome email');
+      throw new Error("Invalid user data provided for welcome email");
     }
 
-    console.log('Sending welcome email to:', {
+    console.log("Sending welcome email to:", {
       email: user.email,
-      name: user.name
+      name: user.name,
     });
 
     return await this.sendTemplatedEmail({
       to: user.email,
-      templateName: 'welcome',
+      templateName: "welcome",
       templateData: {
-        name: user.name
-      }
+        name: user.name,
+      },
     });
   }
 
@@ -105,28 +110,30 @@ class EmailService {
    */
   async sendPasswordResetOTP(user, otp, expirationMinutes = 10) {
     if (!user || !user.email || !user.name) {
-      throw new Error('Invalid user data provided for password reset OTP email');
+      throw new Error(
+        "Invalid user data provided for password reset OTP email"
+      );
     }
 
     if (!otp) {
-      throw new Error('OTP is required for password reset email');
+      throw new Error("OTP is required for password reset email");
     }
 
-    console.log('Sending password reset OTP email to:', {
+    console.log("Sending password reset OTP email to:", {
       email: user.email,
       name: user.name,
       otpLength: otp.length,
-      expirationMinutes
+      expirationMinutes,
     });
 
     return await this.sendTemplatedEmail({
       to: user.email,
-      templateName: 'passwordResetOTP',
+      templateName: "passwordResetOTP",
       templateData: {
         name: user.name,
         otp: otp,
-        expirationMinutes: expirationMinutes
-      }
+        expirationMinutes: expirationMinutes,
+      },
     });
   }
 
@@ -139,24 +146,31 @@ class EmailService {
    * @returns {Promise} - Email send result
    */
   async sendPropertyManagerWelcomeEmail(propertyManager) {
-    if (!propertyManager || !propertyManager.email || !propertyManager.contactPerson || !propertyManager.companyName) {
-      throw new Error('Invalid property manager data provided for welcome email');
+    if (
+      !propertyManager ||
+      !propertyManager.email ||
+      !propertyManager.contactPerson ||
+      !propertyManager.companyName
+    ) {
+      throw new Error(
+        "Invalid property manager data provided for welcome email"
+      );
     }
 
-    console.log('Sending property manager welcome email to:', {
+    console.log("Sending property manager welcome email to:", {
       email: propertyManager.email,
       contactPerson: propertyManager.contactPerson,
-      companyName: propertyManager.companyName
+      companyName: propertyManager.companyName,
     });
 
     return await this.sendTemplatedEmail({
       to: propertyManager.email,
-      templateName: 'propertyManagerWelcome',
+      templateName: "propertyManagerWelcome",
       templateData: {
         name: propertyManager.contactPerson,
         companyName: propertyManager.companyName,
-        email: propertyManager.email
-      }
+        email: propertyManager.email,
+      },
     });
   }
 
@@ -173,27 +187,38 @@ class EmailService {
    * @param {string} [loginUrl] - Login URL for the system
    * @returns {Promise} - Email send result
    */
-  async sendPropertyManagerCredentialsEmail(propertyManager, password, loginUrl = null) {
-    if (!propertyManager || !propertyManager.email || !propertyManager.contactPerson || !propertyManager.companyName) {
-      throw new Error('Invalid property manager data provided for credentials email');
+  async sendPropertyManagerCredentialsEmail(
+    propertyManager,
+    password,
+    loginUrl = null
+  ) {
+    if (
+      !propertyManager ||
+      !propertyManager.email ||
+      !propertyManager.contactPerson ||
+      !propertyManager.companyName
+    ) {
+      throw new Error(
+        "Invalid property manager data provided for credentials email"
+      );
     }
 
     if (!password) {
-      throw new Error('Password is required for credentials email');
+      throw new Error("Password is required for credentials email");
     }
 
-    console.log('Sending property manager credentials email to:', {
+    console.log("Sending property manager credentials email to:", {
       email: propertyManager.email,
       contactPerson: propertyManager.contactPerson,
       companyName: propertyManager.companyName,
       abn: propertyManager.abn,
       region: propertyManager.region,
-      compliance: propertyManager.compliance
+      compliance: propertyManager.compliance,
     });
 
     return await this.sendTemplatedEmail({
       to: propertyManager.email,
-      templateName: 'propertyManagerCredentials',
+      templateName: "propertyManagerCredentials",
       templateData: {
         name: propertyManager.contactPerson,
         companyName: propertyManager.companyName,
@@ -202,8 +227,8 @@ class EmailService {
         abn: propertyManager.abn,
         region: propertyManager.region,
         compliance: propertyManager.compliance,
-        loginUrl: loginUrl
-      }
+        loginUrl: loginUrl,
+      },
     });
   }
 
@@ -217,32 +242,176 @@ class EmailService {
    * @param {number} expirationMinutes - OTP expiration time in minutes
    * @returns {Promise} - Email send result
    */
-  async sendPropertyManagerPasswordResetOTP(propertyManager, otp, expirationMinutes = 10) {
-    if (!propertyManager || !propertyManager.email || !propertyManager.contactPerson || !propertyManager.companyName) {
-      throw new Error('Invalid property manager data provided for password reset OTP email');
+  async sendPropertyManagerPasswordResetOTP(
+    propertyManager,
+    otp,
+    expirationMinutes = 10
+  ) {
+    if (
+      !propertyManager ||
+      !propertyManager.email ||
+      !propertyManager.contactPerson ||
+      !propertyManager.companyName
+    ) {
+      throw new Error(
+        "Invalid property manager data provided for password reset OTP email"
+      );
     }
 
     if (!otp) {
-      throw new Error('OTP is required for password reset email');
+      throw new Error("OTP is required for password reset email");
     }
 
-    console.log('Sending property manager password reset OTP email to:', {
+    console.log("Sending property manager password reset OTP email to:", {
       email: propertyManager.email,
       name: propertyManager.contactPerson,
       companyName: propertyManager.companyName,
       otpLength: otp.length,
-      expirationMinutes
+      expirationMinutes,
     });
 
     return await this.sendTemplatedEmail({
       to: propertyManager.email,
-      templateName: 'propertyManagerPasswordResetOTP',
+      templateName: "propertyManagerPasswordResetOTP",
       templateData: {
         name: propertyManager.contactPerson,
         companyName: propertyManager.companyName,
         otp: otp,
-        expirationMinutes: expirationMinutes
-      }
+        expirationMinutes: expirationMinutes,
+      },
+    });
+  }
+
+  /**
+   * Send welcome email to new agency
+   * @param {Object} agency - Agency object
+   * @param {string} agency.email - Agency's email
+   * @param {string} agency.contactPerson - Agency's contact person name
+   * @param {string} agency.companyName - Agency's company name
+   * @returns {Promise} - Email send result
+   */
+  async sendAgencyWelcomeEmail(agency) {
+    if (
+      !agency ||
+      !agency.email ||
+      !agency.contactPerson ||
+      !agency.companyName
+    ) {
+      throw new Error("Invalid agency data provided for welcome email");
+    }
+
+    console.log("Sending agency welcome email to:", {
+      email: agency.email,
+      contactPerson: agency.contactPerson,
+      companyName: agency.companyName,
+    });
+
+    return await this.sendTemplatedEmail({
+      to: agency.email,
+      templateName: "agencyWelcome",
+      templateData: {
+        name: agency.contactPerson,
+        companyName: agency.companyName,
+        email: agency.email,
+      },
+    });
+  }
+
+  /**
+   * Send credentials email to agency
+   * @param {Object} agency - Agency object
+   * @param {string} agency.email - Agency's email
+   * @param {string} agency.contactPerson - Agency's contact person name
+   * @param {string} agency.companyName - Agency's company name
+   * @param {string} agency.abn - Agency's ABN
+   * @param {string} agency.region - Agency's region
+   * @param {string} agency.compliance - Agency's compliance level
+   * @param {string} password - Agency's password
+   * @param {string} [loginUrl] - Login URL for the system
+   * @returns {Promise} - Email send result
+   */
+  async sendAgencyCredentialsEmail(agency, password, loginUrl = null) {
+    if (
+      !agency ||
+      !agency.email ||
+      !agency.contactPerson ||
+      !agency.companyName
+    ) {
+      throw new Error("Invalid agency data provided for credentials email");
+    }
+
+    if (!password) {
+      throw new Error("Password is required for credentials email");
+    }
+
+    console.log("Sending agency credentials email to:", {
+      email: agency.email,
+      contactPerson: agency.contactPerson,
+      companyName: agency.companyName,
+      abn: agency.abn,
+      region: agency.region,
+      compliance: agency.compliance,
+    });
+
+    return await this.sendTemplatedEmail({
+      to: agency.email,
+      templateName: "agencyCredentials",
+      templateData: {
+        name: agency.contactPerson,
+        companyName: agency.companyName,
+        email: agency.email,
+        password: password,
+        abn: agency.abn,
+        region: agency.region,
+        compliance: agency.compliance,
+        loginUrl: loginUrl,
+      },
+    });
+  }
+
+  /**
+   * Send password reset OTP email to agency
+   * @param {Object} agency - Agency object
+   * @param {string} agency.email - Agency's email
+   * @param {string} agency.contactPerson - Agency's contact person name
+   * @param {string} agency.companyName - Agency's company name
+   * @param {string} otp - OTP code
+   * @param {number} expirationMinutes - OTP expiration time in minutes
+   * @returns {Promise} - Email send result
+   */
+  async sendAgencyPasswordResetOTP(agency, otp, expirationMinutes = 10) {
+    if (
+      !agency ||
+      !agency.email ||
+      !agency.contactPerson ||
+      !agency.companyName
+    ) {
+      throw new Error(
+        "Invalid agency data provided for password reset OTP email"
+      );
+    }
+
+    if (!otp) {
+      throw new Error("OTP is required for password reset email");
+    }
+
+    console.log("Sending agency password reset OTP email to:", {
+      email: agency.email,
+      name: agency.contactPerson,
+      companyName: agency.companyName,
+      otpLength: otp.length,
+      expirationMinutes,
+    });
+
+    return await this.sendTemplatedEmail({
+      to: agency.email,
+      templateName: "agencyPasswordResetOTP",
+      templateData: {
+        name: agency.contactPerson,
+        companyName: agency.companyName,
+        otp: otp,
+        expirationMinutes: expirationMinutes,
+      },
     });
   }
 
@@ -254,35 +423,35 @@ class EmailService {
    * @param {string} staff.tradeType - Staff's trade type
    * @param {Object} owner - Owner object
    * @param {string} owner.name - Owner's name
-   * @param {string} owner.type - Owner's type (SuperUser or PropertyManager)
+   * @param {string} owner.type - Owner's type (SuperUser or Agency)
    * @returns {Promise} - Email send result
    */
   async sendStaffWelcomeEmail(staff, owner) {
     if (!staff || !staff.email || !staff.fullName || !staff.tradeType) {
-      throw new Error('Invalid staff data provided for welcome email');
+      throw new Error("Invalid staff data provided for welcome email");
     }
 
     if (!owner || !owner.name || !owner.type) {
-      throw new Error('Invalid owner data provided for staff welcome email');
+      throw new Error("Invalid owner data provided for staff welcome email");
     }
 
-    console.log('Sending staff welcome email to:', {
+    console.log("Sending staff welcome email to:", {
       email: staff.email,
       fullName: staff.fullName,
       tradeType: staff.tradeType,
       ownerName: owner.name,
-      ownerType: owner.type
+      ownerType: owner.type,
     });
 
     return await this.sendTemplatedEmail({
       to: staff.email,
-      templateName: 'staffWelcome',
+      templateName: "staffWelcome",
       templateData: {
         staffName: staff.fullName,
         ownerName: owner.name,
         ownerType: owner.type,
-        tradeType: staff.tradeType
-      }
+        tradeType: staff.tradeType,
+      },
     });
   }
 
@@ -299,34 +468,36 @@ class EmailService {
    */
   async sendStaffStatusUpdateEmail(staff, newStatus, owner, reason = null) {
     if (!staff || !staff.email || !staff.fullName) {
-      throw new Error('Invalid staff data provided for status update email');
+      throw new Error("Invalid staff data provided for status update email");
     }
 
     if (!newStatus) {
-      throw new Error('New status is required for status update email');
+      throw new Error("New status is required for status update email");
     }
 
     if (!owner || !owner.name) {
-      throw new Error('Invalid owner data provided for staff status update email');
+      throw new Error(
+        "Invalid owner data provided for staff status update email"
+      );
     }
 
-    console.log('Sending staff status update email to:', {
+    console.log("Sending staff status update email to:", {
       email: staff.email,
       fullName: staff.fullName,
       newStatus: newStatus,
       ownerName: owner.name,
-      reason: reason
+      reason: reason,
     });
 
     return await this.sendTemplatedEmail({
       to: staff.email,
-      templateName: 'staffStatusUpdate',
+      templateName: "staffStatusUpdate",
       templateData: {
         staffName: staff.fullName,
         newStatus: newStatus,
         ownerName: owner.name,
-        reason: reason
-      }
+        reason: reason,
+      },
     });
   }
 
@@ -341,36 +512,45 @@ class EmailService {
    * @param {string} [dueDate] - Optional due date for documents
    * @returns {Promise} - Email send result
    */
-  async sendStaffDocumentReminderEmail(staff, documentType, owner, dueDate = null) {
+  async sendStaffDocumentReminderEmail(
+    staff,
+    documentType,
+    owner,
+    dueDate = null
+  ) {
     if (!staff || !staff.email || !staff.fullName) {
-      throw new Error('Invalid staff data provided for document reminder email');
+      throw new Error(
+        "Invalid staff data provided for document reminder email"
+      );
     }
 
     if (!documentType) {
-      throw new Error('Document type is required for document reminder email');
+      throw new Error("Document type is required for document reminder email");
     }
 
     if (!owner || !owner.name) {
-      throw new Error('Invalid owner data provided for staff document reminder email');
+      throw new Error(
+        "Invalid owner data provided for staff document reminder email"
+      );
     }
 
-    console.log('Sending staff document reminder email to:', {
+    console.log("Sending staff document reminder email to:", {
       email: staff.email,
       fullName: staff.fullName,
       documentType: documentType,
       ownerName: owner.name,
-      dueDate: dueDate
+      dueDate: dueDate,
     });
 
     return await this.sendTemplatedEmail({
       to: staff.email,
-      templateName: 'staffDocumentReminder',
+      templateName: "staffDocumentReminder",
       templateData: {
         staffName: staff.fullName,
         documentType: documentType,
         ownerName: owner.name,
-        dueDate: dueDate
-      }
+        dueDate: dueDate,
+      },
     });
   }
 
@@ -395,40 +575,51 @@ class EmailService {
    */
   async sendJobAssignmentEmail(technician, job, assignedBy) {
     if (!technician || !technician.email || !technician.fullName) {
-      throw new Error('Invalid technician data provided for job assignment email');
+      throw new Error(
+        "Invalid technician data provided for job assignment email"
+      );
     }
 
-    if (!job || !job.job_id || !job.propertyAddress || !job.jobType || !job.dueDate || !job.priority) {
-      throw new Error('Invalid job data provided for job assignment email');
+    if (
+      !job ||
+      !job.job_id ||
+      !job.propertyAddress ||
+      !job.jobType ||
+      !job.dueDate ||
+      !job.priority
+    ) {
+      throw new Error("Invalid job data provided for job assignment email");
     }
 
     if (!assignedBy || !assignedBy.name || !assignedBy.type) {
-      throw new Error('Invalid assignedBy data provided for job assignment email');
+      throw new Error(
+        "Invalid assignedBy data provided for job assignment email"
+      );
     }
 
     // Format the due date for display
-    const formattedDueDate = new Date(job.dueDate).toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+    const formattedDueDate = new Date(job.dueDate).toLocaleDateString("en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     });
 
-    console.log('Sending job assignment email to technician:', {
+    console.log("Sending job assignment email to technician:", {
       email: technician.email,
       technicianName: technician.fullName,
       jobId: job.job_id,
       jobType: job.jobType,
       propertyAddress: job.propertyAddress,
       assignedBy: assignedBy.name,
-      assignedByType: assignedBy.type
+      assignedByType: assignedBy.type,
     });
 
     return await this.sendTemplatedEmail({
       to: technician.email,
-      templateName: 'jobAssignment',
+      templateName: "jobAssignment",
       templateData: {
         technicianName: technician.fullName,
         jobId: job.job_id,
@@ -436,16 +627,17 @@ class EmailService {
         jobType: job.jobType,
         dueDate: formattedDueDate,
         priority: job.priority,
-        description: job.description || '',
-        estimatedDuration: job.estimatedDuration || '',
+        description: job.description || "",
+        estimatedDuration: job.estimatedDuration || "",
         assignedBy: assignedBy.name,
-        assignedByType: assignedBy.type === 'SuperUser' ? 'Super User' : 'Property Manager',
-        notes: job.notes || ''
-      }
+        assignedByType:
+          assignedBy.type === "SuperUser" ? "Super User" : "Agency",
+        notes: job.notes || "",
+      },
     });
   }
 }
 
 // Create and export a singleton instance
 const emailService = new EmailService();
-export default emailService; 
+export default emailService;

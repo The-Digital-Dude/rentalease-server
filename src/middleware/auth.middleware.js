@@ -1,5 +1,5 @@
-import jwt from 'jsonwebtoken';
-import SuperUser from '../models/SuperUser.js';
+import jwt from "jsonwebtoken";
+import SuperUser from "../models/SuperUser.js";
 
 /**
  * Middleware to authenticate and authorize super users
@@ -11,21 +11,21 @@ const authenticateSuperUser = async (req, res, next) => {
   try {
     // Check if authorization header exists
     const authHeader = req.headers.authorization;
-    
+
     if (!authHeader) {
       return res.status(401).json({
-        status: 'error',
-        message: 'Authorization header is required'
+        status: "error",
+        message: "Authorization header is required",
       });
     }
 
     // Extract token from "Bearer token" format
-    const token = authHeader.split(' ')[1];
-    
+    const token = authHeader.split(" ")[1];
+
     if (!token) {
       return res.status(401).json({
-        status: 'error',
-        message: 'Access token is required'
+        status: "error",
+        message: "Access token is required",
       });
     }
 
@@ -35,26 +35,26 @@ const authenticateSuperUser = async (req, res, next) => {
       decoded = jwt.verify(token, process.env.JWT_SECRET);
     } catch (tokenError) {
       return res.status(401).json({
-        status: 'error',
-        message: 'Invalid or expired token'
+        status: "error",
+        message: "Invalid or expired token",
       });
     }
 
     // Check if token is for a super user (not property manager)
-    if (decoded.type && decoded.type !== 'superUser') {
+    if (decoded.type && decoded.type !== "superUser") {
       return res.status(403).json({
-        status: 'error',
-        message: 'Access denied. Super user privileges required.'
+        status: "error",
+        message: "Access denied. Super user privileges required.",
       });
     }
 
     // Find the super user in database
     const superUser = await SuperUser.findById(decoded.id);
-    
+
     if (!superUser) {
       return res.status(401).json({
-        status: 'error',
-        message: 'Super user not found'
+        status: "error",
+        message: "Super user not found",
       });
     }
 
@@ -62,44 +62,44 @@ const authenticateSuperUser = async (req, res, next) => {
     req.superUser = {
       id: superUser._id,
       name: superUser.name,
-      email: superUser.email
+      email: superUser.email,
     };
 
     next();
   } catch (error) {
-    console.error('Super user authentication error:', error);
+    console.error("Super user authentication error:", error);
     res.status(500).json({
-      status: 'error',
-      message: 'Authentication failed'
+      status: "error",
+      message: "Authentication failed",
     });
   }
 };
 
 /**
- * Middleware to authenticate property managers
+ * Middleware to authenticate agencies
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
  */
-const authenticatePropertyManager = async (req, res, next) => {
+const authenticateAgency = async (req, res, next) => {
   try {
     // Check if authorization header exists
     const authHeader = req.headers.authorization;
-    
+
     if (!authHeader) {
       return res.status(401).json({
-        status: 'error',
-        message: 'Authorization header is required'
+        status: "error",
+        message: "Authorization header is required",
       });
     }
 
     // Extract token from "Bearer token" format
-    const token = authHeader.split(' ')[1];
-    
+    const token = authHeader.split(" ")[1];
+
     if (!token) {
       return res.status(401).json({
-        status: 'error',
-        message: 'Access token is required'
+        status: "error",
+        message: "Access token is required",
       });
     }
 
@@ -109,53 +109,53 @@ const authenticatePropertyManager = async (req, res, next) => {
       decoded = jwt.verify(token, process.env.JWT_SECRET);
     } catch (tokenError) {
       return res.status(401).json({
-        status: 'error',
-        message: 'Invalid or expired token'
+        status: "error",
+        message: "Invalid or expired token",
       });
     }
 
-    // Check if token is for a property manager
-    if (decoded.type !== 'propertyManager') {
+    // Check if token is for an agency
+    if (decoded.type !== "agency") {
       return res.status(403).json({
-        status: 'error',
-        message: 'Access denied. Property manager privileges required.'
+        status: "error",
+        message: "Access denied. Agency privileges required.",
       });
     }
 
-    // Find the property manager in database
-    const { default: PropertyManager } = await import('../models/PropertyManager.js');
-    const propertyManager = await PropertyManager.findById(decoded.id);
-    
-    if (!propertyManager) {
+    // Find the agency in database
+    const { default: Agency } = await import("../models/Agency.js");
+    const agency = await Agency.findById(decoded.id);
+
+    if (!agency) {
       return res.status(401).json({
-        status: 'error',
-        message: 'Property manager not found'
+        status: "error",
+        message: "Agency not found",
       });
     }
 
-    // Check if property manager account is active
-    if (!propertyManager.isActive()) {
+    // Check if agency account is active
+    if (!agency.isActive()) {
       return res.status(401).json({
-        status: 'error',
-        message: `Account is ${propertyManager.status.toLowerCase()}. Please contact support.`
+        status: "error",
+        message: `Account is ${agency.status.toLowerCase()}. Please contact support.`,
       });
     }
 
-    // Add property manager info to request object
-    req.propertyManager = {
-      id: propertyManager._id,
-      companyName: propertyManager.companyName,
-      contactPerson: propertyManager.contactPerson,
-      email: propertyManager.email,
-      status: propertyManager.status
+    // Add agency info to request object
+    req.agency = {
+      id: agency._id,
+      companyName: agency.companyName,
+      contactPerson: agency.contactPerson,
+      email: agency.email,
+      status: agency.status,
     };
 
     next();
   } catch (error) {
-    console.error('Property manager authentication error:', error);
+    console.error("Agency authentication error:", error);
     res.status(500).json({
-      status: 'error',
-      message: 'Authentication failed'
+      status: "error",
+      message: "Authentication failed",
     });
   }
 };
@@ -170,21 +170,21 @@ const authenticate = async (req, res, next) => {
   try {
     // Check if authorization header exists
     const authHeader = req.headers.authorization;
-    
+
     if (!authHeader) {
       return res.status(401).json({
-        status: 'error',
-        message: 'Authorization header is required'
+        status: "error",
+        message: "Authorization header is required",
       });
     }
 
     // Extract token from "Bearer token" format
-    const token = authHeader.split(' ')[1];
-    
+    const token = authHeader.split(" ")[1];
+
     if (!token) {
       return res.status(401).json({
-        status: 'error',
-        message: 'Access token is required'
+        status: "error",
+        message: "Access token is required",
       });
     }
 
@@ -194,20 +194,20 @@ const authenticate = async (req, res, next) => {
       decoded = jwt.verify(token, process.env.JWT_SECRET);
     } catch (tokenError) {
       return res.status(401).json({
-        status: 'error',
-        message: 'Invalid or expired token'
+        status: "error",
+        message: "Invalid or expired token",
       });
     }
 
     // Handle different user types
-    if (decoded.type === 'superUser') {
+    if (decoded.type === "superUser") {
       // Find the super user in database
       const superUser = await SuperUser.findById(decoded.id);
-      
+
       if (!superUser) {
         return res.status(401).json({
-          status: 'error',
-          message: 'Super user not found'
+          status: "error",
+          message: "Super user not found",
         });
       }
 
@@ -215,40 +215,40 @@ const authenticate = async (req, res, next) => {
       req.superUser = {
         id: superUser._id,
         name: superUser.name,
-        email: superUser.email
+        email: superUser.email,
       };
-    } else if (decoded.type === 'propertyManager') {
-      // Find the property manager in database
-      const { default: PropertyManager } = await import('../models/PropertyManager.js');
-      const propertyManager = await PropertyManager.findById(decoded.id);
-      
-      if (!propertyManager) {
+    } else if (decoded.type === "agency") {
+      // Find the agency in database
+      const { default: Agency } = await import("../models/Agency.js");
+      const agency = await Agency.findById(decoded.id);
+
+      if (!agency) {
         return res.status(401).json({
-          status: 'error',
-          message: 'Property manager not found'
+          status: "error",
+          message: "Agency not found",
         });
       }
 
-      // Check if property manager account is active
-      if (!propertyManager.isActive()) {
+      // Check if agency account is active
+      if (!agency.isActive()) {
         return res.status(401).json({
-          status: 'error',
-          message: `Account is ${propertyManager.status.toLowerCase()}. Please contact support.`
+          status: "error",
+          message: `Account is ${agency.status.toLowerCase()}. Please contact support.`,
         });
       }
 
-      // Add property manager info to request object
-      req.propertyManager = {
-        id: propertyManager._id,
-        companyName: propertyManager.companyName,
-        contactPerson: propertyManager.contactPerson,
-        email: propertyManager.email,
-        status: propertyManager.status
+      // Add agency info to request object
+      req.agency = {
+        id: agency._id,
+        companyName: agency.companyName,
+        contactPerson: agency.contactPerson,
+        email: agency.email,
+        status: agency.status,
       };
     } else {
       return res.status(401).json({
-        status: 'error',
-        message: 'Invalid user type'
+        status: "error",
+        message: "Invalid user type",
       });
     }
 
@@ -257,16 +257,12 @@ const authenticate = async (req, res, next) => {
 
     next();
   } catch (error) {
-    console.error('Authentication error:', error);
+    console.error("Authentication error:", error);
     res.status(500).json({
-      status: 'error',
-      message: 'Authentication failed'
+      status: "error",
+      message: "Authentication failed",
     });
   }
 };
 
-export {
-  authenticateSuperUser,
-  authenticatePropertyManager,
-  authenticate
-}; 
+export { authenticateSuperUser, authenticateAgency, authenticate };

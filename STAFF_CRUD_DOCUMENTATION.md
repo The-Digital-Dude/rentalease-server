@@ -1,14 +1,12 @@
-# Staff CRUD System Documentation
+# Staff Management API Documentation
 
 ## Overview
 
-This document provides comprehensive information about the Staff CRUD system implemented for the RentalEase CRM. The system allows both Super Users and Property Managers to manage their staff members with full CRUD operations, file uploads, and advanced search capabilities.
+The Staff Management API provides a comprehensive set of endpoints for managing staff members in the RentalEase CRM system. The system allows both Super Users and Agencies to manage their staff members with full CRUD operations, file uploads, and advanced search capabilities.
 
 ## Database Design
 
-### Polymorphic Reference Pattern
-
-The Staff system uses a **polymorphic reference pattern** to allow staff members to be owned by either Super Users or Property Managers. This design ensures:
+The Staff system uses a **polymorphic reference pattern** to allow staff members to be owned by either Super Users or Agencies. This design ensures:
 
 - **Data Integrity**: Each staff member belongs to exactly one owner
 - **Scalability**: Easy to add new owner types in the future
@@ -24,24 +22,24 @@ The Staff system uses a **polymorphic reference pattern** to allow staff members
   tradeType: String (required, enum),
   phone: String (required),
   email: String (required, unique per owner),
-  
+
   // Availability and Schedule
   availabilityStatus: String (enum: Available, Unavailable, Busy, On Leave),
   startDate: Date (required),
-  
+
   // Service Regions
   serviceRegions: [String] (enum: North, South, East, West, Central),
-  
+
   // Documents
   licensingDocuments: [DocumentSchema],
   insuranceDocuments: [DocumentSchema],
-  
+
   // Polymorphic Owner Reference
   owner: {
-    ownerType: String (enum: SuperUser, PropertyManager),
+    ownerType: String (enum: SuperUser, Agency),
     ownerId: ObjectId (refPath: owner.ownerType)
   },
-  
+
   // Status and Metadata
   status: String (enum: Active, Inactive, Suspended, Terminated),
   rating: Number (0-5),
@@ -49,7 +47,7 @@ The Staff system uses a **polymorphic reference pattern** to allow staff members
   completedJobs: Number,
   notes: String,
   hourlyRate: Number,
-  
+
   // Timestamps
   createdAt: Date,
   updatedAt: Date,
@@ -62,6 +60,7 @@ The Staff system uses a **polymorphic reference pattern** to allow staff members
 ### Base URL: `/api/v1/staff`
 
 All endpoints require authentication via JWT token in the Authorization header:
+
 ```
 Authorization: Bearer <token>
 ```
@@ -75,6 +74,7 @@ Creates a new staff member with optional file uploads.
 **Content-Type**: `multipart/form-data`
 
 **Body Parameters**:
+
 ```javascript
 {
   "fullName": "John Doe",
@@ -90,10 +90,12 @@ Creates a new staff member with optional file uploads.
 ```
 
 **File Fields**:
+
 - `licensingDocuments`: Array of licensing documents (max 3 files)
 - `insuranceDocuments`: Array of insurance documents (max 3 files)
 
 **Response**:
+
 ```javascript
 {
   "status": "success",
@@ -116,6 +118,7 @@ Creates a new staff member with optional file uploads.
 Retrieves all staff members for the authenticated user with pagination and filtering.
 
 **Query Parameters**:
+
 - `page`: Page number (default: 1)
 - `limit`: Items per page (default: 10)
 - `tradeType`: Filter by trade type
@@ -127,11 +130,13 @@ Retrieves all staff members for the authenticated user with pagination and filte
 - `sortOrder`: Sort order (asc/desc, default: desc)
 
 **Example Request**:
+
 ```
 GET /api/v1/staff?page=1&limit=10&tradeType=Plumber&availabilityStatus=Available&search=john
 ```
 
 **Response**:
+
 ```javascript
 {
   "status": "success",
@@ -164,6 +169,7 @@ GET /api/v1/staff?page=1&limit=10&tradeType=Plumber&availabilityStatus=Available
 Retrieves a specific staff member by ID.
 
 **Response**:
+
 ```javascript
 {
   "status": "success",
@@ -188,6 +194,7 @@ Updates an existing staff member.
 **Body Parameters**: Same as create, all fields optional
 
 **Response**:
+
 ```javascript
 {
   "status": "success",
@@ -207,6 +214,7 @@ Updates an existing staff member.
 Deletes a staff member permanently.
 
 **Response**:
+
 ```javascript
 {
   "status": "success",
@@ -232,10 +240,12 @@ Uploads additional documents for an existing staff member.
 **Content-Type**: `multipart/form-data`
 
 **File Fields**:
+
 - `licensingDocuments`: Array of licensing documents
 - `insuranceDocuments`: Array of insurance documents
 
 **Response**:
+
 ```javascript
 {
   "status": "success",
@@ -266,9 +276,11 @@ Uploads additional documents for an existing staff member.
 Deletes a specific document from a staff member's profile.
 
 **Query Parameters**:
+
 - `documentType`: Type of document ('licensing' or 'insurance')
 
 **Response**:
+
 ```javascript
 {
   "status": "success",
@@ -290,6 +302,7 @@ Deletes a specific document from a staff member's profile.
 Downloads a specific document from a staff member's profile.
 
 **Query Parameters**:
+
 - `documentType`: Type of document ('licensing' or 'insurance')
 
 **Response**: File download with appropriate headers
@@ -303,6 +316,7 @@ Downloads a specific document from a staff member's profile.
 Updates availability status for multiple staff members.
 
 **Body Parameters**:
+
 ```javascript
 {
   "staffIds": ["64abc123...", "64def456..."],
@@ -311,6 +325,7 @@ Updates availability status for multiple staff members.
 ```
 
 **Response**:
+
 ```javascript
 {
   "status": "success",
@@ -329,6 +344,7 @@ Updates availability status for multiple staff members.
 Provides comprehensive analytics about staff members.
 
 **Response**:
+
 ```javascript
 {
   "status": "success",
@@ -368,6 +384,7 @@ Provides comprehensive analytics about staff members.
 Advanced search with multiple filters.
 
 **Body Parameters**:
+
 ```javascript
 {
   "searchTerm": "john",
@@ -385,6 +402,7 @@ Advanced search with multiple filters.
 ```
 
 **Response**:
+
 ```javascript
 {
   "status": "success",
@@ -435,7 +453,7 @@ Files are stored in the `uploads/staff-documents/` directory with unique filenam
 
 - **JWT Token Required**: All endpoints require valid authentication
 - **Owner Validation**: Users can only access their own staff members
-- **Role-Based Access**: Different permissions for Super Users vs Property Managers
+- **Role-Based Access**: Different permissions for Super Users vs Agencies
 
 ### Data Validation
 
@@ -469,44 +487,44 @@ The API returns consistent error responses:
 ### JavaScript/Node.js Example
 
 ```javascript
-const axios = require('axios');
+const axios = require("axios");
 
 // Create a new staff member
 const createStaff = async (token, staffData) => {
   const formData = new FormData();
-  
+
   // Add text fields
-  Object.keys(staffData).forEach(key => {
-    if (key !== 'licensingDocuments' && key !== 'insuranceDocuments') {
+  Object.keys(staffData).forEach((key) => {
+    if (key !== "licensingDocuments" && key !== "insuranceDocuments") {
       formData.append(key, staffData[key]);
     }
   });
-  
+
   // Add files
-  staffData.licensingDocuments?.forEach(file => {
-    formData.append('licensingDocuments', file);
+  staffData.licensingDocuments?.forEach((file) => {
+    formData.append("licensingDocuments", file);
   });
-  
-  const response = await axios.post('/api/v1/staff', formData, {
+
+  const response = await axios.post("/api/v1/staff", formData, {
     headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'multipart/form-data'
-    }
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "multipart/form-data",
+    },
   });
-  
+
   return response.data;
 };
 
 // Get all staff with filtering
 const getStaff = async (token, filters = {}) => {
   const params = new URLSearchParams(filters);
-  
+
   const response = await axios.get(`/api/v1/staff?${params}`, {
     headers: {
-      'Authorization': `Bearer ${token}`
-    }
+      Authorization: `Bearer ${token}`,
+    },
   });
-  
+
   return response.data;
 };
 ```
@@ -575,11 +593,13 @@ curl -X PUT \
 ### Common Issues
 
 1. **File Upload Fails**
+
    - Check file size limits
    - Verify file types are supported
    - Ensure multipart/form-data content type
 
 2. **Authentication Errors**
+
    - Verify JWT token is valid and not expired
    - Check user permissions and access rights
 
@@ -599,4 +619,4 @@ curl -X PUT \
 
 This Staff CRUD system provides a comprehensive solution for managing staff members in the RentalEase CRM. The polymorphic design ensures flexibility and scalability, while the rich API provides all necessary functionality for a complete staff management system.
 
-The system is designed to be secure, performant, and user-friendly, with extensive documentation and examples to help developers integrate it into their applications. 
+The system is designed to be secure, performant, and user-friendly, with extensive documentation and examples to help developers integrate it into their applications.

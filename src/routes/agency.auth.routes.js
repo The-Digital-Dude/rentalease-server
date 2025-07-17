@@ -1,0 +1,1038 @@
+import express from "express";
+import Agency from "../models/Agency.js";
+import jwt from "jsonwebtoken";
+import emailService from "../services/email.service.js";
+import {
+  generateOTP,
+  generateOTPExpiration,
+  isOTPExpired,
+  hashOTP,
+  verifyOTP,
+} from "../utils/otpGenerator.js";
+import {
+  authenticateSuperUser,
+  authenticateAgency,
+} from "../middleware/auth.middleware.js";
+
+const router = express.Router();
+
+// Valid regions enum
+const VALID_REGIONS = [
+  "Sydney Metro",
+  "Melbourne Metro",
+  "Brisbane Metro",
+  "Perth Metro",
+  "Adelaide Metro",
+  "Darwin Metro",
+  "Hobart Metro",
+  "Canberra Metro",
+  "Regional NSW",
+  "Regional VIC",
+  "Regional QLD",
+  "Regional WA",
+  "Regional SA",
+  "Regional NT",
+  "Regional TAS",
+];
+
+// Register Agency (Only Super Users can create Agencies)
+router.post("/register", authenticateSuperUser, async (req, res) => {
+  try {
+    const {
+      companyName,
+      abn,
+      contactPerson,
+      email,
+      phone,
+      region,
+      compliance,
+      password,
+    } = req.body;
+
+    // Validate required fields
+    if (
+      !companyName ||
+      !abn ||
+      !contactPerson ||
+      !email ||
+      !phone ||
+      !region ||
+      !compliance ||
+      !password
+    ) {
+      return res.status(400).json({
+        status: "error",
+        message: "All fields are required",
+      });
+    }
+
+    // Validate region
+    if (!VALID_REGIONS.includes(region)) {
+      return res.status(400).json({
+        status: "error",
+        message: "Please select a valid region",
+      });
+    }
+
+    // Check if agency already exists by email
+    const existingAgencyByEmail = await Agency.findOne({
+      email: email.toLowerCase(),
+    });
+    if (existingAgencyByEmail) {
+      return res.status(400).json({
+        status: "error",
+        message: "Agency with this email already exists",
+      });
+    }
+
+    // Check if agency already exists by ABN
+    const existingAgencyByABN = await Agency.findOne({ abn });
+    if (existingAgencyByABN) {
+      return res.status(400).json({
+        status: "error",
+        message: "Agency with this ABN already exists",
+      });
+    }
+
+    // Create new agency
+    const agency = new Agency({
+      companyName,
+      abn,
+      contactPerson,
+      email: email.toLowerCase(),
+      phone,
+      region,
+      compliance,
+      password,
+      status: "Pending", // Default status, can be activated by admin
+    });
+
+    await agency.save();
+
+    // Send credentials email to agency
+    try {
+      await emailService.sendAgencyCredentialsEmail(
+        {
+          email: agency.email,
+          contactPerson: agency.contactPerson,
+          companyName: agency.companyName,
+          abn: agency.abn,
+          region: agency.region,
+          compliance: agency.compliance,
+        },
+        password,
+        process.env.FRONTEND_URL || "https://rentalease-crm.com/login"
+      );
+
+      console.log("Agency credentials email sent successfully:", {
+        agencyId: agency._id,
+        email: agency.email,
+        companyName: agency.companyName,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (emailError) {
+      console.error("Failed to send agency credentials email:", emailError);
+      // Continue with response even if email fails
+    }
+
+    console.log("Agency created successfully:", {
+      agencyId: agency._id,
+      companyName: agency.companyName,
+      contactPerson: agency.contactPerson,
+      email: agency.email,
+      createdBy: req.superUser.email,
+      credentialsEmailSent: "Credentials email sent with login information",
+      timestamp: new Date().toISOString(),
+    });
+
+    res.status(201).json({
+      status: "success",
+      message:
+        "Agency registered successfully. Credentials email has been sent.",
+      data: {
+        agency: {
+          id: agency._id,
+          companyName: agency.companyName,
+          contactPerson: agency.contactPerson,
+          email: agency.email,
+          phone: agency.phone,
+          region: agency.region,
+          compliance: agency.compliance,
+          status: agency.status,
+          abn: agency.abn,
+          outstandingAmount: agency.outstandingAmount,
+          totalProperties: agency.totalProperties,
+          joinedDate: agency.joinedDate,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Agency registration error:", error);
+    res.status(500).json({
+      status: "error",
+      message: error.message || "An error occurred during registration",
+    });
+  }
+});
+
+// Login Agency
+router.post("/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    console.log(email, password, "email and password");
+
+    // Validate required fields
+    if (!email || !password) {
+      return res.status(400).json({
+        status: "error",
+        message: "Email and password are required",
+      });
+    }
+
+    // Find agency and select password
+    const agency = await Agency.findOne({ email: email.toLowerCase() }).select(
+      "+password"
+    );
+    if (!agency) {
+      return res.status(401).json({
+        status: "error",
+        message: "Invalid credentials",
+      });
+    }
+
+    // Check if account is active
+    if (!agency.isActive()) {
+      return res.status(401).json({
+        status: "error",
+        message: `Account is ${agency.status.toLowerCase()}. Please contact support.`,
+      });
+    }
+
+    // Check password
+    const isPasswordValid = await agency.comparePassword(password);
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        status: "error",
+        message: "Invalid credentials",
+      });
+    }
+
+    // Update last login
+    await agency.updateLastLogin();
+
+    // Generate JWT token
+    const token = jwt.sign(
+      {
+        id: agency._id,
+        type: "agency",
+        email: agency.email,
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    res.status(200).json({
+      status: "success",
+      message: "Login successful",
+      data: {
+        token,
+        agency: {
+          id: agency._id,
+          companyName: agency.companyName,
+          contactPerson: agency.contactPerson,
+          email: agency.email,
+          phone: agency.phone,
+          region: agency.region,
+          compliance: agency.compliance,
+          status: agency.status,
+          abn: agency.abn,
+          outstandingAmount: agency.outstandingAmount,
+          totalProperties: agency.totalProperties,
+          lastLogin: agency.lastLogin,
+          joinedDate: agency.joinedDate,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Agency login error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "An error occurred during login",
+    });
+  }
+});
+
+// Forgot Password - Agency
+router.post("/forgot-password", async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        status: "error",
+        message: "Email is required",
+      });
+    }
+
+    // Find agency by email
+    const agency = await Agency.findOne({ email: email.toLowerCase() });
+    if (!agency) {
+      return res.status(404).json({
+        status: "error",
+        message: "Agency not found with this email address",
+      });
+    }
+
+    // Check if account is active
+    if (!agency.isActive()) {
+      return res.status(401).json({
+        status: "error",
+        message: `Account is ${agency.status.toLowerCase()}. Please contact support.`,
+      });
+    }
+
+    // Generate OTP
+    const otp = generateOTP();
+    const otpExpiration = generateOTPExpiration();
+    const hashedOTP = hashOTP(otp);
+
+    // Update agency with OTP details
+    agency.resetPasswordOTP = hashedOTP;
+    agency.resetPasswordOTPExpires = otpExpiration;
+    agency.resetPasswordOTPAttempts = 0;
+
+    await agency.save();
+
+    // Send OTP email
+    try {
+      await emailService.sendAgencyPasswordResetOTP(agency, otp, 10);
+
+      console.log("Agency password reset OTP sent successfully:", {
+        agencyId: agency._id,
+        email: agency.email,
+        companyName: agency.companyName,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (emailError) {
+      console.error("Failed to send agency password reset OTP:", emailError);
+
+      // Reset OTP fields on email failure
+      agency.resetPasswordOTP = null;
+      agency.resetPasswordOTPExpires = null;
+      agency.resetPasswordOTPAttempts = 0;
+      await agency.save();
+
+      return res.status(500).json({
+        status: "error",
+        message: "Failed to send password reset email. Please try again later.",
+      });
+    }
+
+    res.status(200).json({
+      status: "success",
+      message: "Password reset OTP has been sent to your email address",
+      data: {
+        email: agency.email,
+      },
+    });
+  } catch (error) {
+    console.error("Agency forgot password error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "An error occurred while processing password reset request",
+    });
+  }
+});
+
+// Reset Password - Agency
+router.post("/reset-password", async (req, res) => {
+  try {
+    const { email, otp, newPassword } = req.body;
+
+    if (!email || !otp || !newPassword) {
+      return res.status(400).json({
+        status: "error",
+        message: "Email, OTP, and new password are required",
+      });
+    }
+
+    // Find agency by email
+    const agency = await Agency.findOne({ email: email.toLowerCase() });
+    if (!agency) {
+      return res.status(404).json({
+        status: "error",
+        message: "Agency not found with this email address",
+      });
+    }
+
+    // Check if OTP exists and is not expired
+    if (!agency.resetPasswordOTP || !agency.resetPasswordOTPExpires) {
+      return res.status(400).json({
+        status: "error",
+        message: "No password reset request found. Please request a new OTP.",
+      });
+    }
+
+    if (isOTPExpired(agency.resetPasswordOTPExpires)) {
+      // Clear expired OTP
+      agency.resetPasswordOTP = null;
+      agency.resetPasswordOTPExpires = null;
+      agency.resetPasswordOTPAttempts = 0;
+      await agency.save();
+
+      return res.status(400).json({
+        status: "error",
+        message: "OTP has expired. Please request a new password reset.",
+      });
+    }
+
+    // Check OTP attempts
+    if (agency.resetPasswordOTPAttempts >= 3) {
+      // Clear OTP after max attempts
+      agency.resetPasswordOTP = null;
+      agency.resetPasswordOTPExpires = null;
+      agency.resetPasswordOTPAttempts = 0;
+      await agency.save();
+
+      return res.status(400).json({
+        status: "error",
+        message:
+          "Too many failed attempts. Please request a new password reset.",
+      });
+    }
+
+    // Verify OTP
+    const isOTPValid = verifyOTP(otp, agency.resetPasswordOTP);
+    if (!isOTPValid) {
+      // Increment attempts
+      agency.resetPasswordOTPAttempts += 1;
+      await agency.save();
+
+      return res.status(400).json({
+        status: "error",
+        message: `Invalid OTP. ${
+          3 - agency.resetPasswordOTPAttempts
+        } attempts remaining.`,
+      });
+    }
+
+    // Update the agency's password
+    agency.password = newPassword; // This will be hashed by the pre-save middleware
+    agency.resetPasswordOTP = null;
+    agency.resetPasswordOTPExpires = null;
+    agency.resetPasswordOTPAttempts = 0;
+
+    await agency.save();
+
+    console.log("Agency password reset successful:", {
+      agencyId: agency._id,
+      email: agency.email,
+      companyName: agency.companyName,
+      timestamp: new Date().toISOString(),
+    });
+
+    res.status(200).json({
+      status: "success",
+      message:
+        "Password has been reset successfully. You can now login with your new password.",
+      data: {
+        email: agency.email,
+        resetAt: new Date().toISOString(),
+      },
+    });
+  } catch (error) {
+    console.error("Agency reset password error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "An error occurred while resetting password",
+    });
+  }
+});
+
+// Verify OTP Only (without password reset) - Agency
+router.post("/verify-otp", async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      return res.status(400).json({
+        status: "error",
+        message: "Email and OTP are required",
+      });
+    }
+
+    // Find agency by email
+    const agency = await Agency.findOne({ email: email.toLowerCase() });
+    if (!agency) {
+      return res.status(404).json({
+        status: "error",
+        message: "Agency not found with this email address",
+      });
+    }
+
+    // Check if OTP exists and is not expired
+    if (!agency.resetPasswordOTP || !agency.resetPasswordOTPExpires) {
+      return res.status(400).json({
+        status: "error",
+        message: "No OTP request found. Please request a new OTP.",
+      });
+    }
+
+    if (isOTPExpired(agency.resetPasswordOTPExpires)) {
+      // Clear expired OTP
+      agency.resetPasswordOTP = null;
+      agency.resetPasswordOTPExpires = null;
+      agency.resetPasswordOTPAttempts = 0;
+      await agency.save();
+
+      return res.status(400).json({
+        status: "error",
+        message: "OTP has expired. Please request a new OTP.",
+      });
+    }
+
+    // Check OTP attempts
+    if (agency.resetPasswordOTPAttempts >= 3) {
+      // Clear OTP after max attempts
+      agency.resetPasswordOTP = null;
+      agency.resetPasswordOTPExpires = null;
+      agency.resetPasswordOTPAttempts = 0;
+      await agency.save();
+
+      return res.status(400).json({
+        status: "error",
+        message: "Too many failed attempts. Please request a new OTP.",
+      });
+    }
+
+    // Verify OTP
+    const isOTPValid = verifyOTP(otp, agency.resetPasswordOTP);
+    if (!isOTPValid) {
+      // Increment attempts
+      agency.resetPasswordOTPAttempts += 1;
+      await agency.save();
+
+      return res.status(400).json({
+        status: "error",
+        message: `Invalid OTP. ${
+          3 - agency.resetPasswordOTPAttempts
+        } attempts remaining.`,
+      });
+    }
+
+    console.log("Agency OTP verified successfully:", {
+      agencyId: agency._id,
+      email: agency.email,
+      companyName: agency.companyName,
+      timestamp: new Date().toISOString(),
+    });
+
+    res.status(200).json({
+      status: "success",
+      message: "OTP verified successfully",
+      data: {
+        email: agency.email,
+        verified: true,
+        verifiedAt: new Date().toISOString(),
+      },
+    });
+  } catch (error) {
+    console.error("Agency verify OTP error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "An error occurred while verifying OTP",
+    });
+  }
+});
+
+// Get Agency Profile
+router.get("/profile", authenticateAgency, async (req, res) => {
+  try {
+    // Agency info is already available in req.agency from middleware
+    const agency = await Agency.findById(req.agency.id);
+
+    if (!agency) {
+      return res.status(404).json({
+        status: "error",
+        message: "Agency not found",
+      });
+    }
+
+    res.status(200).json({
+      status: "success",
+      data: {
+        agency: {
+          id: agency._id,
+          companyName: agency.companyName,
+          contactPerson: agency.contactPerson,
+          email: agency.email,
+          phone: agency.phone,
+          region: agency.region,
+          compliance: agency.compliance,
+          status: agency.status,
+          abn: agency.abn,
+          outstandingAmount: agency.outstandingAmount,
+          totalProperties: agency.totalProperties,
+          lastLogin: agency.lastLogin,
+          joinedDate: agency.joinedDate,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Get agency profile error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "An error occurred while fetching profile",
+    });
+  }
+});
+
+// Update Agency (Only Super Users)
+router.patch("/:id", authenticateSuperUser, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      companyName,
+      abn,
+      contactPerson,
+      email,
+      phone,
+      region,
+      compliance,
+      status,
+      outstandingAmount,
+    } = req.body;
+
+    // Find agency
+    const agency = await Agency.findById(id);
+    if (!agency) {
+      return res.status(404).json({
+        status: "error",
+        message: "Agency not found",
+      });
+    }
+
+    // Store original values for logging
+    const originalValues = {
+      companyName: agency.companyName,
+      abn: agency.abn,
+      contactPerson: agency.contactPerson,
+      email: agency.email,
+      phone: agency.phone,
+      region: agency.region,
+      compliance: agency.compliance,
+      status: agency.status,
+      outstandingAmount: agency.outstandingAmount,
+    };
+
+    // Validate and update fields if provided
+    if (companyName !== undefined) {
+      if (!companyName || companyName.trim().length < 2) {
+        return res.status(400).json({
+          status: "error",
+          message: "Company name must be at least 2 characters long",
+        });
+      }
+      agency.companyName = companyName.trim();
+    }
+
+    if (abn !== undefined) {
+      if (!abn || !/^\d{11}$/.test(abn)) {
+        return res.status(400).json({
+          status: "error",
+          message: "ABN must be 11 digits",
+        });
+      }
+      // Check if ABN is already used by another agency
+      const existingABN = await Agency.findOne({ abn, _id: { $ne: id } });
+      if (existingABN) {
+        return res.status(400).json({
+          status: "error",
+          message: "ABN is already used by another agency",
+        });
+      }
+      agency.abn = abn;
+    }
+
+    if (contactPerson !== undefined) {
+      if (!contactPerson || contactPerson.trim().length < 2) {
+        return res.status(400).json({
+          status: "error",
+          message: "Contact person name must be at least 2 characters long",
+        });
+      }
+      agency.contactPerson = contactPerson.trim();
+    }
+
+    if (email !== undefined) {
+      if (
+        !email ||
+        !/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/.test(email)
+      ) {
+        return res.status(400).json({
+          status: "error",
+          message: "Please enter a valid email address",
+        });
+      }
+      // Check if email is already used by another agency
+      const existingEmail = await Agency.findOne({
+        email: email.toLowerCase(),
+        _id: { $ne: id },
+      });
+      if (existingEmail) {
+        return res.status(400).json({
+          status: "error",
+          message: "Email is already used by another agency",
+        });
+      }
+      agency.email = email.toLowerCase();
+    }
+
+    if (phone !== undefined) {
+      if (!phone || !/^\+?[\d\s\-\(\)]+$/.test(phone)) {
+        return res.status(400).json({
+          status: "error",
+          message: "Please enter a valid phone number",
+        });
+      }
+      agency.phone = phone.trim();
+    }
+
+    if (region !== undefined) {
+      if (!VALID_REGIONS.includes(region)) {
+        return res.status(400).json({
+          status: "error",
+          message: "Please select a valid region",
+        });
+      }
+      agency.region = region;
+    }
+
+    if (compliance !== undefined) {
+      const validCompliance = [
+        "Basic Package",
+        "Basic Compliance",
+        "Standard Package",
+        "Premium Package",
+        "Full Package",
+      ];
+      if (!validCompliance.includes(compliance)) {
+        return res.status(400).json({
+          status: "error",
+          message: "Please select a valid compliance package",
+        });
+      }
+      agency.compliance = compliance;
+    }
+
+    if (status !== undefined) {
+      const validStatuses = ["Active", "Inactive", "Suspended", "Pending"];
+      if (!validStatuses.includes(status)) {
+        return res.status(400).json({
+          status: "error",
+          message: "Please select a valid status",
+        });
+      }
+      agency.status = status;
+    }
+
+    if (outstandingAmount !== undefined) {
+      if (isNaN(outstandingAmount) || outstandingAmount < 0) {
+        return res.status(400).json({
+          status: "error",
+          message: "Outstanding amount must be a non-negative number",
+        });
+      }
+      agency.outstandingAmount = outstandingAmount;
+    }
+
+    // Update timestamp
+    agency.lastUpdated = new Date();
+
+    // Save updated agency
+    await agency.save();
+
+    console.log("Agency updated:", {
+      agencyId: agency._id,
+      updatedBy: req.superUser.email,
+      originalValues,
+      newValues: {
+        companyName: agency.companyName,
+        abn: agency.abn,
+        contactPerson: agency.contactPerson,
+        email: agency.email,
+        phone: agency.phone,
+        region: agency.region,
+        compliance: agency.compliance,
+        status: agency.status,
+        outstandingAmount: agency.outstandingAmount,
+      },
+      timestamp: new Date().toISOString(),
+    });
+
+    res.status(200).json({
+      status: "success",
+      message: "Agency updated successfully",
+      data: {
+        agency: {
+          id: agency._id,
+          companyName: agency.companyName,
+          contactPerson: agency.contactPerson,
+          email: agency.email,
+          phone: agency.phone,
+          region: agency.region,
+          compliance: agency.compliance,
+          status: agency.status,
+          abn: agency.abn,
+          outstandingAmount: agency.outstandingAmount,
+          totalProperties: agency.totalProperties,
+          lastLogin: agency.lastLogin,
+          joinedDate: agency.joinedDate,
+          lastUpdated: agency.lastUpdated,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Update agency error:", error);
+    res.status(500).json({
+      status: "error",
+      message: error.message || "An error occurred while updating agency",
+    });
+  }
+});
+
+// Get All Agencies (Only Super Users)
+router.get("/all", authenticateSuperUser, async (req, res) => {
+  try {
+    const { status, region, page = 1, limit = 10 } = req.query;
+
+    // Build filter object
+    const filter = {};
+    if (status) filter.status = status;
+    if (region) filter.region = region;
+
+    // Calculate pagination
+    const skip = (page - 1) * limit;
+
+    // Get agencies with pagination
+    const agencies = await Agency.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    // Get total count for pagination
+    const totalCount = await Agency.countDocuments(filter);
+
+    res.status(200).json({
+      status: "success",
+      data: {
+        agencies: agencies.map((agency) => ({
+          id: agency._id,
+          companyName: agency.companyName,
+          contactPerson: agency.contactPerson,
+          email: agency.email,
+          phone: agency.phone,
+          region: agency.region,
+          compliance: agency.compliance,
+          status: agency.status,
+          abn: agency.abn,
+          outstandingAmount: agency.outstandingAmount,
+          totalProperties: agency.totalProperties,
+          lastLogin: agency.lastLogin,
+          joinedDate: agency.joinedDate,
+          createdAt: agency.createdAt,
+        })),
+        pagination: {
+          currentPage: parseInt(page),
+          totalPages: Math.ceil(totalCount / limit),
+          totalCount,
+          hasNext: page * limit < totalCount,
+          hasPrev: page > 1,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Get all agencies error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "An error occurred while fetching agencies",
+    });
+  }
+});
+
+// Get Single Agency Details (Only Super Users)
+router.get("/:id", authenticateSuperUser, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const agency = await Agency.findById(id);
+    if (!agency) {
+      return res.status(404).json({
+        status: "error",
+        message: "Agency not found",
+      });
+    }
+
+    res.status(200).json({
+      status: "success",
+      data: {
+        agency: {
+          id: agency._id,
+          companyName: agency.companyName,
+          contactPerson: agency.contactPerson,
+          email: agency.email,
+          phone: agency.phone,
+          region: agency.region,
+          compliance: agency.compliance,
+          status: agency.status,
+          abn: agency.abn,
+          outstandingAmount: agency.outstandingAmount,
+          totalProperties: agency.totalProperties,
+          lastLogin: agency.lastLogin,
+          joinedDate: agency.joinedDate,
+          createdAt: agency.createdAt,
+          lastUpdated: agency.lastUpdated,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Get agency details error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "An error occurred while fetching agency details",
+    });
+  }
+});
+
+// Delete Agency (Only Super Users)
+router.delete("/:id", authenticateSuperUser, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Find agency
+    const agency = await Agency.findById(id);
+    if (!agency) {
+      return res.status(404).json({
+        status: "error",
+        message: "Agency not found",
+      });
+    }
+
+    // Store info for logging before deletion
+    const agencyInfo = {
+      id: agency._id,
+      companyName: agency.companyName,
+      contactPerson: agency.contactPerson,
+      email: agency.email,
+      abn: agency.abn,
+      region: agency.region,
+      status: agency.status,
+    };
+
+    // Delete the agency
+    await Agency.findByIdAndDelete(id);
+
+    // Log the deletion
+    console.log("Agency deleted successfully:", {
+      deletedAgency: agencyInfo,
+      deletedBy: req.superUser.email,
+      timestamp: new Date().toISOString(),
+    });
+
+    res.status(200).json({
+      status: "success",
+      message: "Agency deleted successfully",
+      data: {
+        deletedAgency: agencyInfo,
+        deletedBy: req.superUser.name,
+      },
+    });
+  } catch (error) {
+    console.error("Delete agency error:", error);
+    res.status(500).json({
+      status: "error",
+      message: error.message || "An error occurred while deleting agency",
+    });
+  }
+});
+
+// Resend Credentials Email - Agency
+router.post(
+  "/:id/resend-credentials",
+  authenticateSuperUser,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { password } = req.body;
+
+      if (!password) {
+        return res.status(400).json({
+          status: "error",
+          message: "Password is required to resend credentials",
+        });
+      }
+
+      // Find agency
+      const agency = await Agency.findById(id);
+      if (!agency) {
+        return res.status(404).json({
+          status: "error",
+          message: "Agency not found",
+        });
+      }
+
+      // Update the agency's password
+      agency.password = password; // This will be hashed by the pre-save middleware
+      await agency.save();
+
+      // Send credentials email
+      try {
+        await emailService.sendAgencyCredentialsEmail(
+          {
+            email: agency.email,
+            contactPerson: agency.contactPerson,
+            companyName: agency.companyName,
+            abn: agency.abn,
+            region: agency.region,
+            compliance: agency.compliance,
+          },
+          password,
+          process.env.FRONTEND_URL || "https://rentalease-crm.com/login"
+        );
+
+        console.log("Agency credentials resent successfully:", {
+          agencyId: agency._id,
+          email: agency.email,
+          companyName: agency.companyName,
+          resentBy: req.superUser.email,
+          timestamp: new Date().toISOString(),
+        });
+
+        res.status(200).json({
+          status: "success",
+          message: "Credentials email has been resent successfully",
+          data: {
+            email: agency.email,
+            resentAt: new Date().toISOString(),
+          },
+        });
+      } catch (emailError) {
+        console.error("Failed to resend agency credentials email:", emailError);
+        res.status(500).json({
+          status: "error",
+          message: "Failed to send credentials email. Please try again later.",
+        });
+      }
+    } catch (error) {
+      console.error("Resend agency credentials error:", error);
+      res.status(500).json({
+        status: "error",
+        message:
+          error.message || "An error occurred while resending credentials",
+      });
+    }
+  }
+);
+
+export default router;

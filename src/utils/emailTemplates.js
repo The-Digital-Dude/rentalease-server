@@ -5,7 +5,7 @@
  * @returns {Object} - Email template configuration
  */
 const welcomeTemplate = (data) => ({
-  subject: 'Welcome to RentalLease System From Juhan',
+  subject: "Welcome to RentalLease System From Juhan",
   html: `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
       <h2>Welcome to RentalLease System, ${data.name}!</h2>
@@ -17,7 +17,7 @@ const welcomeTemplate = (data) => ({
       </div>
       <p style="color: #333;">Best regards,<br>The RentalLease Team</p>
     </div>
-  `
+  `,
 });
 
 /**
@@ -29,7 +29,7 @@ const welcomeTemplate = (data) => ({
  * @returns {Object} - Email template configuration
  */
 const passwordResetOTPTemplate = (data) => ({
-  subject: 'Password Reset OTP - RentalLease System',
+  subject: "Password Reset OTP - RentalLease System",
   html: `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
       <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
@@ -75,7 +75,7 @@ const passwordResetOTPTemplate = (data) => ({
         </p>
       </div>
     </div>
-  `
+  `,
 });
 
 /**
@@ -86,7 +86,7 @@ const passwordResetOTPTemplate = (data) => ({
  * @returns {Object} - Email template configuration
  */
 const propertyManagerWelcomeTemplate = (data) => ({
-  subject: 'Welcome to RentalEase CRM - Property Manager Registration',
+  subject: "Welcome to RentalEase CRM - Property Manager Registration",
   html: `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
       <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
@@ -162,7 +162,7 @@ const propertyManagerWelcomeTemplate = (data) => ({
         </p>
       </div>
     </div>
-  `
+  `,
 });
 
 /**
@@ -175,7 +175,7 @@ const propertyManagerWelcomeTemplate = (data) => ({
  * @returns {Object} - Email template configuration
  */
 const propertyManagerPasswordResetOTPTemplate = (data) => ({
-  subject: 'Password Reset OTP - RentalEase CRM Property Manager',
+  subject: "Password Reset OTP - RentalEase CRM Property Manager",
   html: `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
       <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
@@ -229,7 +229,7 @@ const propertyManagerPasswordResetOTPTemplate = (data) => ({
         </p>
       </div>
     </div>
-  `
+  `,
 });
 
 /**
@@ -258,7 +258,9 @@ const jobAssignmentTemplate = (data) => ({
           <div style="width: 50px; height: 3px; background-color: #17a2b8; margin: 0 auto;"></div>
         </div>
         
-        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">Hello ${data.technicianName},</p>
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">Hello ${
+          data.technicianName
+        },</p>
         
         <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">
           You have been assigned a new job! Please review the details below and prepare accordingly.
@@ -270,11 +272,15 @@ const jobAssignmentTemplate = (data) => ({
           <table style="width: 100%; border-collapse: collapse;">
             <tr>
               <td style="padding: 8px 0; color: #666; font-weight: bold; width: 40%;">Job ID:</td>
-              <td style="padding: 8px 0; color: #333; font-weight: bold; font-size: 16px;">${data.jobId}</td>
+              <td style="padding: 8px 0; color: #333; font-weight: bold; font-size: 16px;">${
+                data.jobId
+              }</td>
             </tr>
             <tr>
               <td style="padding: 8px 0; color: #666; font-weight: bold;">Property Address:</td>
-              <td style="padding: 8px 0; color: #333;">${data.propertyAddress}</td>
+              <td style="padding: 8px 0; color: #333;">${
+                data.propertyAddress
+              }</td>
             </tr>
             <tr>
               <td style="padding: 8px 0; color: #666; font-weight: bold;">Job Type:</td>
@@ -286,49 +292,82 @@ const jobAssignmentTemplate = (data) => ({
             </tr>
             <tr>
               <td style="padding: 8px 0; color: #666; font-weight: bold;">Due Date:</td>
-              <td style="padding: 8px 0; color: #333; font-weight: bold;">${data.dueDate}</td>
+              <td style="padding: 8px 0; color: #333; font-weight: bold;">${
+                data.dueDate
+              }</td>
             </tr>
             <tr>
               <td style="padding: 8px 0; color: #666; font-weight: bold;">Priority:</td>
               <td style="padding: 8px 0;">
-                <span style="background-color: ${data.priority === 'Urgent' ? '#f44336' : data.priority === 'High' ? '#ff9800' : data.priority === 'Medium' ? '#2196f3' : '#4caf50'}; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold;">
+                <span style="background-color: ${
+                  data.priority === "Urgent"
+                    ? "#f44336"
+                    : data.priority === "High"
+                    ? "#ff9800"
+                    : data.priority === "Medium"
+                    ? "#2196f3"
+                    : "#4caf50"
+                }; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold;">
                   ${data.priority}
                 </span>
               </td>
             </tr>
-            ${data.estimatedDuration ? `
+            ${
+              data.estimatedDuration
+                ? `
             <tr>
               <td style="padding: 8px 0; color: #666; font-weight: bold;">Estimated Duration:</td>
               <td style="padding: 8px 0; color: #333;">${data.estimatedDuration} hours</td>
             </tr>
-            ` : ''}
+            `
+                : ""
+            }
             <tr>
               <td style="padding: 8px 0; color: #666; font-weight: bold;">Assigned By:</td>
-              <td style="padding: 8px 0; color: #333;">${data.assignedBy} (${data.assignedByType})</td>
+              <td style="padding: 8px 0; color: #333;">${data.assignedBy} (${
+    data.assignedByType
+  })</td>
             </tr>
           </table>
         </div>
         
-        ${data.description ? `
+        ${
+          data.description
+            ? `
           <div style="background-color: #fff8e1; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0;">
             <h4 style="color: #f57c00; margin: 0 0 10px 0;">📝 Job Description</h4>
             <p style="color: #333; margin: 0; line-height: 1.6;">${data.description}</p>
           </div>
-        ` : ''}
+        `
+            : ""
+        }
         
-        ${data.notes ? `
+        ${
+          data.notes
+            ? `
           <div style="background-color: #f3e5f5; border-left: 4px solid #9c27b0; padding: 15px; margin: 20px 0;">
             <h4 style="color: #7b1fa2; margin: 0 0 10px 0;">💬 Additional Notes</h4>
             <p style="color: #333; margin: 0; line-height: 1.6;">${data.notes}</p>
           </div>
-        ` : ''}
+        `
+            : ""
+        }
         
-        <div style="background-color: ${data.priority === 'Urgent' ? '#ffebee' : '#e8f5e8'}; border: 1px solid ${data.priority === 'Urgent' ? '#ffcdd2' : '#c8e6c8'}; padding: 15px; border-radius: 5px; margin: 20px 0;">
-          <p style="color: ${data.priority === 'Urgent' ? '#c62828' : '#2e7d32'}; margin: 0; font-size: 14px;">
-            <strong>${data.priority === 'Urgent' ? '🚨 URGENT:' : '✅ Next Steps:'}</strong>
-            ${data.priority === 'Urgent' 
-              ? 'This is an urgent job that requires immediate attention. Please prioritize this assignment and begin work as soon as possible.'
-              : 'Please review the job details carefully and prepare the necessary tools and materials. Contact the property manager or supervisor if you have any questions before starting the work.'
+        <div style="background-color: ${
+          data.priority === "Urgent" ? "#ffebee" : "#e8f5e8"
+        }; border: 1px solid ${
+    data.priority === "Urgent" ? "#ffcdd2" : "#c8e6c8"
+  }; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <p style="color: ${
+            data.priority === "Urgent" ? "#c62828" : "#2e7d32"
+          }; margin: 0; font-size: 14px;">
+            <strong>${
+              data.priority === "Urgent" ? "🚨 URGENT:" : "✅ Next Steps:"
+            }</strong>
+            ${
+              data.priority === "Urgent"
+                ? "This is an urgent job that requires immediate attention. Please prioritize this assignment and begin work as soon as possible."
+                : "Please review the job details carefully and prepare the necessary tools and materials. Contact the agency or supervisor if you have any questions before starting the work."
             }
           </p>
         </div>
@@ -345,7 +384,9 @@ const jobAssignmentTemplate = (data) => ({
         </div>
         
         <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">
-          If you have any questions about this assignment or need to discuss scheduling, please contact ${data.assignedBy} directly.
+          If you have any questions about this assignment or need to discuss scheduling, please contact ${
+            data.assignedBy
+          } directly.
         </p>
         
         <div style="text-align: center; margin: 30px 0;">
@@ -366,7 +407,7 @@ const jobAssignmentTemplate = (data) => ({
         </p>
       </div>
     </div>
-  `
+  `,
 });
 
 // Add more email templates here as needed
@@ -374,7 +415,7 @@ const templates = {
   welcome: welcomeTemplate,
   passwordResetOTP: passwordResetOTPTemplate,
   propertyManagerWelcome: propertyManagerWelcomeTemplate,
-  propertyManagerPasswordResetOTP: propertyManagerPasswordResetOTPTemplate
+  propertyManagerPasswordResetOTP: propertyManagerPasswordResetOTPTemplate,
 };
 
 /**
@@ -387,7 +428,7 @@ const templates = {
  * @returns {Object} - Email template configuration
  */
 const staffWelcomeTemplate = (data) => ({
-  subject: 'Welcome to the Staff Team!',
+  subject: "Welcome to the Staff Team!",
   html: `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
       <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
@@ -435,7 +476,7 @@ const staffWelcomeTemplate = (data) => ({
         </p>
       </div>
     </div>
-  `
+  `,
 });
 
 /**
@@ -457,22 +498,32 @@ const staffStatusUpdateTemplate = (data) => ({
           <div style="width: 50px; height: 3px; background-color: #007bff; margin: 0 auto;"></div>
         </div>
         
-        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">Dear ${data.staffName},</p>
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">Dear ${
+          data.staffName
+        },</p>
         
         <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">
-          Your staff status has been updated to: <strong style="color: #007bff;">${data.newStatus}</strong>
+          Your staff status has been updated to: <strong style="color: #007bff;">${
+            data.newStatus
+          }</strong>
         </p>
         
-        ${data.reason ? `
+        ${
+          data.reason
+            ? `
           <div style="background-color: #f8f9fa; border: 1px solid #dee2e6; padding: 15px; border-radius: 5px; margin: 20px 0;">
             <p style="color: #495057; margin: 0; font-size: 14px;">
               <strong>📝 Reason:</strong> ${data.reason}
             </p>
           </div>
-        ` : ''}
+        `
+            : ""
+        }
         
         <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">
-          This update was made by ${data.ownerName}. If you have any questions about this change, please contact them directly.
+          This update was made by ${
+            data.ownerName
+          }. If you have any questions about this change, please contact them directly.
         </p>
         
         <div style="border-top: 1px solid #eee; padding-top: 20px; margin-top: 30px;">
@@ -487,7 +538,7 @@ const staffStatusUpdateTemplate = (data) => ({
         </p>
       </div>
     </div>
-  `
+  `,
 });
 
 /**
@@ -509,19 +560,27 @@ const staffDocumentReminderTemplate = (data) => ({
           <div style="width: 50px; height: 3px; background-color: #ffc107; margin: 0 auto;"></div>
         </div>
         
-        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">Dear ${data.staffName},</p>
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">Dear ${
+          data.staffName
+        },</p>
         
         <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">
-          This is a reminder that your <strong>${data.documentType}</strong> documents need to be updated or are missing.
+          This is a reminder that your <strong>${
+            data.documentType
+          }</strong> documents need to be updated or are missing.
         </p>
         
-        ${data.dueDate ? `
+        ${
+          data.dueDate
+            ? `
           <div style="background-color: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 5px; margin: 20px 0;">
             <p style="color: #856404; margin: 0; font-size: 14px;">
               <strong>⏰ Due Date:</strong> ${data.dueDate}
             </p>
           </div>
-        ` : ''}
+        `
+            : ""
+        }
         
         <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">
           Please upload the required documents as soon as possible to maintain your active status and continue receiving job assignments.
@@ -539,7 +598,9 @@ const staffDocumentReminderTemplate = (data) => ({
         </div>
         
         <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">
-          Contact ${data.ownerName} if you need assistance with the document upload process or have any questions.
+          Contact ${
+            data.ownerName
+          } if you need assistance with the document upload process or have any questions.
         </p>
         
         <div style="border-top: 1px solid #eee; padding-top: 20px; margin-top: 30px;">
@@ -554,7 +615,7 @@ const staffDocumentReminderTemplate = (data) => ({
         </p>
       </div>
     </div>
-  `
+  `,
 });
 
 /**
@@ -580,10 +641,14 @@ const propertyManagerCredentialsTemplate = (data) => ({
           <div style="width: 50px; height: 3px; background-color: #28a745; margin: 0 auto;"></div>
         </div>
         
-        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">Hello ${data.name},</p>
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">Hello ${
+          data.name
+        },</p>
         
         <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">
-          Congratulations! Your property management account for <strong>${data.companyName}</strong> has been successfully created and approved. 
+          Congratulations! Your property management account for <strong>${
+            data.companyName
+          }</strong> has been successfully created and approved. 
           You can now access the RentalEase CRM system to manage your properties efficiently.
         </p>
         
@@ -592,17 +657,23 @@ const propertyManagerCredentialsTemplate = (data) => ({
           
           <div style="background-color: white; padding: 15px; border-radius: 5px; margin-bottom: 15px;">
             <p style="color: #333; margin: 0 0 10px 0; font-size: 14px;"><strong>📧 Email:</strong></p>
-            <p style="color: #007bff; margin: 0; font-size: 16px; font-weight: bold; word-break: break-all;">${data.email}</p>
+            <p style="color: #007bff; margin: 0; font-size: 16px; font-weight: bold; word-break: break-all;">${
+              data.email
+            }</p>
           </div>
           
           <div style="background-color: white; padding: 15px; border-radius: 5px; margin-bottom: 15px;">
             <p style="color: #333; margin: 0 0 10px 0; font-size: 14px;"><strong>🔑 Password:</strong></p>
-            <p style="color: #dc3545; margin: 0; font-size: 16px; font-weight: bold; letter-spacing: 1px; font-family: monospace;">${data.password}</p>
+            <p style="color: #dc3545; margin: 0; font-size: 16px; font-weight: bold; letter-spacing: 1px; font-family: monospace;">${
+              data.password
+            }</p>
           </div>
           
           <div style="background-color: white; padding: 15px; border-radius: 5px;">
             <p style="color: #333; margin: 0 0 10px 0; font-size: 14px;"><strong>🌐 Login URL:</strong></p>
-            <p style="color: #007bff; margin: 0; font-size: 16px; font-weight: bold; word-break: break-all;">${data.loginUrl || 'https://rentalease-crm.com/login'}</p>
+            <p style="color: #007bff; margin: 0; font-size: 16px; font-weight: bold; word-break: break-all;">${
+              data.loginUrl || "https://rentalease-crm.com/login"
+            }</p>
           </div>
         </div>
         
@@ -619,7 +690,9 @@ const propertyManagerCredentialsTemplate = (data) => ({
           <table style="width: 100%; border-collapse: collapse;">
             <tr>
               <td style="padding: 8px 0; color: #666; font-weight: bold; width: 40%;">Company Name:</td>
-              <td style="padding: 8px 0; color: #333; font-weight: bold;">${data.companyName}</td>
+              <td style="padding: 8px 0; color: #333; font-weight: bold;">${
+                data.companyName
+              }</td>
             </tr>
             <tr>
               <td style="padding: 8px 0; color: #666; font-weight: bold;">Contact Person:</td>
@@ -666,7 +739,7 @@ const propertyManagerCredentialsTemplate = (data) => ({
         </p>
         
         <div style="text-align: center; margin: 30px 0;">
-          <a href="${data.loginUrl || 'https://rentalease-crm.com/login'}" 
+          <a href="${data.loginUrl || "https://rentalease-crm.com/login"}" 
              style="background-color: #28a745; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
             🚀 Login to Your Dashboard
           </a>
@@ -684,7 +757,207 @@ const propertyManagerCredentialsTemplate = (data) => ({
         </p>
       </div>
     </div>
-  `
+  `,
+});
+
+/**
+ * Email template for welcoming new agencies
+ * @param {Object} data - Template data
+ * @param {string} data.name - Agency's contact person name
+ * @param {string} data.companyName - Agency's company name
+ * @returns {Object} - Email template configuration
+ */
+const agencyWelcomeTemplate = (data) => ({
+  subject: "Welcome to RentalEase CRM - Agency Registration",
+  html: `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #333; margin-bottom: 10px;">Welcome to RentalEase CRM!</h1>
+          <div style="width: 50px; height: 3px; background-color: #28a745; margin: 0 auto;"></div>
+        </div>
+        
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">Hello ${data.name},</p>
+        
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">
+          Welcome to RentalEase CRM! We're excited to have <strong>${data.companyName}</strong> join our platform as an Agency.
+        </p>
+        
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">
+          Your agency account has been successfully created by our admin team and is currently pending approval. Our team will review your registration and activate your account shortly.
+        </p>
+        
+        <div style="background-color: #d4edda; border: 1px solid #c3e6cb; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <p style="color: #155724; margin: 0; font-size: 14px;">
+            <strong>📋 What's Next:</strong>
+          </p>
+          <ul style="color: #155724; margin: 10px 0 0 20px;">
+            <li>Our team will verify your company details and compliance requirements</li>
+            <li>You'll receive a confirmation email once your account is activated</li>
+            <li>Once approved, you can log in to access your dashboard</li>
+            <li>You'll be able to manage all your properties from one central location</li>
+          </ul>
+        </div>
+        
+        <p style="color: #333; margin-top: 30px;">
+          Best regards,<br>
+          <strong>The RentalEase CRM Team</strong>
+        </p>
+      </div>
+    </div>
+  `,
+});
+
+/**
+ * Email template for agency password reset OTP
+ * @param {Object} data - Template data
+ * @param {string} data.name - Agency's contact person name
+ * @param {string} data.companyName - Agency's company name
+ * @param {string} data.otp - OTP code
+ * @param {number} data.expirationMinutes - OTP expiration in minutes
+ * @returns {Object} - Email template configuration
+ */
+const agencyPasswordResetOTPTemplate = (data) => ({
+  subject: "Password Reset OTP - RentalEase CRM Agency",
+  html: `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #333; margin-bottom: 10px;">Password Reset Request</h1>
+          <div style="width: 50px; height: 3px; background-color: #dc3545; margin: 0 auto;"></div>
+        </div>
+        
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">Hello ${data.name},</p>
+        
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">
+          You have requested to reset your password for your RentalEase CRM Agency account associated with <strong>${data.companyName}</strong>.
+        </p>
+        
+        <div style="background-color: #f8d7da; border: 1px solid #f5c6cb; padding: 20px; border-radius: 5px; margin: 20px 0; text-align: center;">
+          <p style="color: #721c24; margin: 0 0 10px 0; font-size: 14px;"><strong>Your OTP Code:</strong></p>
+          <p style="color: #721c24; margin: 0; font-size: 24px; font-weight: bold; letter-spacing: 3px; font-family: monospace;">${data.otp}</p>
+          <p style="color: #721c24; margin: 10px 0 0 0; font-size: 12px;">This code expires in ${data.expirationMinutes} minutes</p>
+        </div>
+        
+        <p style="color: #333; margin-top: 30px;">
+          Best regards,<br>
+          <strong>The RentalEase CRM Team</strong>
+        </p>
+      </div>
+    </div>
+  `,
+});
+
+/**
+ * Email template for agency credentials
+ * @param {Object} data - Template data
+ * @param {string} data.name - Agency's contact person name
+ * @param {string} data.companyName - Agency's company name
+ * @param {string} data.email - Agency's email
+ * @param {string} data.password - Agency's password
+ * @param {string} data.abn - Agency's ABN
+ * @param {string} data.region - Agency's region
+ * @param {string} data.compliance - Agency's compliance level
+ * @param {string} data.loginUrl - Login URL for the system
+ * @returns {Object} - Email template configuration
+ */
+const agencyCredentialsTemplate = (data) => ({
+  subject: `Welcome to RentalEase CRM - Your Account Credentials (${data.companyName})`,
+  html: `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+      <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #28a745; margin-bottom: 10px;">🎉 Welcome to RentalEase CRM!</h1>
+          <div style="width: 50px; height: 3px; background-color: #28a745; margin: 0 auto;"></div>
+        </div>
+        
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">Hello ${
+          data.name
+        },</p>
+        
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">
+          Congratulations! Your agency account for <strong>${
+            data.companyName
+          }</strong> has been successfully created and approved. 
+          You can now access the RentalEase CRM system to manage your properties efficiently.
+        </p>
+        
+        <div style="background-color: #e8f5e8; border: 2px solid #28a745; padding: 20px; border-radius: 8px; margin: 25px 0;">
+          <h3 style="color: #1e7e34; margin: 0 0 15px 0; font-size: 18px;">🔐 Your Login Credentials</h3>
+          
+          <div style="background-color: white; padding: 15px; border-radius: 5px; margin-bottom: 15px;">
+            <p style="color: #333; margin: 0 0 10px 0; font-size: 14px;"><strong>📧 Email:</strong></p>
+            <p style="color: #007bff; margin: 0; font-size: 16px; font-weight: bold; word-break: break-all;">${
+              data.email
+            }</p>
+          </div>
+          
+          <div style="background-color: white; padding: 15px; border-radius: 5px; margin-bottom: 15px;">
+            <p style="color: #333; margin: 0 0 10px 0; font-size: 14px;"><strong>🔑 Password:</strong></p>
+            <p style="color: #dc3545; margin: 0; font-size: 16px; font-weight: bold; letter-spacing: 1px; font-family: monospace;">${
+              data.password
+            }</p>
+          </div>
+          
+          <div style="background-color: white; padding: 15px; border-radius: 5px;">
+            <p style="color: #333; margin: 0 0 10px 0; font-size: 14px;"><strong>🌐 Login URL:</strong></p>
+            <p style="color: #007bff; margin: 0; font-size: 16px; font-weight: bold; word-break: break-all;">${
+              data.loginUrl || "https://rentalease-crm.com/login"
+            }</p>
+          </div>
+        </div>
+        
+        <div style="background-color: #f8f9fa; border: 1px solid #dee2e6; padding: 20px; border-radius: 5px; margin: 20px 0;">
+          <h4 style="color: #495057; margin: 0 0 15px 0; font-size: 16px;">📋 Your Company Information</h4>
+          
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold; width: 40%;">Company Name:</td>
+              <td style="padding: 8px 0; color: #333; font-weight: bold;">${
+                data.companyName
+              }</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold;">Contact Person:</td>
+              <td style="padding: 8px 0; color: #333;">${data.name}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold;">Email:</td>
+              <td style="padding: 8px 0; color: #333;">${data.email}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold;">ABN:</td>
+              <td style="padding: 8px 0; color: #333;">${data.abn}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold;">Region:</td>
+              <td style="padding: 8px 0; color: #333;">${data.region}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold;">Compliance Level:</td>
+              <td style="padding: 8px 0;">
+                <span style="background-color: #007bff; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold;">
+                  ${data.compliance}
+                </span>
+              </td>
+            </tr>
+          </table>
+        </div>
+        
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${data.loginUrl || "https://rentalease-crm.com/login"}" 
+             style="background-color: #28a745; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+            🚀 Login to Your Dashboard
+          </a>
+        </div>
+        
+        <p style="color: #333; margin-top: 30px;">
+          Best regards,<br>
+          <strong>The RentalEase CRM Team</strong>
+        </p>
+      </div>
+    </div>
+  `,
 });
 
 // Add new templates to the existing templates object
@@ -693,5 +966,8 @@ templates.staffStatusUpdate = staffStatusUpdateTemplate;
 templates.staffDocumentReminder = staffDocumentReminderTemplate;
 templates.jobAssignment = jobAssignmentTemplate;
 templates.propertyManagerCredentials = propertyManagerCredentialsTemplate;
+templates.agencyWelcome = agencyWelcomeTemplate;
+templates.agencyPasswordResetOTP = agencyPasswordResetOTPTemplate;
+templates.agencyCredentials = agencyCredentialsTemplate;
 
-export default templates; 
+export default templates;

@@ -5,39 +5,42 @@
 This document provides comprehensive information about the Authentication API endpoints for the RentalEase CRM system. The API supports two types of users:
 
 1. **Super Users** - System administrators with full access
-2. **Property Managers** - Business users managing properties
+2. **Agencies** - Business users managing properties
 
 ## Base URLs
 
-- **Super User Authentication**: `/api/v1/auth`
-- **Property Manager Authentication**: `/api/v1/property-manager/auth`
+- **Super User Authentication**: `/api/v1/super-user/auth`
+- **Agency Authentication**: `/api/v1/agency/auth`
 
 ## Authentication Flow
 
 The system uses **JWT (JSON Web Tokens)** for authentication. Tokens are issued upon successful login and must be included in the Authorization header for protected endpoints.
 
 ### Token Format
+
 ```
 Authorization: Bearer <jwt-token>
 ```
 
 ### Token Expiration
-- **Super User tokens**: 1 day
-- **Property Manager tokens**: 7 days
+
+- **Super User tokens**: 30 days
+- **Agency tokens**: 7 days
 
 ---
 
 # Super User Authentication
 
-## Base URL: `/api/v1/auth`
+## Base URL: `/api/v1/super-user/auth`
 
 ### 1. Register Super User
 
-**POST** `/api/v1/auth/register`
+**POST** `/api/v1/super-user/auth/register`
 
 Creates a new Super User account.
 
 **Request Body**:
+
 ```json
 {
   "name": "John Admin",
@@ -47,11 +50,13 @@ Creates a new Super User account.
 ```
 
 **Validation Rules**:
+
 - `name`: Required, minimum 2 characters
 - `email`: Required, valid email format, unique
 - `password`: Required, minimum 8 characters
 
 **Response (201 Created)**:
+
 ```json
 {
   "status": "success",
@@ -67,6 +72,7 @@ Creates a new Super User account.
 ```
 
 **Error Responses**:
+
 ```json
 // User already exists (400)
 {
@@ -85,11 +91,12 @@ Creates a new Super User account.
 
 ### 2. Login Super User
 
-**POST** `/api/v1/auth/login`
+**POST** `/api/v1/super-user/auth/login`
 
 Authenticates a Super User and returns a JWT token.
 
 **Request Body**:
+
 ```json
 {
   "email": "admin@example.com",
@@ -98,6 +105,7 @@ Authenticates a Super User and returns a JWT token.
 ```
 
 **Response (200 OK)**:
+
 ```json
 {
   "status": "success",
@@ -113,6 +121,7 @@ Authenticates a Super User and returns a JWT token.
 ```
 
 **Error Responses**:
+
 ```json
 // Invalid credentials (401)
 {
@@ -131,11 +140,12 @@ Authenticates a Super User and returns a JWT token.
 
 ### 3. Forgot Password (Super User)
 
-**POST** `/api/v1/auth/forgot-password`
+**POST** `/api/v1/super-user/auth/forgot-password`
 
 Initiates password reset process by sending OTP to user's email.
 
 **Request Body**:
+
 ```json
 {
   "email": "admin@example.com"
@@ -143,6 +153,7 @@ Initiates password reset process by sending OTP to user's email.
 ```
 
 **Response (200 OK)**:
+
 ```json
 {
   "status": "success",
@@ -155,6 +166,7 @@ Initiates password reset process by sending OTP to user's email.
 ```
 
 **Error Responses**:
+
 ```json
 // User not found (404)
 {
@@ -170,6 +182,7 @@ Initiates password reset process by sending OTP to user's email.
 ```
 
 **Notes**:
+
 - OTP is valid for 10 minutes
 - Maximum 5 OTP attempts allowed
 - OTP is 6 digits long
@@ -178,11 +191,12 @@ Initiates password reset process by sending OTP to user's email.
 
 ### 4. Reset Password (Super User)
 
-**POST** `/api/v1/auth/reset-password`
+**POST** `/api/v1/super-user/auth/reset-password`
 
 Resets user password using OTP verification.
 
 **Request Body**:
+
 ```json
 {
   "email": "admin@example.com",
@@ -192,11 +206,13 @@ Resets user password using OTP verification.
 ```
 
 **Validation Rules**:
+
 - `email`: Required
 - `otp`: Required, 6 digits
 - `newPassword`: Required, minimum 8 characters
 
 **Response (200 OK)**:
+
 ```json
 {
   "status": "success",
@@ -209,6 +225,7 @@ Resets user password using OTP verification.
 ```
 
 **Error Responses**:
+
 ```json
 // Invalid OTP (400)
 {
@@ -237,24 +254,26 @@ Resets user password using OTP verification.
 
 ---
 
-# Property Manager Authentication
+# Agency Authentication
 
-## Base URL: `/api/v1/property-manager/auth`
+## Base URL: `/api/v1/agency/auth`
 
-### 1. Register Property Manager
+### 1. Register Agency
 
-**POST** `/api/v1/property-manager/auth/register`
+**POST** `/api/v1/agency/auth/register`
 
-**Authentication Required**: Super User only
+**Authentication Required**: Super User
 
-Creates a new Property Manager account. Only Super Users can create Property Manager accounts.
+Creates a new Agency account. Only Super Users can create Agency accounts.
 
 **Headers**:
+
 ```
 Authorization: Bearer <super-user-token>
 ```
 
 **Request Body**:
+
 ```json
 {
   "companyName": "ABC Property Management",
@@ -269,6 +288,7 @@ Authorization: Bearer <super-user-token>
 ```
 
 **Validation Rules**:
+
 - `companyName`: Required, minimum 2 characters
 - `abn`: Required, exactly 11 digits, unique
 - `contactPerson`: Required, minimum 2 characters
@@ -279,21 +299,24 @@ Authorization: Bearer <super-user-token>
 - `password`: Required, minimum 8 characters
 
 **Valid Regions**:
+
 - Sydney Metro, Melbourne Metro, Brisbane Metro, Perth Metro
 - Adelaide Metro, Darwin Metro, Hobart Metro, Canberra Metro
 - Regional NSW, Regional VIC, Regional QLD, Regional WA
 - Regional SA, Regional NT, Regional TAS
 
 **Valid Compliance Packages**:
+
 - Basic Package, Standard Package, Premium Package, Full Package
 
-**Response (201 Created)**:
+**Success Response (201 Created)**
+
 ```json
 {
   "status": "success",
-  "message": "Property manager registered successfully. Account is pending approval.",
+  "message": "Agency registered successfully. Account is pending approval.",
   "data": {
-    "propertyManager": {
+    "agency": {
       "id": "64abc123456789",
       "companyName": "ABC Property Management",
       "contactPerson": "Jane Smith",
@@ -312,47 +335,41 @@ Authorization: Bearer <super-user-token>
 }
 ```
 
-**Error Responses**:
+**Error Responses**
+
+_Email Already Exists (409 Conflict)_
+
 ```json
-// Missing fields (400)
 {
   "status": "error",
-  "message": "All fields are required"
+  "message": "Agency with this email already exists"
 }
+```
 
-// Duplicate email (400)
+_ABN Already Exists (409 Conflict)_
+
+```json
 {
   "status": "error",
-  "message": "Property manager with this email already exists"
-}
-
-// Duplicate ABN (400)
-{
-  "status": "error",
-  "message": "Property manager with this ABN already exists"
-}
-
-// Unauthorized (403)
-{
-  "status": "error",
-  "message": "Access denied. Super user privileges required."
+  "message": "Agency with this ABN already exists"
 }
 ```
 
 **Notes**:
-- Account is created with "Pending" status
-- Welcome email is automatically sent to the Property Manager
-- Only Super Users can create Property Manager accounts
+
+- Welcome email is automatically sent to the Agency
+- Only Super Users can create Agency accounts
 
 ---
 
-### 2. Login Property Manager
+### 2. Login Agency
 
-**POST** `/api/v1/property-manager/auth/login`
+**POST** `/api/v1/agency/auth/login`
 
-Authenticates a Property Manager and returns a JWT token.
+Authenticates an Agency and returns a JWT token.
 
 **Request Body**:
+
 ```json
 {
   "email": "jane@abcproperties.com",
@@ -361,12 +378,13 @@ Authenticates a Property Manager and returns a JWT token.
 ```
 
 **Response (200 OK)**:
+
 ```json
 {
   "status": "success",
   "message": "Login successful",
   "data": {
-    "propertyManager": {
+    "agency": {
       "id": "64abc123456789",
       "companyName": "ABC Property Management",
       "contactPerson": "Jane Smith",
@@ -387,6 +405,7 @@ Authenticates a Property Manager and returns a JWT token.
 ```
 
 **Error Responses**:
+
 ```json
 // Invalid credentials (401)
 {
@@ -408,19 +427,21 @@ Authenticates a Property Manager and returns a JWT token.
 ```
 
 **Notes**:
+
 - Account must be "Active" status to login
 - Last login timestamp is updated automatically
 - Token expires in 7 days
 
 ---
 
-### 3. Forgot Password (Property Manager)
+### 3. Forgot Password (Agency)
 
-**POST** `/api/v1/property-manager/auth/forgot-password`
+**POST** `/api/v1/agency/auth/forgot-password`
 
-Initiates password reset process for Property Manager.
+Initiates password reset process for Agency.
 
 **Request Body**:
+
 ```json
 {
   "email": "jane@abcproperties.com"
@@ -428,6 +449,7 @@ Initiates password reset process for Property Manager.
 ```
 
 **Response (200 OK)**:
+
 ```json
 {
   "status": "success",
@@ -440,33 +462,37 @@ Initiates password reset process for Property Manager.
 ```
 
 **Error Responses**:
-```json
-// Property manager not found (404)
-{
-  "status": "error",
-  "message": "Property manager not found with this email address"
-}
 
-// Account not active (400)
+````json
+*User Not Found (404 Not Found)*
+```json
 {
   "status": "error",
-  "message": "Account is pending. Please contact support."
+  "message": "Agency not found with this email address"
+}
+````
+
+\*Account not active (400)
+{
+"status": "error",
+"message": "Account is pending. Please contact support."
 }
 
 // Email service error (500)
 {
-  "status": "error",
-  "message": "Failed to send reset email. Please try again."
+"status": "error",
+"message": "Failed to send reset email. Please try again."
 }
-```
+
+````
 
 ---
 
-### 4. Reset Password (Property Manager)
+### 4. Reset Password (Agency)
 
-**POST** `/api/v1/property-manager/auth/reset-password`
+**POST** `/api/v1/agency/auth/reset-password`
 
-Resets Property Manager password using OTP verification.
+Resets Agency password using OTP verification.
 
 **Request Body**:
 ```json
@@ -475,9 +501,10 @@ Resets Property Manager password using OTP verification.
   "otp": "123456",
   "newPassword": "newSecurePassword123"
 }
-```
+````
 
 **Response (200 OK)**:
+
 ```json
 {
   "status": "success",
@@ -493,25 +520,27 @@ Resets Property Manager password using OTP verification.
 
 ---
 
-### 5. Get Property Manager Profile
+### 5. Get Agency Profile
 
-**GET** `/api/v1/property-manager/auth/profile`
+**GET** `/api/v1/agency/auth/profile`
 
-**Authentication Required**: Property Manager
+**Authentication Required**: Agency
 
-Retrieves the authenticated Property Manager's profile information.
+Retrieves the authenticated Agency's profile information.
 
 **Headers**:
+
 ```
-Authorization: Bearer <property-manager-token>
+Authorization: Bearer <agency-token>
 ```
 
 **Response (200 OK)**:
+
 ```json
 {
   "status": "success",
   "data": {
-    "propertyManager": {
+    "agency": {
       "id": "64abc123456789",
       "companyName": "ABC Property Management",
       "contactPerson": "Jane Smith",
@@ -531,40 +560,44 @@ Authorization: Bearer <property-manager-token>
 ```
 
 **Error Responses**:
-```json
+
+````json
 // Unauthorized (401)
 {
   "status": "error",
   "message": "Access token is required"
 }
 
-// Property manager not found (404)
+*User Not Found (404 Not Found)*
+```json
 {
   "status": "error",
-  "message": "Property manager not found"
+  "message": "Agency not found"
 }
-```
+````
 
 ---
 
-# Property Manager Management (Super User Only)
+# Agency Management (Super User Only)
 
-## Base URL: `/api/v1/property-manager/auth`
+## Base URL: `/api/v1/agency/auth`
 
-### 6. Update Property Manager
+### 6. Update Agency
 
-**PATCH** `/api/v1/property-manager/auth/:id`
+**PATCH** `/api/v1/agency/auth/:id`
 
-**Authentication Required**: Super User only
+**Authentication Required**: Super User
 
-Updates an existing Property Manager's information.
+Updates an existing Agency's information.
 
 **Headers**:
+
 ```
 Authorization: Bearer <super-user-token>
 ```
 
 **Request Body** (all fields optional):
+
 ```json
 {
   "companyName": "Updated Property Management",
@@ -575,18 +608,19 @@ Authorization: Bearer <super-user-token>
   "region": "Melbourne Metro",
   "compliance": "Premium Package",
   "status": "Active",
-  "outstandingAmount": 1500.00
+  "outstandingAmount": 1500.0
 }
 ```
 
 **Response (200 OK)**:
+
 ```json
 {
   "status": "success",
-  "message": "Property manager updated successfully",
+  "message": "Agency updated successfully",
   "data": {
-    "propertyManager": {
-      // ... updated property manager details
+    "agency": {
+      // ... updated agency details
       "lastUpdated": "2024-01-15T10:30:00.000Z"
     },
     "updatedBy": "John Admin"
@@ -595,63 +629,67 @@ Authorization: Bearer <super-user-token>
 ```
 
 **Validation Rules**:
+
 - All fields are optional (partial updates allowed)
 - Email and ABN must be unique if provided
 - Same validation rules as registration apply
 
 **Error Responses**:
+
+````json
+*User Not Found (404 Not Found)*
 ```json
-// Property manager not found (404)
 {
   "status": "error",
-  "message": "Property manager not found"
+  "message": "Agency not found"
 }
+````
 
-// Duplicate email (400)
+_Email Conflict (409 Conflict)_
+
+```json
 {
   "status": "error",
-  "message": "Email is already used by another property manager"
-}
-
-// Unauthorized (403)
-{
-  "status": "error",
-  "message": "Access denied. Super user privileges required."
+  "message": "Email is already used by another agency"
 }
 ```
 
 ---
 
-### 7. Get All Property Managers
+### 7. Get All Agencies
 
-**GET** `/api/v1/property-manager/auth/all`
+**GET** `/api/v1/agency/auth/all`
 
-**Authentication Required**: Super User only
+**Authentication Required**: Super User
 
-Retrieves all Property Managers with optional filtering and pagination.
+Retrieves all Agencies with optional filtering and pagination.
 
 **Headers**:
+
 ```
 Authorization: Bearer <super-user-token>
 ```
 
 **Query Parameters**:
+
 - `status`: Filter by status (Active, Inactive, Suspended, Pending)
 - `region`: Filter by region
 - `page`: Page number (default: 1)
 - `limit`: Items per page (default: 10)
 
 **Example Request**:
+
 ```
-GET /api/v1/property-manager/auth/all?status=Active&region=Sydney Metro&page=1&limit=5
+GET /api/v1/agency/auth/all?status=Active&region=Sydney Metro&page=1&limit=5
 ```
 
 **Response (200 OK)**:
+
 ```json
 {
   "status": "success",
   "data": {
-    "propertyManagers": [
+    "agencies": [
       {
         "id": "64abc123456789",
         "companyName": "ABC Property Management",
@@ -668,7 +706,7 @@ GET /api/v1/property-manager/auth/all?status=Active&region=Sydney Metro&page=1&l
         "joinedDate": "2024-01-10T08:00:00.000Z",
         "createdAt": "2024-01-10T08:00:00.000Z"
       }
-      // ... more property managers
+      // ... more agencies
     ],
     "pagination": {
       "currentPage": 1,
@@ -683,25 +721,27 @@ GET /api/v1/property-manager/auth/all?status=Active&region=Sydney Metro&page=1&l
 
 ---
 
-### 8. Get Single Property Manager
+### 8. Get Single Agency
 
-**GET** `/api/v1/property-manager/auth/:id`
+**GET** `/api/v1/agency/auth/:id`
 
-**Authentication Required**: Super User only
+**Authentication Required**: Super User
 
-Retrieves detailed information for a specific Property Manager.
+Retrieves detailed information for a specific Agency.
 
 **Headers**:
+
 ```
 Authorization: Bearer <super-user-token>
 ```
 
 **Response (200 OK)**:
+
 ```json
 {
   "status": "success",
   "data": {
-    "propertyManager": {
+    "agency": {
       "id": "64abc123456789",
       "companyName": "ABC Property Management",
       "contactPerson": "Jane Smith",
@@ -723,13 +763,15 @@ Authorization: Bearer <super-user-token>
 ```
 
 **Error Responses**:
+
+````json
+*User Not Found (404 Not Found)*
 ```json
-// Property manager not found (404)
 {
   "status": "error",
-  "message": "Property manager not found"
+  "message": "Agency not found"
 }
-```
+````
 
 ---
 
@@ -752,7 +794,7 @@ Authorization: Bearer <super-user-token>
 ## JWT Token Security
 
 - **Signed tokens**: Using HS256 algorithm
-- **Type identification**: Tokens include user type (superUser/propertyManager)
+- **Type identification**: Tokens include user type (superUser/agency)
 - **Expiration handling**: Different expiration times for different user types
 - **Secure storage**: Store tokens securely on client side
 
@@ -796,20 +838,20 @@ Authorization: Bearer <super-user-token>
 ### Super User Registration and Login
 
 ```javascript
-const axios = require('axios');
+const axios = require("axios");
 
 // Register Super User
 const registerSuperUser = async (userData) => {
   try {
-    const response = await axios.post('/api/v1/auth/register', {
+    const response = await axios.post("/api/v1/super-user/auth/register", {
       name: userData.name,
       email: userData.email,
-      password: userData.password
+      password: userData.password,
     });
-    
+
     return response.data;
   } catch (error) {
-    console.error('Registration failed:', error.response.data);
+    console.error("Registration failed:", error.response.data);
     throw error;
   }
 };
@@ -817,75 +859,76 @@ const registerSuperUser = async (userData) => {
 // Login Super User
 const loginSuperUser = async (email, password) => {
   try {
-    const response = await axios.post('/api/v1/auth/login', {
+    const response = await axios.post("/api/v1/super-user/auth/login", {
       email: email,
-      password: password
+      password: password,
     });
-    
+
     // Store token for future requests
     const token = response.data.data.token;
-    localStorage.setItem('superUserToken', token);
-    
+    localStorage.setItem("superUserToken", token);
+
     return response.data;
   } catch (error) {
-    console.error('Login failed:', error.response.data);
+    console.error("Login failed:", error.response.data);
     throw error;
   }
 };
 
-// Create Property Manager (Super User only)
-const createPropertyManager = async (propertyManagerData, superUserToken) => {
+// Create Agency (Super User only)
+const createAgency = async (agencyData, superUserToken) => {
   try {
-    const response = await axios.post('/api/v1/property-manager/auth/register', 
-      propertyManagerData,
+    const response = await axios.post(
+      "/api/v1/agency/auth/register",
+      agencyData,
       {
         headers: {
-          'Authorization': `Bearer ${superUserToken}`
-        }
+          Authorization: `Bearer ${superUserToken}`,
+        },
       }
     );
-    
+
     return response.data;
   } catch (error) {
-    console.error('Property manager creation failed:', error.response.data);
+    console.error("Agency creation failed:", error.response.data);
     throw error;
   }
 };
 ```
 
-### Property Manager Operations
+### Agency Operations
 
 ```javascript
-// Login Property Manager
-const loginPropertyManager = async (email, password) => {
+// Login Agency
+const loginAgency = async (email, password) => {
   try {
-    const response = await axios.post('/api/v1/property-manager/auth/login', {
+    const response = await axios.post("/api/v1/agency/auth/login", {
       email: email,
-      password: password
+      password: password,
     });
-    
+
     const token = response.data.data.token;
-    localStorage.setItem('propertyManagerToken', token);
-    
+    localStorage.setItem("agencyToken", token);
+
     return response.data;
   } catch (error) {
-    console.error('Property manager login failed:', error.response.data);
+    console.error("Agency login failed:", error.response.data);
     throw error;
   }
 };
 
-// Get Property Manager Profile
-const getPropertyManagerProfile = async (token) => {
+// Get Agency Profile
+const getAgencyProfile = async (token) => {
   try {
-    const response = await axios.get('/api/v1/property-manager/auth/profile', {
+    const response = await axios.get("/api/v1/agency/auth/profile", {
       headers: {
-        'Authorization': `Bearer ${token}`
-      }
+        Authorization: `Bearer ${token}`,
+      },
     });
-    
+
     return response.data;
   } catch (error) {
-    console.error('Failed to get profile:', error.response.data);
+    console.error("Failed to get profile:", error.response.data);
     throw error;
   }
 };
@@ -895,35 +938,42 @@ const getPropertyManagerProfile = async (token) => {
 
 ```javascript
 // Initiate password reset
-const forgotPassword = async (email, userType = 'superUser') => {
-  const endpoint = userType === 'superUser' 
-    ? '/api/v1/auth/forgot-password'
-    : '/api/v1/property-manager/auth/forgot-password';
-    
+const forgotPassword = async (email, userType = "superUser") => {
+  const endpoint =
+    userType === "superUser"
+      ? "/api/v1/super-user/auth/forgot-password"
+      : "/api/v1/agency/auth/forgot-password";
+
   try {
     const response = await axios.post(endpoint, { email });
     return response.data;
   } catch (error) {
-    console.error('Forgot password failed:', error.response.data);
+    console.error("Forgot password failed:", error.response.data);
     throw error;
   }
 };
 
 // Reset password with OTP
-const resetPassword = async (email, otp, newPassword, userType = 'superUser') => {
-  const endpoint = userType === 'superUser' 
-    ? '/api/v1/auth/reset-password'
-    : '/api/v1/property-manager/auth/reset-password';
-    
+const resetPassword = async (
+  email,
+  otp,
+  newPassword,
+  userType = "superUser"
+) => {
+  const endpoint =
+    userType === "superUser"
+      ? "/api/v1/super-user/auth/reset-password"
+      : "/api/v1/agency/auth/reset-password";
+
   try {
     const response = await axios.post(endpoint, {
       email,
       otp,
-      newPassword
+      newPassword,
     });
     return response.data;
   } catch (error) {
-    console.error('Password reset failed:', error.response.data);
+    console.error("Password reset failed:", error.response.data);
     throw error;
   }
 };
@@ -935,7 +985,7 @@ const resetPassword = async (email, otp, newPassword, userType = 'superUser') =>
 
 ```bash
 # Register Super User
-curl -X POST http://localhost:3000/api/v1/auth/register \
+curl -X POST http://localhost:3000/api/v1/super-user/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "name": "John Admin",
@@ -944,7 +994,7 @@ curl -X POST http://localhost:3000/api/v1/auth/register \
   }'
 
 # Login Super User
-curl -X POST http://localhost:3000/api/v1/auth/login \
+curl -X POST http://localhost:3000/api/v1/super-user/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "email": "admin@example.com",
@@ -952,14 +1002,14 @@ curl -X POST http://localhost:3000/api/v1/auth/login \
   }'
 
 # Forgot Password
-curl -X POST http://localhost:3000/api/v1/auth/forgot-password \
+curl -X POST http://localhost:3000/api/v1/super-user/auth/forgot-password \
   -H "Content-Type: application/json" \
   -d '{
     "email": "admin@example.com"
   }'
 
 # Reset Password
-curl -X POST http://localhost:3000/api/v1/auth/reset-password \
+curl -X POST http://localhost:3000/api/v1/super-user/auth/reset-password \
   -H "Content-Type: application/json" \
   -d '{
     "email": "admin@example.com",
@@ -968,11 +1018,11 @@ curl -X POST http://localhost:3000/api/v1/auth/reset-password \
   }'
 ```
 
-### Property Manager Operations
+### Agency Operations
 
 ```bash
-# Create Property Manager (Super User token required)
-curl -X POST http://localhost:3000/api/v1/property-manager/auth/register \
+# Create Agency (Super User token required)
+curl -X POST http://localhost:3000/api/v1/agency/auth/register \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_SUPER_USER_TOKEN" \
   -d '{
@@ -986,24 +1036,24 @@ curl -X POST http://localhost:3000/api/v1/property-manager/auth/register \
     "password": "securePassword123"
   }'
 
-# Login Property Manager
-curl -X POST http://localhost:3000/api/v1/property-manager/auth/login \
+# Login Agency
+curl -X POST http://localhost:3000/api/v1/agency/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "email": "jane@abcproperties.com",
     "password": "securePassword123"
   }'
 
-# Get Property Manager Profile
-curl -X GET http://localhost:3000/api/v1/property-manager/auth/profile \
-  -H "Authorization: Bearer YOUR_PROPERTY_MANAGER_TOKEN"
+# Get Agency Profile
+curl -X GET http://localhost:3000/api/v1/agency/auth/profile \
+  -H "Authorization: Bearer YOUR_AGENCY_TOKEN"
 
-# Get All Property Managers (Super User only)
-curl -X GET "http://localhost:3000/api/v1/property-manager/auth/all?status=Active&page=1&limit=10" \
+# Get All Agencies (Super User only)
+curl -X GET "http://localhost:3000/api/v1/agency/auth/all?status=Active&page=1&limit=10" \
   -H "Authorization: Bearer YOUR_SUPER_USER_TOKEN"
 
-# Update Property Manager (Super User only)
-curl -X PATCH http://localhost:3000/api/v1/property-manager/auth/64abc123456789 \
+# Update Agency (Super User only)
+curl -X PATCH http://localhost:3000/api/v1/agency/auth/64abc123456789 \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_SUPER_USER_TOKEN" \
   -d '{
@@ -1026,19 +1076,19 @@ class AuthManager {
   static setToken(token, userType) {
     localStorage.setItem(`${userType}Token`, token);
   }
-  
+
   static getToken(userType) {
     return localStorage.getItem(`${userType}Token`);
   }
-  
+
   static removeToken(userType) {
     localStorage.removeItem(`${userType}Token`);
   }
-  
+
   static isTokenExpired(token) {
     try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      return Date.now() >= (payload.exp * 1000);
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      return Date.now() >= payload.exp * 1000;
     } catch {
       return true;
     }
@@ -1047,13 +1097,13 @@ class AuthManager {
 
 // Axios interceptor for automatic token inclusion
 axios.interceptors.request.use((config) => {
-  const userType = config.userType || 'superUser';
+  const userType = config.userType || "superUser";
   const token = AuthManager.getToken(userType);
-  
+
   if (token && !AuthManager.isTokenExpired(token)) {
     config.headers.Authorization = `Bearer ${token}`;
   }
-  
+
   return config;
 });
 
@@ -1063,9 +1113,9 @@ axios.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       // Token expired or invalid, redirect to login
-      AuthManager.removeToken('superUser');
-      AuthManager.removeToken('propertyManager');
-      window.location.href = '/login';
+      AuthManager.removeToken("superUser");
+      AuthManager.removeToken("agency");
+      window.location.href = "/login";
     }
     return Promise.reject(error);
   }
@@ -1080,27 +1130,27 @@ const handleApiError = (error) => {
   if (error.response) {
     // Server responded with error status
     const { status, data } = error.response;
-    
+
     switch (status) {
       case 400:
         return `Invalid request: ${data.message}`;
       case 401:
-        return 'Please login to continue';
+        return "Please login to continue";
       case 403:
-        return 'You do not have permission for this action';
+        return "You do not have permission for this action";
       case 404:
-        return 'Resource not found';
+        return "Resource not found";
       case 429:
-        return 'Too many attempts. Please try again later';
+        return "Too many attempts. Please try again later";
       case 500:
-        return 'Server error. Please try again later';
+        return "Server error. Please try again later";
       default:
-        return data.message || 'An unexpected error occurred';
+        return data.message || "An unexpected error occurred";
     }
   } else if (error.request) {
-    return 'Network error. Please check your connection';
+    return "Network error. Please check your connection";
   } else {
-    return 'An unexpected error occurred';
+    return "An unexpected error occurred";
   }
 };
 ```
@@ -1110,11 +1160,13 @@ const handleApiError = (error) => {
 ### Client-Side Security
 
 1. **Secure Token Storage**:
+
    - Use httpOnly cookies for production
    - Avoid localStorage for sensitive tokens
    - Implement token refresh mechanism
 
 2. **Input Validation**:
+
    - Validate all inputs on client-side
    - Sanitize user inputs
    - Use proper form validation
@@ -1126,11 +1178,13 @@ const handleApiError = (error) => {
 ### Server-Side Security
 
 1. **Environment Variables**:
+
    - Store JWT secrets in environment variables
    - Use strong, randomly generated secrets
    - Rotate secrets regularly
 
 2. **Rate Limiting**:
+
    - Implement rate limiting on authentication endpoints
    - Use different limits for different operations
 
@@ -1154,7 +1208,7 @@ const handleApiError = (error) => {
 // Check if token is expired
 if (AuthManager.isTokenExpired(token)) {
   // Redirect to login or refresh token
-  window.location.href = '/login';
+  window.location.href = "/login";
 }
 ```
 
@@ -1162,6 +1216,7 @@ if (AuthManager.isTokenExpired(token)) {
 
 **Problem**: OTP emails not being received
 **Solutions**:
+
 - Check email service configuration
 - Verify email address format
 - Check spam folder
@@ -1171,15 +1226,17 @@ if (AuthManager.isTokenExpired(token)) {
 
 **Problem**: Valid OTP being rejected
 **Solutions**:
+
 - Check OTP expiration (10 minutes)
 - Verify attempt count (max 5 attempts)
 - Ensure OTP is exactly 6 digits
 - Check for any timing issues
 
-### 4. Property Manager Can't Login
+### 4. Agency Can't Login
 
-**Problem**: Property Manager receives account status error
+**Problem**: Agency receives account status error
 **Solutions**:
+
 - Check account status (must be "Active")
 - Contact Super User to activate account
 - Verify account was properly created
@@ -1191,30 +1248,33 @@ if (AuthManager.isTokenExpired(token)) {
 Create a Postman collection with the following requests:
 
 1. **Super User Authentication**
+
    - POST Register Super User
    - POST Login Super User
    - POST Forgot Password Super User
    - POST Reset Password Super User
 
-2. **Property Manager Authentication**
-   - POST Register Property Manager (with Super User auth)
-   - POST Login Property Manager
-   - POST Forgot Password Property Manager
-   - POST Reset Password Property Manager
-   - GET Property Manager Profile
+2. **Agency Authentication**
 
-3. **Property Manager Management**
-   - GET All Property Managers
-   - GET Single Property Manager
-   - PATCH Update Property Manager
+   - POST Register Agency (with Super User auth)
+   - POST Login Agency
+   - POST Forgot Password Agency
+   - POST Reset Password Agency
+   - GET Agency Profile
+
+3. **Agency Management**
+   - GET All Agencies
+   - GET Single Agency
+   - PATCH Update Agency
 
 ### Environment Variables
 
 Set up Postman environment variables:
+
 ```
 baseUrl: http://localhost:3000
 superUserToken: {{superUserToken}}
-propertyManagerToken: {{propertyManagerToken}}
+agencyToken: {{agencyToken}}
 ```
 
 ### Test Scripts
@@ -1228,7 +1288,7 @@ if (pm.response.code === 200) {
   if (response.data.token) {
     pm.environment.set("superUserToken", response.data.token);
     // or
-    pm.environment.set("propertyManagerToken", response.data.token);
+    pm.environment.set("agencyToken", response.data.token);
   }
 }
 ```
@@ -1237,6 +1297,6 @@ if (pm.response.code === 200) {
 
 # Conclusion
 
-This Authentication API provides a robust, secure foundation for the RentalEase CRM system. With comprehensive user management, secure password reset flows, and proper role-based access control, it ensures that both Super Users and Property Managers can safely and efficiently manage their operations.
+This Authentication API provides a robust, secure foundation for the RentalEase CRM system. With comprehensive user management, secure password reset flows, and proper role-based access control, it ensures that both Super Users and Agencies can safely and efficiently manage their operations.
 
-The API follows REST principles, implements industry-standard security practices, and provides clear error handling and documentation to facilitate easy integration and maintenance. 
+The API follows REST principles, implements industry-standard security practices, and provides clear error handling and documentation to facilitate easy integration and maintenance.
