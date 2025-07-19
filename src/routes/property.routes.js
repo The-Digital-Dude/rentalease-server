@@ -1,6 +1,7 @@
 import express from "express";
 import mongoose from "mongoose";
 import Property from "../models/Property.js";
+import Agency from "../models/Agency.js";
 import {
   authenticateSuperUser,
   authenticateAgency,
@@ -203,13 +204,27 @@ router.post("/", authenticate, async (req, res) => {
     // Set property manager based on user type
     let agencyId;
     if (req.superUser) {
-      // For now, super users will need to be assigned a property manager
-      // You can modify this based on your business logic
-      return res.status(400).json({
-        status: "error",
-        message:
-          "Property manager assignment for super users not yet implemented",
-      });
+      // Super users must provide an agency ID when creating properties
+      const { agencyId: providedAgencyId } = req.body;
+
+      if (!providedAgencyId) {
+        return res.status(400).json({
+          status: "error",
+          message:
+            "Agency ID is required for super users when creating properties",
+        });
+      }
+
+      // Validate that the agency exists
+      const agency = await Agency.findById(providedAgencyId);
+      if (!agency) {
+        return res.status(400).json({
+          status: "error",
+          message: "Invalid agency ID provided",
+        });
+      }
+
+      agencyId = providedAgencyId;
     } else if (req.agency) {
       agencyId = req.agency.id;
     }
@@ -708,6 +723,47 @@ router.get("/:id/compliance", authenticate, async (req, res) => {
     res.status(500).json({
       status: "error",
       message: "An error occurred while fetching property compliance",
+    });
+  }
+});
+
+// Get Available Agencies for Super Users
+router.get("/agencies/available", authenticateSuperUser, async (req, res) => {
+  try {
+    const { status = "Active", region } = req.query;
+
+    // Build filter object
+    const filter = { status };
+    if (region) filter.region = region;
+
+    // Get active agencies
+    const agencies = await Agency.find(filter)
+      .select(
+        "id companyName contactPerson email phone region compliance status"
+      )
+      .sort({ companyName: 1 });
+
+    res.status(200).json({
+      status: "success",
+      data: {
+        agencies: agencies.map((agency) => ({
+          id: agency._id,
+          companyName: agency.companyName,
+          contactPerson: agency.contactPerson,
+          email: agency.email,
+          phone: agency.phone,
+          region: agency.region,
+          compliance: agency.compliance,
+          status: agency.status,
+        })),
+        totalCount: agencies.length,
+      },
+    });
+  } catch (error) {
+    console.error("Get available agencies error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "An error occurred while fetching available agencies",
     });
   }
 });
