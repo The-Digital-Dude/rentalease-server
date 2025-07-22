@@ -15,16 +15,10 @@ const jobSchema = new mongoose.Schema(
         return `J-${generateJobNumber()}`;
       },
     },
-    propertyAddress: {
-      type: String,
-      required: [true, "Property address is required"],
-      trim: true,
-      minlength: [5, "Property address must be at least 5 characters long"],
-    },
     property: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Property",
-      default: null,
+      required: [true, "Property reference is required"],
     },
     jobType: {
       type: String,
@@ -184,7 +178,7 @@ jobSchema.methods.getFullDetails = function () {
   return {
     id: this._id,
     job_id: this.job_id,
-    propertyAddress: this.propertyAddress,
+    property: this.property,
     jobType: this.jobType,
     dueDate: this.dueDate,
     assignedTechnician: this.assignedTechnician,
@@ -210,7 +204,7 @@ jobSchema.methods.getSummary = function () {
   return {
     id: this._id,
     job_id: this.job_id,
-    propertyAddress: this.propertyAddress,
+    property: this.property,
     jobType: this.jobType,
     dueDate: this.dueDate,
     assignedTechnician: this.assignedTechnician,

@@ -964,14 +964,6 @@ router.post(
   async (req, res) => {
     try {
       const { id } = req.params;
-      const { password } = req.body;
-
-      if (!password) {
-        return res.status(400).json({
-          status: "error",
-          message: "Password is required to resend credentials",
-        });
-      }
 
       // Find agency
       const agency = await Agency.findById(id);
@@ -982,8 +974,24 @@ router.post(
         });
       }
 
+      // Generate a random password
+      const generateRandomPassword = () => {
+        const length = 12;
+        const charset =
+          "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
+        let password = "";
+        for (let i = 0; i < length; i++) {
+          password += charset.charAt(
+            Math.floor(Math.random() * charset.length)
+          );
+        }
+        return password;
+      };
+
+      const newPassword = generateRandomPassword();
+
       // Update the agency's password
-      agency.password = password; // This will be hashed by the pre-save middleware
+      agency.password = newPassword; // This will be hashed by the pre-save middleware
       await agency.save();
 
       // Send credentials email
@@ -997,7 +1005,7 @@ router.post(
             region: agency.region,
             compliance: agency.compliance,
           },
-          password,
+          newPassword,
           process.env.FRONTEND_URL || "https://rentalease-crm.com/login"
         );
 
@@ -1011,7 +1019,8 @@ router.post(
 
         res.status(200).json({
           status: "success",
-          message: "Credentials email has been resent successfully",
+          message:
+            "Credentials email has been resent successfully with a new password",
           data: {
             email: agency.email,
             resentAt: new Date().toISOString(),

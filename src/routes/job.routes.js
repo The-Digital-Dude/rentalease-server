@@ -103,7 +103,7 @@ const sendJobAssignmentNotification = async (technician, job, assignedBy) => {
 router.post("/", authenticate, async (req, res) => {
   try {
     const {
-      propertyAddress,
+      property,
       jobType,
       dueDate,
       assignedTechnician,
@@ -114,15 +114,13 @@ router.post("/", authenticate, async (req, res) => {
     } = req.body;
 
     // Validate required fields
-    if (!propertyAddress || !jobType || !dueDate) {
+    if (!property || !jobType || !dueDate) {
       return res.status(400).json({
         status: "error",
         message:
-          "Please provide all required fields: Property Address, Job Type, and Due Date",
+          "Please provide all required fields: Property, Job Type, and Due Date",
         details: {
-          propertyAddress: !propertyAddress
-            ? "Property address is required"
-            : null,
+          property: !property ? "Property reference is required" : null,
           jobType: !jobType ? "Job type is required" : null,
           dueDate: !dueDate ? "Due date is required" : null,
         },
@@ -178,7 +176,7 @@ router.post("/", authenticate, async (req, res) => {
 
       // Create new job
       const job = new Job({
-        propertyAddress,
+        property,
         jobType,
         dueDate: new Date(dueDate),
         assignedTechnician: technicianId,
@@ -307,10 +305,12 @@ router.get("/", authenticate, async (req, res) => {
     // Add search functionality
     if (search) {
       query.$or = [
-        { propertyAddress: { $regex: search, $options: "i" } },
         { description: { $regex: search, $options: "i" } },
         { notes: { $regex: search, $options: "i" } },
       ];
+    }
+    if (req.query.property) {
+      query.property = req.query.property;
     }
 
     // Calculate pagination
@@ -522,7 +522,7 @@ router.put("/:id", authenticate, async (req, res) => {
       // Update allowed fields
       const allowedUpdates = canFullEdit
         ? [
-            "propertyAddress",
+            "property",
             "jobType",
             "dueDate",
             "assignedTechnician",

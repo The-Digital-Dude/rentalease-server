@@ -33,6 +33,38 @@ const VALID_REGIONS = [
   "Regional TAS",
 ];
 
+// Valid property types
+const VALID_PROPERTY_TYPES = [
+  "House",
+  "Apartment",
+  "Unit",
+  "Townhouse",
+  "Villa",
+  "Duplex",
+  "Studio",
+  "Penthouse",
+  "Commercial",
+  "Industrial",
+  "Retail",
+  "Office",
+  "Warehouse",
+  "Land",
+  "Other",
+];
+
+// Valid property statuses
+const VALID_PROPERTY_STATUSES = [
+  "Active",
+  "Inactive",
+  "Under Maintenance",
+  "Vacant",
+  "Rented",
+  "For Sale",
+  "Sold",
+  "Under Construction",
+  "Pending",
+];
+
 // Valid Australian states
 const VALID_STATES = ["NSW", "VIC", "QLD", "WA", "SA", "TAS", "NT", "ACT"];
 
@@ -313,16 +345,65 @@ router.post("/", authenticate, async (req, res) => {
   }
 });
 
-// Get All Properties
+// Get Filter Options for Properties
+router.get("/filter-options", authenticate, async (req, res) => {
+  try {
+    // Get agency filter based on user type
+    const agencyFilter = getAgencyFilter(req);
+    if (agencyFilter === null) {
+      return res.status(401).json({
+        status: "error",
+        message: "Authentication required",
+      });
+    }
+
+    // Get unique values from database for dynamic filters
+    const filter = { ...agencyFilter, isActive: true };
+
+    const [regions, propertyTypes, statuses, states] = await Promise.all([
+      Property.distinct("region", filter),
+      Property.distinct("propertyType", filter),
+      Property.distinct("status", filter),
+      Property.distinct("address.state", filter),
+    ]);
+
+    res.status(200).json({
+      status: "success",
+      data: {
+        regions: ["All Regions", ...regions.sort()],
+        propertyTypes: ["All Types", ...propertyTypes.sort()],
+        statuses: ["All Status", ...statuses.sort()],
+        states: states.sort(),
+        validOptions: {
+          regions: VALID_REGIONS,
+          propertyTypes: VALID_PROPERTY_TYPES,
+          statuses: VALID_PROPERTY_STATUSES,
+          states: VALID_STATES,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Get filter options error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "An error occurred while fetching filter options",
+    });
+  }
+});
+
+// Get All Properties with Advanced Filtering
 router.get("/", authenticate, async (req, res) => {
   try {
     const {
       propertyType,
       region,
       state,
+      status,
       page = 1,
       limit = 10,
       search,
+      sortBy = "createdAt",
+      sortOrder = "desc",
     } = req.query;
 
     // Get agency filter based on user type
@@ -337,27 +418,52 @@ router.get("/", authenticate, async (req, res) => {
     // Build filter object
     const filter = { ...agencyFilter, isActive: true };
 
-    if (propertyType) filter.propertyType = propertyType;
-    if (region) filter.region = region;
-    if (state) filter["address.state"] = state;
+    // Property Type filter
+    if (propertyType && propertyType !== "All Types") {
+      filter.propertyType = propertyType;
+    }
 
-    // Add search functionality
-    if (search) {
+    // Region filter
+    if (region && region !== "All Regions") {
+      filter.region = region;
+    }
+
+    // Status filter
+    if (status && status !== "All Status") {
+      filter.status = status;
+    }
+
+    // State filter
+    if (state) {
+      filter["address.state"] = state;
+    }
+
+    // Advanced search functionality
+    if (search && search.trim()) {
+      const searchRegex = { $regex: search.trim(), $options: "i" };
       filter.$or = [
-        { "address.street": { $regex: search, $options: "i" } },
-        { "address.suburb": { $regex: search, $options: "i" } },
-        { "address.fullAddress": { $regex: search, $options: "i" } },
-        { "currentTenant.name": { $regex: search, $options: "i" } },
+        { "address.street": searchRegex },
+        { "address.suburb": searchRegex },
+        { "address.fullAddress": searchRegex },
+        { "currentTenant.name": searchRegex },
+        { "currentTenant.email": searchRegex },
+        { "currentLandlord.name": searchRegex },
+        { "currentLandlord.email": searchRegex },
+        { "agency.companyName": searchRegex },
       ];
     }
 
     // Calculate pagination
     const skip = (page - 1) * limit;
 
-    // Get properties with pagination
+    // Build sort object
+    const sortObject = {};
+    sortObject[sortBy] = sortOrder === "desc" ? -1 : 1;
+
+    // Get properties with pagination and sorting
     const properties = await Property.find(filter)
       .populate("agency", "companyName contactPerson email phone")
-      .sort({ createdAt: -1 })
+      .sort(sortObject)
       .skip(skip)
       .limit(parseInt(limit));
 
@@ -373,6 +479,7 @@ router.get("/", authenticate, async (req, res) => {
           fullAddress: property.fullAddressString,
           propertyType: property.propertyType,
           region: property.region,
+          status: property.status,
           agency: property.agency,
           currentTenant: property.currentTenant,
           currentLandlord: property.currentLandlord,
@@ -389,6 +496,14 @@ router.get("/", authenticate, async (req, res) => {
           totalCount,
           hasNext: page * limit < totalCount,
           hasPrev: page > 1,
+        },
+        filters: {
+          applied: {
+            propertyType: propertyType || "All Types",
+            region: region || "All Regions",
+            status: status || "All Status",
+            search: search || "",
+          },
         },
       },
     });
