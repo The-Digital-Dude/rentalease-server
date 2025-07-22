@@ -2,6 +2,7 @@ import Contact from "../models/Contact.js";
 import Agency from "../models/Agency.js";
 import SuperUser from "../models/SuperUser.js";
 import mongoose from "mongoose";
+import emailService from "../services/email.service.js";
 
 // Helper validation functions
 const isValidEmail = (email) =>
@@ -81,13 +82,11 @@ export const createContact = async (req, res) => {
     if (preferredContact && !["Email", "Phone"].includes(preferredContact))
       errors.preferredContact = "Preferred contact must be Email or Phone";
     if (Object.keys(errors).length > 0) {
-      return res
-        .status(400)
-        .json({
-          status: "error",
-          message: "Validation failed",
-          details: errors,
-        });
+      return res.status(400).json({
+        status: "error",
+        message: "Validation failed",
+        details: errors,
+      });
     }
     let owner = {};
     if (req.superUser) {
@@ -104,12 +103,10 @@ export const createContact = async (req, res) => {
       "owner.ownerId": owner.ownerId,
     });
     if (existing) {
-      return res
-        .status(400)
-        .json({
-          status: "error",
-          message: "Contact with this email already exists for this owner",
-        });
+      return res.status(400).json({
+        status: "error",
+        message: "Contact with this email already exists for this owner",
+      });
     }
     const contact = new Contact({
       name: name.trim(),
@@ -121,26 +118,22 @@ export const createContact = async (req, res) => {
       owner,
     });
     await contact.save();
-    res
-      .status(201)
-      .json({
-        status: "success",
-        message: "Contact created",
-        data: { contact },
-      });
+    res.status(201).json({
+      status: "success",
+      message: "Contact created",
+      data: { contact },
+    });
   } catch (error) {
     console.error("Create contact error:", error);
     if (error.name === "ValidationError") {
       const validationErrors = Object.values(error.errors).map(
         (err) => err.message
       );
-      return res
-        .status(400)
-        .json({
-          status: "error",
-          message: "Validation failed",
-          details: validationErrors,
-        });
+      return res.status(400).json({
+        status: "error",
+        message: "Validation failed",
+        details: validationErrors,
+      });
     }
     res
       .status(500)
@@ -190,13 +183,11 @@ export const updateContact = async (req, res) => {
     )
       errors.preferredContact = "Preferred contact must be Email or Phone";
     if (Object.keys(errors).length > 0) {
-      return res
-        .status(400)
-        .json({
-          status: "error",
-          message: "Validation failed",
-          details: errors,
-        });
+      return res.status(400).json({
+        status: "error",
+        message: "Validation failed",
+        details: errors,
+      });
     }
     // Check for duplicate email if updating email
     if (email && email !== contact.email) {
@@ -207,12 +198,10 @@ export const updateContact = async (req, res) => {
         _id: { $ne: id },
       });
       if (existing) {
-        return res
-          .status(400)
-          .json({
-            status: "error",
-            message: "Contact with this email already exists for this owner",
-          });
+        return res.status(400).json({
+          status: "error",
+          message: "Contact with this email already exists for this owner",
+        });
       }
     }
     if (name !== undefined) contact.name = name.trim();
@@ -234,13 +223,11 @@ export const updateContact = async (req, res) => {
       const validationErrors = Object.values(error.errors).map(
         (err) => err.message
       );
-      return res
-        .status(400)
-        .json({
-          status: "error",
-          message: "Validation failed",
-          details: validationErrors,
-        });
+      return res.status(400).json({
+        status: "error",
+        message: "Validation failed",
+        details: validationErrors,
+      });
     }
     res
       .status(500)
@@ -283,5 +270,52 @@ export const deleteContact = async (req, res) => {
     res
       .status(500)
       .json({ status: "error", message: "Unable to delete contact" });
+  }
+};
+
+export const sendEmailToContact = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { subject, html } = req.body;
+    if (!subject || !html) {
+      return res
+        .status(400)
+        .json({
+          status: "error",
+          message: "Subject and message body are required",
+        });
+    }
+    const contact = await Contact.findById(id);
+    if (!contact) {
+      return res
+        .status(404)
+        .json({ status: "error", message: "Contact not found" });
+    }
+    // Only allow if user has access to this contact
+    if (req.superUser) {
+      // SuperUser: can email any contact
+    } else if (req.agency) {
+      if (
+        contact.owner.ownerType !== "Agency" ||
+        String(contact.owner.ownerId) !== String(req.agency.id)
+      ) {
+        return res
+          .status(403)
+          .json({ status: "error", message: "Access denied" });
+      }
+    } else {
+      return res.status(403).json({ status: "error", message: "Unauthorized" });
+    }
+    // Send email using Resend (custom, not template)
+    await emailService.resend.emails.send({
+      from: emailService.defaultFrom,
+      to: [contact.email],
+      subject,
+      html,
+    });
+    res.json({ status: "success", message: "Email sent successfully" });
+  } catch (error) {
+    console.error("Send email to contact error:", error);
+    res.status(500).json({ status: "error", message: "Failed to send email" });
   }
 };

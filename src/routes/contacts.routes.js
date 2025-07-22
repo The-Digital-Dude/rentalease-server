@@ -5,6 +5,7 @@ import {
   createContact,
   updateContact,
   deleteContact,
+  sendEmailToContact,
 } from "../controllers/contacts.controller.js";
 import { authenticate } from "../middleware/auth.middleware.js";
 
@@ -24,5 +25,8 @@ router.put("/:id", authenticate, updateContact);
 
 // Delete a contact
 router.delete("/:id", authenticate, deleteContact);
+
+// Send custom email to a contact
+router.post("/:id/send-email", authenticate, sendEmailToContact);
 
 export default router;
