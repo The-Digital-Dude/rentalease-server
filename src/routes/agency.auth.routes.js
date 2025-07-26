@@ -1,5 +1,9 @@
 import express from "express";
+import mongoose from "mongoose";
 import Agency from "../models/Agency.js";
+import Property from "../models/Property.js";
+import Job from "../models/Job.js";
+import Staff from "../models/Staff.js";
 import jwt from "jsonwebtoken";
 import emailService from "../services/email.service.js";
 import {
@@ -861,10 +865,18 @@ router.get("/all", authenticateSuperUser, async (req, res) => {
   }
 });
 
-// Get Single Agency Details (Only Super Users)
+// Get Single Agency Details with Properties and Jobs (Only Super Users)
 router.get("/:id", authenticateSuperUser, async (req, res) => {
   try {
     const { id } = req.params;
+
+    // Validate ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        status: "error",
+        message: "Invalid agency ID format",
+      });
+    }
 
     const agency = await Agency.findById(id);
     if (!agency) {
@@ -873,6 +885,106 @@ router.get("/:id", authenticateSuperUser, async (req, res) => {
         message: "Agency not found",
       });
     }
+
+    // Get properties managed by this agency using the direct agency reference
+    const properties = await Property.find({
+      agency: id,
+    })
+      .select(
+        "address propertyType currentTenant currentLandlord complianceSchedule status createdAt"
+      )
+      .sort({ createdAt: -1 });
+
+    // Get jobs related to this agency - both directly owned and through properties
+    const [directJobs, propertyJobs] = await Promise.all([
+      // Jobs directly owned by the agency
+      Job.find({
+        "owner.ownerType": "Agency",
+        "owner.ownerId": id,
+      })
+        .populate("property", "address")
+        .populate("assignedTechnician", "fullName tradeType availabilityStatus")
+        .select(
+          "job_id jobType dueDate status priority description cost estimatedDuration actualDuration completedAt createdAt"
+        ),
+
+      // Jobs related to properties owned by this agency
+      Job.find({
+        property: { $in: properties.map((p) => p._id) },
+      })
+        .populate("property", "address")
+        .populate("assignedTechnician", "fullName tradeType availabilityStatus")
+        .select(
+          "job_id jobType dueDate status priority description cost estimatedDuration actualDuration completedAt createdAt"
+        ),
+    ]);
+
+    // Combine and deduplicate jobs
+    const allJobIds = new Set();
+    const jobs = [...directJobs, ...propertyJobs]
+      .filter((job) => {
+        if (allJobIds.has(job._id.toString())) {
+          return false;
+        }
+        allJobIds.add(job._id.toString());
+        return true;
+      })
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    // Get staff members managed by this agency
+    const staff = await Staff.find({
+      "owner.ownerType": "Agency",
+      "owner.ownerId": id,
+    })
+      .select(
+        "fullName tradeType availabilityStatus currentJobs hourlyRate status createdAt"
+      )
+      .sort({ createdAt: -1 });
+
+    // Calculate comprehensive statistics
+    const stats = {
+      totalProperties: properties.length,
+      totalJobs: jobs.length,
+      totalStaff: staff.length,
+      jobStatusCounts: {
+        pending: jobs.filter((job) => job.status === "Pending").length,
+        scheduled: jobs.filter((job) => job.status === "Scheduled").length,
+        completed: jobs.filter((job) => job.status === "Completed").length,
+        overdue: jobs.filter((job) => job.status === "Overdue").length,
+      },
+      propertyStatusCounts: {
+        active: properties.filter((prop) => prop.status === "Active").length,
+        inactive: properties.filter((prop) => prop.status === "Inactive")
+          .length,
+        maintenance: properties.filter(
+          (prop) => prop.status === "Under Maintenance"
+        ).length,
+      },
+      staffAvailability: {
+        available: staff.filter(
+          (member) => member.availabilityStatus === "Available"
+        ).length,
+        busy: staff.filter((member) => member.availabilityStatus === "Busy")
+          .length,
+        unavailable: staff.filter(
+          (member) => member.availabilityStatus === "Unavailable"
+        ).length,
+      },
+      financials: {
+        totalJobValue: jobs.reduce(
+          (sum, job) => sum + (job.cost?.totalCost || 0),
+          0
+        ),
+        completedJobValue: jobs
+          .filter((job) => job.status === "Completed")
+          .reduce((sum, job) => sum + (job.cost?.totalCost || 0), 0),
+        averageJobValue:
+          jobs.length > 0
+            ? jobs.reduce((sum, job) => sum + (job.cost?.totalCost || 0), 0) /
+              jobs.length
+            : 0,
+      },
+    };
 
     res.status(200).json({
       status: "success",
@@ -894,6 +1006,73 @@ router.get("/:id", authenticateSuperUser, async (req, res) => {
           createdAt: agency.createdAt,
           lastUpdated: agency.lastUpdated,
         },
+        statistics: stats,
+        properties: properties.map((property) => ({
+          id: property._id,
+          address: {
+            street: property.address?.street,
+            suburb: property.address?.suburb,
+            state: property.address?.state,
+            postcode: property.address?.postcode,
+            fullAddress: property.address?.fullAddress,
+          },
+          propertyType: property.propertyType,
+          currentTenant: {
+            name: property.currentTenant?.name,
+            email: property.currentTenant?.email,
+            phone: property.currentTenant?.phone,
+          },
+          currentLandlord: {
+            name: property.currentLandlord?.name,
+            email: property.currentLandlord?.email,
+            phone: property.currentLandlord?.phone,
+          },
+          complianceSchedule: property.complianceSchedule,
+          status: property.status,
+          createdAt: property.createdAt,
+        })),
+        jobs: jobs.map((job) => ({
+          id: job._id,
+          job_id: job.job_id,
+          jobType: job.jobType,
+          property: job.property
+            ? {
+                id: job.property._id,
+                address: job.property.address,
+              }
+            : null,
+          assignedTechnician: job.assignedTechnician
+            ? {
+                id: job.assignedTechnician._id,
+                fullName: job.assignedTechnician.fullName,
+                tradeType: job.assignedTechnician.tradeType,
+                availabilityStatus: job.assignedTechnician.availabilityStatus,
+              }
+            : null,
+          dueDate: job.dueDate,
+          status: job.status,
+          priority: job.priority,
+          description: job.description,
+          cost: {
+            materialCost: job.cost?.materialCost || 0,
+            laborCost: job.cost?.laborCost || 0,
+            totalCost: job.cost?.totalCost || 0,
+          },
+          estimatedDuration: job.estimatedDuration,
+          actualDuration: job.actualDuration,
+          completedAt: job.completedAt,
+          createdAt: job.createdAt,
+        })),
+        staff: staff.map((member) => ({
+          id: member._id,
+          fullName: member.fullName,
+          tradeType: member.tradeType,
+          availabilityStatus: member.availabilityStatus,
+          currentJobs: member.currentJobs,
+          hourlyRate: member.hourlyRate,
+          status: member.status,
+          createdAt: member.createdAt,
+        })),
       },
     });
   } catch (error) {
