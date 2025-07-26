@@ -10,6 +10,7 @@ import staffRoutes from "../routes/staff.routes.js";
 import jobRoutes from "../routes/job.routes.js";
 import propertyRoutes from "../routes/property.routes.js";
 import contactsRoutes from "../routes/contacts.routes.js";
+import complianceRoutes from "../routes/compliance.routes.js";
 import emailService from "../services/email.service.js";
 
 // Create Express app
@@ -29,6 +30,7 @@ app.use("/api/v1/staff", staffRoutes);
 app.use("/api/v1/jobs", jobRoutes);
 app.use("/api/v1/properties", propertyRoutes);
 app.use("/api/v1/contacts", contactsRoutes);
+app.use("/api/v1/compliance", complianceRoutes);
 
 // Health check route
 app.get("/health", async (req, res) => {

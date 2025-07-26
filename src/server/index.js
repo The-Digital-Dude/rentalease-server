@@ -1,6 +1,7 @@
 import app from "./app.js";
 import connectDB from "../config/database.js";
 import { testCloudinaryConnection } from "../config/cloudinary.js";
+import ComplianceCronJob from "../services/complianceCronJob.js";
 
 const PORT = process.env.PORT || 4000;
 
@@ -21,6 +22,23 @@ const startServer = async () => {
       console.log("📝 API Documentation available at /api-docs");
       console.log("💚 Health check available at /health");
       console.log("----------------------------------------");
+    });
+
+    // Start compliance cron job
+    const complianceCronJob = new ComplianceCronJob();
+    complianceCronJob.start();
+
+    // Handle graceful shutdown
+    process.on("SIGTERM", () => {
+      console.log("🛑 SIGTERM received, shutting down gracefully...");
+      complianceCronJob.stop();
+      process.exit(0);
+    });
+
+    process.on("SIGINT", () => {
+      console.log("🛑 SIGINT received, shutting down gracefully...");
+      complianceCronJob.stop();
+      process.exit(0);
     });
   } catch (error) {
     console.error("❌ Failed to start server:", error);

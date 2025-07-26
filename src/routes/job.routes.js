@@ -284,10 +284,19 @@ router.get("/", authenticate, async (req, res) => {
     } = req.query;
 
     // Build query
-    let query = {
-      "owner.ownerType": ownerInfo.ownerType,
-      "owner.ownerId": ownerInfo.ownerId,
-    };
+    let query = {};
+
+    // If super user, show all jobs. If agency, show only their jobs
+    if (ownerInfo.ownerType === "SuperUser") {
+      // Super users can see all jobs
+      query = {};
+    } else {
+      // Agencies can only see their own jobs
+      query = {
+        "owner.ownerType": ownerInfo.ownerType,
+        "owner.ownerId": ownerInfo.ownerId,
+      };
+    }
 
     // Add filters
     if (jobType) query.jobType = jobType;
@@ -331,12 +340,21 @@ router.get("/", authenticate, async (req, res) => {
     const totalJobs = await Job.countDocuments(query);
 
     // Get status counts for dashboard
+    let statusCountsMatch = {};
+    if (ownerInfo.ownerType === "SuperUser") {
+      // Super users can see all jobs
+      statusCountsMatch = {};
+    } else {
+      // Agencies can only see their own jobs
+      statusCountsMatch = {
+        "owner.ownerType": ownerInfo.ownerType,
+        "owner.ownerId": new mongoose.Types.ObjectId(ownerInfo.ownerId),
+      };
+    }
+
     const statusCounts = await Job.aggregate([
       {
-        $match: {
-          "owner.ownerType": ownerInfo.ownerType,
-          "owner.ownerId": new mongoose.Types.ObjectId(ownerInfo.ownerId),
-        },
+        $match: statusCountsMatch,
       },
       { $group: { _id: "$status", count: { $sum: 1 } } },
     ]);
