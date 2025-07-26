@@ -151,13 +151,43 @@ jobSchema.index({ status: 1, dueDate: 1 });
 jobSchema.index({ assignedTechnician: 1, status: 1 });
 jobSchema.index({ "owner.ownerType": 1, "owner.ownerId": 1 });
 
+// Index for better query performance
+jobSchema.index({ property: 1, jobType: 1, dueDate: 1 });
+
 // Virtual for checking if job is overdue
 jobSchema.virtual("isOverdue").get(function () {
   return this.status !== "Completed" && this.dueDate < new Date();
 });
 
-// Pre-save middleware to update status to overdue if needed
-jobSchema.pre("save", function (next) {
+// Pre-save middleware to check for duplicates and update status
+jobSchema.pre("save", async function (next) {
+  // Check for duplicate jobs (same property, job type, and date)
+  if (this.isNew) {
+    const startOfDay = new Date(this.dueDate);
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const endOfDay = new Date(this.dueDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const existingJob = await this.constructor.findOne({
+      property: this.property,
+      jobType: this.jobType,
+      dueDate: { $gte: startOfDay, $lte: endOfDay },
+      _id: { $ne: this._id }, // Exclude current job if updating
+    });
+
+    if (existingJob) {
+      const error = new Error(
+        `A ${
+          this.jobType
+        } job already exists for this property on ${startOfDay.toDateString()}`
+      );
+      error.name = "DuplicateJobError";
+      return next(error);
+    }
+  }
+
+  // Update status to overdue if needed
   if (this.isOverdue && this.status !== "Completed") {
     this.status = "Overdue";
   }
@@ -214,6 +244,33 @@ jobSchema.methods.getSummary = function () {
     totalCost: this.cost.totalCost,
     createdAt: this.createdAt,
   };
+};
+
+// Static method to check for duplicate jobs
+jobSchema.statics.checkForDuplicate = async function (
+  propertyId,
+  jobType,
+  dueDate,
+  excludeJobId = null
+) {
+  const startOfDay = new Date(dueDate);
+  startOfDay.setHours(0, 0, 0, 0);
+
+  const endOfDay = new Date(dueDate);
+  endOfDay.setHours(23, 59, 59, 999);
+
+  const query = {
+    property: propertyId,
+    jobType: jobType,
+    dueDate: { $gte: startOfDay, $lte: endOfDay },
+    status: { $in: ["Pending", "Scheduled", "Overdue"] },
+  };
+
+  if (excludeJobId) {
+    query._id = { $ne: excludeJobId };
+  }
+
+  return await this.findOne(query);
 };
 
 const Job = mongoose.model("Job", jobSchema);

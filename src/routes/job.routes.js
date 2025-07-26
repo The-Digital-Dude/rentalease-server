@@ -243,6 +243,18 @@ router.post("/", authenticate, async (req, res) => {
         });
       }
 
+      // Handle duplicate job error
+      if (error.name === "DuplicateJobError") {
+        return res.status(409).json({
+          status: "error",
+          message: error.message,
+          details: {
+            duplicate:
+              "A job of this type already exists for this property on the specified date",
+          },
+        });
+      }
+
       throw error;
     }
   } catch (error) {

@@ -8,18 +8,19 @@ class ComplianceCronJob {
   }
 
   // Check if a job already exists for a property and compliance type
-  async checkExistingJob(propertyId, complianceType) {
+  async checkExistingJob(propertyId, complianceType, dueDate) {
     const jobTypeMap = {
       gasCompliance: "Gas",
       electricalSafety: "Electrical",
       smokeAlarms: "Smoke",
     };
 
-    const existingJob = await Job.findOne({
-      property: propertyId,
-      jobType: jobTypeMap[complianceType],
-      status: { $in: ["Pending", "Scheduled"] },
-    });
+    // Use the static method for consistent duplicate checking
+    const existingJob = await Job.checkForDuplicate(
+      propertyId,
+      jobTypeMap[complianceType],
+      dueDate
+    );
 
     return existingJob;
   }
@@ -30,7 +31,8 @@ class ComplianceCronJob {
       // Check if job already exists
       const existingJob = await this.checkExistingJob(
         property._id,
-        complianceType
+        complianceType,
+        dueDate
       );
       if (existingJob) {
         console.log(
@@ -71,6 +73,14 @@ class ComplianceCronJob {
       );
       return newJob;
     } catch (error) {
+      // Handle duplicate job error specifically
+      if (error.name === "DuplicateJobError") {
+        console.log(
+          `⚠️ Duplicate job prevented for property ${property._id} - ${complianceType}: ${error.message}`
+        );
+        return null;
+      }
+
       console.error(
         `❌ Error creating ${complianceType} job for property ${property._id}:`,
         error
