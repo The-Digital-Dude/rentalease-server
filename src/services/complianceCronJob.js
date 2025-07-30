@@ -1,6 +1,7 @@
 import cron from "node-cron";
 import Property from "../models/Property.js";
 import Job from "../models/Job.js";
+import notificationService from "./notification.service.js";
 
 class ComplianceCronJob {
   constructor() {
@@ -67,6 +68,19 @@ class ComplianceCronJob {
 
       const newJob = new Job(jobData);
       await newJob.save();
+
+      // Send notification for compliance job creation
+      try {
+        await notificationService.sendComplianceJobNotification(newJob, property);
+      } catch (notificationError) {
+        // Log error but don't fail the job creation
+        console.error("Failed to send compliance job notification:", {
+          jobId: newJob._id,
+          propertyId: property._id,
+          error: notificationError.message,
+          timestamp: new Date().toISOString(),
+        });
+      }
 
       console.log(
         `✅ Created ${complianceType} job for property ${property._id}`

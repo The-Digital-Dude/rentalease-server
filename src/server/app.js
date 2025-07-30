@@ -6,11 +6,13 @@ import morgan from "morgan";
 // Import routes
 import authRoutes from "../routes/auth.routes.js";
 import agencyAuthRoutes from "../routes/agency.auth.routes.js";
+import technicianAuthRoutes from "../routes/technician.auth.routes.js";
 import staffRoutes from "../routes/staff.routes.js";
 import jobRoutes from "../routes/job.routes.js";
 import propertyRoutes from "../routes/property.routes.js";
 import contactsRoutes from "../routes/contacts.routes.js";
 import complianceRoutes from "../routes/compliance.routes.js";
+import notificationRoutes from "../routes/notification.routes.js";
 import emailService from "../services/email.service.js";
 
 // Create Express app
@@ -26,11 +28,13 @@ app.use(morgan("dev"));
 // Routes
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/agency/auth", agencyAuthRoutes);
+app.use("/api/v1/technician/auth", technicianAuthRoutes);
 app.use("/api/v1/staff", staffRoutes);
 app.use("/api/v1/jobs", jobRoutes);
 app.use("/api/v1/properties", propertyRoutes);
 app.use("/api/v1/contacts", contactsRoutes);
 app.use("/api/v1/compliance", complianceRoutes);
+app.use("/api/v1/notifications", notificationRoutes);
 
 // Health check route
 app.get("/health", async (req, res) => {

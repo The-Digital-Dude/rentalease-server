@@ -4,7 +4,15 @@ import emailTemplates from "../utils/emailTemplates.js";
 
 class EmailService {
   constructor() {
-    this.resend = new Resend(emailConfig.resendApiKey);
+    // Only initialize Resend if API key is provided
+    if (emailConfig.resendApiKey) {
+      this.resend = new Resend(emailConfig.resendApiKey);
+    } else {
+      this.resend = null;
+      console.warn(
+        "⚠️ Resend API key not provided. Email functionality will be disabled."
+      );
+    }
     this.defaultFrom = emailConfig.defaultFrom;
 
     // Bind methods to preserve 'this' context
@@ -32,8 +40,9 @@ class EmailService {
         throw new Error(`Template "${templateName}" not found`);
       }
 
-      if (!emailConfig.resendApiKey) {
-        throw new Error("Resend API key is not configured");
+      if (!this.resend) {
+        console.warn("📧 Email service not configured. Skipping email send.");
+        return { id: "mock-email-id", status: "skipped" };
       }
 
       const template = emailTemplates[templateName](templateData);
@@ -633,6 +642,82 @@ class EmailService {
         assignedByType:
           assignedBy.type === "SuperUser" ? "Super User" : "Agency",
         notes: job.notes || "",
+      },
+    });
+  }
+
+  /**
+   * Send welcome email to new technician
+   * @param {Object} technician - Technician object
+   * @param {string} technician.email - Technician's email
+   * @param {string} technician.fullName - Technician's full name
+   * @param {string} technician.tradeType - Technician's trade type
+   * @returns {Promise} - Email send result
+   */
+  async sendTechnicianWelcomeEmail(technician) {
+    if (
+      !technician ||
+      !technician.email ||
+      !technician.fullName ||
+      !technician.tradeType
+    ) {
+      throw new Error("Invalid technician data provided for welcome email");
+    }
+
+    console.log("Sending welcome email to technician:", {
+      email: technician.email,
+      fullName: technician.fullName,
+      tradeType: technician.tradeType,
+    });
+
+    return await this.sendTemplatedEmail({
+      to: technician.email,
+      templateName: "technicianWelcome",
+      templateData: {
+        fullName: technician.fullName,
+        tradeType: technician.tradeType,
+      },
+    });
+  }
+
+  /**
+   * Send password reset OTP email to technician
+   * @param {Object} technician - Technician object
+   * @param {string} technician.email - Technician's email
+   * @param {string} technician.fullName - Technician's full name
+   * @param {string} otp - One-time password
+   * @param {number} expirationMinutes - OTP expiration time in minutes
+   * @returns {Promise} - Email send result
+   */
+  async sendTechnicianPasswordResetOTP(
+    technician,
+    otp,
+    expirationMinutes = 10
+  ) {
+    if (!technician || !technician.email || !technician.fullName) {
+      throw new Error(
+        "Invalid technician data provided for password reset email"
+      );
+    }
+
+    if (!otp) {
+      throw new Error("OTP is required for password reset email");
+    }
+
+    console.log("Sending password reset OTP email to technician:", {
+      email: technician.email,
+      fullName: technician.fullName,
+      otp: otp,
+      expirationMinutes: expirationMinutes,
+    });
+
+    return await this.sendTemplatedEmail({
+      to: technician.email,
+      templateName: "technicianPasswordReset",
+      templateData: {
+        fullName: technician.fullName,
+        otp: otp,
+        expirationMinutes: expirationMinutes,
       },
     });
   }

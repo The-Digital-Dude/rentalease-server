@@ -1,5 +1,6 @@
 import jwt from "jsonwebtoken";
 import SuperUser from "../models/SuperUser.js";
+import Technician from "../models/Technician.js";
 
 /**
  * Middleware to authenticate and authorize super users
@@ -167,11 +168,13 @@ const authenticateAgency = async (req, res, next) => {
  * @param {Function} next - Express next function
  */
 const authenticate = async (req, res, next) => {
+  console.log("Authenticating user...");
   try {
     // Check if authorization header exists
     const authHeader = req.headers.authorization;
 
     if (!authHeader) {
+      console.log("No auth header found");
       return res.status(401).json({
         status: "error",
         message: "Authorization header is required",
@@ -181,6 +184,7 @@ const authenticate = async (req, res, next) => {
     // Extract token from "Bearer token" format
     const token = authHeader.split(" ")[1];
 
+    console.log(token, "token from header");
     if (!token) {
       return res.status(401).json({
         status: "error",
@@ -192,6 +196,7 @@ const authenticate = async (req, res, next) => {
     let decoded;
     try {
       decoded = jwt.verify(token, process.env.JWT_SECRET);
+      console.log(decoded, "decoded token");
     } catch (tokenError) {
       return res.status(401).json({
         status: "error",
@@ -200,7 +205,10 @@ const authenticate = async (req, res, next) => {
     }
 
     // Handle different user types
-    if (decoded.type === "superUser") {
+    // Check both 'type' and 'userType' fields for compatibility
+    const userType = decoded.userType || decoded.type;
+
+    if (userType === "SuperUser" || userType === "superUser") {
       // Find the super user in database
       const superUser = await SuperUser.findById(decoded.id);
 
@@ -217,7 +225,7 @@ const authenticate = async (req, res, next) => {
         name: superUser.name,
         email: superUser.email,
       };
-    } else if (decoded.type === "agency") {
+    } else if (userType === "Agency" || userType === "agency") {
       // Find the agency in database
       const { default: Agency } = await import("../models/Agency.js");
       const agency = await Agency.findById(decoded.id);
@@ -244,6 +252,36 @@ const authenticate = async (req, res, next) => {
         contactPerson: agency.contactPerson,
         email: agency.email,
         status: agency.status,
+      };
+    } else if (userType === "Technician" || userType === "technician") {
+      // Find the technician in database
+      const technician = await Technician.findById(decoded.id);
+
+      if (!technician) {
+        return res.status(401).json({
+          status: "error",
+          message: "Technician not found",
+        });
+      }
+
+      // Check if technician account is active
+      if (technician.status !== "Active") {
+        return res.status(401).json({
+          status: "error",
+          message: `Account is ${technician.status.toLowerCase()}. Please contact your administrator.`,
+        });
+      }
+
+      // Add technician info to request object
+      req.technician = {
+        id: technician._id,
+        fullName: technician.fullName,
+        email: technician.email,
+        tradeType: technician.tradeType,
+        status: technician.status,
+        availabilityStatus: technician.availabilityStatus,
+        currentJobs: technician.currentJobs,
+        maxJobs: technician.maxJobs,
       };
     } else {
       return res.status(401).json({

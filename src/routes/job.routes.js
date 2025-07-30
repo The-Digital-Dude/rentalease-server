@@ -8,6 +8,8 @@ import {
   authenticate,
 } from "../middleware/auth.middleware.js";
 import emailService from "../services/email.service.js";
+import notificationService from "../services/notification.service.js";
+import Property from "../models/Property.js";
 
 const router = express.Router();
 
@@ -217,6 +219,28 @@ router.post("/", authenticate, async (req, res) => {
           // Send email notification asynchronously (don't wait for it)
           sendJobAssignmentNotification(technician, job, assignedBy);
         }
+      }
+
+      // Send notification to agency and super users about job creation
+      try {
+        const property = await Property.findById(property).populate("address");
+        const creator = getUserInfo(req);
+
+        if (property && creator) {
+          // Send notification asynchronously (don't wait for it)
+          notificationService.sendJobCreationNotification(
+            job,
+            property,
+            creator
+          );
+        }
+      } catch (notificationError) {
+        // Log error but don't fail the job creation
+        console.error("Failed to send job creation notification:", {
+          jobId: job._id,
+          error: notificationError.message,
+          timestamp: new Date().toISOString(),
+        });
       }
 
       res.status(201).json({
