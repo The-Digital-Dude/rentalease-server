@@ -865,6 +865,295 @@ router.get("/all", authenticateSuperUser, async (req, res) => {
   }
 });
 
+// Get All Agencies with Job Statistics (Only Super Users)
+router.get("/all-with-stats", authenticateSuperUser, async (req, res) => {
+  try {
+    const { page = 1, limit = 10 } = req.query;
+
+    // Calculate pagination
+    const skip = (page - 1) * limit;
+
+    // Get agencies with pagination
+    const agencies = await Agency.find()
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    // Get total count for pagination
+    const totalCount = await Agency.countDocuments();
+
+    // Get job statistics for each agency
+    const agenciesWithStats = await Promise.all(
+      agencies.map(async (agency) => {
+        // Get properties managed by this agency
+        const properties = await Property.find({
+          agency: agency._id,
+        }).select("_id");
+
+        // Get jobs related to this agency - both directly owned and through properties
+        const [directJobs, propertyJobs] = await Promise.all([
+          // Jobs directly owned by the agency
+          Job.find({
+            "owner.ownerType": "Agency",
+            "owner.ownerId": agency._id,
+          }).select("status cost"),
+
+          // Jobs related to properties owned by this agency
+          Job.find({
+            property: { $in: properties.map((p) => p._id) },
+          }).select("status cost"),
+        ]);
+
+        // Combine and deduplicate jobs
+        const allJobIds = new Set();
+        const jobs = [...directJobs, ...propertyJobs].filter((job) => {
+          if (allJobIds.has(job._id.toString())) {
+            return false;
+          }
+          allJobIds.add(job._id.toString());
+          return true;
+        });
+
+        // Calculate job statistics
+        const totalJobs = jobs.length;
+        const completedJobs = jobs.filter(
+          (job) => job.status === "Completed"
+        ).length;
+        const overdueJobs = jobs.filter(
+          (job) => job.status === "Overdue"
+        ).length;
+        const pendingJobs = jobs.filter(
+          (job) => job.status === "Pending"
+        ).length;
+        const scheduledJobs = jobs.filter(
+          (job) => job.status === "Scheduled"
+        ).length;
+
+        // Calculate revenue
+        const totalRevenue = jobs.reduce(
+          (sum, job) => sum + (job.cost?.totalCost || 0),
+          0
+        );
+        const completedRevenue = jobs
+          .filter((job) => job.status === "Completed")
+          .reduce((sum, job) => sum + (job.cost?.totalCost || 0), 0);
+
+        return {
+          id: agency._id,
+          companyName: agency.companyName,
+          contactPerson: agency.contactPerson,
+          email: agency.email,
+          phone: agency.phone,
+          region: agency.region,
+          compliance: agency.compliance,
+          status: agency.status,
+          abn: agency.abn,
+          outstandingAmount: agency.outstandingAmount,
+          totalProperties: agency.totalProperties,
+          lastLogin: agency.lastLogin,
+          joinedDate: agency.joinedDate,
+          createdAt: agency.createdAt,
+          jobStatistics: {
+            totalJobs,
+            completedJobs,
+            overdueJobs,
+            pendingJobs,
+            scheduledJobs,
+            totalRevenue,
+            completedRevenue,
+            averageJobValue: totalJobs > 0 ? totalRevenue / totalJobs : 0,
+          },
+        };
+      })
+    );
+
+    res.status(200).json({
+      status: "success",
+      data: {
+        agencies: agenciesWithStats,
+        pagination: {
+          currentPage: parseInt(page),
+          totalPages: Math.ceil(totalCount / limit),
+          totalCount,
+          hasNext: page * limit < totalCount,
+          hasPrev: page > 1,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Get all agencies with stats error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "An error occurred while fetching agencies with statistics",
+    });
+  }
+});
+
+// Get Revenue Report for All Agencies (Only Super Users)
+router.get("/revenue-report", authenticateSuperUser, async (req, res) => {
+  try {
+    // Get all agencies
+    const agencies = await Agency.find();
+
+    // Get comprehensive revenue data
+    const revenueData = await Promise.all(
+      agencies.map(async (agency) => {
+        // Get properties managed by this agency
+        const properties = await Property.find({
+          agency: agency._id,
+        }).select("_id");
+
+        // Get jobs related to this agency
+        const [directJobs, propertyJobs] = await Promise.all([
+          // Jobs directly owned by the agency
+          Job.find({
+            "owner.ownerType": "Agency",
+            "owner.ownerId": agency._id,
+          }).select("status cost createdAt completedAt"),
+
+          // Jobs related to properties owned by this agency
+          Job.find({
+            property: { $in: properties.map((p) => p._id) },
+          }).select("status cost createdAt completedAt"),
+        ]);
+
+        // Combine and deduplicate jobs
+        const allJobIds = new Set();
+        const jobs = [...directJobs, ...propertyJobs].filter((job) => {
+          if (allJobIds.has(job._id.toString())) {
+            return false;
+          }
+          allJobIds.add(job._id.toString());
+          return true;
+        });
+
+        // Calculate detailed statistics
+        const totalJobs = jobs.length;
+        const completedJobs = jobs.filter(
+          (job) => job.status === "Completed"
+        ).length;
+        const overdueJobs = jobs.filter(
+          (job) => job.status === "Overdue"
+        ).length;
+        const pendingJobs = jobs.filter(
+          (job) => job.status === "Pending"
+        ).length;
+        const scheduledJobs = jobs.filter(
+          (job) => job.status === "Scheduled"
+        ).length;
+
+        // Calculate revenue breakdown
+        const totalRevenue = jobs.reduce(
+          (sum, job) => sum + (job.cost?.totalCost || 0),
+          0
+        );
+        const completedRevenue = jobs
+          .filter((job) => job.status === "Completed")
+          .reduce((sum, job) => sum + (job.cost?.totalCost || 0), 0);
+        const pendingRevenue = jobs
+          .filter((job) => job.status === "Pending")
+          .reduce((sum, job) => sum + (job.cost?.totalCost || 0), 0);
+        const scheduledRevenue = jobs
+          .filter((job) => job.status === "Scheduled")
+          .reduce((sum, job) => sum + (job.cost?.totalCost || 0), 0);
+
+        // Calculate average metrics
+        const averageJobValue = totalJobs > 0 ? totalRevenue / totalJobs : 0;
+        const completionRate =
+          totalJobs > 0 ? (completedJobs / totalJobs) * 100 : 0;
+
+        return {
+          agency: {
+            id: agency._id,
+            companyName: agency.companyName,
+            contactPerson: agency.contactPerson,
+            email: agency.email,
+            region: agency.region,
+            status: agency.status,
+            abn: agency.abn,
+            outstandingAmount: agency.outstandingAmount,
+            totalProperties: agency.totalProperties,
+            joinedDate: agency.joinedDate,
+          },
+          jobStatistics: {
+            totalJobs,
+            completedJobs,
+            overdueJobs,
+            pendingJobs,
+            scheduledJobs,
+            completionRate: Math.round(completionRate * 100) / 100, // Round to 2 decimal places
+          },
+          revenueStatistics: {
+            totalRevenue,
+            completedRevenue,
+            pendingRevenue,
+            scheduledRevenue,
+            averageJobValue: Math.round(averageJobValue * 100) / 100, // Round to 2 decimal places
+          },
+        };
+      })
+    );
+
+    // Calculate overall totals
+    const overallStats = revenueData.reduce(
+      (acc, data) => {
+        acc.totalJobs += data.jobStatistics.totalJobs;
+        acc.completedJobs += data.jobStatistics.completedJobs;
+        acc.overdueJobs += data.jobStatistics.overdueJobs;
+        acc.pendingJobs += data.jobStatistics.pendingJobs;
+        acc.scheduledJobs += data.jobStatistics.scheduledJobs;
+        acc.totalRevenue += data.revenueStatistics.totalRevenue;
+        acc.completedRevenue += data.revenueStatistics.completedRevenue;
+        acc.pendingRevenue += data.revenueStatistics.pendingRevenue;
+        acc.scheduledRevenue += data.revenueStatistics.scheduledRevenue;
+        return acc;
+      },
+      {
+        totalJobs: 0,
+        completedJobs: 0,
+        overdueJobs: 0,
+        pendingJobs: 0,
+        scheduledJobs: 0,
+        totalRevenue: 0,
+        completedRevenue: 0,
+        pendingRevenue: 0,
+        scheduledRevenue: 0,
+      }
+    );
+
+    // Calculate overall averages
+    overallStats.averageJobValue =
+      overallStats.totalJobs > 0
+        ? Math.round(
+            (overallStats.totalRevenue / overallStats.totalJobs) * 100
+          ) / 100
+        : 0;
+    overallStats.completionRate =
+      overallStats.totalJobs > 0
+        ? Math.round(
+            (overallStats.completedJobs / overallStats.totalJobs) * 100 * 100
+          ) / 100
+        : 0;
+
+    res.status(200).json({
+      status: "success",
+      data: {
+        overallStatistics: {
+          totalAgencies: revenueData.length,
+          ...overallStats,
+        },
+        agencyBreakdown: revenueData,
+      },
+    });
+  } catch (error) {
+    console.error("Get revenue report error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "An error occurred while generating revenue report",
+    });
+  }
+});
+
 // Get Single Agency Details with Properties and Jobs (Only Super Users)
 router.get("/:id", authenticateSuperUser, async (req, res) => {
   try {
