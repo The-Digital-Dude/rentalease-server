@@ -425,41 +425,40 @@ class EmailService {
   }
 
   /**
-   * Send welcome email to new staff member
-   * @param {Object} staff - Staff object
-   * @param {string} staff.email - Staff's email
-   * @param {string} staff.fullName - Staff's full name
-   * @param {string} staff.tradeType - Staff's trade type
+   * Send welcome email to new technician
+   * @param {Object} technician - Technician object
+   * @param {string} technician.email - Technician's email
+   * @param {string} technician.fullName - Technician's full name
    * @param {Object} owner - Owner object
    * @param {string} owner.name - Owner's name
    * @param {string} owner.type - Owner's type (SuperUser or Agency)
    * @returns {Promise} - Email send result
    */
-  async sendStaffWelcomeEmail(staff, owner) {
-    if (!staff || !staff.email || !staff.fullName || !staff.tradeType) {
-      throw new Error("Invalid staff data provided for welcome email");
+  async sendTechnicianWelcomeEmail(technician, owner) {
+    if (!technician || !technician.email || !technician.fullName) {
+      throw new Error("Invalid technician data provided for welcome email");
     }
 
     if (!owner || !owner.name || !owner.type) {
-      throw new Error("Invalid owner data provided for staff welcome email");
+      throw new Error(
+        "Invalid owner data provided for technician welcome email"
+      );
     }
 
-    console.log("Sending staff welcome email to:", {
-      email: staff.email,
-      fullName: staff.fullName,
-      tradeType: staff.tradeType,
+    console.log("Sending technician welcome email to:", {
+      email: technician.email,
+      fullName: technician.fullName,
       ownerName: owner.name,
       ownerType: owner.type,
     });
 
     return await this.sendTemplatedEmail({
-      to: staff.email,
-      templateName: "staffWelcome",
+      to: technician.email,
+      templateName: "technicianWelcome",
       templateData: {
-        staffName: staff.fullName,
+        technicianName: technician.fullName,
         ownerName: owner.name,
         ownerType: owner.type,
-        tradeType: staff.tradeType,
       },
     });
   }

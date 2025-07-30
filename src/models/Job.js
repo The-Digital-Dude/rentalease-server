@@ -48,7 +48,7 @@ const jobSchema = new mongoose.Schema(
     },
     assignedTechnician: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Staff",
+      ref: "Technician",
       default: null,
     },
     status: {

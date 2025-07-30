@@ -1,7 +1,7 @@
 import express from "express";
 import mongoose from "mongoose";
 import Job from "../models/Job.js";
-import Staff from "../models/Staff.js";
+import Technician from "../models/Technician.js";
 import {
   authenticateSuperUser,
   authenticateAgency,
@@ -162,7 +162,7 @@ router.post("/", authenticate, async (req, res) => {
           : assignedTechnician;
 
       if (technicianId) {
-        technician = await Staff.findOne({
+        technician = await Technician.findOne({
           _id: technicianId,
           "owner.ownerType": ownerInfo.ownerType,
           "owner.ownerId": ownerInfo.ownerId,
@@ -575,7 +575,7 @@ router.put("/:id", authenticate, async (req, res) => {
         updates.assignedTechnician
       ) {
         const ownerInfo = getOwnerInfo(req);
-        const technician = await Staff.findOne({
+        const technician = await Technician.findOne({
           _id: updates.assignedTechnician,
           "owner.ownerType": ownerInfo.ownerType,
           "owner.ownerId": ownerInfo.ownerId,
@@ -632,9 +632,9 @@ router.put("/:id", authenticate, async (req, res) => {
       if (canFullEdit && updates.hasOwnProperty("assignedTechnician")) {
         // If technician was removed (unassigned)
         if (previousTechnician && (!newTechnician || newTechnician === null)) {
-          const prevTech = await Staff.findById(previousTechnician).session(
-            session
-          );
+          const prevTech = await Technician.findById(
+            previousTechnician
+          ).session(session);
           if (prevTech) {
             prevTech.currentJobs = Math.max(0, (prevTech.currentJobs || 0) - 1);
             prevTech.availabilityStatus =
@@ -644,7 +644,9 @@ router.put("/:id", authenticate, async (req, res) => {
         }
         // If technician was assigned to a previously unassigned job
         else if (!previousTechnician && newTechnician) {
-          const newTech = await Staff.findById(newTechnician).session(session);
+          const newTech = await Technician.findById(newTechnician).session(
+            session
+          );
           if (newTech) {
             newTech.currentJobs = (newTech.currentJobs || 0) + 1;
             newTech.availabilityStatus =
@@ -659,9 +661,9 @@ router.put("/:id", authenticate, async (req, res) => {
           previousTechnician.toString() !== newTechnician.toString()
         ) {
           // Decrease previous technician's job count
-          const prevTech = await Staff.findById(previousTechnician).session(
-            session
-          );
+          const prevTech = await Technician.findById(
+            previousTechnician
+          ).session(session);
           if (prevTech) {
             prevTech.currentJobs = Math.max(0, (prevTech.currentJobs || 0) - 1);
             prevTech.availabilityStatus =
@@ -670,7 +672,9 @@ router.put("/:id", authenticate, async (req, res) => {
           }
 
           // Increase new technician's job count
-          const newTech = await Staff.findById(newTechnician).session(session);
+          const newTech = await Technician.findById(newTechnician).session(
+            session
+          );
           if (newTech) {
             newTech.currentJobs = (newTech.currentJobs || 0) + 1;
             newTech.availabilityStatus =
@@ -696,7 +700,7 @@ router.put("/:id", authenticate, async (req, res) => {
         if (assignedBy) {
           // If technician was assigned to a previously unassigned job
           if (!previousTechnician && newTechnician) {
-            const newTech = await Staff.findById(newTechnician);
+            const newTech = await Technician.findById(newTechnician);
             if (newTech) {
               sendJobAssignmentNotification(newTech, job, assignedBy);
             }
@@ -707,7 +711,7 @@ router.put("/:id", authenticate, async (req, res) => {
             newTechnician &&
             previousTechnician.toString() !== newTechnician.toString()
           ) {
-            const newTech = await Staff.findById(newTechnician);
+            const newTech = await Technician.findById(newTechnician);
             if (newTech) {
               sendJobAssignmentNotification(newTech, job, assignedBy);
             }
@@ -897,7 +901,7 @@ router.patch("/:id/assign", authenticateSuperUser, async (req, res) => {
     }
 
     // Find the technician
-    const technician = await Staff.findById(technicianId);
+    const technician = await Technician.findById(technicianId);
     if (!technician) {
       return res.status(404).json({
         status: "error",

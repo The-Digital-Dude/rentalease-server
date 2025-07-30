@@ -17,11 +17,6 @@ const technicianSchema = new mongoose.Schema(
       trim: true,
       minlength: [2, "Last name must be at least 2 characters long"],
     },
-    fullName: {
-      type: String,
-      required: [true, "Full name is required"],
-      trim: true,
-    },
 
     // Contact Information
     email: {
@@ -42,43 +37,10 @@ const technicianSchema = new mongoose.Schema(
       match: [/^\+?[\d\s\-\(\)]+$/, "Please enter a valid phone number"],
     },
 
-    // Professional Information
-    tradeType: {
-      type: String,
-      required: [true, "Trade type is required"],
-      enum: {
-        values: [
-          "Gas",
-          "Electrical",
-          "Plumbing",
-          "HVAC",
-          "General Maintenance",
-          "Pool Safety",
-          "Smoke Alarms",
-          "Multi-Trade",
-        ],
-        message: "Please select a valid trade type",
-      },
-    },
-    licenseNumber: {
-      type: String,
-      trim: true,
-      // Optional but recommended for compliance jobs
-    },
-    licenseExpiry: {
-      type: Date,
-      // Optional but recommended for compliance jobs
-    },
-
     // Work Information
     experience: {
       type: Number, // in years
       min: [0, "Experience cannot be negative"],
-      default: 0,
-    },
-    hourlyRate: {
-      type: Number,
-      min: [0, "Hourly rate cannot be negative"],
       default: 0,
     },
     availabilityStatus: {
@@ -186,34 +148,6 @@ const technicianSchema = new mongoose.Schema(
         trim: true,
       },
     },
-
-    // Documents and Certifications
-    documents: [
-      {
-        type: {
-          type: String,
-          enum: [
-            "License",
-            "Insurance",
-            "Police Check",
-            "Working With Children",
-            "Safety Certificate",
-            "Other",
-          ],
-        },
-        name: String,
-        fileUrl: String,
-        uploadDate: {
-          type: Date,
-          default: Date.now,
-        },
-        expiryDate: Date,
-        isVerified: {
-          type: Boolean,
-          default: false,
-        },
-      },
-    ],
 
     // Password reset OTP fields
     resetPasswordOTP: {
@@ -400,6 +334,60 @@ technicianSchema.methods.updateRating = async function (newRating) {
   return await this.save();
 };
 
+// Method to get full technician details
+technicianSchema.methods.getFullDetails = function () {
+  return {
+    id: this._id,
+    firstName: this.firstName,
+    lastName: this.lastName,
+    fullName: this.fullName,
+    email: this.email,
+    phone: this.phone,
+    experience: this.experience,
+    hourlyRate: this.hourlyRate,
+    availabilityStatus: this.availabilityStatus,
+    currentJobs: this.currentJobs,
+    maxJobs: this.maxJobs,
+    assignedJobs: this.assignedJobs,
+    completedJobs: this.completedJobs,
+    averageRating: this.averageRating,
+    totalRatings: this.totalRatings,
+    status: this.status,
+    address: this.address,
+    licenseNumber: this.licenseNumber,
+    licenseExpiry: this.licenseExpiry,
+    owner: this.owner,
+    createdAt: this.createdAt,
+    updatedAt: this.updatedAt,
+    lastLogin: this.lastLogin,
+    lastActive: this.lastActive,
+  };
+};
+
+// Method to get summary details (for list views)
+technicianSchema.methods.getSummary = function () {
+  return {
+    id: this._id,
+    firstName: this.firstName,
+    lastName: this.lastName,
+    fullName: this.fullName,
+    email: this.email,
+    phone: this.phone,
+    experience: this.experience,
+    hourlyRate: this.hourlyRate,
+    availabilityStatus: this.availabilityStatus,
+    currentJobs: this.currentJobs,
+    maxJobs: this.maxJobs,
+    completedJobs: this.completedJobs,
+    averageRating: this.averageRating,
+    status: this.status,
+    address: this.address,
+    licenseNumber: this.licenseNumber,
+    licenseExpiry: this.licenseExpiry,
+    createdAt: this.createdAt,
+  };
+};
+
 // Post-save middleware to send welcome email
 technicianSchema.post("save", async function (doc, next) {
   if (this.isNew) {
@@ -407,14 +395,12 @@ technicianSchema.post("save", async function (doc, next) {
       await emailService.sendTechnicianWelcomeEmail({
         email: this.email,
         fullName: this.fullName,
-        tradeType: this.tradeType,
       });
 
       console.log("Welcome email sent successfully to new technician:", {
         technicianId: this._id,
         email: this.email,
         fullName: this.fullName,
-        tradeType: this.tradeType,
         timestamp: new Date().toISOString(),
       });
     } catch (error) {
@@ -423,7 +409,6 @@ technicianSchema.post("save", async function (doc, next) {
         technicianId: this._id,
         email: this.email,
         fullName: this.fullName,
-        tradeType: this.tradeType,
         error: error.message,
         timestamp: new Date().toISOString(),
       });
@@ -435,7 +420,7 @@ technicianSchema.post("save", async function (doc, next) {
 // Indexes for better query performance
 technicianSchema.index({ email: 1 });
 technicianSchema.index({ "owner.ownerType": 1, "owner.ownerId": 1 });
-technicianSchema.index({ tradeType: 1, status: 1 });
+
 technicianSchema.index({ availabilityStatus: 1, currentJobs: 1 });
 technicianSchema.index({ status: 1, availabilityStatus: 1 });
 

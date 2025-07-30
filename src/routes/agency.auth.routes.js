@@ -3,7 +3,6 @@ import mongoose from "mongoose";
 import Agency from "../models/Agency.js";
 import Property from "../models/Property.js";
 import Job from "../models/Job.js";
-import Staff from "../models/Staff.js";
 import jwt from "jsonwebtoken";
 import emailService from "../services/email.service.js";
 import {
