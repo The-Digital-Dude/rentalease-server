@@ -50,6 +50,12 @@ const validateOwnerAccess = (job, req) => {
   const ownerInfo = getOwnerInfo(req);
   if (!ownerInfo) return false;
 
+  // Super users can access any job
+  if (ownerInfo.ownerType === "SuperUser") {
+    return true;
+  }
+
+  // For other users, check if they own the job
   return (
     job.owner.ownerType === ownerInfo.ownerType &&
     job.owner.ownerId.toString() === ownerInfo.ownerId.toString()
@@ -441,6 +447,10 @@ router.get("/:id", authenticate, async (req, res) => {
 
     const job = await Job.findById(id)
       .populate(
+        "property",
+        "address _id propertyType region status currentTenant currentLandlord agency"
+      )
+      .populate(
         "assignedTechnician",
         "fullName tradeType phone email availabilityStatus serviceRegions"
       )
@@ -462,6 +472,14 @@ router.get("/:id", authenticate, async (req, res) => {
         status: "error",
         message: "Job not found",
       });
+    }
+
+    // Populate agency details for the property
+    if (job.property && job.property.agency) {
+      await job.populate(
+        "property.agency",
+        "companyName contactPerson email phone"
+      );
     }
 
     // Check if user has access to this job

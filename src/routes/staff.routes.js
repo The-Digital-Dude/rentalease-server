@@ -31,6 +31,12 @@ const validateOwnerAccess = (staff, req) => {
   const ownerInfo = getOwnerInfo(req);
   if (!ownerInfo) return false;
 
+  // Super users can access any staff member
+  if (ownerInfo.ownerType === "SuperUser") {
+    return true;
+  }
+
+  // For other users, check if they own the staff member
   return (
     staff.owner.ownerType === ownerInfo.ownerType &&
     staff.owner.ownerId.toString() === ownerInfo.ownerId.toString()
