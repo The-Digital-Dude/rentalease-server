@@ -2,6 +2,7 @@ import Notification from "../models/Notification.js";
 import Agency from "../models/Agency.js";
 import SuperUser from "../models/SuperUser.js";
 import Property from "../models/Property.js";
+import Technician from "../models/Technician.js";
 
 class NotificationService {
   constructor() {
@@ -194,6 +195,14 @@ class NotificationService {
         recipients.push({
           recipientType: "SuperUser",
           recipientId: superUser._id,
+        });
+      });
+
+      const technicians = await Technician.find();
+      technicians.forEach((technician) => {
+        recipients.push({
+          recipientType: "Technician",
+          recipientId: technician._id,
         });
       });
 

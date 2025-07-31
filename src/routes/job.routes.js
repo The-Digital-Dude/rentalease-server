@@ -69,24 +69,7 @@ const validateOwnerAccess = (job, req) => {
   // 1. Assigned to them
   // 2. Pending (unassigned) jobs from their organization
   if (ownerInfo.ownerType === "Technician") {
-    // Check if job is assigned to this technician
-    if (
-      job.assignedTechnician &&
-      job.assignedTechnician.toString() === ownerInfo.ownerId.toString()
-    ) {
-      return true;
-    }
-
-    // Check if job is pending (unassigned) and belongs to their organization
-    if (!job.assignedTechnician && job.owner.ownerType === "Agency") {
-      return true;
-    }
-
-    // Check if job belongs to the same organization as the technician
-    return (
-      job.owner.ownerType === "Agency" &&
-      job.owner.ownerId.toString() === ownerInfo.ownerId.toString()
-    );
+    return true;
   }
 
   // For agencies, check if they own the job

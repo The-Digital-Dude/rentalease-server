@@ -6,6 +6,7 @@ import {
   authenticateAgency,
   authenticate,
 } from "../middleware/auth.middleware.js";
+import Job from "../models/Job.js"; // Added import for Job model
 
 const router = express.Router();
 
@@ -530,6 +531,370 @@ router.patch("/:id/availability", authenticate, async (req, res) => {
     res.status(500).json({
       status: "error",
       message: "Failed to update technician availability",
+    });
+  }
+});
+
+// GET - Get all jobs for the authenticated technician (my jobs)
+router.get("/my-jobs", authenticate, async (req, res) => {
+  try {
+    const ownerInfo = getOwnerInfo(req);
+    if (!ownerInfo || ownerInfo.ownerType !== "Technician") {
+      return res.status(403).json({
+        status: "error",
+        message: "Only technicians can access their jobs",
+      });
+    }
+
+    // Query parameters for filtering
+    const {
+      jobType,
+      status,
+      priority,
+      search,
+      startDate,
+      endDate,
+      page = 1,
+      limit = 10,
+      sortBy = "dueDate",
+      sortOrder = "asc",
+    } = req.query;
+
+    // Build query for jobs assigned to this technician
+    let query = {
+      assignedTechnician: ownerInfo.ownerId,
+    };
+
+    // Add filters
+    if (jobType) query.jobType = jobType;
+    if (status) query.status = status;
+    if (priority) query.priority = priority;
+
+    // Add date range filter
+    if (startDate || endDate) {
+      query.dueDate = {};
+      if (startDate) query.dueDate.$gte = new Date(startDate);
+      if (endDate) query.dueDate.$lte = new Date(endDate);
+    }
+
+    // Add search functionality
+    if (search) {
+      query.$or = [
+        { description: { $regex: search, $options: "i" } },
+        { notes: { $regex: search, $options: "i" } },
+        { jobType: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    // Calculate pagination
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    // Execute query with pagination and sorting
+    const jobs = await Job.find(query)
+      .populate(
+        "property",
+        "address _id propertyType region status currentTenant currentLandlord agency"
+      )
+      .populate(
+        "createdBy.userId",
+        "name email companyName contactPerson",
+        null,
+        { strictPopulate: false }
+      )
+      .populate(
+        "lastUpdatedBy.userId",
+        "name email companyName contactPerson",
+        null,
+        { strictPopulate: false }
+      )
+      .sort({ [sortBy]: sortOrder === "desc" ? -1 : 1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    // Get total count for pagination
+    const totalJobs = await Job.countDocuments(query);
+
+    // Get status counts for dashboard
+    const statusCounts = await Job.aggregate([
+      {
+        $match: {
+          assignedTechnician: new mongoose.Types.ObjectId(ownerInfo.ownerId),
+        },
+      },
+      { $group: { _id: "$status", count: { $sum: 1 } } },
+    ]);
+
+    res.status(200).json({
+      status: "success",
+      message: "My jobs retrieved successfully",
+      data: {
+        jobs: jobs.map((job) => job.getFullDetails()),
+        pagination: {
+          currentPage: parseInt(page),
+          totalPages: Math.ceil(totalJobs / parseInt(limit)),
+          totalItems: totalJobs,
+          itemsPerPage: parseInt(limit),
+          hasNextPage: skip + jobs.length < totalJobs,
+          hasPrevPage: parseInt(page) > 1,
+        },
+        statistics: {
+          statusCounts: statusCounts.reduce((acc, item) => {
+            acc[item._id] = item.count;
+            return acc;
+          }, {}),
+          totalJobs,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Get my jobs error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Failed to retrieve my jobs",
+    });
+  }
+});
+
+// GET - Get active jobs for the authenticated technician
+router.get("/active-jobs", authenticate, async (req, res) => {
+  try {
+    const ownerInfo = getOwnerInfo(req);
+    if (!ownerInfo || ownerInfo.ownerType !== "Technician") {
+      return res.status(403).json({
+        status: "error",
+        message: "Only technicians can access their active jobs",
+      });
+    }
+
+    // Query parameters for filtering
+    const {
+      jobType,
+      priority,
+      search,
+      startDate,
+      endDate,
+      page = 1,
+      limit = 10,
+      sortBy = "dueDate",
+      sortOrder = "asc",
+    } = req.query;
+
+    // Build query for active jobs (claimed by technician, not completed, not overdue)
+    let query = {
+      assignedTechnician: ownerInfo.ownerId,
+      status: { $in: ["Pending", "Scheduled"] }, // Active statuses
+      dueDate: { $gte: new Date() }, // Due date is not behind (not overdue)
+    };
+
+    // Add filters
+    if (jobType) query.jobType = jobType;
+    if (priority) query.priority = priority;
+
+    // Add date range filter
+    if (startDate || endDate) {
+      query.dueDate = {};
+      if (startDate) query.dueDate.$gte = new Date(startDate);
+      if (endDate) query.dueDate.$lte = new Date(endDate);
+    }
+
+    // Add search functionality
+    if (search) {
+      query.$or = [
+        { description: { $regex: search, $options: "i" } },
+        { notes: { $regex: search, $options: "i" } },
+        { jobType: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    // Calculate pagination
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    // Execute query with pagination and sorting
+    const jobs = await Job.find(query)
+      .populate(
+        "property",
+        "address _id propertyType region status currentTenant currentLandlord agency"
+      )
+      .populate(
+        "createdBy.userId",
+        "name email companyName contactPerson",
+        null,
+        { strictPopulate: false }
+      )
+      .populate(
+        "lastUpdatedBy.userId",
+        "name email companyName contactPerson",
+        null,
+        { strictPopulate: false }
+      )
+      .sort({ [sortBy]: sortOrder === "desc" ? -1 : 1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    // Get total count for pagination
+    const totalJobs = await Job.countDocuments(query);
+
+    // Get status counts for dashboard
+    const statusCounts = await Job.aggregate([
+      {
+        $match: {
+          assignedTechnician: new mongoose.Types.ObjectId(ownerInfo.ownerId),
+          status: { $in: ["Pending", "Scheduled"] },
+          dueDate: { $gte: new Date() },
+        },
+      },
+      { $group: { _id: "$status", count: { $sum: 1 } } },
+    ]);
+
+    res.status(200).json({
+      status: "success",
+      message: "Active jobs retrieved successfully",
+      data: {
+        jobs: jobs.map((job) => job.getFullDetails()),
+        pagination: {
+          currentPage: parseInt(page),
+          totalPages: Math.ceil(totalJobs / parseInt(limit)),
+          totalItems: totalJobs,
+          itemsPerPage: parseInt(limit),
+          hasNextPage: skip + jobs.length < totalJobs,
+          hasPrevPage: parseInt(page) > 1,
+        },
+        statistics: {
+          statusCounts: statusCounts.reduce((acc, item) => {
+            acc[item._id] = item.count;
+            return acc;
+          }, {}),
+          totalJobs,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Get active jobs error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Failed to retrieve active jobs",
+    });
+  }
+});
+
+// GET - Get overdue jobs for the authenticated technician
+router.get("/overdue-jobs", authenticate, async (req, res) => {
+  try {
+    const ownerInfo = getOwnerInfo(req);
+    if (!ownerInfo || ownerInfo.ownerType !== "Technician") {
+      return res.status(403).json({
+        status: "error",
+        message: "Only technicians can access their overdue jobs",
+      });
+    }
+
+    // Query parameters for filtering
+    const {
+      jobType,
+      priority,
+      search,
+      startDate,
+      endDate,
+      page = 1,
+      limit = 10,
+      sortBy = "dueDate",
+      sortOrder = "asc",
+    } = req.query;
+
+    // Build query for overdue jobs (assigned to technician, due date is behind)
+    let query = {
+      assignedTechnician: ownerInfo.ownerId,
+      dueDate: { $lt: new Date() }, // Due date is behind (overdue)
+      status: { $ne: "Completed" }, // Not completed
+    };
+
+    // Add filters
+    if (jobType) query.jobType = jobType;
+    if (priority) query.priority = priority;
+
+    // Add date range filter
+    if (startDate || endDate) {
+      query.dueDate = {};
+      if (startDate) query.dueDate.$gte = new Date(startDate);
+      if (endDate) query.dueDate.$lte = new Date(endDate);
+    }
+
+    // Add search functionality
+    if (search) {
+      query.$or = [
+        { description: { $regex: search, $options: "i" } },
+        { notes: { $regex: search, $options: "i" } },
+        { jobType: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    // Calculate pagination
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    // Execute query with pagination and sorting
+    const jobs = await Job.find(query)
+      .populate(
+        "property",
+        "address _id propertyType region status currentTenant currentLandlord agency"
+      )
+      .populate(
+        "createdBy.userId",
+        "name email companyName contactPerson",
+        null,
+        { strictPopulate: false }
+      )
+      .populate(
+        "lastUpdatedBy.userId",
+        "name email companyName contactPerson",
+        null,
+        { strictPopulate: false }
+      )
+      .sort({ [sortBy]: sortOrder === "desc" ? -1 : 1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    // Get total count for pagination
+    const totalJobs = await Job.countDocuments(query);
+
+    // Get status counts for dashboard
+    const statusCounts = await Job.aggregate([
+      {
+        $match: {
+          assignedTechnician: new mongoose.Types.ObjectId(ownerInfo.ownerId),
+          dueDate: { $lt: new Date() },
+          status: { $ne: "Completed" },
+        },
+      },
+      { $group: { _id: "$status", count: { $sum: 1 } } },
+    ]);
+
+    res.status(200).json({
+      status: "success",
+      message: "Overdue jobs retrieved successfully",
+      data: {
+        jobs: jobs.map((job) => job.getFullDetails()),
+        pagination: {
+          currentPage: parseInt(page),
+          totalPages: Math.ceil(totalJobs / parseInt(limit)),
+          totalItems: totalJobs,
+          itemsPerPage: parseInt(limit),
+          hasNextPage: skip + jobs.length < totalJobs,
+          hasPrevPage: parseInt(page) > 1,
+        },
+        statistics: {
+          statusCounts: statusCounts.reduce((acc, item) => {
+            acc[item._id] = item.count;
+            return acc;
+          }, {}),
+          totalJobs,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Get overdue jobs error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Failed to retrieve overdue jobs",
     });
   }
 });
