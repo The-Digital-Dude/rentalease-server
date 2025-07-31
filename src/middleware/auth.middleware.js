@@ -277,7 +277,6 @@ const authenticate = async (req, res, next) => {
         id: technician._id,
         fullName: technician.fullName,
         email: technician.email,
-        tradeType: technician.tradeType,
         status: technician.status,
         availabilityStatus: technician.availabilityStatus,
         currentJobs: technician.currentJobs,

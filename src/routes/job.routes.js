@@ -25,6 +25,11 @@ const getOwnerInfo = (req) => {
       ownerType: "Agency",
       ownerId: req.agency.id,
     };
+  } else if (req.technician) {
+    return {
+      ownerType: "Technician",
+      ownerId: req.technician.id,
+    };
   }
   return null;
 };
@@ -40,6 +45,11 @@ const getCreatorInfo = (req) => {
     return {
       userType: "Agency",
       userId: req.agency.id,
+    };
+  } else if (req.technician) {
+    return {
+      userType: "Technician",
+      userId: req.technician.id,
     };
   }
   return null;
@@ -78,6 +88,11 @@ const getUserInfo = (req) => {
     return {
       name: req.agency.contactPerson,
       type: "Agency",
+    };
+  } else if (req.technician) {
+    return {
+      name: req.technician.fullName,
+      type: "Technician",
     };
   }
   return null;
@@ -215,7 +230,7 @@ router.post("/", authenticate, async (req, res) => {
       // Populate technician details for response
       await job.populate(
         "assignedTechnician",
-        "fullName tradeType phone email availabilityStatus"
+        "fullName phone email availabilityStatus"
       );
 
       // Send email notification to technician if job was assigned during creation
@@ -370,10 +385,7 @@ router.get("/", authenticate, async (req, res) => {
     // Execute query with pagination and sorting
     const jobs = await Job.find(query)
       .populate("property", "address _id")
-      .populate(
-        "assignedTechnician",
-        "fullName tradeType phone email availabilityStatus"
-      )
+      .populate("assignedTechnician", "fullName phone email availabilityStatus")
       .sort({ [sortBy]: sortOrder === "desc" ? -1 : 1 })
       .skip(skip)
       .limit(parseInt(limit));
@@ -432,6 +444,296 @@ router.get("/", authenticate, async (req, res) => {
   }
 });
 
+// GET - Get available (unassigned) jobs for super users and technicians
+router.get("/available-jobs", authenticate, async (req, res) => {
+  try {
+    const ownerInfo = getOwnerInfo(req);
+    if (!ownerInfo) {
+      return res.status(400).json({
+        status: "error",
+        message: "Unable to determine owner information",
+      });
+    }
+
+    // Only allow super users and technicians to access available jobs
+    if (
+      ownerInfo.ownerType !== "SuperUser" &&
+      ownerInfo.ownerType !== "Technician"
+    ) {
+      return res.status(403).json({
+        status: "error",
+        message:
+          "Access denied. Only super users and technicians can view available jobs.",
+      });
+    }
+
+    // Query parameters for filtering
+    const {
+      jobType,
+      status,
+      priority,
+      search,
+      startDate,
+      endDate,
+      property,
+      region,
+      propertyType,
+      page = 1,
+      limit = 10,
+      sortBy = "dueDate",
+      sortOrder = "asc",
+      minPriority,
+      maxPriority,
+      estimatedDuration,
+      costRange,
+    } = req.query;
+
+    // Build query for unassigned jobs
+    let query = {
+      $or: [
+        { assignedTechnician: { $exists: false } }, // Jobs where field doesn't exist
+        { assignedTechnician: null }, // Jobs where field is null
+        { assignedTechnician: { $in: [null, undefined] } }, // Jobs where field is null or undefined
+      ],
+    };
+
+    // Add filters
+    if (jobType) query.jobType = jobType;
+    if (status) query.status = status;
+    if (priority) query.priority = priority;
+    if (property) query.property = property;
+    if (region) query.region = region;
+    if (propertyType) query.propertyType = propertyType;
+    if (estimatedDuration)
+      query.estimatedDuration = { $gte: parseInt(estimatedDuration) };
+
+    // Add date range filter
+    if (startDate || endDate) {
+      query.dueDate = {};
+      if (startDate) query.dueDate.$gte = new Date(startDate);
+      if (endDate) query.dueDate.$lte = new Date(endDate);
+    }
+
+    // Add priority range filter
+    if (minPriority || maxPriority) {
+      query.priority = {};
+      if (minPriority) query.priority.$gte = minPriority;
+      if (maxPriority) query.priority.$lte = maxPriority;
+    }
+
+    // Add cost range filter
+    if (costRange) {
+      const [minCost, maxCost] = costRange.split("-").map(Number);
+      if (!isNaN(minCost) || !isNaN(maxCost)) {
+        query.$or = [
+          {
+            "cost.materialCost": {
+              $gte: minCost || 0,
+              $lte: maxCost || Number.MAX_SAFE_INTEGER,
+            },
+          },
+          {
+            "cost.laborCost": {
+              $gte: minCost || 0,
+              $lte: maxCost || Number.MAX_SAFE_INTEGER,
+            },
+          },
+        ];
+      }
+    }
+
+    // Add search functionality
+    if (search) {
+      query.$or = [
+        { description: { $regex: search, $options: "i" } },
+        { notes: { $regex: search, $options: "i" } },
+        { jobType: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    // Calculate pagination
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    // Execute query with pagination and sorting
+    const jobs = await Job.find(query)
+      .populate(
+        "property",
+        "address _id propertyType region status currentTenant currentLandlord agency"
+      )
+      .populate(
+        "createdBy.userId",
+        "name email companyName contactPerson",
+        null,
+        { strictPopulate: false }
+      )
+      .populate(
+        "lastUpdatedBy.userId",
+        "name email companyName contactPerson",
+        null,
+        { strictPopulate: false }
+      )
+      .sort({ [sortBy]: sortOrder === "desc" ? -1 : 1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    // Populate agency details for properties and job owners
+    for (let job of jobs) {
+      // Populate property agency details
+      if (job.property && job.property.agency) {
+        await job.populate(
+          "property.agency",
+          "companyName contactPerson email phone"
+        );
+      }
+
+      // Populate job owner agency details
+      if (job.owner && job.owner.ownerType === "Agency") {
+        const { default: Agency } = await import("../models/Agency.js");
+        const agency = await Agency.findById(job.owner.ownerId);
+        if (agency) {
+          job.owner.agencyDetails = {
+            companyName: agency.companyName,
+            contactPerson: agency.contactPerson,
+            email: agency.email,
+            phone: agency.phone,
+            status: agency.status,
+          };
+        }
+      }
+    }
+
+    // Get total count for pagination
+    const totalJobs = await Job.countDocuments(query);
+
+    // Get status counts for dashboard
+    const statusCounts = await Job.aggregate([
+      {
+        $match: {
+          $or: [
+            { assignedTechnician: { $exists: false } },
+            { assignedTechnician: null },
+            { assignedTechnician: { $in: [null, undefined] } },
+          ],
+          ...(ownerInfo.ownerType === "Technician" && {
+            $or: [
+              {
+                "owner.ownerType": "Agency",
+                "owner.ownerId": new mongoose.Types.ObjectId(ownerInfo.ownerId),
+              },
+              { "owner.ownerType": "SuperUser" },
+            ],
+          }),
+        },
+      },
+      { $group: { _id: "$status", count: { $sum: 1 } } },
+    ]);
+
+    // Get job type counts
+    const jobTypeCounts = await Job.aggregate([
+      {
+        $match: {
+          $or: [
+            { assignedTechnician: { $exists: false } },
+            { assignedTechnician: null },
+            { assignedTechnician: { $in: [null, undefined] } },
+          ],
+          ...(ownerInfo.ownerType === "Technician" && {
+            $or: [
+              {
+                "owner.ownerType": "Agency",
+                "owner.ownerId": new mongoose.Types.ObjectId(ownerInfo.ownerId),
+              },
+              { "owner.ownerType": "SuperUser" },
+            ],
+          }),
+        },
+      },
+      { $group: { _id: "$jobType", count: { $sum: 1 } } },
+    ]);
+
+    // Get priority counts
+    const priorityCounts = await Job.aggregate([
+      {
+        $match: {
+          $or: [
+            { assignedTechnician: { $exists: false } },
+            { assignedTechnician: null },
+            { assignedTechnician: { $in: [null, undefined] } },
+          ],
+          ...(ownerInfo.ownerType === "Technician" && {
+            $or: [
+              {
+                "owner.ownerType": "Agency",
+                "owner.ownerId": new mongoose.Types.ObjectId(ownerInfo.ownerId),
+              },
+              { "owner.ownerType": "SuperUser" },
+            ],
+          }),
+        },
+      },
+      { $group: { _id: "$priority", count: { $sum: 1 } } },
+    ]);
+
+    res.status(200).json({
+      status: "success",
+      message: "Available jobs retrieved successfully",
+      data: {
+        jobs: jobs.map((job) => job.getFullDetails()),
+        pagination: {
+          currentPage: parseInt(page),
+          totalPages: Math.ceil(totalJobs / parseInt(limit)),
+          totalItems: totalJobs,
+          itemsPerPage: parseInt(limit),
+          hasNextPage: skip + jobs.length < totalJobs,
+          hasPrevPage: parseInt(page) > 1,
+        },
+        statistics: {
+          statusCounts: statusCounts.reduce((acc, item) => {
+            acc[item._id] = item.count;
+            return acc;
+          }, {}),
+          jobTypeCounts: jobTypeCounts.reduce((acc, item) => {
+            acc[item._id] = item.count;
+            return acc;
+          }, {}),
+          priorityCounts: priorityCounts.reduce((acc, item) => {
+            acc[item._id] = item.count;
+            return acc;
+          }, {}),
+          totalAvailableJobs: totalJobs,
+        },
+        filters: {
+          availableJobTypes: [
+            "Gas",
+            "Electrical",
+            "Smoke",
+            "Repairs",
+            "Pool Safety",
+            "Routine Inspection",
+          ],
+          availableStatuses: ["Pending", "Scheduled", "Completed", "Overdue"],
+          availablePriorities: ["Low", "Medium", "High", "Urgent"],
+          availableSortFields: [
+            "dueDate",
+            "createdAt",
+            "updatedAt",
+            "priority",
+            "status",
+            "jobType",
+          ],
+          availableSortOrders: ["asc", "desc"],
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Get available jobs error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Failed to retrieve available jobs",
+    });
+  }
+});
+
 // READ - Get specific job by ID
 router.get("/:id", authenticate, async (req, res) => {
   try {
@@ -452,7 +754,7 @@ router.get("/:id", authenticate, async (req, res) => {
       )
       .populate(
         "assignedTechnician",
-        "fullName tradeType phone email availabilityStatus serviceRegions"
+        "fullName phone email availabilityStatus serviceRegions"
       )
       .populate(
         "createdBy.userId",
@@ -689,10 +991,7 @@ router.put("/:id", authenticate, async (req, res) => {
       session.endSession();
 
       // Populate technician details for response
-      await job.populate(
-        "assignedTechnician",
-        "fullName tradeType phone email"
-      );
+      await job.populate("assignedTechnician", "fullName phone email");
 
       // Send email notification for technician assignments during updates
       if (canFullEdit && updates.hasOwnProperty("assignedTechnician")) {
@@ -945,7 +1244,7 @@ router.patch("/:id/assign", authenticateSuperUser, async (req, res) => {
       // Populate technician details for response
       await job.populate(
         "assignedTechnician",
-        "fullName tradeType phone email availabilityStatus"
+        "fullName phone email availabilityStatus"
       );
 
       // Send email notification to the assigned technician

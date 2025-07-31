@@ -32,7 +32,6 @@ router.post("/register", async (req, res) => {
       email,
       phone,
       password,
-      tradeType,
       licenseNumber,
       licenseExpiry,
       experience,
@@ -49,7 +48,6 @@ router.post("/register", async (req, res) => {
       !email ||
       !phone ||
       !password ||
-      !tradeType ||
       !ownerType ||
       !ownerId
     ) {
@@ -62,7 +60,6 @@ router.post("/register", async (req, res) => {
           email: !email ? "Email is required" : null,
           phone: !phone ? "Phone number is required" : null,
           password: !password ? "Password is required" : null,
-          tradeType: !tradeType ? "Trade type is required" : null,
           ownerType: !ownerType ? "Owner type is required" : null,
           ownerId: !ownerId ? "Owner ID is required" : null,
         },
@@ -85,7 +82,6 @@ router.post("/register", async (req, res) => {
       email,
       phone,
       password,
-      tradeType,
       licenseNumber,
       licenseExpiry: licenseExpiry ? new Date(licenseExpiry) : null,
       experience: experience || 0,
@@ -111,7 +107,6 @@ router.post("/register", async (req, res) => {
           fullName: technician.fullName,
           email: technician.email,
           phone: technician.phone,
-          tradeType: technician.tradeType,
           status: technician.status,
           owner: technician.owner,
         },
@@ -198,7 +193,6 @@ router.post("/login", async (req, res) => {
           fullName: technician.fullName,
           email: technician.email,
           phone: technician.phone,
-          tradeType: technician.tradeType,
           status: technician.status,
           availabilityStatus: technician.availabilityStatus,
           currentJobs: technician.currentJobs,
@@ -247,7 +241,6 @@ router.get("/profile", authenticate, async (req, res) => {
           fullName: technician.fullName,
           email: technician.email,
           phone: technician.phone,
-          tradeType: technician.tradeType,
           licenseNumber: technician.licenseNumber,
           licenseExpiry: technician.licenseExpiry,
           experience: technician.experience,
@@ -292,7 +285,6 @@ router.put("/profile", authenticate, async (req, res) => {
       firstName,
       lastName,
       phone,
-      tradeType,
       licenseNumber,
       licenseExpiry,
       experience,
@@ -312,7 +304,6 @@ router.put("/profile", authenticate, async (req, res) => {
     if (firstName) technician.firstName = firstName;
     if (lastName) technician.lastName = lastName;
     if (phone) technician.phone = phone;
-    if (tradeType) technician.tradeType = tradeType;
     if (licenseNumber !== undefined) technician.licenseNumber = licenseNumber;
     if (licenseExpiry !== undefined)
       technician.licenseExpiry = licenseExpiry ? new Date(licenseExpiry) : null;
@@ -334,7 +325,6 @@ router.put("/profile", authenticate, async (req, res) => {
           fullName: technician.fullName,
           email: technician.email,
           phone: technician.phone,
-          tradeType: technician.tradeType,
           licenseNumber: technician.licenseNumber,
           licenseExpiry: technician.licenseExpiry,
           experience: technician.experience,
