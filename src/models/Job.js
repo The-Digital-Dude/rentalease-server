@@ -133,7 +133,7 @@ const jobSchema = new mongoose.Schema(
     lastUpdatedBy: {
       userType: {
         type: String,
-        enum: ["SuperUser", "Agency"],
+        enum: ["SuperUser", "Agency", "Technician"],
       },
       userId: {
         type: mongoose.Schema.Types.ObjectId,

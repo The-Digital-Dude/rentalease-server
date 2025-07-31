@@ -73,6 +73,8 @@ router.get("/", authenticate, async (req, res) => {
       sortOrder: parseInt(sortOrder),
     };
 
+    console.log(userInfo, "UserInfo");
+
     const notifications = await notificationService.getNotifications(
       userInfo.userType,
       userInfo.userId,

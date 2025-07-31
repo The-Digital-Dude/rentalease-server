@@ -240,6 +240,110 @@ class NotificationService {
   }
 
   /**
+   * Send job assignment notification to technician, agency, and super users
+   * @param {Object} job - Job object
+   * @param {Object} technician - Technician object
+   * @param {Object} assignedBy - User who assigned the job
+   * @param {Object} property - Property object (optional)
+   */
+  async sendJobAssignmentNotification(
+    job,
+    technician,
+    assignedBy,
+    property = null
+  ) {
+    try {
+      console.log(technician, "technician");
+      const recipients = [];
+
+      // Add technician as recipient
+      recipients.push({
+        recipientType: "Technician",
+        recipientId: technician._id,
+      });
+
+      console.log(recipients, "recipients");
+
+      // Add agency as recipient (if job belongs to an agency)
+      if (job.owner.ownerType === "Agency") {
+        recipients.push({
+          recipientType: "Agency",
+          recipientId: job.owner.ownerId,
+        });
+      }
+
+      // Add all super users as recipients
+      const superUsers = await SuperUser.find({});
+      superUsers.forEach((superUser) => {
+        recipients.push({
+          recipientType: "SuperUser",
+          recipientId: superUser._id,
+        });
+      });
+
+      // Get property details if not provided
+      if (!property && job.property) {
+        property = await Property.findById(job.property).populate("address");
+      }
+
+      const propertyAddress =
+        property?.address?.fullAddress || "Unknown address";
+
+      // Prepare notification data
+      const notificationData = {
+        type: "JOB_ASSIGNED",
+        title: `${job.jobType} Job Assigned`,
+        message: `${assignedBy.name} has assigned a ${
+          job.jobType
+        } job at ${propertyAddress} to ${
+          technician.fullName
+        }. Due date: ${new Date(job.dueDate).toLocaleDateString()}`,
+        data: {
+          jobId: job._id,
+          job_id: job.job_id,
+          propertyId: property?._id,
+          propertyAddress: propertyAddress,
+          jobType: job.jobType,
+          dueDate: job.dueDate,
+          priority: job.priority,
+          technician: {
+            id: technician._id,
+            fullName: technician.fullName,
+            email: technician.email,
+          },
+          assignedBy: {
+            userType: assignedBy.type,
+            userId: assignedBy.userId,
+            name: assignedBy.name,
+          },
+        },
+        priority: job.priority === "Urgent" ? "Urgent" : "High",
+      };
+
+      // Send notifications
+      const results = await this.sendNotification(recipients, notificationData);
+
+      console.log(
+        `✅ Job assignment notifications sent to ${recipients.length} recipients`,
+        {
+          jobId: job._id,
+          jobType: job.jobType,
+          technicianName: technician.fullName,
+          assignedBy: assignedBy.name,
+          propertyAddress: propertyAddress,
+          results: results.length,
+          timestamp: new Date().toISOString(),
+        }
+      );
+
+      return results;
+    } catch (error) {
+      console.error("Error sending job assignment notification:", error);
+      throw error;
+    }
+  }
+
+  /**
    * Get notifications for a recipient
    * @param {String} recipientType - Recipient type
    * @param {String} recipientId - Recipient ID

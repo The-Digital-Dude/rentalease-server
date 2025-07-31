@@ -6,7 +6,7 @@ const notificationSchema = new mongoose.Schema(
       recipientType: {
         type: String,
         required: true,
-        enum: ["SuperUser", "Agency"],
+        enum: ["SuperUser", "Agency", "Technician"],
       },
       recipientId: {
         type: mongoose.Schema.Types.ObjectId,
@@ -68,7 +68,10 @@ const notificationSchema = new mongoose.Schema(
 );
 
 // Indexes for better query performance
-notificationSchema.index({ "recipient.recipientType": 1, "recipient.recipientId": 1 });
+notificationSchema.index({
+  "recipient.recipientType": 1,
+  "recipient.recipientId": 1,
+});
 notificationSchema.index({ status: 1, createdAt: -1 });
 notificationSchema.index({ type: 1, status: 1 });
 notificationSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
@@ -102,7 +105,10 @@ notificationSchema.methods.getSummary = function () {
 };
 
 // Static method to get unread count for a recipient
-notificationSchema.statics.getUnreadCount = async function (recipientType, recipientId) {
+notificationSchema.statics.getUnreadCount = async function (
+  recipientType,
+  recipientId
+) {
   return await this.countDocuments({
     "recipient.recipientType": recipientType,
     "recipient.recipientId": recipientId,
@@ -141,4 +147,4 @@ notificationSchema.statics.getNotificationsForRecipient = async function (
 
 const Notification = mongoose.model("Notification", notificationSchema);
 
-export default Notification; 
+export default Notification;

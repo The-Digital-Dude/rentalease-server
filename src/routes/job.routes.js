@@ -65,7 +65,31 @@ const validateOwnerAccess = (job, req) => {
     return true;
   }
 
-  // For other users, check if they own the job
+  // Technicians can access jobs that are:
+  // 1. Assigned to them
+  // 2. Pending (unassigned) jobs from their organization
+  if (ownerInfo.ownerType === "Technician") {
+    // Check if job is assigned to this technician
+    if (
+      job.assignedTechnician &&
+      job.assignedTechnician.toString() === ownerInfo.ownerId.toString()
+    ) {
+      return true;
+    }
+
+    // Check if job is pending (unassigned) and belongs to their organization
+    if (!job.assignedTechnician && job.owner.ownerType === "Agency") {
+      return true;
+    }
+
+    // Check if job belongs to the same organization as the technician
+    return (
+      job.owner.ownerType === "Agency" &&
+      job.owner.ownerId.toString() === ownerInfo.ownerId.toString()
+    );
+  }
+
+  // For agencies, check if they own the job
   return (
     job.owner.ownerType === ownerInfo.ownerType &&
     job.owner.ownerId.toString() === ownerInfo.ownerId.toString()
@@ -233,12 +257,35 @@ router.post("/", authenticate, async (req, res) => {
         "fullName phone email availabilityStatus"
       );
 
-      // Send email notification to technician if job was assigned during creation
+      // Send notifications to technician if job was assigned during creation
       if (technician) {
         const assignedBy = getUserInfo(req);
         if (assignedBy) {
-          // Send email notification asynchronously (don't wait for it)
-          sendJobAssignmentNotification(technician, job, assignedBy);
+          try {
+            // Get property details for notification
+            const property = await Property.findById(job.property).populate(
+              "address"
+            );
+
+            // Send in-app notifications to technician, agency, and super users
+            await notificationService.sendJobAssignmentNotification(
+              job,
+              technician,
+              assignedBy,
+              property
+            );
+
+            // Send email notification (existing functionality)
+            sendJobAssignmentNotification(technician, job, assignedBy);
+          } catch (notificationError) {
+            // Log error but don't fail the job creation
+            console.error("Failed to send job assignment notifications:", {
+              jobId: job._id,
+              technicianId: technician._id,
+              error: notificationError.message,
+              timestamp: new Date().toISOString(),
+            });
+          }
         }
       }
 
@@ -993,27 +1040,57 @@ router.put("/:id", authenticate, async (req, res) => {
       // Populate technician details for response
       await job.populate("assignedTechnician", "fullName phone email");
 
-      // Send email notification for technician assignments during updates
+      // Send notifications for technician assignments during updates
       if (canFullEdit && updates.hasOwnProperty("assignedTechnician")) {
         const assignedBy = getUserInfo(req);
         if (assignedBy) {
-          // If technician was assigned to a previously unassigned job
-          if (!previousTechnician && newTechnician) {
-            const newTech = await Technician.findById(newTechnician);
-            if (newTech) {
-              sendJobAssignmentNotification(newTech, job, assignedBy);
+          try {
+            // Get property details for notification
+            const property = await Property.findById(job.property).populate(
+              "address"
+            );
+
+            // If technician was assigned to a previously unassigned job
+            if (!previousTechnician && newTechnician) {
+              const newTech = await Technician.findById(newTechnician);
+              if (newTech) {
+                // Send in-app notifications
+                await notificationService.sendJobAssignmentNotification(
+                  job,
+                  newTech,
+                  assignedBy,
+                  property
+                );
+                // Send email notification (existing functionality)
+                sendJobAssignmentNotification(newTech, job, assignedBy);
+              }
             }
-          }
-          // If technician was changed from one to another (reassignment)
-          else if (
-            previousTechnician &&
-            newTechnician &&
-            previousTechnician.toString() !== newTechnician.toString()
-          ) {
-            const newTech = await Technician.findById(newTechnician);
-            if (newTech) {
-              sendJobAssignmentNotification(newTech, job, assignedBy);
+            // If technician was changed from one to another (reassignment)
+            else if (
+              previousTechnician &&
+              newTechnician &&
+              previousTechnician.toString() !== newTechnician.toString()
+            ) {
+              const newTech = await Technician.findById(newTechnician);
+              if (newTech) {
+                // Send in-app notifications
+                await notificationService.sendJobAssignmentNotification(
+                  job,
+                  newTech,
+                  assignedBy,
+                  property
+                );
+                // Send email notification (existing functionality)
+                sendJobAssignmentNotification(newTech, job, assignedBy);
+              }
             }
+          } catch (notificationError) {
+            // Log error but don't fail the job update
+            console.error("Failed to send job assignment notifications:", {
+              jobId: job._id,
+              error: notificationError.message,
+              timestamp: new Date().toISOString(),
+            });
           }
         }
       }
@@ -1247,10 +1324,34 @@ router.patch("/:id/assign", authenticateSuperUser, async (req, res) => {
         "fullName phone email availabilityStatus"
       );
 
-      // Send email notification to the assigned technician
+      // Send notifications to the assigned technician, agency, and super users
       const assignedBy = getUserInfo(req);
       if (assignedBy) {
-        sendJobAssignmentNotification(technician, job, assignedBy);
+        try {
+          // Get property details for notification
+          const property = await Property.findById(job.property).populate(
+            "address"
+          );
+
+          // Send in-app notifications
+          await notificationService.sendJobAssignmentNotification(
+            job,
+            technician,
+            assignedBy,
+            property
+          );
+
+          // Send email notification (existing functionality)
+          sendJobAssignmentNotification(technician, job, assignedBy);
+        } catch (notificationError) {
+          // Log error but don't fail the job assignment
+          console.error("Failed to send job assignment notifications:", {
+            jobId: job._id,
+            technicianId: technician._id,
+            error: notificationError.message,
+            timestamp: new Date().toISOString(),
+          });
+        }
       }
 
       res.status(200).json({
@@ -1279,6 +1380,159 @@ router.patch("/:id/assign", authenticateSuperUser, async (req, res) => {
     res.status(500).json({
       status: "error",
       message: error.message || "Failed to assign job",
+    });
+  }
+});
+
+// PATCH - Claim job (technicians can claim available jobs)
+router.patch("/:id/claim", authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Validate MongoDB ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        status: "error",
+        message: "Invalid job ID format",
+      });
+    }
+
+    // Check if user is a technician
+    const ownerInfo = getOwnerInfo(req);
+    if (!ownerInfo || ownerInfo.ownerType !== "Technician") {
+      return res.status(403).json({
+        status: "error",
+        message: "Only technicians can claim jobs",
+      });
+    }
+
+    const job = await Job.findById(id);
+    if (!job) {
+      return res.status(404).json({
+        status: "error",
+        message: "Job not found",
+      });
+    }
+
+    // Check if job is available for claiming (unassigned)
+    if (job.assignedTechnician) {
+      return res.status(400).json({
+        status: "error",
+        message: "This job is already assigned to a technician",
+      });
+    }
+
+    // Check if technician has access to this job (belongs to their organization)
+    if (!validateOwnerAccess(job, req)) {
+      return res.status(403).json({
+        status: "error",
+        message: "Access denied. You do not have permission to claim this job.",
+      });
+    }
+
+    // Find the technician
+    const technician = await Technician.findById(ownerInfo.ownerId);
+    if (!technician) {
+      return res.status(404).json({
+        status: "error",
+        message: "Technician not found",
+      });
+    }
+
+    // Check if technician is available (not too busy)
+    if (
+      technician.availabilityStatus === "Busy" &&
+      technician.currentJobs >= 4
+    ) {
+      return res.status(400).json({
+        status: "error",
+        message:
+          "You are currently too busy to take on more jobs. Please complete some existing jobs first.",
+      });
+    }
+
+    // Start a session for transaction
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      // Update job - assign to the claiming technician and set status to Scheduled
+      job.assignedTechnician = ownerInfo.ownerId;
+      job.status = "Scheduled";
+      job.lastUpdatedBy = getCreatorInfo(req);
+      await job.save({ session });
+
+      // Update technician's job count and availability status
+      technician.currentJobs = (technician.currentJobs || 0) + 1;
+      technician.availabilityStatus =
+        technician.currentJobs >= 4 ? "Busy" : "Available";
+      await technician.save({ session });
+
+      // Commit the transaction
+      await session.commitTransaction();
+
+      // Populate technician details for response
+      await job.populate(
+        "assignedTechnician",
+        "fullName phone email availabilityStatus"
+      );
+
+      // Send in-app notifications to technician, agency, and super users
+      const claimedBy = getUserInfo(req);
+      if (claimedBy) {
+        try {
+          // Get property details for notification
+          const property = await Property.findById(job.property).populate(
+            "address"
+          );
+
+          // Send in-app notifications
+          await notificationService.sendJobAssignmentNotification(
+            job,
+            technician,
+            claimedBy,
+            property
+          );
+
+          // Send email notification (existing functionality)
+          sendJobAssignmentNotification(technician, job, claimedBy);
+        } catch (notificationError) {
+          // Log error but don't fail the job claim
+          console.error("Failed to send job assignment notifications:", {
+            jobId: job._id,
+            technicianId: technician._id,
+            error: notificationError.message,
+            timestamp: new Date().toISOString(),
+          });
+        }
+      }
+
+      res.status(200).json({
+        status: "success",
+        message: "Job claimed successfully",
+        data: {
+          job: job.getFullDetails(),
+          technician: {
+            id: technician._id,
+            fullName: technician.fullName,
+            currentJobs: technician.currentJobs,
+            availabilityStatus: technician.availabilityStatus,
+          },
+        },
+      });
+    } catch (error) {
+      // If an error occurred, abort the transaction
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      // End the session
+      session.endSession();
+    }
+  } catch (error) {
+    console.error("Claim job error:", error);
+    res.status(500).json({
+      status: "error",
+      message: error.message || "Failed to claim job",
     });
   }
 });
