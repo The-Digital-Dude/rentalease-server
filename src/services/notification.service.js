@@ -353,6 +353,259 @@ class NotificationService {
   }
 
   /**
+   * Send job completion notification
+   * @param {Object} job - Job object
+   * @param {Object} technician - Technician object
+   * @param {Object} completedBy - User who completed the job
+   * @param {Object} property - Property object
+   */
+  async sendJobCompletionNotification(
+    job,
+    technician,
+    completedBy,
+    property = null
+  ) {
+    try {
+      const recipients = [];
+
+      // Add agency as recipient (if job belongs to an agency)
+      if (job.owner.ownerType === "Agency") {
+        recipients.push({
+          recipientType: "Agency",
+          recipientId: job.owner.ownerId,
+        });
+      }
+
+      // Add all super users as recipients
+      const superUsers = await SuperUser.find({});
+      superUsers.forEach((superUser) => {
+        recipients.push({
+          recipientType: "SuperUser",
+          recipientId: superUser._id,
+        });
+      });
+
+      // Get property details if not provided
+      if (!property && job.property) {
+        property = await Property.findById(job.property).populate("address");
+      }
+
+      const propertyAddress =
+        property?.address?.fullAddress || "Unknown address";
+
+      // Prepare notification data
+      const notificationData = {
+        type: "JOB_COMPLETED",
+        title: `${job.jobType} Job Completed`,
+        message: `${completedBy.name} has completed a ${
+          job.jobType
+        } job at ${propertyAddress}. Completed on: ${new Date().toLocaleDateString()}`,
+        data: {
+          jobId: job._id,
+          job_id: job.job_id,
+          propertyId: property?._id,
+          propertyAddress: propertyAddress,
+          jobType: job.jobType,
+          dueDate: job.dueDate,
+          completedAt: job.completedAt,
+          priority: job.priority,
+          technician: {
+            id: technician._id,
+            fullName: technician.fullName,
+            email: technician.email,
+          },
+          completedBy: {
+            userType: completedBy.type,
+            userId: completedBy.userId,
+            name: completedBy.name,
+          },
+        },
+        priority: "Medium",
+      };
+
+      // Send notifications
+      const results = await this.sendNotification(recipients, notificationData);
+
+      console.log(
+        `✅ Job completion notifications sent to ${recipients.length} recipients`,
+        {
+          jobId: job._id,
+          jobType: job.jobType,
+          technicianName: technician.fullName,
+          completedBy: completedBy.name,
+          propertyAddress: propertyAddress,
+          results: results.length,
+          timestamp: new Date().toISOString(),
+        }
+      );
+
+      return results;
+    } catch (error) {
+      console.error("Error sending job completion notification:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Send invoice created notification
+   * @param {Object} invoice - Invoice object
+   * @param {Object} job - Job object
+   * @param {Object} technician - Technician object
+   * @param {Object} agency - Agency object
+   * @param {Object} createdBy - User who created the invoice
+   */
+  async sendInvoiceCreatedNotification(
+    invoice,
+    job,
+    technician,
+    agency,
+    createdBy
+  ) {
+    try {
+      const recipients = [];
+
+      // Add agency as recipient
+      recipients.push({
+        recipientType: "Agency",
+        recipientId: agency._id,
+      });
+
+      // Add all super users as recipients
+      const superUsers = await SuperUser.find({});
+      superUsers.forEach((superUser) => {
+        recipients.push({
+          recipientType: "SuperUser",
+          recipientId: superUser._id,
+        });
+      });
+
+      // Prepare notification data
+      const notificationData = {
+        type: "INVOICE_CREATED",
+        title: `New Invoice Created`,
+        message: `${createdBy.name} has created a new invoice for job ${
+          job.job_id
+        }. Total: $${invoice.totalCost.toFixed(2)}`,
+        data: {
+          invoiceId: invoice._id,
+          invoiceNumber: invoice.invoiceNumber,
+          jobId: job._id,
+          job_id: job.job_id,
+          jobType: job.jobType,
+          technician: {
+            id: technician._id,
+            fullName: `${technician.firstName} ${technician.lastName}`,
+            email: technician.email,
+          },
+          agency: {
+            id: agency._id,
+            companyName: agency.companyName,
+            contactPerson: agency.contactPerson,
+          },
+          totalCost: invoice.totalCost,
+          status: invoice.status,
+          createdBy: {
+            userType: createdBy.type,
+            userId: createdBy.id,
+            name: createdBy.name,
+          },
+        },
+        priority: "Medium",
+      };
+
+      // Send notifications
+      const results = await this.sendNotification(recipients, notificationData);
+
+      console.log(
+        `✅ Invoice created notifications sent to ${recipients.length} recipients`,
+        {
+          invoiceId: invoice._id,
+          invoiceNumber: invoice.invoiceNumber,
+          jobId: job._id,
+          totalCost: invoice.totalCost,
+          createdBy: createdBy.name,
+          results: results.length,
+          timestamp: new Date().toISOString(),
+        }
+      );
+
+      return results;
+    } catch (error) {
+      console.error("Error sending invoice created notification:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Send invoice sent notification
+   * @param {Object} invoice - Invoice object
+   * @param {Object} sentBy - User who sent the invoice
+   */
+  async sendInvoiceSentNotification(invoice, sentBy) {
+    try {
+      const recipients = [];
+
+      // Add agency as recipient
+      recipients.push({
+        recipientType: "Agency",
+        recipientId: invoice.agencyId,
+      });
+
+      // Add all super users as recipients
+      const superUsers = await SuperUser.find({});
+      superUsers.forEach((superUser) => {
+        recipients.push({
+          recipientType: "SuperUser",
+          recipientId: superUser._id,
+        });
+      });
+
+      // Prepare notification data
+      const notificationData = {
+        type: "INVOICE_SENT",
+        title: `Invoice Sent`,
+        message: `${sentBy.name} has sent invoice ${
+          invoice.invoiceNumber
+        } to the agency. Total: $${invoice.totalCost.toFixed(2)}`,
+        data: {
+          invoiceId: invoice._id,
+          invoiceNumber: invoice.invoiceNumber,
+          jobId: invoice.jobId,
+          totalCost: invoice.totalCost,
+          status: invoice.status,
+          sentAt: invoice.sentAt,
+          sentBy: {
+            userType: sentBy.type,
+            userId: sentBy.id,
+            name: sentBy.name,
+          },
+        },
+        priority: "Medium",
+      };
+
+      // Send notifications
+      const results = await this.sendNotification(recipients, notificationData);
+
+      console.log(
+        `✅ Invoice sent notifications sent to ${recipients.length} recipients`,
+        {
+          invoiceId: invoice._id,
+          invoiceNumber: invoice.invoiceNumber,
+          totalCost: invoice.totalCost,
+          sentBy: sentBy.name,
+          results: results.length,
+          timestamp: new Date().toISOString(),
+        }
+      );
+
+      return results;
+    } catch (error) {
+      console.error("Error sending invoice sent notification:", error);
+      throw error;
+    }
+  }
+
+  /**
    * Get notifications for a recipient
    * @param {String} recipientType - Recipient type
    * @param {String} recipientId - Recipient ID

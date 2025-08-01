@@ -1520,4 +1520,187 @@ router.patch("/:id/claim", authenticate, async (req, res) => {
   }
 });
 
+// PATCH - Complete job (technicians can complete their assigned jobs)
+router.patch("/:id/complete", authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Validate MongoDB ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        status: "error",
+        message: "Invalid job ID format",
+      });
+    }
+
+    // Check if user is a technician or superuser
+    const ownerInfo = getOwnerInfo(req);
+    if (
+      !ownerInfo ||
+      (ownerInfo.ownerType !== "Technician" &&
+        ownerInfo.ownerType !== "Superuser")
+    ) {
+      return res.status(403).json({
+        status: "error",
+        message: "Only technicians or superusers can complete jobs",
+      });
+    }
+
+    const job = await Job.findById(id);
+    if (!job) {
+      return res.status(404).json({
+        status: "error",
+        message: "Job not found",
+      });
+    }
+
+    // Check if technician is assigned to this job
+    if (
+      !job.assignedTechnician ||
+      job.assignedTechnician.toString() !== ownerInfo.ownerId.toString()
+    ) {
+      return res.status(403).json({
+        status: "error",
+        message: "Access denied. You can only complete jobs assigned to you.",
+      });
+    }
+
+    if (job.status === "Completed") {
+      return res.status(400).json({
+        status: "error",
+        message: "Job is already completed",
+      });
+    }
+
+    // Check if job due date is today or in the past (allows completion on due date and after)
+    const today = new Date();
+    const jobDueDate = new Date(job.dueDate);
+
+    // Set both dates to start of day for comparison
+    const todayStart = new Date(
+      today.getFullYear(),
+      today.getMonth(),
+      today.getDate()
+    );
+    const dueDateStart = new Date(
+      jobDueDate.getFullYear(),
+      jobDueDate.getMonth(),
+      jobDueDate.getDate()
+    );
+
+    const isDueDateOrAfter = dueDateStart <= todayStart;
+
+    if (!isDueDateOrAfter) {
+      return res.status(400).json({
+        status: "error",
+        message: "Job can only be completed on or after its due date",
+        details: {
+          jobDueDate: jobDueDate.toDateString(),
+          today: today.toDateString(),
+        },
+      });
+    }
+
+    // Start a session for transaction
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      // Update job status to "Completed" and set completion timestamp (bypass validation)
+      const updateData = {
+        status: "Completed",
+        completedAt: new Date(),
+        lastUpdatedBy: getCreatorInfo(req),
+      };
+
+      const updatedJob = await Job.findByIdAndUpdate(job._id, updateData, {
+        session,
+        runValidators: false,
+        new: true,
+      });
+
+      // Update technician's job count and availability status
+      const technician = await Technician.findById(ownerInfo.ownerId).session(
+        session
+      );
+      if (technician) {
+        technician.currentJobs = Math.max(0, (technician.currentJobs || 0) - 1);
+        technician.availabilityStatus =
+          technician.currentJobs < 4 ? "Available" : "Busy";
+        await technician.save({ session });
+      }
+
+      // Commit the transaction
+      await session.commitTransaction();
+
+      // Populate technician details for response
+      await updatedJob.populate(
+        "assignedTechnician",
+        "fullName phone email availabilityStatus"
+      );
+
+      // Send completion notifications
+      const completedBy = getUserInfo(req);
+      if (completedBy) {
+        try {
+          // Get property details for notification
+          const property = await Property.findById(
+            updatedJob.property
+          ).populate("address");
+
+          // Send in-app notifications for job completion
+          await notificationService.sendJobCompletionNotification(
+            updatedJob,
+            technician,
+            completedBy,
+            property
+          );
+        } catch (notificationError) {
+          // Log error but don't fail the job completion
+          console.error("Failed to send job completion notifications:", {
+            jobId: updatedJob._id,
+            technicianId: technician._id,
+            error: notificationError.message,
+            timestamp: new Date().toISOString(),
+          });
+        }
+      }
+
+      res.status(200).json({
+        status: "success",
+        message: "Job completed successfully",
+        data: {
+          job: updatedJob.getFullDetails(),
+          technician: technician
+            ? {
+                id: technician._id,
+                fullName: technician.fullName,
+                currentJobs: technician.currentJobs,
+                availabilityStatus: technician.availabilityStatus,
+              }
+            : null,
+          completionDetails: {
+            completedAt: updatedJob.completedAt,
+            completedBy: completedBy,
+            dueDate: updatedJob.dueDate,
+          },
+        },
+      });
+    } catch (error) {
+      // If an error occurred, abort the transaction
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      // End the session
+      session.endSession();
+    }
+  } catch (error) {
+    console.error("Complete job error:", error);
+    res.status(500).json({
+      status: "error",
+      message: error.message || "Failed to complete job",
+    });
+  }
+});
+
 export default router;

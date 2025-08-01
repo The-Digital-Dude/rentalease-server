@@ -720,6 +720,46 @@ class EmailService {
       },
     });
   }
+
+  /**
+   * Send invoice email to agency
+   * @param {Object} invoice - Invoice object
+   * @param {Object} agency - Agency object
+   * @returns {Promise} - Email send result
+   */
+  async sendInvoiceEmail(invoice, agency) {
+    if (!invoice || !agency || !agency.email) {
+      throw new Error(
+        "Invalid invoice or agency data provided for invoice email"
+      );
+    }
+
+    console.log("Sending invoice email to agency:", {
+      email: agency.email,
+      companyName: agency.companyName,
+      invoiceNumber: invoice.invoiceNumber,
+    });
+
+    const templateData = {
+      companyName: agency.companyName,
+      contactPerson: agency.contactPerson,
+      invoiceNumber: invoice.invoiceNumber,
+      description: invoice.description,
+      items: invoice.items,
+      subtotal: invoice.subtotal,
+      tax: invoice.tax,
+      totalCost: invoice.totalCost,
+      createdAt: invoice.createdAt,
+      sentAt: invoice.sentAt,
+      notes: invoice.notes,
+    };
+
+    return await this.sendTemplatedEmail({
+      to: agency.email,
+      templateName: "invoiceEmail",
+      templateData,
+    });
+  }
 }
 
 // Create and export a singleton instance

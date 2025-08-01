@@ -41,6 +41,10 @@ const jobSchema = new mongoose.Schema(
       required: [true, "Due date is required"],
       validate: {
         validator: function (value) {
+          // Allow past due dates for completed jobs
+          if (this.status === "Completed") {
+            return true;
+          }
           return value > new Date();
         },
         message: "Due date must be in the future",

@@ -13,6 +13,7 @@ import propertyRoutes from "../routes/property.routes.js";
 import contactsRoutes from "../routes/contacts.routes.js";
 import complianceRoutes from "../routes/compliance.routes.js";
 import notificationRoutes from "../routes/notification.routes.js";
+import invoiceRoutes from "../routes/invoice.routes.js";
 import emailService from "../services/email.service.js";
 
 // Create Express app
@@ -35,6 +36,7 @@ app.use("/api/v1/properties", propertyRoutes);
 app.use("/api/v1/contacts", contactsRoutes);
 app.use("/api/v1/compliance", complianceRoutes);
 app.use("/api/v1/notifications", notificationRoutes);
+app.use("/api/v1/invoices", invoiceRoutes);
 
 // Health check route
 app.get("/health", async (req, res) => {

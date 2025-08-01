@@ -1,3 +1,5 @@
 {
-  "workbench.colorTheme": "Dracula Theme Soft"
+  "workbench.colorTheme": "Dracula Theme Soft",
+  "editor.fontSize": 12,
+  "editor.letterSpacing": 0.2
 }
