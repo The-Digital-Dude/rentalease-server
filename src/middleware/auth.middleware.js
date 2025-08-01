@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
 import SuperUser from "../models/SuperUser.js";
 import Technician from "../models/Technician.js";
+import PropertyManager from "../models/PropertyManager.js";
 
 /**
  * Middleware to authenticate and authorize super users
@@ -282,6 +283,37 @@ const authenticate = async (req, res, next) => {
         currentJobs: technician.currentJobs,
         maxJobs: technician.maxJobs,
       };
+    } else if (
+      userType === "PropertyManager" ||
+      userType === "propertyManager"
+    ) {
+      // Find the property manager in database
+      const propertyManager = await PropertyManager.findById(decoded.id);
+
+      if (!propertyManager) {
+        return res.status(401).json({
+          status: "error",
+          message: "Property Manager not found",
+        });
+      }
+
+      // Check if property manager account is active
+      if (propertyManager.status !== "Active") {
+        return res.status(401).json({
+          status: "error",
+          message: `Account is ${propertyManager.status.toLowerCase()}. Please contact your administrator.`,
+        });
+      }
+
+      // Add property manager info to request object
+      req.propertyManager = {
+        id: propertyManager._id,
+        fullName: propertyManager.fullName,
+        email: propertyManager.email,
+        status: propertyManager.status,
+        availabilityStatus: propertyManager.availabilityStatus,
+        assignedProperties: propertyManager.assignedProperties,
+      };
     } else {
       return res.status(401).json({
         status: "error",
@@ -302,4 +334,94 @@ const authenticate = async (req, res, next) => {
   }
 };
 
-export { authenticateSuperUser, authenticateAgency, authenticate };
+/**
+ * Middleware to authenticate property managers
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next function
+ */
+const authenticatePropertyManager = async (req, res, next) => {
+  try {
+    // Check if authorization header exists
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader) {
+      return res.status(401).json({
+        status: "error",
+        message: "Authorization header is required",
+      });
+    }
+
+    // Extract token from "Bearer token" format
+    const token = authHeader.split(" ")[1];
+
+    if (!token) {
+      return res.status(401).json({
+        status: "error",
+        message: "Access token is required",
+      });
+    }
+
+    // Verify JWT token
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (tokenError) {
+      return res.status(401).json({
+        status: "error",
+        message: "Invalid or expired token",
+      });
+    }
+
+    // Check if token is for a property manager
+    if (decoded.type !== "propertyManager") {
+      return res.status(403).json({
+        status: "error",
+        message: "Access denied. Property Manager privileges required.",
+      });
+    }
+
+    // Find the property manager in database
+    const propertyManager = await PropertyManager.findById(decoded.id);
+
+    if (!propertyManager) {
+      return res.status(401).json({
+        status: "error",
+        message: "Property Manager not found",
+      });
+    }
+
+    // Check if property manager account is active
+    if (!propertyManager.isActive()) {
+      return res.status(401).json({
+        status: "error",
+        message: `Account is ${propertyManager.status.toLowerCase()}. Please contact support.`,
+      });
+    }
+
+    // Add property manager info to request object
+    req.propertyManager = {
+      id: propertyManager._id,
+      fullName: propertyManager.fullName,
+      email: propertyManager.email,
+      status: propertyManager.status,
+      availabilityStatus: propertyManager.availabilityStatus,
+      assignedProperties: propertyManager.assignedProperties,
+    };
+
+    next();
+  } catch (error) {
+    console.error("Property Manager authentication error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Authentication failed",
+    });
+  }
+};
+
+export {
+  authenticateSuperUser,
+  authenticateAgency,
+  authenticatePropertyManager,
+  authenticate,
+};
