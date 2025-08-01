@@ -104,6 +104,31 @@ This document describes the three new routes added to the technician routes for 
 
 **Response:** Same structure as my-jobs but only includes overdue jobs
 
+### 4. GET `/technicians/completed-jobs`
+
+**Description:** Get completed jobs for the authenticated technician (assigned to technician, status is completed)
+
+**Authentication:** Required - Technician only
+
+**Query Parameters:**
+
+- `jobType` (optional): Filter by job type
+- `priority` (optional): Filter by priority
+- `search` (optional): Search in description, notes, and job type
+- `startDate` (optional): Filter jobs completed from this date
+- `endDate` (optional): Filter jobs completed until this date
+- `page` (optional): Page number for pagination (default: 1)
+- `limit` (optional): Number of items per page (default: 10)
+- `sortBy` (optional): Field to sort by (default: completedAt)
+- `sortOrder` (optional): Sort order - "asc" or "desc" (default: desc)
+
+**Filters Applied:**
+
+- `assignedTechnician`: Current technician ID
+- `status`: "Completed" (only completed jobs)
+
+**Response:** Same structure as my-jobs but only includes completed jobs
+
 ## Job Object Structure
 
 Each job in the response includes:
@@ -169,6 +194,13 @@ Authorization: Bearer <technician_token>
 
 ```bash
 GET /api/technicians/overdue-jobs?search=electrical&sortBy=dueDate&sortOrder=asc
+Authorization: Bearer <technician_token>
+```
+
+### Get completed jobs with performance metrics
+
+```bash
+GET /api/technicians/completed-jobs?startDate=2024-01-01&endDate=2024-12-31&sortBy=completedAt&sortOrder=desc
 Authorization: Bearer <technician_token>
 ```
 

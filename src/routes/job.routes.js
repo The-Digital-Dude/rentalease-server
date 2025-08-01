@@ -1748,6 +1748,9 @@ router.patch(
         }
 
         // Create technician payment for completed job
+        let technicianPaymentCreated = false;
+        let technicianPaymentData = null;
+
         try {
           // Get agency ID from job owner
           let agencyId;
@@ -1784,10 +1787,30 @@ router.patch(
             });
 
             await technicianPayment.save({ session });
+            technicianPaymentCreated = true;
+            technicianPaymentData = technicianPayment.getSummary();
+
+            console.log("✅ Technician payment created successfully:", {
+              paymentNumber: technicianPayment.paymentNumber,
+              jobId: job._id,
+              technicianId: job.assignedTechnician,
+              jobType: job.jobType,
+              amount: paymentAmount,
+              timestamp: new Date().toISOString(),
+            });
+          } else {
+            console.warn(
+              "⚠️ No agency found for job, skipping technician payment creation:",
+              {
+                jobId: job._id,
+                jobOwner: job.owner,
+                timestamp: new Date().toISOString(),
+              }
+            );
           }
         } catch (paymentError) {
           // Log error but don't fail the job completion
-          console.error("Failed to create technician payment:", {
+          console.error("❌ Failed to create technician payment:", {
             jobId: job._id,
             technicianId: job.assignedTechnician,
             error: paymentError.message,
@@ -1858,6 +1881,17 @@ router.patch(
               invoiceCreated: !!invoiceId,
               invoiceId: invoiceId,
             },
+            technicianPayment: technicianPaymentCreated
+              ? {
+                  created: true,
+                  payment: technicianPaymentData,
+                  message: `Technician payment of $${technicianPaymentData.amount} created for ${job.jobType} job`,
+                }
+              : {
+                  created: false,
+                  message:
+                    "No technician payment created (no agency associated with job)",
+                },
           },
         });
       } catch (error) {

@@ -2,7 +2,7 @@ import express from "express";
 import mongoose from "mongoose";
 import TechnicianPayment from "../models/TechnicianPayment.js";
 import { authenticate } from "../middleware/auth.middleware.js";
-import { getOwnerInfo, getCreatorInfo } from "../utils/propertyHelpers.js";
+import { getOwnerInfo } from "../utils/authHelpers.js";
 
 const router = express.Router();
 
