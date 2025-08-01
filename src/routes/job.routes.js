@@ -2,6 +2,10 @@ import express from "express";
 import mongoose from "mongoose";
 import Job from "../models/Job.js";
 import Technician from "../models/Technician.js";
+import Agency from "../models/Agency.js";
+import Property from "../models/Property.js";
+import Invoice from "../models/Invoice.js";
+import TechnicianPayment from "../models/TechnicianPayment.js";
 import {
   authenticateSuperUser,
   authenticateAgency,
@@ -9,7 +13,7 @@ import {
 } from "../middleware/auth.middleware.js";
 import emailService from "../services/email.service.js";
 import notificationService from "../services/notification.service.js";
-import Property from "../models/Property.js";
+import fileUploadService from "../services/fileUpload.service.js";
 
 const router = express.Router();
 
@@ -784,7 +788,7 @@ router.get("/:id", authenticate, async (req, res) => {
       )
       .populate(
         "assignedTechnician",
-        "fullName phone email availabilityStatus serviceRegions"
+        "firstName lastName phone email availabilityStatus serviceRegions"
       )
       .populate(
         "createdBy.userId",
@@ -1520,187 +1524,358 @@ router.patch("/:id/claim", authenticate, async (req, res) => {
   }
 });
 
-// PATCH - Complete job (technicians can complete their assigned jobs)
-router.patch("/:id/complete", authenticate, async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    // Validate MongoDB ObjectId
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({
-        status: "error",
-        message: "Invalid job ID format",
-      });
-    }
-
-    // Check if user is a technician or superuser
-    const ownerInfo = getOwnerInfo(req);
-    if (
-      !ownerInfo ||
-      (ownerInfo.ownerType !== "Technician" &&
-        ownerInfo.ownerType !== "Superuser")
-    ) {
-      return res.status(403).json({
-        status: "error",
-        message: "Only technicians or superusers can complete jobs",
-      });
-    }
-
-    const job = await Job.findById(id);
-    if (!job) {
-      return res.status(404).json({
-        status: "error",
-        message: "Job not found",
-      });
-    }
-
-    // Check if technician is assigned to this job
-    if (
-      !job.assignedTechnician ||
-      job.assignedTechnician.toString() !== ownerInfo.ownerId.toString()
-    ) {
-      return res.status(403).json({
-        status: "error",
-        message: "Access denied. You can only complete jobs assigned to you.",
-      });
-    }
-
-    if (job.status === "Completed") {
-      return res.status(400).json({
-        status: "error",
-        message: "Job is already completed",
-      });
-    }
-
-    // Check if job due date is today or in the past (allows completion on due date and after)
-    const today = new Date();
-    const jobDueDate = new Date(job.dueDate);
-
-    // Set both dates to start of day for comparison
-    const todayStart = new Date(
-      today.getFullYear(),
-      today.getMonth(),
-      today.getDate()
-    );
-    const dueDateStart = new Date(
-      jobDueDate.getFullYear(),
-      jobDueDate.getMonth(),
-      jobDueDate.getDate()
-    );
-
-    const isDueDateOrAfter = dueDateStart <= todayStart;
-
-    if (!isDueDateOrAfter) {
-      return res.status(400).json({
-        status: "error",
-        message: "Job can only be completed on or after its due date",
-        details: {
-          jobDueDate: jobDueDate.toDateString(),
-          today: today.toDateString(),
-        },
-      });
-    }
-
-    // Start a session for transaction
-    const session = await mongoose.startSession();
-    session.startTransaction();
+// PATCH - Complete job (technicians can complete their assigned jobs with report file and invoice)
+router.patch(
+  "/:id/complete",
+  authenticate,
+  fileUploadService.single("reportFile"),
+  async (req, res) => {
+    console.log(req.body, "req.body");
+    console.log(req.file, "req.file");
+    const { hasInvoice, invoiceData } = req.body;
+    console.log(invoiceData, "invoiceData");
 
     try {
-      // Update job status to "Completed" and set completion timestamp (bypass validation)
-      const updateData = {
-        status: "Completed",
-        completedAt: new Date(),
-        lastUpdatedBy: getCreatorInfo(req),
-      };
+      const { id } = req.params;
 
-      const updatedJob = await Job.findByIdAndUpdate(job._id, updateData, {
-        session,
-        runValidators: false,
-        new: true,
-      });
-
-      // Update technician's job count and availability status
-      const technician = await Technician.findById(ownerInfo.ownerId).session(
-        session
-      );
-      if (technician) {
-        technician.currentJobs = Math.max(0, (technician.currentJobs || 0) - 1);
-        technician.availabilityStatus =
-          technician.currentJobs < 4 ? "Available" : "Busy";
-        await technician.save({ session });
+      // Validate MongoDB ObjectId
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        return res.status(400).json({
+          status: "error",
+          message: "Invalid job ID format",
+        });
       }
 
-      // Commit the transaction
-      await session.commitTransaction();
+      // Check if user is a technician or superuser
+      const ownerInfo = getOwnerInfo(req);
+      if (
+        !ownerInfo ||
+        (ownerInfo.ownerType !== "Technician" &&
+          ownerInfo.ownerType !== "Superuser")
+      ) {
+        return res.status(403).json({
+          status: "error",
+          message: "Only technicians or superusers can complete jobs",
+        });
+      }
 
-      // Populate technician details for response
-      await updatedJob.populate(
-        "assignedTechnician",
-        "fullName phone email availabilityStatus"
+      const job = await Job.findById(id);
+      if (!job) {
+        return res.status(404).json({
+          status: "error",
+          message: "Job not found",
+        });
+      }
+
+      // Check if technician is assigned to this job
+      if (
+        !job.assignedTechnician ||
+        job.assignedTechnician.toString() !== ownerInfo.ownerId.toString()
+      ) {
+        return res.status(403).json({
+          status: "error",
+          message: "Access denied. You can only complete jobs assigned to you.",
+        });
+      }
+
+      if (job.status === "Completed") {
+        return res.status(400).json({
+          status: "error",
+          message: "Job is already completed",
+        });
+      }
+
+      // Check if job due date is today or in the past (allows completion on due date and after)
+      const today = new Date();
+      const jobDueDate = new Date(job.dueDate);
+
+      // Set both dates to start of day for comparison
+      const todayStart = new Date(
+        today.getFullYear(),
+        today.getMonth(),
+        today.getDate()
+      );
+      const dueDateStart = new Date(
+        jobDueDate.getFullYear(),
+        jobDueDate.getMonth(),
+        jobDueDate.getDate()
       );
 
-      // Send completion notifications
-      const completedBy = getUserInfo(req);
-      if (completedBy) {
-        try {
-          // Get property details for notification
-          const property = await Property.findById(
-            updatedJob.property
-          ).populate("address");
+      const isDueDateOrAfter = dueDateStart <= todayStart;
 
-          // Send in-app notifications for job completion
-          await notificationService.sendJobCompletionNotification(
-            updatedJob,
-            technician,
-            completedBy,
-            property
+      if (!isDueDateOrAfter) {
+        return res.status(400).json({
+          status: "error",
+          message: "Job can only be completed on or after its due date",
+          details: {
+            jobDueDate: jobDueDate.toDateString(),
+            today: today.toDateString(),
+          },
+        });
+      }
+
+      // Start a session for transaction
+      const session = await mongoose.startSession();
+      session.startTransaction();
+
+      try {
+        let reportFileUrl = null;
+        let invoiceId = null;
+
+        // Handle report file upload if provided
+        if (req.file) {
+          try {
+            const cloudinaryResult = await fileUploadService.uploadToCloudinary(
+              req.file.buffer,
+              {
+                public_id: `job-reports/job-${job._id}-${Date.now()}`,
+                resource_type: "auto",
+                folder: "job-reports",
+                tags: [`job-${job._id}`, "report"],
+              }
+            );
+            reportFileUrl = cloudinaryResult.secure_url;
+          } catch (uploadError) {
+            console.error("Failed to upload report file:", uploadError);
+            return res.status(500).json({
+              status: "error",
+              message: "Failed to upload report file",
+              details: uploadError.message,
+            });
+          }
+        }
+
+        // Handle invoice creation if requested
+        if (hasInvoice === "true" && invoiceData) {
+          try {
+            let parsedInvoiceData;
+            if (typeof invoiceData === "string") {
+              parsedInvoiceData = JSON.parse(invoiceData);
+            } else {
+              parsedInvoiceData = invoiceData;
+            }
+
+            // Validate invoice data
+            if (
+              !parsedInvoiceData.description ||
+              !parsedInvoiceData.items ||
+              parsedInvoiceData.items.length === 0
+            ) {
+              return res.status(400).json({
+                status: "error",
+                message:
+                  "Invalid invoice data. Description and items are required.",
+              });
+            }
+
+            // Get agency ID from job owner
+            let agencyId;
+            if (job.owner.ownerType === "Agency") {
+              agencyId = job.owner.ownerId;
+            } else {
+              // If job is owned by SuperUser, we need to get the agency from the property
+              const property = await Property.findById(job.property).session(
+                session
+              );
+              if (property && property.agency) {
+                agencyId = property.agency;
+              } else {
+                return res.status(400).json({
+                  status: "error",
+                  message:
+                    "Cannot create invoice: No agency associated with this job",
+                });
+              }
+            }
+
+            // Create invoice
+            const newInvoiceData = {
+              jobId: job._id,
+              technicianId: job.assignedTechnician,
+              agencyId: agencyId,
+              description: parsedInvoiceData.description,
+              items: parsedInvoiceData.items.map((item) => ({
+                name: item.name,
+                quantity: parseFloat(item.quantity),
+                rate: parseFloat(item.rate),
+                amount: parseFloat(item.amount),
+              })),
+              tax: parseFloat(parsedInvoiceData.tax || 0),
+              notes: parsedInvoiceData.notes || "",
+            };
+
+            const invoice = new Invoice(newInvoiceData);
+            await invoice.save({ session });
+            invoiceId = invoice._id;
+          } catch (invoiceError) {
+            console.error("Failed to create invoice:", invoiceError);
+            return res.status(500).json({
+              status: "error",
+              message: "Failed to create invoice",
+              details: invoiceError.message,
+            });
+          }
+        }
+
+        // Update job status to "Completed" and set completion timestamp
+        const updateData = {
+          status: "Completed",
+          completedAt: new Date(),
+          lastUpdatedBy: getCreatorInfo(req),
+          reportFile: reportFileUrl,
+          hasInvoice: hasInvoice === "true",
+          invoice: invoiceId,
+        };
+
+        const updatedJob = await Job.findByIdAndUpdate(job._id, updateData, {
+          session,
+          runValidators: false,
+          new: true,
+        });
+
+        // Update technician's job count and availability status
+        const technician = await Technician.findById(ownerInfo.ownerId).session(
+          session
+        );
+        if (technician) {
+          technician.currentJobs = Math.max(
+            0,
+            (technician.currentJobs || 0) - 1
           );
-        } catch (notificationError) {
+          technician.availabilityStatus =
+            technician.currentJobs < 4 ? "Available" : "Busy";
+          await technician.save({ session });
+        }
+
+        // Create technician payment for completed job
+        try {
+          // Get agency ID from job owner
+          let agencyId;
+          if (job.owner.ownerType === "Agency") {
+            agencyId = job.owner.ownerId;
+          } else {
+            // If job is owned by SuperUser, get agency from property
+            const property = await Property.findById(job.property).session(
+              session
+            );
+            if (property && property.agency) {
+              agencyId = property.agency;
+            }
+          }
+
+          if (agencyId) {
+            // Get payment amount based on job type
+            const paymentAmount = TechnicianPayment.getPaymentAmountByJobType(
+              job.jobType
+            );
+
+            // Create technician payment
+            const technicianPayment = new TechnicianPayment({
+              technicianId: job.assignedTechnician,
+              jobId: job._id,
+              agencyId: agencyId,
+              jobType: job.jobType,
+              amount: paymentAmount,
+              jobCompletedAt: new Date(),
+              createdBy: {
+                userType: "System",
+                userId: job.assignedTechnician, // Using technician ID as system user
+              },
+            });
+
+            await technicianPayment.save({ session });
+          }
+        } catch (paymentError) {
           // Log error but don't fail the job completion
-          console.error("Failed to send job completion notifications:", {
-            jobId: updatedJob._id,
-            technicianId: technician._id,
-            error: notificationError.message,
+          console.error("Failed to create technician payment:", {
+            jobId: job._id,
+            technicianId: job.assignedTechnician,
+            error: paymentError.message,
             timestamp: new Date().toISOString(),
           });
         }
-      }
 
-      res.status(200).json({
-        status: "success",
-        message: "Job completed successfully",
-        data: {
-          job: updatedJob.getFullDetails(),
-          technician: technician
-            ? {
-                id: technician._id,
-                fullName: technician.fullName,
-                currentJobs: technician.currentJobs,
-                availabilityStatus: technician.availabilityStatus,
-              }
-            : null,
-          completionDetails: {
-            completedAt: updatedJob.completedAt,
-            completedBy: completedBy,
-            dueDate: updatedJob.dueDate,
+        // Commit the transaction
+        await session.commitTransaction();
+
+        // Populate references for response
+        await updatedJob.populate([
+          {
+            path: "assignedTechnician",
+            select: "fullName phone email availabilityStatus",
           },
-        },
-      });
+          {
+            path: "invoice",
+            select: "invoiceNumber description totalCost status",
+          },
+        ]);
+
+        // Send completion notifications
+        const completedBy = getUserInfo(req);
+        if (completedBy) {
+          try {
+            // Get property details for notification
+            const property = await Property.findById(
+              updatedJob.property
+            ).populate("address");
+
+            // Send in-app notifications for job completion
+            await notificationService.sendJobCompletionNotification(
+              updatedJob,
+              technician,
+              completedBy,
+              property
+            );
+          } catch (notificationError) {
+            // Log error but don't fail the job completion
+            console.error("Failed to send job completion notifications:", {
+              jobId: updatedJob._id,
+              technicianId: technician._id,
+              error: notificationError.message,
+              timestamp: new Date().toISOString(),
+            });
+          }
+        }
+
+        res.status(200).json({
+          status: "success",
+          message: "Job completed successfully",
+          data: {
+            job: updatedJob.getFullDetails(),
+            technician: technician
+              ? {
+                  id: technician._id,
+                  fullName: technician.fullName,
+                  currentJobs: technician.currentJobs,
+                  availabilityStatus: technician.availabilityStatus,
+                }
+              : null,
+            completionDetails: {
+              completedAt: updatedJob.completedAt,
+              completedBy: completedBy,
+              dueDate: updatedJob.dueDate,
+              reportFile: reportFileUrl,
+              invoiceCreated: !!invoiceId,
+              invoiceId: invoiceId,
+            },
+          },
+        });
+      } catch (error) {
+        // If an error occurred, abort the transaction
+        await session.abortTransaction();
+        throw error;
+      } finally {
+        // End the session
+        session.endSession();
+      }
     } catch (error) {
-      // If an error occurred, abort the transaction
-      await session.abortTransaction();
-      throw error;
-    } finally {
-      // End the session
-      session.endSession();
+      console.error("Complete job error:", error);
+      res.status(500).json({
+        status: "error",
+        message: error.message || "Failed to complete job",
+      });
     }
-  } catch (error) {
-    console.error("Complete job error:", error);
-    res.status(500).json({
-      status: "error",
-      message: error.message || "Failed to complete job",
-    });
   }
-});
+);
 
 export default router;
