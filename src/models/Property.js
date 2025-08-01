@@ -43,6 +43,10 @@ const propertySchema = new mongoose.Schema(
       ref: "Agency",
       required: [true, "Agency is required"],
     },
+    assignedPropertyManager: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "PropertyManager",
+    },
 
     region: {
       type: String,
@@ -268,6 +272,7 @@ propertySchema.methods.getComplianceSummary = function () {
 
 // Indexes for better query performance
 propertySchema.index({ agency: 1 });
+propertySchema.index({ assignedPropertyManager: 1 });
 propertySchema.index({ "address.state": 1, "address.suburb": 1 });
 propertySchema.index({ status: 1 });
 propertySchema.index({ "complianceSchedule.gasCompliance.nextInspection": 1 });
