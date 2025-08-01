@@ -10,7 +10,7 @@ This document describes the completed-jobs endpoint for technicians to view thei
 
 **Authentication:** Required - Technician only
 
-**Base URL:** `http://localhost:3000/api/technicians/completed-jobs`
+**Base URL:** `http://localhost:4000/api/v1/technicians/completed-jobs`
 
 ## Query Parameters
 
@@ -131,7 +131,7 @@ Content-Type: application/json
 ### Get All Completed Jobs
 
 ```bash
-curl -X GET "http://localhost:3000/api/technicians/completed-jobs" \
+curl -X GET "http://localhost:4000/api/v1/technicians/completed-jobs" \
   -H "Authorization: Bearer <technician_token>"
 ```
 

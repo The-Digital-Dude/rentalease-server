@@ -7,6 +7,7 @@ import {
   authenticate,
 } from "../middleware/auth.middleware.js";
 import Job from "../models/Job.js"; // Added import for Job model
+import TechnicianPayment from "../models/TechnicianPayment.js"; // Added import for TechnicianPayment model
 
 const router = express.Router();
 
@@ -737,6 +738,259 @@ router.get("/completed-jobs", authenticate, async (req, res) => {
     res.status(500).json({
       status: "error",
       message: "Failed to retrieve completed jobs",
+    });
+  }
+});
+
+// GET - Get technician dashboard statistics
+router.get("/dashboard", authenticate, async (req, res) => {
+  try {
+    const ownerInfo = getOwnerInfo(req);
+    if (!ownerInfo || ownerInfo.ownerType !== "Technician") {
+      return res.status(403).json({
+        status: "error",
+        message: "Only technicians can access their dashboard",
+      });
+    }
+
+    const technicianId = ownerInfo.ownerId;
+
+    // Get job status distribution
+    const jobStatusDistribution = await Job.aggregate([
+      {
+        $match: {
+          assignedTechnician: new mongoose.Types.ObjectId(technicianId),
+        },
+      },
+      {
+        $group: {
+          _id: "$status",
+          count: { $sum: 1 },
+        },
+      },
+      {
+        $project: {
+          status: "$_id",
+          count: 1,
+          _id: 0,
+        },
+      },
+    ]);
+
+    // Calculate total jobs and percentages
+    const totalJobs = jobStatusDistribution.reduce(
+      (sum, item) => sum + item.count,
+      0
+    );
+    const statusDistribution = jobStatusDistribution.map((item) => ({
+      status: item.status,
+      count: item.count,
+      percentage:
+        totalJobs > 0 ? Math.round((item.count / totalJobs) * 100) : 0,
+    }));
+
+    // Get weekly progress (last 7 days)
+    const today = new Date();
+    const sevenDaysAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    const weeklyProgress = await Job.aggregate([
+      {
+        $match: {
+          assignedTechnician: new mongoose.Types.ObjectId(technicianId),
+          $or: [
+            { createdAt: { $gte: sevenDaysAgo } },
+            { completedAt: { $gte: sevenDaysAgo } },
+            { dueDate: { $gte: sevenDaysAgo } },
+          ],
+        },
+      },
+      {
+        $addFields: {
+          dayOfWeek: {
+            $dayOfWeek: {
+              $cond: {
+                if: { $ne: ["$completedAt", null] },
+                then: "$completedAt",
+                else: "$createdAt",
+              },
+            },
+          },
+          isCompleted: { $eq: ["$status", "Completed"] },
+          isScheduled: { $eq: ["$status", "Scheduled"] },
+        },
+      },
+      {
+        $group: {
+          _id: "$dayOfWeek",
+          completed: {
+            $sum: {
+              $cond: ["$isCompleted", 1, 0],
+            },
+          },
+          scheduled: {
+            $sum: {
+              $cond: ["$isScheduled", 1, 0],
+            },
+          },
+        },
+      },
+      {
+        $project: {
+          day: "$_id",
+          completed: 1,
+          scheduled: 1,
+          _id: 0,
+        },
+      },
+      { $sort: { day: 1 } },
+    ]);
+
+    // Map day numbers to day names and fill missing days
+    const dayNames = ["", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const weeklyProgressMap = {};
+
+    // Initialize all days with zero values
+    for (let i = 1; i <= 7; i++) {
+      weeklyProgressMap[i] = {
+        day: dayNames[i],
+        completed: 0,
+        scheduled: 0,
+      };
+    }
+
+    // Fill in actual data
+    weeklyProgress.forEach((item) => {
+      weeklyProgressMap[item.day] = {
+        day: dayNames[item.day],
+        completed: item.completed,
+        scheduled: item.scheduled,
+      };
+    });
+
+    const weeklyProgressArray = Object.values(weeklyProgressMap);
+
+    // Get quick statistics
+    const quickStats = await Job.aggregate([
+      {
+        $match: {
+          assignedTechnician: new mongoose.Types.ObjectId(technicianId),
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalJobs: { $sum: 1 },
+          activeJobs: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $in: ["$status", ["Pending", "Scheduled"]] },
+                    { $gte: ["$dueDate", new Date()] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+          scheduledJobs: {
+            $sum: {
+              $cond: [{ $eq: ["$status", "Scheduled"] }, 1, 0],
+            },
+          },
+          completedJobs: {
+            $sum: {
+              $cond: [{ $eq: ["$status", "Completed"] }, 1, 0],
+            },
+          },
+          overdueJobs: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $ne: ["$status", "Completed"] },
+                    { $lt: ["$dueDate", new Date()] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+        },
+      },
+    ]);
+
+    // Get recent activity (last 5 jobs)
+    const recentJobs = await Job.find({ assignedTechnician: technicianId })
+      .populate("property", "address")
+      .sort({ updatedAt: -1 })
+      .limit(5)
+      .select("job_id jobType status dueDate updatedAt");
+
+    // Get payment statistics
+    const paymentStats = await TechnicianPayment.aggregate([
+      {
+        $match: {
+          technicianId: new mongoose.Types.ObjectId(technicianId),
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalPayments: { $sum: 1 },
+          pendingPayments: {
+            $sum: {
+              $cond: [{ $eq: ["$status", "Pending"] }, 1, 0],
+            },
+          },
+          totalAmount: { $sum: "$amount" },
+          pendingAmount: {
+            $sum: {
+              $cond: [{ $eq: ["$status", "Pending"] }, "$amount", 0],
+            },
+          },
+        },
+      },
+    ]);
+
+    res.status(200).json({
+      status: "success",
+      message: "Dashboard data retrieved successfully",
+      data: {
+        quickStats: {
+          totalJobs: quickStats[0]?.totalJobs || 0,
+          activeJobs: quickStats[0]?.activeJobs || 0,
+          scheduledJobs: quickStats[0]?.scheduledJobs || 0,
+          completedJobs: quickStats[0]?.completedJobs || 0,
+          overdueJobs: quickStats[0]?.overdueJobs || 0,
+        },
+        jobStatusDistribution: statusDistribution,
+        weeklyProgress: weeklyProgressArray,
+        recentJobs: recentJobs.map((job) => ({
+          id: job._id,
+          job_id: job.job_id,
+          jobType: job.jobType,
+          status: job.status,
+          dueDate: job.dueDate,
+          updatedAt: job.updatedAt,
+          property: job.property?.address || "N/A",
+        })),
+        paymentStats: {
+          totalPayments: paymentStats[0]?.totalPayments || 0,
+          pendingPayments: paymentStats[0]?.pendingPayments || 0,
+          totalAmount: paymentStats[0]?.totalAmount || 0,
+          pendingAmount: paymentStats[0]?.pendingAmount || 0,
+        },
+        lastUpdated: new Date(),
+      },
+    });
+  } catch (error) {
+    console.error("Get dashboard error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Failed to retrieve dashboard data",
     });
   }
 });

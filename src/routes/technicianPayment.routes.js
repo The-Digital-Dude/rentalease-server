@@ -32,13 +32,17 @@ router.get("/", authenticate, async (req, res) => {
     // Build filter object
     const filter = {};
 
+    // If user is a technician, only show their own payments
+    if (ownerInfo.ownerType === "Technician") {
+      filter.technicianId = ownerInfo.ownerId;
+    }
     // If user is an agency, only show their payments
-    if (ownerInfo.ownerType === "Agency") {
+    else if (ownerInfo.ownerType === "Agency") {
       filter.agencyId = ownerInfo.ownerId;
     }
 
     // Add other filters
-    if (technicianId) {
+    if (technicianId && ownerInfo.ownerType !== "Technician") {
       filter.technicianId = technicianId;
     }
     if (agencyId && ownerInfo.ownerType === "SuperUser") {
@@ -104,6 +108,91 @@ router.get("/", authenticate, async (req, res) => {
   }
 });
 
+// GET - Get payments for the authenticated technician (my payments)
+router.get("/my-payments", authenticate, async (req, res) => {
+  try {
+    const { status, startDate, endDate, page = 1, limit = 20 } = req.query;
+
+    // Check if user is a technician
+    const ownerInfo = getOwnerInfo(req);
+    if (!ownerInfo || ownerInfo.ownerType !== "Technician") {
+      return res.status(403).json({
+        status: "error",
+        message: "Only technicians can access their payments",
+      });
+    }
+
+    // Build filter for technician's own payments
+    const filter = { technicianId: ownerInfo.ownerId };
+
+    if (status) {
+      filter.status = status;
+    }
+    if (startDate || endDate) {
+      filter.jobCompletedAt = {};
+      if (startDate) {
+        filter.jobCompletedAt.$gte = new Date(startDate);
+      }
+      if (endDate) {
+        filter.jobCompletedAt.$lte = new Date(endDate);
+      }
+    }
+
+    // Pagination
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const limitNum = parseInt(limit);
+
+    const payments = await TechnicianPayment.find(filter)
+      .populate("jobId", "job_id property jobType dueDate description")
+      .populate("agencyId", "name email")
+      .sort({ jobCompletedAt: -1 })
+      .skip(skip)
+      .limit(limitNum);
+
+    const total = await TechnicianPayment.countDocuments(filter);
+    const totalPages = Math.ceil(total / limitNum);
+
+    // Get status counts for dashboard
+    const statusCounts = await TechnicianPayment.aggregate([
+      {
+        $match: {
+          technicianId: new mongoose.Types.ObjectId(ownerInfo.ownerId),
+        },
+      },
+      { $group: { _id: "$status", count: { $sum: 1 } } },
+    ]);
+
+    res.status(200).json({
+      status: "success",
+      message: "My payments retrieved successfully",
+      data: {
+        payments: payments.map((payment) => payment.getSummary()),
+        pagination: {
+          currentPage: parseInt(page),
+          totalPages,
+          totalItems: total,
+          hasNextPage: page < totalPages,
+          hasPrevPage: page > 1,
+          limit: limitNum,
+        },
+        statistics: {
+          statusCounts: statusCounts.reduce((acc, item) => {
+            acc[item._id] = item.count;
+            return acc;
+          }, {}),
+          totalPayments: total,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Get my payments error:", error);
+    res.status(500).json({
+      status: "error",
+      message: error.message || "Failed to get my payments",
+    });
+  }
+});
+
 // GET - Get technician payment by ID
 router.get("/:id", authenticate, async (req, res) => {
   try {
@@ -138,8 +227,18 @@ router.get("/:id", authenticate, async (req, res) => {
       });
     }
 
-    // If user is an agency, check if they own this payment
+    // If user is a technician, check if this is their payment
     if (
+      ownerInfo.ownerType === "Technician" &&
+      payment.technicianId.toString() !== ownerInfo.ownerId.toString()
+    ) {
+      return res.status(403).json({
+        status: "error",
+        message: "Access denied to this payment",
+      });
+    }
+    // If user is an agency, check if they own this payment
+    else if (
       ownerInfo.ownerType === "Agency" &&
       payment.agencyId.toString() !== ownerInfo.ownerId.toString()
     ) {
@@ -273,8 +372,17 @@ router.get("/technician/:technicianId", authenticate, async (req, res) => {
     // Build filter
     const filter = { technicianId };
 
+    // If user is a technician, they can only view their own payments
+    if (ownerInfo.ownerType === "Technician") {
+      if (technicianId !== ownerInfo.ownerId.toString()) {
+        return res.status(403).json({
+          status: "error",
+          message: "You can only view your own payments",
+        });
+      }
+    }
     // If user is an agency, only show their payments
-    if (ownerInfo.ownerType === "Agency") {
+    else if (ownerInfo.ownerType === "Agency") {
       filter.agencyId = ownerInfo.ownerId;
     }
 
