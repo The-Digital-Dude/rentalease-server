@@ -3,7 +3,6 @@ import mongoose from "mongoose";
 import Agency from "../models/Agency.js";
 import Property from "../models/Property.js";
 import Job from "../models/Job.js";
-import Technician from "../models/Technician.js";
 import PropertyManager from "../models/PropertyManager.js";
 import jwt from "jsonwebtoken";
 import emailService from "../services/email.service.js";
@@ -634,12 +633,6 @@ router.get("/dashboard", authenticateAgency, async (req, res) => {
       return true;
     });
 
-    // Get technicians managed by this agency
-    const technicians = await Technician.find({
-      "owner.ownerType": "Agency",
-      "owner.ownerId": agencyId,
-    });
-
     // Get property managers managed by this agency
     const propertyManagers = await PropertyManager.find({
       "owner.ownerType": "Agency",
@@ -802,7 +795,6 @@ router.get("/dashboard", authenticateAgency, async (req, res) => {
     const quickStats = {
       totalProperties: properties.length,
       totalJobs: jobs.length,
-      totalTechnicians: technicians.length,
       totalPropertyManagers: propertyManagers.length,
       activeJobs: jobs.filter((job) =>
         ["Pending", "Scheduled"].includes(job.status)
@@ -852,8 +844,8 @@ router.get("/dashboard", authenticateAgency, async (req, res) => {
           : 0,
     }));
 
-    // Get technician availability distribution
-    const technicianAvailability = await Technician.aggregate([
+    // Get property manager availability distribution
+    const propertyManagerAvailability = await PropertyManager.aggregate([
       {
         $match: {
           "owner.ownerType": "Agency",
@@ -875,19 +867,21 @@ router.get("/dashboard", authenticateAgency, async (req, res) => {
       },
     ]);
 
-    // Calculate technician availability percentages
-    const totalTechnicians = technicianAvailability.reduce(
-      (sum, item) => sum + item.count,
-      0
+    // Calculate property manager availability percentages
+    const totalPropertyManagersForAvailability =
+      propertyManagerAvailability.reduce((sum, item) => sum + item.count, 0);
+    const propertyManagerAvailabilityData = propertyManagerAvailability.map(
+      (item) => ({
+        status: item.status,
+        count: item.count,
+        percentage:
+          totalPropertyManagersForAvailability > 0
+            ? Math.round(
+                (item.count / totalPropertyManagersForAvailability) * 100
+              )
+            : 0,
+      })
     );
-    const technicianAvailabilityData = technicianAvailability.map((item) => ({
-      status: item.status,
-      count: item.count,
-      percentage:
-        totalTechnicians > 0
-          ? Math.round((item.count / totalTechnicians) * 100)
-          : 0,
-    }));
 
     // Get property manager status distribution
     const propertyManagerStatus = await PropertyManager.aggregate([
@@ -976,10 +970,6 @@ router.get("/dashboard", authenticateAgency, async (req, res) => {
         properties.length > 0
           ? Math.round((jobs.length / properties.length) * 10) / 10
           : 0,
-      averageJobsPerTechnician:
-        technicians.length > 0
-          ? Math.round((jobs.length / technicians.length) * 10) / 10
-          : 0,
       averagePropertiesPerManager:
         propertyManagers.length > 0
           ? Math.round((properties.length / propertyManagers.length) * 10) / 10
@@ -993,7 +983,7 @@ router.get("/dashboard", authenticateAgency, async (req, res) => {
         quickStats,
         jobStatusDistribution: statusDistribution,
         propertyStatusDistribution: propertyStatusData,
-        technicianAvailability: technicianAvailabilityData,
+        propertyManagerAvailability: propertyManagerAvailabilityData,
         propertyManagerStatus: propertyManagerStatusData,
         monthlyProgress: monthlyProgressArray,
         recentJobs,
@@ -1351,13 +1341,13 @@ router.get("/:id", authenticateSuperUser, async (req, res) => {
       })
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-    // Get technicians managed by this agency
-    const technicians = await Technician.find({
+    // Get property managers managed by this agency
+    const propertyManagers = await PropertyManager.find({
       "owner.ownerType": "Agency",
       "owner.ownerId": id,
     })
       .select(
-        "fullName tradeType availabilityStatus currentJobs hourlyRate status createdAt"
+        "firstName lastName email phone availabilityStatus assignedProperties status createdAt"
       )
       .sort({ createdAt: -1 });
 
@@ -1365,7 +1355,7 @@ router.get("/:id", authenticateSuperUser, async (req, res) => {
     const stats = {
       totalProperties: properties.length,
       totalJobs: jobs.length,
-      totalTechnicians: technicians.length,
+      totalPropertyManagers: propertyManagers.length,
       jobStatusCounts: {
         pending: jobs.filter((job) => job.status === "Pending").length,
         scheduled: jobs.filter((job) => job.status === "Scheduled").length,
@@ -1380,15 +1370,15 @@ router.get("/:id", authenticateSuperUser, async (req, res) => {
           (prop) => prop.status === "Under Maintenance"
         ).length,
       },
-      technicianAvailability: {
-        available: technicians.filter(
-          (technician) => technician.availabilityStatus === "Available"
+      propertyManagerAvailability: {
+        available: propertyManagers.filter(
+          (manager) => manager.availabilityStatus === "Available"
         ).length,
-        busy: technicians.filter(
-          (technician) => technician.availabilityStatus === "Busy"
+        busy: propertyManagers.filter(
+          (manager) => manager.availabilityStatus === "Busy"
         ).length,
-        unavailable: technicians.filter(
-          (technician) => technician.availabilityStatus === "Unavailable"
+        unavailable: propertyManagers.filter(
+          (manager) => manager.availabilityStatus === "Unavailable"
         ).length,
       },
       financials: {
@@ -1484,15 +1474,15 @@ router.get("/:id", authenticateSuperUser, async (req, res) => {
           completedAt: job.completedAt,
           createdAt: job.createdAt,
         })),
-        technicians: technicians.map((technician) => ({
-          id: technician._id,
-          fullName: technician.fullName,
-          tradeType: technician.tradeType,
-          availabilityStatus: technician.availabilityStatus,
-          currentJobs: technician.currentJobs,
-          hourlyRate: technician.hourlyRate,
-          status: technician.status,
-          createdAt: technician.createdAt,
+        propertyManagers: propertyManagers.map((manager) => ({
+          id: manager._id,
+          fullName: `${manager.firstName} ${manager.lastName}`,
+          email: manager.email,
+          phone: manager.phone,
+          availabilityStatus: manager.availabilityStatus,
+          assignedPropertiesCount: manager.assignedProperties?.length || 0,
+          status: manager.status,
+          createdAt: manager.createdAt,
         })),
       },
     });

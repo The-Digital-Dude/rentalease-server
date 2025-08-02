@@ -338,6 +338,16 @@ router.post("/", authenticate, async (req, res) => {
     const property = new Property(propertyData);
     await property.save();
 
+    // If property manager is assigned, add property to their assignedProperties array
+    if (assignedPropertyManagerId) {
+      const propertyManager = await PropertyManager.findById(
+        assignedPropertyManagerId
+      );
+      if (propertyManager) {
+        await propertyManager.assignProperty(property._id, "Primary");
+      }
+    }
+
     // Populate agency and property manager details for response
     await property.populate("agency", "companyName contactPerson email phone");
     if (property.assignedPropertyManager) {
