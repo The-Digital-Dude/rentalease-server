@@ -760,6 +760,328 @@ class EmailService {
       templateData,
     });
   }
+
+  /**
+   * Send technician credentials email with login information
+   * @param {Object} technician - Technician object
+   * @param {string} technician.email - Technician's email
+   * @param {string} technician.fullName - Technician's full name
+   * @param {string} password - Technician's password
+   * @param {Object} owner - Owner object (Agency or SuperUser)
+   * @param {string} owner.name - Owner's name
+   * @param {string} owner.type - Owner type (Agency or SuperUser)
+   * @param {string} loginUrl - Login URL for the system
+   * @returns {Promise} - Email send result
+   */
+  async sendTechnicianCredentialsEmail(
+    technician,
+    password,
+    owner,
+    loginUrl = null
+  ) {
+    if (!technician || !technician.email || !technician.fullName) {
+      throw new Error("Invalid technician data provided for credentials email");
+    }
+
+    if (!password) {
+      throw new Error("Password is required for technician credentials email");
+    }
+
+    if (!owner || !owner.name || !owner.type) {
+      throw new Error(
+        "Invalid owner data provided for technician credentials email"
+      );
+    }
+
+    console.log("Sending technician credentials email:", {
+      email: technician.email,
+      fullName: technician.fullName,
+      ownerName: owner.name,
+      ownerType: owner.type,
+    });
+
+    return await this.sendTemplatedEmail({
+      to: technician.email,
+      templateName: "technicianCredentials",
+      templateData: {
+        fullName: technician.fullName,
+        email: technician.email,
+        password: password,
+        ownerName: owner.name,
+        ownerType: owner.type,
+        loginUrl: loginUrl,
+      },
+    });
+  }
+
+  /**
+   * Send job creation notification email to all stakeholders
+   * @param {Object} recipient - Recipient object
+   * @param {string} recipient.email - Recipient's email
+   * @param {string} recipient.name - Recipient's name
+   * @param {string} recipient.type - Recipient type (SuperUser, Agency, PropertyManager, Technician)
+   * @param {Object} job - Job object
+   * @param {Object} property - Property object
+   * @param {Object} creator - Creator object
+   * @param {Object} assignedTechnician - Assigned technician object (optional)
+   * @returns {Promise} - Email send result
+   */
+  async sendJobCreationNotificationEmail(
+    recipient,
+    job,
+    property,
+    creator,
+    assignedTechnician = null
+  ) {
+    if (!recipient || !recipient.email || !recipient.name || !recipient.type) {
+      throw new Error(
+        "Invalid recipient data provided for job creation notification email"
+      );
+    }
+
+    if (!job || !property || !creator) {
+      throw new Error(
+        "Invalid job, property, or creator data provided for job creation notification email"
+      );
+    }
+
+    // Format the due date for display
+    const formattedDueDate = new Date(job.dueDate).toLocaleDateString("en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    console.log("Sending job creation notification email:", {
+      recipientEmail: recipient.email,
+      recipientName: recipient.name,
+      recipientType: recipient.type,
+      jobId: job.job_id,
+      jobType: job.jobType,
+      propertyAddress: property.address.fullAddress,
+    });
+
+    return await this.sendTemplatedEmail({
+      to: recipient.email,
+      templateName: "jobCreationNotification",
+      templateData: {
+        recipientName: recipient.name,
+        recipientType: recipient.type,
+        jobId: job.job_id,
+        propertyAddress: property.address.fullAddress,
+        jobType: job.jobType,
+        dueDate: formattedDueDate,
+        priority: job.priority,
+        description: job.description || "",
+        creatorName: creator.name,
+        creatorType: creator.type,
+        assignedTechnician: assignedTechnician
+          ? assignedTechnician.fullName
+          : null,
+      },
+    });
+  }
+
+  /**
+   * Send job assignment notification email to all stakeholders
+   * @param {Object} recipient - Recipient object
+   * @param {string} recipient.email - Recipient's email
+   * @param {string} recipient.name - Recipient's name
+   * @param {string} recipient.type - Recipient type (SuperUser, Agency, PropertyManager, Technician)
+   * @param {Object} job - Job object
+   * @param {Object} property - Property object
+   * @param {Object} assignedTechnician - Assigned technician object
+   * @param {Object} assignedBy - User who assigned the job
+   * @returns {Promise} - Email send result
+   */
+  async sendJobAssignmentNotificationEmail(
+    recipient,
+    job,
+    property,
+    assignedTechnician,
+    assignedBy
+  ) {
+    if (!recipient || !recipient.email || !recipient.name || !recipient.type) {
+      throw new Error(
+        "Invalid recipient data provided for job assignment notification email"
+      );
+    }
+
+    if (!job || !property || !assignedTechnician || !assignedBy) {
+      throw new Error(
+        "Invalid job, property, assignedTechnician, or assignedBy data provided for job assignment notification email"
+      );
+    }
+
+    // Format the due date for display
+    const formattedDueDate = new Date(job.dueDate).toLocaleDateString("en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    console.log("Sending job assignment notification email:", {
+      recipientEmail: recipient.email,
+      recipientName: recipient.name,
+      recipientType: recipient.type,
+      jobId: job.job_id,
+      jobType: job.jobType,
+      propertyAddress: property.address.fullAddress,
+      assignedTechnician: assignedTechnician.fullName,
+    });
+
+    return await this.sendTemplatedEmail({
+      to: recipient.email,
+      templateName: "jobAssignmentNotification",
+      templateData: {
+        recipientName: recipient.name,
+        recipientType: recipient.type,
+        jobId: job.job_id,
+        propertyAddress: property.address.fullAddress,
+        jobType: job.jobType,
+        dueDate: formattedDueDate,
+        priority: job.priority,
+        assignedTechnician: assignedTechnician.fullName,
+        assignedBy: assignedBy.name,
+        assignedByType: assignedBy.type,
+      },
+    });
+  }
+
+  /**
+   * Send job completion notification email to all stakeholders
+   * @param {Object} recipient - Recipient object
+   * @param {string} recipient.email - Recipient's email
+   * @param {string} recipient.name - Recipient's name
+   * @param {string} recipient.type - Recipient type (SuperUser, Agency, PropertyManager, Technician)
+   * @param {Object} job - Job object
+   * @param {Object} property - Property object
+   * @param {Object} completedBy - Technician who completed the job
+   * @param {string} completionNotes - Completion notes (optional)
+   * @param {number} totalCost - Total cost of the job (optional)
+   * @returns {Promise} - Email send result
+   */
+  async sendJobCompletionNotificationEmail(
+    recipient,
+    job,
+    property,
+    completedBy,
+    completionNotes = null,
+    totalCost = null
+  ) {
+    if (!recipient || !recipient.email || !recipient.name || !recipient.type) {
+      throw new Error(
+        "Invalid recipient data provided for job completion notification email"
+      );
+    }
+
+    if (!job || !property || !completedBy) {
+      throw new Error(
+        "Invalid job, property, or completedBy data provided for job completion notification email"
+      );
+    }
+
+    // Format the completion date for display
+    const formattedCompletionDate = new Date(
+      job.completedAt || new Date()
+    ).toLocaleDateString("en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    console.log("Sending job completion notification email:", {
+      recipientEmail: recipient.email,
+      recipientName: recipient.name,
+      recipientType: recipient.type,
+      jobId: job.job_id,
+      jobType: job.jobType,
+      propertyAddress: property.address.fullAddress,
+      completedBy: completedBy.fullName,
+    });
+
+    return await this.sendTemplatedEmail({
+      to: recipient.email,
+      templateName: "jobCompletionNotification",
+      templateData: {
+        recipientName: recipient.name,
+        recipientType: recipient.type,
+        jobId: job.job_id,
+        propertyAddress: property.address.fullAddress,
+        jobType: job.jobType,
+        completedBy: completedBy.fullName,
+        completionDate: formattedCompletionDate,
+        completionNotes: completionNotes,
+        totalCost: totalCost,
+      },
+    });
+  }
+
+  /**
+   * Send compliance job notification email to all stakeholders
+   * @param {Object} recipient - Recipient object
+   * @param {string} recipient.email - Recipient's email
+   * @param {string} recipient.name - Recipient's name
+   * @param {string} recipient.type - Recipient type (SuperUser, Agency, PropertyManager, Technician)
+   * @param {Object} job - Job object
+   * @param {Object} property - Property object
+   * @returns {Promise} - Email send result
+   */
+  async sendComplianceJobNotificationEmail(recipient, job, property) {
+    if (!recipient || !recipient.email || !recipient.name || !recipient.type) {
+      throw new Error(
+        "Invalid recipient data provided for compliance job notification email"
+      );
+    }
+
+    if (!job || !property) {
+      throw new Error(
+        "Invalid job or property data provided for compliance job notification email"
+      );
+    }
+
+    // Format the due date for display
+    const formattedDueDate = new Date(job.dueDate).toLocaleDateString("en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    console.log("Sending compliance job notification email:", {
+      recipientEmail: recipient.email,
+      recipientName: recipient.name,
+      recipientType: recipient.type,
+      jobId: job.job_id,
+      jobType: job.jobType,
+      propertyAddress: property.address.fullAddress,
+    });
+
+    return await this.sendTemplatedEmail({
+      to: recipient.email,
+      templateName: "complianceJobNotification",
+      templateData: {
+        recipientName: recipient.name,
+        recipientType: recipient.type,
+        jobId: job.job_id,
+        propertyAddress: property.address.fullAddress,
+        jobType: job.jobType,
+        dueDate: formattedDueDate,
+        complianceType: job.jobType,
+      },
+    });
+  }
 }
 
 // Create and export a singleton instance

@@ -410,14 +410,6 @@ const jobAssignmentTemplate = (data) => ({
   `,
 });
 
-// Add more email templates here as needed
-const templates = {
-  welcome: welcomeTemplate,
-  passwordResetOTP: passwordResetOTPTemplate,
-  propertyManagerWelcome: propertyManagerWelcomeTemplate,
-  propertyManagerPasswordResetOTP: propertyManagerPasswordResetOTPTemplate,
-};
-
 /**
  * Email template for welcoming new staff members
  * @param {Object} data - Template data
@@ -702,10 +694,7 @@ const propertyManagerCredentialsTemplate = (data) => ({
               <td style="padding: 8px 0; color: #666; font-weight: bold;">Email:</td>
               <td style="padding: 8px 0; color: #333;">${data.email}</td>
             </tr>
-            <tr>
-              <td style="padding: 8px 0; color: #666; font-weight: bold;">ABN:</td>
-              <td style="padding: 8px 0; color: #333;">${data.abn}</td>
-            </tr>
+          
             <tr>
               <td style="padding: 8px 0; color: #666; font-weight: bold;">Region:</td>
               <td style="padding: 8px 0; color: #333;">${data.region}</td>
@@ -960,14 +949,570 @@ const agencyCredentialsTemplate = (data) => ({
   `,
 });
 
-// Add new templates to the existing templates object
-templates.staffWelcome = staffWelcomeTemplate;
-templates.staffStatusUpdate = staffStatusUpdateTemplate;
-templates.staffDocumentReminder = staffDocumentReminderTemplate;
-templates.jobAssignment = jobAssignmentTemplate;
-templates.propertyManagerCredentials = propertyManagerCredentialsTemplate;
-templates.agencyWelcome = agencyWelcomeTemplate;
-templates.agencyPasswordResetOTP = agencyPasswordResetOTPTemplate;
-templates.agencyCredentials = agencyCredentialsTemplate;
+/**
+ * Email template for technician credentials with login information
+ * @param {Object} data - Template data
+ * @param {string} data.fullName - Technician's full name
+ * @param {string} data.email - Technician's email
+ * @param {string} data.password - Technician's password
+ * @param {string} data.ownerName - Owner's name (Agency or SuperUser)
+ * @param {string} data.ownerType - Owner type (Agency or SuperUser)
+ * @param {string} data.loginUrl - Login URL for the system
+ * @returns {Object} - Email template configuration
+ */
+const technicianCredentialsTemplate = (data) => ({
+  subject: `Welcome to RentalEase CRM - Your Technician Account Credentials`,
+  html: `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+      <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #28a745; margin-bottom: 10px;">🎉 Welcome to RentalEase CRM!</h1>
+          <div style="width: 50px; height: 3px; background-color: #28a745; margin: 0 auto;"></div>
+        </div>
+        
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">Hello ${
+          data.fullName
+        },</p>
+        
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">
+          Congratulations! Your technician account has been successfully created by <strong>${
+            data.ownerName
+          }</strong> (${data.ownerType}). 
+          You can now access the RentalEase CRM system to manage your jobs and assignments efficiently.
+        </p>
+        
+        <div style="background-color: #e8f5e8; border: 2px solid #28a745; padding: 20px; border-radius: 8px; margin: 25px 0;">
+          <h3 style="color: #1e7e34; margin: 0 0 15px 0; font-size: 18px;">🔐 Your Login Credentials</h3>
+          
+          <div style="background-color: white; padding: 15px; border-radius: 5px; margin-bottom: 15px;">
+            <p style="color: #333; margin: 0 0 10px 0; font-size: 14px;"><strong>📧 Email:</strong></p>
+            <p style="color: #007bff; margin: 0; font-size: 16px; font-weight: bold; word-break: break-all;">${
+              data.email
+            }</p>
+          </div>
+          
+          <div style="background-color: white; padding: 15px; border-radius: 5px; margin-bottom: 15px;">
+            <p style="color: #333; margin: 0 0 10px 0; font-size: 14px;"><strong>🔑 Password:</strong></p>
+            <p style="color: #dc3545; margin: 0; font-size: 16px; font-weight: bold; letter-spacing: 1px; font-family: monospace;">${
+              data.password
+            }</p>
+          </div>
+          
+          <div style="background-color: white; padding: 15px; border-radius: 5px;">
+            <p style="color: #333; margin: 0 0 10px 0; font-size: 14px;"><strong>🌐 Login URL:</strong></p>
+            <p style="color: #007bff; margin: 0; font-size: 16px; font-weight: bold; word-break: break-all;">${
+              data.loginUrl || "https://rentalease-crm.com/login"
+            }</p>
+          </div>
+        </div>
+        
+        <div style="background-color: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <p style="color: #856404; margin: 0; font-size: 14px;">
+            <strong>🔒 Security Reminder:</strong> Please change your password after your first login for enhanced security. 
+            Keep your login credentials secure and don't share them with unauthorized personnel.
+          </p>
+        </div>
+        
+        <div style="background-color: #d1ecf1; border: 1px solid #bee5eb; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <h4 style="color: #0c5460; margin: 0 0 10px 0; font-size: 16px;">🚀 What You Can Do Now</h4>
+          <ul style="color: #0c5460; margin: 10px 0 0 20px; line-height: 1.6;">
+            <li>Log in to your technician dashboard</li>
+            <li>View and accept job assignments</li>
+            <li>Update job status and progress</li>
+            <li>Upload job completion photos and documents</li>
+            <li>Track your earnings and payments</li>
+            <li>Manage your availability and schedule</li>
+          </ul>
+        </div>
+        
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${data.loginUrl || "https://rentalease-crm.com/login"}" 
+             style="background-color: #28a745; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+            🚀 Login to Your Dashboard
+          </a>
+        </div>
+        
+        <div style="border-top: 1px solid #eee; padding-top: 20px; margin-top: 30px;">
+          <p style="color: #666; font-size: 12px; margin: 0;">
+            This email contains sensitive login information. Please store it securely and delete it after changing your password.
+          </p>
+        </div>
+        
+        <p style="color: #333; margin-top: 30px;">
+          Best regards,<br>
+          <strong>The RentalEase CRM Team</strong>
+        </p>
+      </div>
+    </div>
+  `,
+});
+
+/**
+ * Email template for job creation notification to all stakeholders
+ * @param {Object} data - Template data
+ * @param {string} data.recipientName - Recipient's name
+ * @param {string} data.recipientType - Recipient type (SuperUser, Agency, PropertyManager, Technician)
+ * @param {string} data.jobId - Job ID
+ * @param {string} data.propertyAddress - Property address
+ * @param {string} data.jobType - Job type
+ * @param {string} data.dueDate - Due date
+ * @param {string} data.priority - Job priority
+ * @param {string} data.description - Job description
+ * @param {string} data.creatorName - Creator's name
+ * @param {string} data.creatorType - Creator type
+ * @param {string} data.assignedTechnician - Assigned technician name (if any)
+ * @returns {Object} - Email template configuration
+ */
+const jobCreationNotificationTemplate = (data) => ({
+  subject: `New ${data.jobType} Job Created - ${data.propertyAddress}`,
+  html: `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+      <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #007bff; margin-bottom: 10px;">🆕 New Job Created</h1>
+          <div style="width: 50px; height: 3px; background-color: #007bff; margin: 0 auto;"></div>
+        </div>
+        
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">Hello ${
+          data.recipientName
+        },</p>
+        
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">
+          A new <strong>${
+            data.jobType
+          }</strong> job has been created and you have been notified as a stakeholder.
+        </p>
+        
+        <div style="background-color: #f8f9fa; border: 1px solid #dee2e6; padding: 20px; border-radius: 8px; margin: 25px 0;">
+          <h3 style="color: #495057; margin: 0 0 15px 0; font-size: 18px;">📋 Job Details</h3>
+          
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold; width: 40%;">Job ID:</td>
+              <td style="padding: 8px 0; color: #333; font-weight: bold;">${
+                data.jobId
+              }</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold;">Property Address:</td>
+              <td style="padding: 8px 0; color: #333;">${
+                data.propertyAddress
+              }</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold;">Job Type:</td>
+              <td style="padding: 8px 0; color: #333;">${data.jobType}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold;">Due Date:</td>
+              <td style="padding: 8px 0; color: #333;">${data.dueDate}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold;">Priority:</td>
+              <td style="padding: 8px 0;">
+                <span style="background-color: ${
+                  data.priority === "Urgent"
+                    ? "#dc3545"
+                    : data.priority === "High"
+                    ? "#fd7e14"
+                    : "#28a745"
+                }; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold;">
+                  ${data.priority}
+                </span>
+              </td>
+            </tr>
+            ${
+              data.assignedTechnician
+                ? `
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold;">Assigned Technician:</td>
+              <td style="padding: 8px 0; color: #333;">${data.assignedTechnician}</td>
+            </tr>
+            `
+                : ""
+            }
+          </table>
+        </div>
+        
+        ${
+          data.description
+            ? `
+        <div style="background-color: #e3f2fd; border: 1px solid #bbdefb; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <h4 style="color: #1565c0; margin: 0 0 10px 0; font-size: 16px;">📝 Job Description</h4>
+          <p style="color: #1565c0; margin: 0; line-height: 1.6;">${data.description}</p>
+        </div>
+        `
+            : ""
+        }
+        
+        <div style="background-color: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <p style="color: #856404; margin: 0; font-size: 14px;">
+            <strong>👤 Created by:</strong> ${data.creatorName} (${
+    data.creatorType
+  })
+          </p>
+        </div>
+        
+        <div style="background-color: #d1ecf1; border: 1px solid #bee5eb; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <h4 style="color: #0c5460; margin: 0 0 10px 0; font-size: 16px;">🔔 Next Steps</h4>
+          <ul style="color: #0c5460; margin: 10px 0 0 20px; line-height: 1.6;">
+            <li>Monitor job progress through your dashboard</li>
+            <li>Ensure timely completion within the due date</li>
+            <li>Communicate with other stakeholders as needed</li>
+            <li>Review job completion reports and documentation</li>
+          </ul>
+        </div>
+        
+        <p style="color: #333; margin-top: 30px;">
+          Best regards,<br>
+          <strong>The RentalEase CRM Team</strong>
+        </p>
+      </div>
+    </div>
+  `,
+});
+
+/**
+ * Email template for job assignment notification to all stakeholders
+ * @param {Object} data - Template data
+ * @param {string} data.recipientName - Recipient's name
+ * @param {string} data.recipientType - Recipient type (SuperUser, Agency, PropertyManager, Technician)
+ * @param {string} data.jobId - Job ID
+ * @param {string} data.propertyAddress - Property address
+ * @param {string} data.jobType - Job type
+ * @param {string} data.dueDate - Due date
+ * @param {string} data.priority - Job priority
+ * @param {string} data.assignedTechnician - Assigned technician name
+ * @param {string} data.assignedBy - Who assigned the job
+ * @param {string} data.assignedByType - Type of person who assigned
+ * @returns {Object} - Email template configuration
+ */
+const jobAssignmentNotificationTemplate = (data) => ({
+  subject: `Job Assigned to Technician - ${data.jobType} at ${data.propertyAddress}`,
+  html: `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+      <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #28a745; margin-bottom: 10px;">👷 Job Assigned</h1>
+          <div style="width: 50px; height: 3px; background-color: #28a745; margin: 0 auto;"></div>
+        </div>
+        
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">Hello ${
+          data.recipientName
+        },</p>
+        
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">
+          A <strong>${
+            data.jobType
+          }</strong> job has been assigned to a technician and you have been notified as a stakeholder.
+        </p>
+        
+        <div style="background-color: #f8f9fa; border: 1px solid #dee2e6; padding: 20px; border-radius: 8px; margin: 25px 0;">
+          <h3 style="color: #495057; margin: 0 0 15px 0; font-size: 18px;">📋 Job Assignment Details</h3>
+          
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold; width: 40%;">Job ID:</td>
+              <td style="padding: 8px 0; color: #333; font-weight: bold;">${
+                data.jobId
+              }</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold;">Property Address:</td>
+              <td style="padding: 8px 0; color: #333;">${
+                data.propertyAddress
+              }</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold;">Job Type:</td>
+              <td style="padding: 8px 0; color: #333;">${data.jobType}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold;">Due Date:</td>
+              <td style="padding: 8px 0; color: #333;">${data.dueDate}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold;">Priority:</td>
+              <td style="padding: 8px 0;">
+                <span style="background-color: ${
+                  data.priority === "Urgent"
+                    ? "#dc3545"
+                    : data.priority === "High"
+                    ? "#fd7e14"
+                    : "#28a745"
+                }; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold;">
+                  ${data.priority}
+                </span>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold;">Assigned Technician:</td>
+              <td style="padding: 8px 0; color: #333; font-weight: bold;">${
+                data.assignedTechnician
+              }</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold;">Assigned By:</td>
+              <td style="padding: 8px 0; color: #333;">${data.assignedBy} (${
+    data.assignedByType
+  })</td>
+            </tr>
+          </table>
+        </div>
+        
+        <div style="background-color: #d4edda; border: 1px solid #c3e6cb; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <p style="color: #155724; margin: 0; font-size: 14px;">
+            <strong>✅ Assignment Status:</strong> The job has been successfully assigned and the technician has been notified.
+          </p>
+        </div>
+        
+        <div style="background-color: #d1ecf1; border: 1px solid #bee5eb; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <h4 style="color: #0c5460; margin: 0 0 10px 0; font-size: 16px;">🔔 Next Steps</h4>
+          <ul style="color: #0c5460; margin: 10px 0 0 20px; line-height: 1.6;">
+            <li>Monitor job progress through your dashboard</li>
+            <li>Track technician's work and completion status</li>
+            <li>Review job completion reports and documentation</li>
+            <li>Ensure quality standards are met</li>
+          </ul>
+        </div>
+        
+        <p style="color: #333; margin-top: 30px;">
+          Best regards,<br>
+          <strong>The RentalEase CRM Team</strong>
+        </p>
+      </div>
+    </div>
+  `,
+});
+
+/**
+ * Email template for job completion notification to all stakeholders
+ * @param {Object} data - Template data
+ * @param {string} data.recipientName - Recipient's name
+ * @param {string} data.recipientType - Recipient type (SuperUser, Agency, PropertyManager, Technician)
+ * @param {string} data.jobId - Job ID
+ * @param {string} data.propertyAddress - Property address
+ * @param {string} data.jobType - Job type
+ * @param {string} data.completedBy - Technician who completed the job
+ * @param {string} data.completionDate - Completion date
+ * @param {string} data.completionNotes - Completion notes
+ * @param {string} data.totalCost - Total cost of the job
+ * @returns {Object} - Email template configuration
+ */
+const jobCompletionNotificationTemplate = (data) => ({
+  subject: `Job Completed - ${data.jobType} at ${data.propertyAddress}`,
+  html: `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+      <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #28a745; margin-bottom: 10px;">✅ Job Completed</h1>
+          <div style="width: 50px; height: 3px; background-color: #28a745; margin: 0 auto;"></div>
+        </div>
+        
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">Hello ${
+          data.recipientName
+        },</p>
+        
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">
+          Great news! A <strong>${
+            data.jobType
+          }</strong> job has been successfully completed and you have been notified as a stakeholder.
+        </p>
+        
+        <div style="background-color: #f8f9fa; border: 1px solid #dee2e6; padding: 20px; border-radius: 8px; margin: 25px 0;">
+          <h3 style="color: #495057; margin: 0 0 15px 0; font-size: 18px;">📋 Job Completion Details</h3>
+          
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold; width: 40%;">Job ID:</td>
+              <td style="padding: 8px 0; color: #333; font-weight: bold;">${
+                data.jobId
+              }</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold;">Property Address:</td>
+              <td style="padding: 8px 0; color: #333;">${
+                data.propertyAddress
+              }</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold;">Job Type:</td>
+              <td style="padding: 8px 0; color: #333;">${data.jobType}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold;">Completed By:</td>
+              <td style="padding: 8px 0; color: #333; font-weight: bold;">${
+                data.completedBy
+              }</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold;">Completion Date:</td>
+              <td style="padding: 8px 0; color: #333;">${
+                data.completionDate
+              }</td>
+            </tr>
+            ${
+              data.totalCost
+                ? `
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold;">Total Cost:</td>
+              <td style="padding: 8px 0; color: #333; font-weight: bold;">$${data.totalCost}</td>
+            </tr>
+            `
+                : ""
+            }
+          </table>
+        </div>
+        
+        ${
+          data.completionNotes
+            ? `
+        <div style="background-color: #e3f2fd; border: 1px solid #bbdefb; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <h4 style="color: #1565c0; margin: 0 0 10px 0; font-size: 16px;">📝 Completion Notes</h4>
+          <p style="color: #1565c0; margin: 0; line-height: 1.6;">${data.completionNotes}</p>
+        </div>
+        `
+            : ""
+        }
+        
+        <div style="background-color: #d4edda; border: 1px solid #c3e6cb; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <p style="color: #155724; margin: 0; font-size: 14px;">
+            <strong>✅ Status:</strong> Job has been marked as completed and all documentation has been submitted.
+          </p>
+        </div>
+        
+        <div style="background-color: #d1ecf1; border: 1px solid #bee5eb; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <h4 style="color: #0c5460; margin: 0 0 10px 0; font-size: 16px;">🔔 Next Steps</h4>
+          <ul style="color: #0c5460; margin: 10px 0 0 20px; line-height: 1.6;">
+            <li>Review the completed work and documentation</li>
+            <li>Approve the job completion if satisfied</li>
+            <li>Process any associated invoices or payments</li>
+            <li>Update property records as needed</li>
+          </ul>
+        </div>
+        
+        <p style="color: #333; margin-top: 30px;">
+          Best regards,<br>
+          <strong>The RentalEase CRM Team</strong>
+        </p>
+      </div>
+    </div>
+  `,
+});
+
+/**
+ * Email template for compliance job notification to all stakeholders
+ * @param {Object} data - Template data
+ * @param {string} data.recipientName - Recipient's name
+ * @param {string} data.recipientType - Recipient type (SuperUser, Agency, PropertyManager, Technician)
+ * @param {string} data.jobId - Job ID
+ * @param {string} data.propertyAddress - Property address
+ * @param {string} data.jobType - Job type (Gas, Electrical, Smoke)
+ * @param {string} data.dueDate - Due date
+ * @param {string} data.complianceType - Compliance type
+ * @returns {Object} - Email template configuration
+ */
+const complianceJobNotificationTemplate = (data) => ({
+  subject: `Compliance ${data.jobType} Due - ${data.propertyAddress}`,
+  html: `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+      <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #dc3545; margin-bottom: 10px;">⚠️ Compliance Due</h1>
+          <div style="width: 50px; height: 3px; background-color: #dc3545; margin: 0 auto;"></div>
+        </div>
+        
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">Hello ${data.recipientName},</p>
+        
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">
+          A <strong>${data.jobType}</strong> compliance inspection is due and you have been notified as a stakeholder.
+        </p>
+        
+        <div style="background-color: #f8f9fa; border: 1px solid #dee2e6; padding: 20px; border-radius: 8px; margin: 25px 0;">
+          <h3 style="color: #495057; margin: 0 0 15px 0; font-size: 18px;">📋 Compliance Details</h3>
+          
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold; width: 40%;">Job ID:</td>
+              <td style="padding: 8px 0; color: #333; font-weight: bold;">${data.jobId}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold;">Property Address:</td>
+              <td style="padding: 8px 0; color: #333;">${data.propertyAddress}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold;">Compliance Type:</td>
+              <td style="padding: 8px 0; color: #333;">${data.jobType}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold;">Due Date:</td>
+              <td style="padding: 8px 0; color: #333;">${data.dueDate}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold;">Priority:</td>
+              <td style="padding: 8px 0;">
+                <span style="background-color: #dc3545; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold;">
+                  High
+                </span>
+              </td>
+            </tr>
+          </table>
+        </div>
+        
+        <div style="background-color: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <p style="color: #856404; margin: 0; font-size: 14px;">
+            <strong>⚠️ Important:</strong> This is a compliance requirement that must be completed by the due date to ensure property safety and legal compliance.
+          </p>
+        </div>
+        
+        <div style="background-color: #d1ecf1; border: 1px solid #bee5eb; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <h4 style="color: #0c5460; margin: 0 0 10px 0; font-size: 16px;">🔔 Required Actions</h4>
+          <ul style="color: #0c5460; margin: 10px 0 0 20px; line-height: 1.6;">
+            <li>Assign a qualified technician to perform the inspection</li>
+            <li>Ensure the inspection is completed before the due date</li>
+            <li>Upload inspection reports and compliance certificates</li>
+            <li>Update property compliance records</li>
+            <li>Schedule follow-up inspections as required</li>
+          </ul>
+        </div>
+        
+        <p style="color: #333; margin-top: 30px;">
+          Best regards,<br>
+          <strong>The RentalEase CRM Team</strong>
+        </p>
+      </div>
+    </div>
+  `,
+});
+
+// Create templates object with all email templates
+const templates = {
+  // Original templates
+  welcome: welcomeTemplate,
+  passwordResetOTP: passwordResetOTPTemplate,
+  propertyManagerWelcome: propertyManagerWelcomeTemplate,
+  propertyManagerPasswordResetOTP: propertyManagerPasswordResetOTPTemplate,
+
+  // Staff templates
+  staffWelcome: staffWelcomeTemplate,
+  staffStatusUpdate: staffStatusUpdateTemplate,
+  staffDocumentReminder: staffDocumentReminderTemplate,
+
+  // Job templates
+  jobAssignment: jobAssignmentTemplate,
+  jobCreationNotification: jobCreationNotificationTemplate,
+  jobAssignmentNotification: jobAssignmentNotificationTemplate,
+  jobCompletionNotification: jobCompletionNotificationTemplate,
+
+  // Credentials templates
+  propertyManagerCredentials: propertyManagerCredentialsTemplate,
+  agencyWelcome: agencyWelcomeTemplate,
+  agencyPasswordResetOTP: agencyPasswordResetOTPTemplate,
+  agencyCredentials: agencyCredentialsTemplate,
+  technicianCredentials: technicianCredentialsTemplate,
+
+  // Compliance templates
+  complianceJobNotification: complianceJobNotificationTemplate,
+};
 
 export default templates;

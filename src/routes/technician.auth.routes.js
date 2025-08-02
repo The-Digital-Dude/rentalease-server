@@ -1,6 +1,8 @@
 import express from "express";
 import jwt from "jsonwebtoken";
 import Technician from "../models/Technician.js";
+import Agency from "../models/Agency.js";
+import SuperUser from "../models/SuperUser.js";
 import { authenticate } from "../middleware/auth.middleware.js";
 import emailService from "../services/email.service.js";
 import { generateOTP } from "../utils/otpGenerator.js";
@@ -95,12 +97,61 @@ router.post("/register", async (req, res) => {
 
     await technician.save();
 
+    // Send credentials email to technician
+    try {
+      // Get owner details for email
+      let ownerDetails = { name: "System Administrator", type: "SuperUser" };
+
+      if (ownerType === "Agency") {
+        const agency = await Agency.findById(ownerId);
+        if (agency) {
+          ownerDetails = { name: agency.contactPerson, type: "Agency" };
+        }
+      } else if (ownerType === "SuperUser") {
+        const superUser = await SuperUser.findById(ownerId);
+        if (superUser) {
+          ownerDetails = {
+            name: superUser.fullName || "Super User",
+            type: "SuperUser",
+          };
+        }
+      }
+
+      await emailService.sendTechnicianCredentialsEmail(
+        technician,
+        password,
+        ownerDetails,
+        process.env.FRONTEND_URL || "https://rentalease-crm.com/login"
+      );
+
+      console.log("Technician credentials email sent successfully:", {
+        technicianId: technician._id,
+        email: technician.email,
+        fullName: technician.fullName,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (emailError) {
+      console.error("Failed to send technician credentials email:", emailError);
+      // Continue with response even if email fails
+    }
+
     // Generate token
     const token = generateToken(technician);
 
+    console.log("Technician created successfully:", {
+      technicianId: technician._id,
+      fullName: technician.fullName,
+      email: technician.email,
+      ownerType: ownerType,
+      ownerId: ownerId,
+      credentialsEmailSent: "Credentials email sent with login information",
+      timestamp: new Date().toISOString(),
+    });
+
     res.status(201).json({
       status: "success",
-      message: "Technician account created successfully",
+      message:
+        "Technician account created successfully. Credentials email has been sent.",
       data: {
         technician: {
           id: technician._id,

@@ -109,30 +109,6 @@ const getUserInfo = (req) => {
   return null;
 };
 
-// Helper function to send job assignment email
-const sendJobAssignmentNotification = async (technician, job, assignedBy) => {
-  try {
-    await emailService.sendJobAssignmentEmail(technician, job, assignedBy);
-    console.log("Job assignment email sent successfully:", {
-      jobId: job.job_id,
-      technicianEmail: technician.email,
-      technicianName: technician.fullName,
-      assignedBy: assignedBy.name,
-      timestamp: new Date().toISOString(),
-    });
-  } catch (error) {
-    // Log error but don't fail the assignment
-    console.error("Failed to send job assignment email:", {
-      jobId: job.job_id,
-      technicianEmail: technician.email,
-      technicianName: technician.fullName,
-      assignedBy: assignedBy.name,
-      error: error.message,
-      timestamp: new Date().toISOString(),
-    });
-  }
-};
-
 // CREATE - Add new job
 router.post("/", authenticate, async (req, res) => {
   try {
@@ -244,54 +220,37 @@ router.post("/", authenticate, async (req, res) => {
         "fullName phone email availabilityStatus"
       );
 
-      // Send notifications to technician if job was assigned during creation
-      if (technician) {
-        const assignedBy = getUserInfo(req);
-        if (assignedBy) {
-          try {
-            // Get property details for notification
-            const property = await Property.findById(job.property).populate(
-              "address"
-            );
-
-            // Send in-app notifications to technician, agency, and super users
-            await notificationService.sendJobAssignmentNotification(
-              job,
-              technician,
-              assignedBy,
-              property
-            );
-
-            // Send email notification (existing functionality)
-            sendJobAssignmentNotification(technician, job, assignedBy);
-          } catch (notificationError) {
-            // Log error but don't fail the job creation
-            console.error("Failed to send job assignment notifications:", {
-              jobId: job._id,
-              technicianId: technician._id,
-              error: notificationError.message,
-              timestamp: new Date().toISOString(),
-            });
-          }
-        }
-      }
-
-      // Send notification to agency and super users about job creation
+      // Send comprehensive notifications for job creation
       try {
-        const property = await Property.findById(property).populate("address");
+        const property = await Property.findById(job.property).populate(
+          "address"
+        );
         const creator = getUserInfo(req);
 
         if (property && creator) {
-          // Send notification asynchronously (don't wait for it)
-          notificationService.sendJobCreationNotification(
+          // Send job creation notification to all stakeholders
+          await notificationService.sendJobCreationNotification(
             job,
             property,
             creator
           );
+
+          // If technician was assigned during creation, send assignment notification
+          if (technician) {
+            const assignedBy = getUserInfo(req);
+            if (assignedBy) {
+              await notificationService.sendJobAssignmentNotification(
+                job,
+                property,
+                technician,
+                assignedBy
+              );
+            }
+          }
         }
       } catch (notificationError) {
         // Log error but don't fail the job creation
-        console.error("Failed to send job creation notification:", {
+        console.error("Failed to send job notifications:", {
           jobId: job._id,
           error: notificationError.message,
           timestamp: new Date().toISOString(),
@@ -1041,15 +1000,13 @@ router.put("/:id", authenticate, async (req, res) => {
             if (!previousTechnician && newTechnician) {
               const newTech = await Technician.findById(newTechnician);
               if (newTech) {
-                // Send in-app notifications
+                // Send comprehensive job assignment notification
                 await notificationService.sendJobAssignmentNotification(
                   job,
+                  property,
                   newTech,
-                  assignedBy,
-                  property
+                  assignedBy
                 );
-                // Send email notification (existing functionality)
-                sendJobAssignmentNotification(newTech, job, assignedBy);
               }
             }
             // If technician was changed from one to another (reassignment)
@@ -1060,15 +1017,13 @@ router.put("/:id", authenticate, async (req, res) => {
             ) {
               const newTech = await Technician.findById(newTechnician);
               if (newTech) {
-                // Send in-app notifications
+                // Send comprehensive job assignment notification
                 await notificationService.sendJobAssignmentNotification(
                   job,
+                  property,
                   newTech,
-                  assignedBy,
-                  property
+                  assignedBy
                 );
-                // Send email notification (existing functionality)
-                sendJobAssignmentNotification(newTech, job, assignedBy);
               }
             }
           } catch (notificationError) {
@@ -1320,16 +1275,13 @@ router.patch("/:id/assign", authenticateSuperUser, async (req, res) => {
             "address"
           );
 
-          // Send in-app notifications
+          // Send comprehensive job assignment notification
           await notificationService.sendJobAssignmentNotification(
             job,
+            property,
             technician,
-            assignedBy,
-            property
+            assignedBy
           );
-
-          // Send email notification (existing functionality)
-          sendJobAssignmentNotification(technician, job, assignedBy);
         } catch (notificationError) {
           // Log error but don't fail the job assignment
           console.error("Failed to send job assignment notifications:", {
@@ -1473,16 +1425,13 @@ router.patch("/:id/claim", authenticate, async (req, res) => {
             "address"
           );
 
-          // Send in-app notifications
+          // Send comprehensive job assignment notification
           await notificationService.sendJobAssignmentNotification(
             job,
+            property,
             technician,
-            claimedBy,
-            property
+            claimedBy
           );
-
-          // Send email notification (existing functionality)
-          sendJobAssignmentNotification(technician, job, claimedBy);
         } catch (notificationError) {
           // Log error but don't fail the job claim
           console.error("Failed to send job assignment notifications:", {
@@ -1842,12 +1791,13 @@ router.patch(
               updatedJob.property
             ).populate("address");
 
-            // Send in-app notifications for job completion
+            // Send comprehensive job completion notification
             await notificationService.sendJobCompletionNotification(
               updatedJob,
+              property,
               technician,
-              completedBy,
-              property
+              completionNotes,
+              totalCost
             );
           } catch (notificationError) {
             // Log error but don't fail the job completion

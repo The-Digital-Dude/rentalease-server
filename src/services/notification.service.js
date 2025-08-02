@@ -4,15 +4,15 @@ import SuperUser from "../models/SuperUser.js";
 import Property from "../models/Property.js";
 import Technician from "../models/Technician.js";
 import PropertyManager from "../models/PropertyManager.js";
+import emailService from "./email.service.js";
 
 class NotificationService {
   constructor() {
     this.notificationHandlers = {
       // Current notification handler (Facebook-style)
       notification: this.sendInAppNotification.bind(this),
-      // Future handlers (commented out for now)
-      // email: this.sendEmailNotification.bind(this),
-      // sms: this.sendSMSNotification.bind(this),
+      // Email notification handler
+      email: this.sendEmailNotification.bind(this),
     };
   }
 
@@ -123,6 +123,365 @@ class NotificationService {
   }
 
   /**
+   * Send email notification
+   * @param {Object} recipient - Recipient object
+   * @param {Object} notificationData - Notification data
+   */
+  async sendEmailNotification(recipient, notificationData) {
+    try {
+      // Get recipient details based on type
+      let recipientDetails = null;
+
+      switch (recipient.recipientType) {
+        case "SuperUser":
+          const superUser = await SuperUser.findById(recipient.recipientId);
+          if (superUser) {
+            recipientDetails = {
+              email: superUser.email,
+              name: superUser.fullName || "Super User",
+              type: "SuperUser",
+            };
+          }
+          break;
+        case "Agency":
+          const agency = await Agency.findById(recipient.recipientId);
+          if (agency) {
+            recipientDetails = {
+              email: agency.email,
+              name: agency.contactPerson,
+              type: "Agency",
+            };
+          }
+          break;
+        case "PropertyManager":
+          const propertyManager = await PropertyManager.findById(
+            recipient.recipientId
+          );
+          if (propertyManager) {
+            recipientDetails = {
+              email: propertyManager.email,
+              name: `${propertyManager.firstName} ${propertyManager.lastName}`,
+              type: "PropertyManager",
+            };
+          }
+          break;
+        case "Technician":
+          const technician = await Technician.findById(recipient.recipientId);
+          if (technician) {
+            recipientDetails = {
+              email: technician.email,
+              name: technician.fullName,
+              type: "Technician",
+            };
+          }
+          break;
+      }
+
+      if (!recipientDetails) {
+        console.warn(
+          `Recipient not found for ${recipient.recipientType}:${recipient.recipientId}`
+        );
+        return {
+          recipient,
+          channel: "email",
+          success: false,
+          error: "Recipient not found",
+        };
+      }
+
+      // Send email based on notification type
+      let emailResult;
+      switch (notificationData.type) {
+        case "JOB_CREATED":
+          emailResult = await this.sendJobCreationEmailNotification(
+            recipientDetails,
+            notificationData
+          );
+          break;
+        case "JOB_ASSIGNED":
+          emailResult = await this.sendJobAssignmentEmailNotification(
+            recipientDetails,
+            notificationData
+          );
+          break;
+        case "JOB_COMPLETED":
+          emailResult = await this.sendJobCompletionEmailNotification(
+            recipientDetails,
+            notificationData
+          );
+          break;
+        case "COMPLIANCE_DUE":
+          emailResult = await this.sendComplianceJobEmailNotification(
+            recipientDetails,
+            notificationData
+          );
+          break;
+        default:
+          // Generic email notification
+          emailResult = await this.sendGenericEmailNotification(
+            recipientDetails,
+            notificationData
+          );
+      }
+
+      console.log(
+        `✅ Email notification sent to ${recipient.recipientType}:${recipient.recipientId}`,
+        {
+          type: notificationData.type,
+          title: notificationData.title,
+          timestamp: new Date().toISOString(),
+        }
+      );
+
+      return {
+        recipient,
+        channel: "email",
+        success: true,
+        result: emailResult,
+      };
+    } catch (error) {
+      console.error("Error sending email notification:", error);
+      return {
+        recipient,
+        channel: "email",
+        success: false,
+        error: error.message,
+      };
+    }
+  }
+
+  /**
+   * Send generic email notification
+   * @param {Object} recipientDetails - Recipient details
+   * @param {Object} notificationData - Notification data
+   */
+  async sendGenericEmailNotification(recipientDetails, notificationData) {
+    const emailSubject = `${notificationData.title} - ${notificationData.type}`;
+    const emailBody = `
+      <h2>${notificationData.title}</h2>
+      <p>${notificationData.message}</p>
+      <p>Data: ${JSON.stringify(notificationData.data)}</p>
+      <p>Priority: ${notificationData.priority}</p>
+      <p>Expires At: ${notificationData.expiresAt || "Never"}</p>
+    `;
+
+    return await emailService.sendTemplatedEmail({
+      to: recipientDetails.email,
+      templateName: "genericNotification",
+      templateData: {
+        recipientName: recipientDetails.name,
+        title: notificationData.title,
+        message: notificationData.message,
+        data: notificationData.data,
+        priority: notificationData.priority,
+        expiresAt: notificationData.expiresAt,
+      },
+    });
+  }
+
+  /**
+   * Send job creation email notification
+   * @param {Object} recipientDetails - Recipient details
+   * @param {Object} notificationData - Notification data
+   */
+  async sendJobCreationEmailNotification(recipientDetails, notificationData) {
+    // Extract job and property data from notification
+    const { jobId, propertyId, jobType, dueDate, priority, creator } =
+      notificationData.data;
+
+    // Get job and property details
+    const Job = (await import("../models/Job.js")).default;
+    const Property = (await import("../models/Property.js")).default;
+
+    const job = await Job.findById(jobId);
+    const property = await Property.findById(propertyId).populate("address");
+
+    if (!job || !property) {
+      throw new Error("Job or property not found for email notification");
+    }
+
+    // Get creator details
+    let creatorDetails = { name: "Unknown", type: "Unknown" };
+    if (creator) {
+      switch (creator.userType) {
+        case "SuperUser":
+          const superUser = await SuperUser.findById(creator.userId);
+          if (superUser) {
+            creatorDetails = {
+              name: superUser.fullName || "Super User",
+              type: "SuperUser",
+            };
+          }
+          break;
+        case "Agency":
+          const agency = await Agency.findById(creator.userId);
+          if (agency) {
+            creatorDetails = { name: agency.contactPerson, type: "Agency" };
+          }
+          break;
+        case "PropertyManager":
+          const propertyManager = await PropertyManager.findById(
+            creator.userId
+          );
+          if (propertyManager) {
+            creatorDetails = {
+              name: `${propertyManager.firstName} ${propertyManager.lastName}`,
+              type: "PropertyManager",
+            };
+          }
+          break;
+      }
+    }
+
+    // Get assigned technician if any
+    let assignedTechnician = null;
+    if (job.assignedTechnician) {
+      const technician = await Technician.findById(job.assignedTechnician);
+      if (technician) {
+        assignedTechnician = technician;
+      }
+    }
+
+    return await emailService.sendJobCreationNotificationEmail(
+      recipientDetails,
+      job,
+      property,
+      creatorDetails,
+      assignedTechnician
+    );
+  }
+
+  /**
+   * Send job assignment email notification
+   * @param {Object} recipientDetails - Recipient details
+   * @param {Object} notificationData - Notification data
+   */
+  async sendJobAssignmentEmailNotification(recipientDetails, notificationData) {
+    // Extract job and property data from notification
+    const { jobId, propertyId, assignedTechnicianId, assignedBy } =
+      notificationData.data;
+
+    // Get job and property details
+    const Job = (await import("../models/Job.js")).default;
+    const Property = (await import("../models/Property.js")).default;
+
+    const job = await Job.findById(jobId);
+    const property = await Property.findById(propertyId).populate("address");
+    const assignedTechnician = await Technician.findById(assignedTechnicianId);
+
+    if (!job || !property || !assignedTechnician) {
+      throw new Error(
+        "Job, property, or assigned technician not found for email notification"
+      );
+    }
+
+    // Get assignedBy details
+    let assignedByDetails = { name: "Unknown", type: "Unknown" };
+    if (assignedBy) {
+      switch (assignedBy.userType) {
+        case "SuperUser":
+          const superUser = await SuperUser.findById(assignedBy.userId);
+          if (superUser) {
+            assignedByDetails = {
+              name: superUser.fullName || "Super User",
+              type: "SuperUser",
+            };
+          }
+          break;
+        case "Agency":
+          const agency = await Agency.findById(assignedBy.userId);
+          if (agency) {
+            assignedByDetails = { name: agency.contactPerson, type: "Agency" };
+          }
+          break;
+        case "PropertyManager":
+          const propertyManager = await PropertyManager.findById(
+            assignedBy.userId
+          );
+          if (propertyManager) {
+            assignedByDetails = {
+              name: `${propertyManager.firstName} ${propertyManager.lastName}`,
+              type: "PropertyManager",
+            };
+          }
+          break;
+      }
+    }
+
+    return await emailService.sendJobAssignmentNotificationEmail(
+      recipientDetails,
+      job,
+      property,
+      assignedTechnician,
+      assignedByDetails
+    );
+  }
+
+  /**
+   * Send job completion email notification
+   * @param {Object} recipientDetails - Recipient details
+   * @param {Object} notificationData - Notification data
+   */
+  async sendJobCompletionEmailNotification(recipientDetails, notificationData) {
+    // Extract job and property data from notification
+    const { jobId, propertyId, completedBy, completionNotes, totalCost } =
+      notificationData.data;
+
+    // Get job and property details
+    const Job = (await import("../models/Job.js")).default;
+    const Property = (await import("../models/Property.js")).default;
+
+    const job = await Job.findById(jobId);
+    const property = await Property.findById(propertyId).populate("address");
+    const completedByTechnician = await Technician.findById(completedBy);
+
+    if (!job || !property || !completedByTechnician) {
+      throw new Error(
+        "Job, property, or completedBy technician not found for email notification"
+      );
+    }
+
+    return await emailService.sendJobCompletionNotificationEmail(
+      recipientDetails,
+      job,
+      property,
+      completedByTechnician,
+      completionNotes,
+      totalCost
+    );
+  }
+
+  /**
+   * Send compliance job email notification
+   * @param {Object} recipientDetails - Recipient details
+   * @param {Object} notificationData - Notification data
+   */
+  async sendComplianceJobEmailNotification(recipientDetails, notificationData) {
+    // Extract job and property data from notification
+    const { jobId, propertyId, jobType, dueDate, complianceType } =
+      notificationData.data;
+
+    // Get job and property details
+    const Job = (await import("../models/Job.js")).default;
+    const Property = (await import("../models/Property.js")).default;
+
+    const job = await Job.findById(jobId);
+    const property = await Property.findById(propertyId).populate("address");
+
+    if (!job || !property) {
+      throw new Error(
+        "Job or property not found for compliance email notification"
+      );
+    }
+
+    return await emailService.sendComplianceJobNotificationEmail(
+      recipientDetails,
+      job,
+      property
+    );
+  }
+
+  /**
    * Send job creation notification to agency, super users, and assigned PropertyManagers
    * @param {Object} job - Job object
    * @param {Object} property - Property object
@@ -183,8 +542,12 @@ class NotificationService {
         priority: job.priority === "Urgent" ? "Urgent" : "High",
       };
 
-      // Send notifications
-      const results = await this.sendNotification(recipients, notificationData);
+      // Send notifications (both in-app and email)
+      const results = await this.sendNotification(
+        recipients,
+        notificationData,
+        ["notification", "email"]
+      );
 
       console.log(
         `✅ Job creation notifications sent to ${recipients.length} recipients`,
@@ -271,8 +634,12 @@ class NotificationService {
         priority: "High",
       };
 
-      // Send notifications
-      const results = await this.sendNotification(recipients, notificationData);
+      // Send notifications (both in-app and email)
+      const results = await this.sendNotification(
+        recipients,
+        notificationData,
+        ["notification", "email"]
+      );
 
       console.log(
         `✅ Compliance job notifications sent to ${recipients.length} recipients`,
@@ -294,31 +661,22 @@ class NotificationService {
   }
 
   /**
-   * Send job assignment notification to technician, agency, and super users
+   * Send job assignment notification to all stakeholders
    * @param {Object} job - Job object
-   * @param {Object} technician - Technician object
+   * @param {Object} property - Property object
+   * @param {Object} assignedTechnician - Assigned technician object
    * @param {Object} assignedBy - User who assigned the job
-   * @param {Object} property - Property object (optional)
    */
   async sendJobAssignmentNotification(
     job,
-    technician,
-    assignedBy,
-    property = null
+    property,
+    assignedTechnician,
+    assignedBy
   ) {
     try {
-      console.log(technician, "technician");
       const recipients = [];
 
-      // Add technician as recipient
-      recipients.push({
-        recipientType: "Technician",
-        recipientId: technician._id,
-      });
-
-      console.log(recipients, "recipients");
-
-      // Add agency as recipient (if job belongs to an agency)
+      // Add agency as recipient
       if (job.owner.ownerType === "Agency") {
         recipients.push({
           recipientType: "Agency",
@@ -335,67 +693,60 @@ class NotificationService {
         });
       });
 
-      // Get property details if not provided
-      if (!property && job.property) {
-        property = await Property.findById(job.property).populate("address");
-      }
+      // Add PropertyManagers assigned to this property
+      const propertyManagers = await this.getPropertyManagersForProperty(
+        property._id
+      );
+      propertyManagers.forEach((propertyManager) => {
+        recipients.push({
+          recipientType: "PropertyManager",
+          recipientId: propertyManager._id,
+        });
+      });
 
-      const propertyAddress =
-        property?.address?.fullAddress || "Unknown address";
+      // Add the assigned technician as recipient
+      recipients.push({
+        recipientType: "Technician",
+        recipientId: assignedTechnician._id,
+      });
 
       // Prepare notification data
       const notificationData = {
         type: "JOB_ASSIGNED",
-        title: `${job.jobType} Job Assigned`,
-        message: `${assignedBy.name} has assigned a ${
-          job.jobType
-        } job at ${propertyAddress} to ${
-          technician.fullName
-        }. Due date: ${new Date(job.dueDate).toLocaleDateString()}`,
+        title: `Job Assigned to Technician`,
+        message: `A ${job.jobType} job at ${property.address.fullAddress} has been assigned to ${assignedTechnician.fullName}`,
         data: {
           jobId: job._id,
           job_id: job.job_id,
-          propertyId: property?._id,
-          propertyAddress: propertyAddress,
+          propertyId: property._id,
+          propertyAddress: property.address.fullAddress,
           jobType: job.jobType,
           dueDate: job.dueDate,
           priority: job.priority,
-          technician: {
-            id: technician._id,
-            fullName: technician.fullName,
-            email: technician.email,
-          },
+          assignedTechnicianId: assignedTechnician._id,
           assignedBy: {
-            userType: assignedBy.type,
+            userType: assignedBy.userType,
             userId: assignedBy.userId,
-            name: assignedBy.name,
           },
         },
         priority: job.priority === "Urgent" ? "Urgent" : "High",
       };
 
-      // Send notifications
-      const results = await this.sendNotification(recipients, notificationData);
-
-      // Get PropertyManagers for logging
-      let propertyManagersNotified = 0;
-      if (property) {
-        const propertyManagers = await this.getPropertyManagersForProperty(
-          property._id
-        );
-        propertyManagersNotified = propertyManagers.length;
-      }
+      // Send notifications (both in-app and email)
+      const results = await this.sendNotification(
+        recipients,
+        notificationData,
+        ["notification", "email"]
+      );
 
       console.log(
         `✅ Job assignment notifications sent to ${recipients.length} recipients`,
         {
           jobId: job._id,
           jobType: job.jobType,
-          technicianName: technician.fullName,
-          assignedBy: assignedBy.name,
-          propertyAddress: propertyAddress,
+          propertyAddress: property.address.fullAddress,
+          assignedTechnician: assignedTechnician.fullName,
           results: results.length,
-          propertyManagersNotified: propertyManagersNotified,
           timestamp: new Date().toISOString(),
         }
       );
@@ -408,22 +759,24 @@ class NotificationService {
   }
 
   /**
-   * Send job completion notification
+   * Send job completion notification to all stakeholders
    * @param {Object} job - Job object
-   * @param {Object} technician - Technician object
-   * @param {Object} completedBy - User who completed the job
    * @param {Object} property - Property object
+   * @param {Object} completedBy - Technician who completed the job
+   * @param {string} completionNotes - Completion notes (optional)
+   * @param {number} totalCost - Total cost of the job (optional)
    */
   async sendJobCompletionNotification(
     job,
-    technician,
+    property,
     completedBy,
-    property = null
+    completionNotes = null,
+    totalCost = null
   ) {
     try {
       const recipients = [];
 
-      // Add agency as recipient (if job belongs to an agency)
+      // Add agency as recipient
       if (job.owner.ownerType === "Agency") {
         recipients.push({
           recipientType: "Agency",
@@ -440,79 +793,56 @@ class NotificationService {
         });
       });
 
-      // Get property details if not provided
-      if (!property && job.property) {
-        property = await Property.findById(job.property).populate("address");
-      }
-
       // Add PropertyManagers assigned to this property
-      if (property) {
-        const propertyManagers = await this.getPropertyManagersForProperty(
-          property._id
-        );
-        propertyManagers.forEach((propertyManager) => {
-          recipients.push({
-            recipientType: "PropertyManager",
-            recipientId: propertyManager._id,
-          });
+      const propertyManagers = await this.getPropertyManagersForProperty(
+        property._id
+      );
+      propertyManagers.forEach((propertyManager) => {
+        recipients.push({
+          recipientType: "PropertyManager",
+          recipientId: propertyManager._id,
         });
-      }
+      });
 
-      const propertyAddress =
-        property?.address?.fullAddress || "Unknown address";
+      // Add the technician who completed the job as recipient
+      recipients.push({
+        recipientType: "Technician",
+        recipientId: completedBy._id,
+      });
 
       // Prepare notification data
       const notificationData = {
         type: "JOB_COMPLETED",
-        title: `${job.jobType} Job Completed`,
-        message: `${completedBy.name} has completed a ${
-          job.jobType
-        } job at ${propertyAddress}. Completed on: ${new Date().toLocaleDateString()}`,
+        title: `Job Completed Successfully`,
+        message: `A ${job.jobType} job at ${property.address.fullAddress} has been completed by ${completedBy.fullName}`,
         data: {
           jobId: job._id,
           job_id: job.job_id,
-          propertyId: property?._id,
-          propertyAddress: propertyAddress,
+          propertyId: property._id,
+          propertyAddress: property.address.fullAddress,
           jobType: job.jobType,
-          dueDate: job.dueDate,
-          completedAt: job.completedAt,
-          priority: job.priority,
-          technician: {
-            id: technician._id,
-            fullName: technician.fullName,
-            email: technician.email,
-          },
-          completedBy: {
-            userType: completedBy.type,
-            userId: completedBy.userId,
-            name: completedBy.name,
-          },
+          completedBy: completedBy._id,
+          completionNotes: completionNotes,
+          totalCost: totalCost,
         },
-        priority: "Medium",
+        priority: "High",
       };
 
-      // Send notifications
-      const results = await this.sendNotification(recipients, notificationData);
-
-      // Get PropertyManagers for logging
-      let propertyManagersNotified = 0;
-      if (property) {
-        const propertyManagers = await this.getPropertyManagersForProperty(
-          property._id
-        );
-        propertyManagersNotified = propertyManagers.length;
-      }
+      // Send notifications (both in-app and email)
+      const results = await this.sendNotification(
+        recipients,
+        notificationData,
+        ["notification", "email"]
+      );
 
       console.log(
         `✅ Job completion notifications sent to ${recipients.length} recipients`,
         {
           jobId: job._id,
           jobType: job.jobType,
-          technicianName: technician.fullName,
-          completedBy: completedBy.name,
-          propertyAddress: propertyAddress,
+          propertyAddress: property.address.fullAddress,
+          completedBy: completedBy.fullName,
           results: results.length,
-          propertyManagersNotified: propertyManagersNotified,
           timestamp: new Date().toISOString(),
         }
       );
