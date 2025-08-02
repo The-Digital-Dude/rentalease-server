@@ -30,6 +30,8 @@ router.post("/register", authenticate, async (req, res) => {
       });
     }
 
+    console.log(req.agency, "req agency");
+
     const { firstName, lastName, email, phone, password, address } = req.body;
 
     // Validate required fields

@@ -30,6 +30,7 @@ const propertyManagerSchema = new mongoose.Schema(
         "Please enter a valid email",
       ],
     },
+
     phone: {
       type: String,
       required: [true, "Phone number is required"],

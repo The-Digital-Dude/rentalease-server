@@ -21,36 +21,8 @@ export const getContacts = async (req, res) => {
     } else if (req.agency) {
       query = { "owner.ownerType": "Agency", "owner.ownerId": req.agency.id };
     } else if (req.propertyManager) {
-      // PropertyManager: can only see contacts related to their assigned properties
-      // Get the agencies that own the properties assigned to this property manager
-      const assignedPropertyIds = req.propertyManager.assignedProperties.map(
-        (assignment) => assignment.propertyId
-      );
-
-      if (assignedPropertyIds.length === 0) {
-        // No assigned properties, return empty list
-        return res.json({ status: "success", data: { contacts: [] } });
-      }
-
-      // Get properties and their agencies
-      const properties = await Property.find({
-        _id: { $in: assignedPropertyIds },
-      }).select("agency");
-
-      const agencyIds = [
-        ...new Set(properties.map((prop) => prop.agency.toString())),
-      ];
-
-      if (agencyIds.length === 0) {
-        // No agencies found, return empty list
-        return res.json({ status: "success", data: { contacts: [] } });
-      }
-
-      // Get contacts owned by these agencies
-      query = {
-        "owner.ownerType": "Agency",
-        "owner.ownerId": { $in: agencyIds },
-      };
+      // PropertyManager: can see all contacts (no filtering)
+      // No query filter needed - will return all contacts
     } else {
       return res.status(403).json({ status: "error", message: "Unauthorized" });
     }
@@ -93,44 +65,7 @@ export const getContactById = async (req, res) => {
       }
       return res.json({ status: "success", data: { contact } });
     } else if (req.propertyManager) {
-      // PropertyManager: can only access contacts related to their assigned properties
-      const assignedPropertyIds = req.propertyManager.assignedProperties.map(
-        (assignment) => assignment.propertyId
-      );
-
-      if (assignedPropertyIds.length === 0) {
-        return res.status(403).json({
-          status: "error",
-          message: "Access denied - no assigned properties",
-        });
-      }
-
-      // Get properties and their agencies
-      const properties = await Property.find({
-        _id: { $in: assignedPropertyIds },
-      }).select("agency");
-
-      const agencyIds = [
-        ...new Set(properties.map((prop) => prop.agency.toString())),
-      ];
-
-      if (agencyIds.length === 0) {
-        return res.status(403).json({
-          status: "error",
-          message: "Access denied - no related agencies",
-        });
-      }
-
-      // Check if contact belongs to one of the related agencies
-      if (
-        contact.owner.ownerType !== "Agency" ||
-        !agencyIds.includes(contact.owner.ownerId.toString())
-      ) {
-        return res
-          .status(403)
-          .json({ status: "error", message: "Access denied" });
-      }
-
+      // PropertyManager: can access all contacts (no filtering)
       return res.json({ status: "success", data: { contact } });
     } else {
       return res.status(403).json({ status: "error", message: "Unauthorized" });
@@ -401,6 +336,9 @@ export const sendEmailToContact = async (req, res) => {
           .status(403)
           .json({ status: "error", message: "Access denied" });
       }
+    } else if (req.propertyManager) {
+      // PropertyManager: can email any contact (no filtering)
+      // No additional checks needed - can email any contact
     } else {
       return res.status(403).json({ status: "error", message: "Unauthorized" });
     }

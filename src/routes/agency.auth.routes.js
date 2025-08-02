@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import Agency from "../models/Agency.js";
 import Property from "../models/Property.js";
 import Job from "../models/Job.js";
+import Technician from "../models/Technician.js";
 import jwt from "jsonwebtoken";
 import emailService from "../services/email.service.js";
 import {
@@ -930,8 +931,8 @@ router.get("/:id", authenticateSuperUser, async (req, res) => {
       })
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-    // Get staff members managed by this agency
-    const staff = await Staff.find({
+    // Get technicians managed by this agency
+    const technicians = await Technician.find({
       "owner.ownerType": "Agency",
       "owner.ownerId": id,
     })
@@ -944,7 +945,7 @@ router.get("/:id", authenticateSuperUser, async (req, res) => {
     const stats = {
       totalProperties: properties.length,
       totalJobs: jobs.length,
-      totalStaff: staff.length,
+      totalTechnicians: technicians.length,
       jobStatusCounts: {
         pending: jobs.filter((job) => job.status === "Pending").length,
         scheduled: jobs.filter((job) => job.status === "Scheduled").length,
@@ -959,14 +960,15 @@ router.get("/:id", authenticateSuperUser, async (req, res) => {
           (prop) => prop.status === "Under Maintenance"
         ).length,
       },
-      staffAvailability: {
-        available: staff.filter(
-          (member) => member.availabilityStatus === "Available"
+      technicianAvailability: {
+        available: technicians.filter(
+          (technician) => technician.availabilityStatus === "Available"
         ).length,
-        busy: staff.filter((member) => member.availabilityStatus === "Busy")
-          .length,
-        unavailable: staff.filter(
-          (member) => member.availabilityStatus === "Unavailable"
+        busy: technicians.filter(
+          (technician) => technician.availabilityStatus === "Busy"
+        ).length,
+        unavailable: technicians.filter(
+          (technician) => technician.availabilityStatus === "Unavailable"
         ).length,
       },
       financials: {
@@ -1062,15 +1064,15 @@ router.get("/:id", authenticateSuperUser, async (req, res) => {
           completedAt: job.completedAt,
           createdAt: job.createdAt,
         })),
-        staff: staff.map((member) => ({
-          id: member._id,
-          fullName: member.fullName,
-          tradeType: member.tradeType,
-          availabilityStatus: member.availabilityStatus,
-          currentJobs: member.currentJobs,
-          hourlyRate: member.hourlyRate,
-          status: member.status,
-          createdAt: member.createdAt,
+        technicians: technicians.map((technician) => ({
+          id: technician._id,
+          fullName: technician.fullName,
+          tradeType: technician.tradeType,
+          availabilityStatus: technician.availabilityStatus,
+          currentJobs: technician.currentJobs,
+          hourlyRate: technician.hourlyRate,
+          status: technician.status,
+          createdAt: technician.createdAt,
         })),
       },
     });
