@@ -185,7 +185,7 @@ const propertySchema = new mongoose.Schema(
       userType: {
         type: String,
         required: true,
-        enum: ["SuperUser", "Agency"],
+        enum: ["SuperUser", "Agency", "PropertyManager"],
       },
       userId: {
         type: mongoose.Schema.Types.ObjectId,
@@ -281,6 +281,10 @@ propertySchema.index({
 });
 propertySchema.index({ "complianceSchedule.smokeAlarms.nextInspection": 1 });
 propertySchema.index({ region: 1 });
+
+// Compound indexes for PropertyManager queries
+propertySchema.index({ assignedPropertyManager: 1, isActive: 1 });
+propertySchema.index({ agency: 1, assignedPropertyManager: 1 });
 
 const Property = mongoose.model("Property", propertySchema);
 

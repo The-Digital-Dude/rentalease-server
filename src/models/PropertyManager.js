@@ -22,7 +22,7 @@ const propertyManagerSchema = new mongoose.Schema(
     email: {
       type: String,
       required: [true, "Email is required"],
-      unique: true,
+      unique: true, // This automatically creates an index
       trim: true,
       lowercase: true,
       match: [
@@ -408,10 +408,22 @@ propertyManagerSchema.post("save", async function (doc, next) {
 });
 
 // Indexes for better query performance
-propertyManagerSchema.index({ email: 1 });
+// Note: email index is automatically created by unique: true constraint
 propertyManagerSchema.index({ "owner.ownerType": 1, "owner.ownerId": 1 });
 propertyManagerSchema.index({ status: 1, availabilityStatus: 1 });
 propertyManagerSchema.index({ "assignedProperties.propertyId": 1 });
+
+// Compound indexes for PropertyManager queries
+propertyManagerSchema.index({
+  "assignedProperties.propertyId": 1,
+  "assignedProperties.status": 1,
+});
+propertyManagerSchema.index({
+  "owner.ownerType": 1,
+  "owner.ownerId": 1,
+  status: 1,
+});
+propertyManagerSchema.index({ status: 1, "assignedProperties.propertyId": 1 });
 
 const PropertyManager = mongoose.model(
   "PropertyManager",

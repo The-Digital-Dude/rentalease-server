@@ -313,6 +313,7 @@ const authenticate = async (req, res, next) => {
         status: propertyManager.status,
         availabilityStatus: propertyManager.availabilityStatus,
         assignedProperties: propertyManager.assignedProperties,
+        owner: propertyManager.owner,
       };
     } else {
       return res.status(401).json({

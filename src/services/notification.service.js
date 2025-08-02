@@ -3,6 +3,7 @@ import Agency from "../models/Agency.js";
 import SuperUser from "../models/SuperUser.js";
 import Property from "../models/Property.js";
 import Technician from "../models/Technician.js";
+import PropertyManager from "../models/PropertyManager.js";
 
 class NotificationService {
   constructor() {
@@ -13,6 +14,26 @@ class NotificationService {
       // email: this.sendEmailNotification.bind(this),
       // sms: this.sendSMSNotification.bind(this),
     };
+  }
+
+  /**
+   * Get PropertyManagers assigned to a property
+   * @param {String} propertyId - Property ID
+   * @returns {Array} Array of PropertyManager objects
+   */
+  async getPropertyManagersForProperty(propertyId) {
+    try {
+      // Find PropertyManagers who have this property in their assignedProperties
+      const propertyManagers = await PropertyManager.find({
+        "assignedProperties.propertyId": propertyId,
+        "assignedProperties.status": "Active",
+      });
+
+      return propertyManagers;
+    } catch (error) {
+      console.error("Error getting PropertyManagers for property:", error);
+      return [];
+    }
   }
 
   /**
@@ -102,7 +123,7 @@ class NotificationService {
   }
 
   /**
-   * Send job creation notification to agency and super users
+   * Send job creation notification to agency, super users, and assigned PropertyManagers
    * @param {Object} job - Job object
    * @param {Object} property - Property object
    * @param {Object} creator - Creator object
@@ -125,6 +146,17 @@ class NotificationService {
         recipients.push({
           recipientType: "SuperUser",
           recipientId: superUser._id,
+        });
+      });
+
+      // Add PropertyManagers assigned to this property
+      const propertyManagers = await this.getPropertyManagersForProperty(
+        property._id
+      );
+      propertyManagers.forEach((propertyManager) => {
+        recipients.push({
+          recipientType: "PropertyManager",
+          recipientId: propertyManager._id,
         });
       });
 
@@ -161,6 +193,7 @@ class NotificationService {
           jobType: job.jobType,
           propertyAddress: property.address.fullAddress,
           results: results.length,
+          propertyManagersNotified: propertyManagers.length,
           timestamp: new Date().toISOString(),
         }
       );
@@ -206,6 +239,17 @@ class NotificationService {
         });
       });
 
+      // Add PropertyManagers assigned to this property
+      const propertyManagers = await this.getPropertyManagersForProperty(
+        property._id
+      );
+      propertyManagers.forEach((propertyManager) => {
+        recipients.push({
+          recipientType: "PropertyManager",
+          recipientId: propertyManager._id,
+        });
+      });
+
       // Prepare notification data
       const notificationData = {
         type: "COMPLIANCE_DUE",
@@ -237,6 +281,7 @@ class NotificationService {
           jobType: job.jobType,
           propertyAddress: property.address.fullAddress,
           results: results.length,
+          propertyManagersNotified: propertyManagers.length,
           timestamp: new Date().toISOString(),
         }
       );
@@ -332,6 +377,15 @@ class NotificationService {
       // Send notifications
       const results = await this.sendNotification(recipients, notificationData);
 
+      // Get PropertyManagers for logging
+      let propertyManagersNotified = 0;
+      if (property) {
+        const propertyManagers = await this.getPropertyManagersForProperty(
+          property._id
+        );
+        propertyManagersNotified = propertyManagers.length;
+      }
+
       console.log(
         `✅ Job assignment notifications sent to ${recipients.length} recipients`,
         {
@@ -341,6 +395,7 @@ class NotificationService {
           assignedBy: assignedBy.name,
           propertyAddress: propertyAddress,
           results: results.length,
+          propertyManagersNotified: propertyManagersNotified,
           timestamp: new Date().toISOString(),
         }
       );
@@ -390,6 +445,19 @@ class NotificationService {
         property = await Property.findById(job.property).populate("address");
       }
 
+      // Add PropertyManagers assigned to this property
+      if (property) {
+        const propertyManagers = await this.getPropertyManagersForProperty(
+          property._id
+        );
+        propertyManagers.forEach((propertyManager) => {
+          recipients.push({
+            recipientType: "PropertyManager",
+            recipientId: propertyManager._id,
+          });
+        });
+      }
+
       const propertyAddress =
         property?.address?.fullAddress || "Unknown address";
 
@@ -426,6 +494,15 @@ class NotificationService {
       // Send notifications
       const results = await this.sendNotification(recipients, notificationData);
 
+      // Get PropertyManagers for logging
+      let propertyManagersNotified = 0;
+      if (property) {
+        const propertyManagers = await this.getPropertyManagersForProperty(
+          property._id
+        );
+        propertyManagersNotified = propertyManagers.length;
+      }
+
       console.log(
         `✅ Job completion notifications sent to ${recipients.length} recipients`,
         {
@@ -435,6 +512,7 @@ class NotificationService {
           completedBy: completedBy.name,
           propertyAddress: propertyAddress,
           results: results.length,
+          propertyManagersNotified: propertyManagersNotified,
           timestamp: new Date().toISOString(),
         }
       );

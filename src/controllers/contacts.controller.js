@@ -1,6 +1,8 @@
 import Contact from "../models/Contact.js";
 import Agency from "../models/Agency.js";
 import SuperUser from "../models/SuperUser.js";
+import PropertyManager from "../models/PropertyManager.js";
+import Property from "../models/Property.js";
 import mongoose from "mongoose";
 import emailService from "../services/email.service.js";
 
@@ -9,17 +11,50 @@ const isValidEmail = (email) =>
   /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/.test(email);
 const isValidPhone = (phone) => /^\+?[\d\s\-\(\)]+$/.test(phone);
 
-// List all contacts for current user (superuser: all, agency: own)
+// List all contacts for current user (superuser: all, agency: own, propertyManager: related to assigned properties)
 export const getContacts = async (req, res) => {
   try {
     let query = {};
+
     if (req.superUser) {
       // SuperUser: can see all contacts
     } else if (req.agency) {
       query = { "owner.ownerType": "Agency", "owner.ownerId": req.agency.id };
+    } else if (req.propertyManager) {
+      // PropertyManager: can only see contacts related to their assigned properties
+      // Get the agencies that own the properties assigned to this property manager
+      const assignedPropertyIds = req.propertyManager.assignedProperties.map(
+        (assignment) => assignment.propertyId
+      );
+
+      if (assignedPropertyIds.length === 0) {
+        // No assigned properties, return empty list
+        return res.json({ status: "success", data: { contacts: [] } });
+      }
+
+      // Get properties and their agencies
+      const properties = await Property.find({
+        _id: { $in: assignedPropertyIds },
+      }).select("agency");
+
+      const agencyIds = [
+        ...new Set(properties.map((prop) => prop.agency.toString())),
+      ];
+
+      if (agencyIds.length === 0) {
+        // No agencies found, return empty list
+        return res.json({ status: "success", data: { contacts: [] } });
+      }
+
+      // Get contacts owned by these agencies
+      query = {
+        "owner.ownerType": "Agency",
+        "owner.ownerId": { $in: agencyIds },
+      };
     } else {
       return res.status(403).json({ status: "error", message: "Unauthorized" });
     }
+
     const contacts = await Contact.find(query).sort({ createdAt: -1 });
     res.json({ status: "success", data: { contacts } });
   } catch (error) {
@@ -44,6 +79,7 @@ export const getContactById = async (req, res) => {
       return res
         .status(404)
         .json({ status: "error", message: "Contact not found" });
+
     if (req.superUser) {
       return res.json({ status: "success", data: { contact } });
     } else if (req.agency) {
@@ -55,6 +91,46 @@ export const getContactById = async (req, res) => {
           .status(403)
           .json({ status: "error", message: "Access denied" });
       }
+      return res.json({ status: "success", data: { contact } });
+    } else if (req.propertyManager) {
+      // PropertyManager: can only access contacts related to their assigned properties
+      const assignedPropertyIds = req.propertyManager.assignedProperties.map(
+        (assignment) => assignment.propertyId
+      );
+
+      if (assignedPropertyIds.length === 0) {
+        return res.status(403).json({
+          status: "error",
+          message: "Access denied - no assigned properties",
+        });
+      }
+
+      // Get properties and their agencies
+      const properties = await Property.find({
+        _id: { $in: assignedPropertyIds },
+      }).select("agency");
+
+      const agencyIds = [
+        ...new Set(properties.map((prop) => prop.agency.toString())),
+      ];
+
+      if (agencyIds.length === 0) {
+        return res.status(403).json({
+          status: "error",
+          message: "Access denied - no related agencies",
+        });
+      }
+
+      // Check if contact belongs to one of the related agencies
+      if (
+        contact.owner.ownerType !== "Agency" ||
+        !agencyIds.includes(contact.owner.ownerId.toString())
+      ) {
+        return res
+          .status(403)
+          .json({ status: "error", message: "Access denied" });
+      }
+
       return res.json({ status: "success", data: { contact } });
     } else {
       return res.status(403).json({ status: "error", message: "Unauthorized" });
@@ -70,6 +146,14 @@ export const getContactById = async (req, res) => {
 // Create a new contact
 export const createContact = async (req, res) => {
   try {
+    // Check if user has permission to create contacts
+    if (req.propertyManager) {
+      return res.status(403).json({
+        status: "error",
+        message: "Property Managers have read-only access to contacts",
+      });
+    }
+
     const { name, role, email, phone, notes, preferredContact } = req.body;
     const errors = {};
     if (!name || name.trim().length < 2)
@@ -144,6 +228,14 @@ export const createContact = async (req, res) => {
 // Update a contact
 export const updateContact = async (req, res) => {
   try {
+    // Check if user has permission to update contacts
+    if (req.propertyManager) {
+      return res.status(403).json({
+        status: "error",
+        message: "Property Managers have read-only access to contacts",
+      });
+    }
+
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res
@@ -238,6 +330,14 @@ export const updateContact = async (req, res) => {
 // Delete a contact
 export const deleteContact = async (req, res) => {
   try {
+    // Check if user has permission to delete contacts
+    if (req.propertyManager) {
+      return res.status(403).json({
+        status: "error",
+        message: "Property Managers have read-only access to contacts",
+      });
+    }
+
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res
@@ -278,12 +378,10 @@ export const sendEmailToContact = async (req, res) => {
     const { id } = req.params;
     const { subject, html } = req.body;
     if (!subject || !html) {
-      return res
-        .status(400)
-        .json({
-          status: "error",
-          message: "Subject and message body are required",
-        });
+      return res.status(400).json({
+        status: "error",
+        message: "Subject and message body are required",
+      });
     }
     const contact = await Contact.findById(id);
     if (!contact) {

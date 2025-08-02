@@ -100,11 +100,8 @@ const getAgencyFilter = (req) => {
     // Agencies can only access their own properties
     return { agency: req.agency.id };
   } else if (req.propertyManager) {
-    // Property managers can only access properties they're assigned to
-    const assignedPropertyIds = req.propertyManager.assignedProperties.map(
-      (assignment) => assignment.propertyId
-    );
-    return { _id: { $in: assignedPropertyIds } };
+    // Property managers can only access properties they're assigned to as the assignedPropertyManager
+    return { assignedPropertyManager: req.propertyManager.id };
   }
   return null;
 };
@@ -276,26 +273,28 @@ router.post("/", authenticate, async (req, res) => {
       agencyId = req.agency.id;
     } else if (req.propertyManager) {
       // Property managers can create properties and become the assigned manager
-      // They need to provide an agency ID
-      const { agencyId: providedAgencyId } = req.body;
-
-      if (!providedAgencyId) {
+      // Automatically get agency ID from PropertyManager's owner information
+      if (
+        !req.propertyManager.owner ||
+        req.propertyManager.owner.ownerType !== "Agency"
+      ) {
         return res.status(400).json({
           status: "error",
-          message: "Agency ID is required when creating properties",
+          message:
+            "PropertyManager must be owned by an Agency to create properties",
         });
       }
 
       // Validate that the agency exists
-      const agency = await Agency.findById(providedAgencyId);
+      const agency = await Agency.findById(req.propertyManager.owner.ownerId);
       if (!agency) {
         return res.status(400).json({
           status: "error",
-          message: "Invalid agency ID provided",
+          message: "Associated agency not found",
         });
       }
 
-      agencyId = providedAgencyId;
+      agencyId = req.propertyManager.owner.ownerId;
       assignedPropertyManagerId = req.propertyManager.id;
     }
 
@@ -443,6 +442,7 @@ router.get("/filter-options", authenticate, async (req, res) => {
 
 // Get All Properties with Advanced Filtering
 router.get("/", authenticate, async (req, res) => {
+  console.log(req.pr);
   try {
     const {
       propertyType,
@@ -455,6 +455,7 @@ router.get("/", authenticate, async (req, res) => {
       sortBy = "createdAt",
       sortOrder = "desc",
     } = req.query;
+    console.log(req.propertyManager);
 
     // Get agency filter based on user type
     const agencyFilter = getAgencyFilter(req);
@@ -500,6 +501,8 @@ router.get("/", authenticate, async (req, res) => {
         { "currentLandlord.name": searchRegex },
         { "currentLandlord.email": searchRegex },
         { "agency.companyName": searchRegex },
+        { "assignedPropertyManager.fullName": searchRegex },
+        { "assignedPropertyManager.email": searchRegex },
       ];
     }
 
@@ -944,18 +947,18 @@ router.get("/agencies/available", authenticateSuperUser, async (req, res) => {
 
 // Property Assignment System Endpoints
 
-// Assign Property Manager to Property (Agency/SuperUser only)
+// Assign Property Manager to Property (Agency/SuperUser/PropertyManager only)
 router.post("/:id/assign-property-manager", authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const { propertyManagerId, role = "Primary" } = req.body;
 
-    // Check if user has permission (Agency or SuperUser)
-    if (!req.superUser && !req.agency) {
+    // Check if user has permission (Agency, SuperUser, or PropertyManager)
+    if (!req.superUser && !req.agency && !req.propertyManager) {
       return res.status(403).json({
         status: "error",
         message:
-          "Access denied. Only Super Users and Agencies can assign Property Managers.",
+          "Access denied. Only Super Users, Agencies, and Property Managers can assign Property Managers.",
       });
     }
 
@@ -1007,6 +1010,26 @@ router.post("/:id/assign-property-manager", authenticate, async (req, res) => {
       });
     }
 
+    // Property managers can only assign themselves to properties from their agency
+    if (req.propertyManager && propertyManagerId !== req.propertyManager.id) {
+      return res.status(403).json({
+        status: "error",
+        message: "Property Managers can only assign themselves to properties.",
+      });
+    }
+
+    if (
+      req.propertyManager &&
+      property.agency.toString() !==
+        req.propertyManager.owner.ownerId.toString()
+    ) {
+      return res.status(403).json({
+        status: "error",
+        message:
+          "Property Managers can only assign themselves to properties from their agency.",
+      });
+    }
+
     // Check if property manager is already assigned to this property
     const existingAssignment = propertyManager.assignedProperties.find(
       (assignment) => assignment.propertyId.toString() === id
@@ -1053,7 +1076,7 @@ router.post("/:id/assign-property-manager", authenticate, async (req, res) => {
   }
 });
 
-// Unassign Property Manager from Property (Agency/SuperUser only)
+// Unassign Property Manager from Property (Agency/SuperUser/PropertyManager only)
 router.delete(
   "/:id/assign-property-manager",
   authenticate,
@@ -1062,12 +1085,12 @@ router.delete(
       const { id } = req.params;
       const { propertyManagerId } = req.body;
 
-      // Check if user has permission (Agency or SuperUser)
-      if (!req.superUser && !req.agency) {
+      // Check if user has permission (Agency, SuperUser, or PropertyManager)
+      if (!req.superUser && !req.agency && !req.propertyManager) {
         return res.status(403).json({
           status: "error",
           message:
-            "Access denied. Only Super Users and Agencies can unassign Property Managers.",
+            "Access denied. Only Super Users, Agencies, and Property Managers can unassign Property Managers.",
         });
       }
 
@@ -1103,6 +1126,27 @@ router.delete(
         return res.status(400).json({
           status: "error",
           message: "Property Manager is not assigned to this property",
+        });
+      }
+
+      // Property managers can only unassign themselves from properties from their agency
+      if (req.propertyManager && propertyManagerId !== req.propertyManager.id) {
+        return res.status(403).json({
+          status: "error",
+          message:
+            "Property Managers can only unassign themselves from properties.",
+        });
+      }
+
+      if (
+        req.propertyManager &&
+        property.agency.toString() !==
+          req.propertyManager.owner.ownerId.toString()
+      ) {
+        return res.status(403).json({
+          status: "error",
+          message:
+            "Property Managers can only unassign themselves from properties from their agency.",
         });
       }
 
@@ -1148,15 +1192,15 @@ router.delete(
   }
 );
 
-// Get Available Property Managers for Assignment (Agency/SuperUser only)
+// Get Available Property Managers for Assignment (Agency/SuperUser/PropertyManager only)
 router.get("/available-property-managers", authenticate, async (req, res) => {
   try {
-    // Check if user has permission (Agency or SuperUser)
-    if (!req.superUser && !req.agency) {
+    // Check if user has permission (Agency, SuperUser, or PropertyManager)
+    if (!req.superUser && !req.agency && !req.propertyManager) {
       return res.status(403).json({
         status: "error",
         message:
-          "Access denied. Only Super Users and Agencies can view available Property Managers.",
+          "Access denied. Only Super Users, Agencies, and Property Managers can view available Property Managers.",
       });
     }
 
@@ -1168,10 +1212,13 @@ router.get("/available-property-managers", authenticate, async (req, res) => {
       filter.availabilityStatus = availabilityStatus;
     }
 
-    // Add owner filter for agencies
+    // Add owner filter for agencies and property managers
     if (req.agency) {
       filter["owner.ownerType"] = "Agency";
       filter["owner.ownerId"] = req.agency.id;
+    } else if (req.propertyManager) {
+      filter["owner.ownerType"] = "Agency";
+      filter["owner.ownerId"] = req.propertyManager.owner.ownerId;
     }
 
     // Get available property managers
@@ -1205,17 +1252,17 @@ router.get("/available-property-managers", authenticate, async (req, res) => {
   }
 });
 
-// Get Property Assignment Summary (Agency/SuperUser only)
+// Get Property Assignment Summary (Agency/SuperUser/PropertyManager only)
 router.get("/:id/assignment-summary", authenticate, async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Check if user has permission (Agency or SuperUser)
-    if (!req.superUser && !req.agency) {
+    // Check if user has permission (Agency, SuperUser, or PropertyManager)
+    if (!req.superUser && !req.agency && !req.propertyManager) {
       return res.status(403).json({
         status: "error",
         message:
-          "Access denied. Only Super Users and Agencies can view assignment summaries.",
+          "Access denied. Only Super Users, Agencies, and Property Managers can view assignment summaries.",
       });
     }
 

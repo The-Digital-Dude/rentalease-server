@@ -76,6 +76,15 @@ notificationSchema.index({ status: 1, createdAt: -1 });
 notificationSchema.index({ type: 1, status: 1 });
 notificationSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
+// Compound indexes for PropertyManager notifications
+notificationSchema.index({
+  "recipient.recipientType": 1,
+  "recipient.recipientId": 1,
+  status: 1,
+});
+notificationSchema.index({ "recipient.recipientType": 1, createdAt: -1 });
+notificationSchema.index({ type: 1, "recipient.recipientType": 1, status: 1 });
+
 // Method to mark notification as read
 notificationSchema.methods.markAsRead = async function () {
   this.status = "Read";
