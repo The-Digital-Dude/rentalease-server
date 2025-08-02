@@ -4,6 +4,7 @@ import Agency from "../models/Agency.js";
 import Property from "../models/Property.js";
 import Job from "../models/Job.js";
 import Technician from "../models/Technician.js";
+import PropertyManager from "../models/PropertyManager.js";
 import jwt from "jsonwebtoken";
 import emailService from "../services/email.service.js";
 import {
@@ -588,6 +589,425 @@ router.get("/profile", authenticateAgency, async (req, res) => {
     res.status(500).json({
       status: "error",
       message: "An error occurred while fetching profile",
+    });
+  }
+});
+
+// GET - Get agency dashboard statistics
+router.get("/dashboard", authenticateAgency, async (req, res) => {
+  try {
+    const agencyId = req.agency.id;
+
+    // Get agency data
+    const agency = await Agency.findById(agencyId);
+    if (!agency) {
+      return res.status(404).json({
+        status: "error",
+        message: "Agency not found",
+      });
+    }
+
+    // Get properties managed by this agency
+    const properties = await Property.find({ agency: agencyId });
+
+    // Get jobs related to this agency - both directly owned and through properties
+    const [directJobs, propertyJobs] = await Promise.all([
+      // Jobs directly owned by the agency
+      Job.find({
+        "owner.ownerType": "Agency",
+        "owner.ownerId": agencyId,
+      }).populate("property", "address"),
+
+      // Jobs related to properties owned by this agency
+      Job.find({
+        property: { $in: properties.map((p) => p._id) },
+      }).populate("property", "address"),
+    ]);
+
+    // Combine and deduplicate jobs
+    const allJobIds = new Set();
+    const jobs = [...directJobs, ...propertyJobs].filter((job) => {
+      if (allJobIds.has(job._id.toString())) {
+        return false;
+      }
+      allJobIds.add(job._id.toString());
+      return true;
+    });
+
+    // Get technicians managed by this agency
+    const technicians = await Technician.find({
+      "owner.ownerType": "Agency",
+      "owner.ownerId": agencyId,
+    });
+
+    // Get property managers managed by this agency
+    const propertyManagers = await PropertyManager.find({
+      "owner.ownerType": "Agency",
+      "owner.ownerId": agencyId,
+    });
+
+    // Get job status distribution
+    const jobStatusDistribution = await Job.aggregate([
+      {
+        $match: {
+          $or: [
+            {
+              "owner.ownerType": "Agency",
+              "owner.ownerId": new mongoose.Types.ObjectId(agencyId),
+            },
+            {
+              property: { $in: properties.map((p) => p._id) },
+            },
+          ],
+        },
+      },
+      {
+        $group: {
+          _id: "$status",
+          count: { $sum: 1 },
+        },
+      },
+      {
+        $project: {
+          status: "$_id",
+          count: 1,
+          _id: 0,
+        },
+      },
+    ]);
+
+    // Calculate total jobs and percentages
+    const totalJobs = jobStatusDistribution.reduce(
+      (sum, item) => sum + item.count,
+      0
+    );
+    const statusDistribution = jobStatusDistribution.map((item) => ({
+      status: item.status,
+      count: item.count,
+      percentage:
+        totalJobs > 0 ? Math.round((item.count / totalJobs) * 100) : 0,
+    }));
+
+    // Get monthly progress (last 6 months)
+    const today = new Date();
+    const sixMonthsAgo = new Date(today.getFullYear(), today.getMonth() - 6, 1);
+
+    const monthlyProgress = await Job.aggregate([
+      {
+        $match: {
+          $or: [
+            {
+              "owner.ownerType": "Agency",
+              "owner.ownerId": new mongoose.Types.ObjectId(agencyId),
+            },
+            {
+              property: { $in: properties.map((p) => p._id) },
+            },
+          ],
+          createdAt: { $gte: sixMonthsAgo },
+        },
+      },
+      {
+        $addFields: {
+          month: {
+            $month: "$createdAt",
+          },
+          year: {
+            $year: "$createdAt",
+          },
+          isCompleted: { $eq: ["$status", "Completed"] },
+          isScheduled: { $eq: ["$status", "Scheduled"] },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            month: "$month",
+            year: "$year",
+          },
+          total: { $sum: 1 },
+          completed: {
+            $sum: {
+              $cond: ["$isCompleted", 1, 0],
+            },
+          },
+          scheduled: {
+            $sum: {
+              $cond: ["$isScheduled", 1, 0],
+            },
+          },
+        },
+      },
+      {
+        $project: {
+          month: "$_id.month",
+          year: "$_id.year",
+          total: 1,
+          completed: 1,
+          scheduled: 1,
+          _id: 0,
+        },
+      },
+      { $sort: { year: 1, month: 1 } },
+    ]);
+
+    // Map month numbers to month names and fill missing months
+    const monthNames = [
+      "",
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ];
+    const monthlyProgressMap = {};
+
+    // Initialize last 6 months with zero values
+    for (let i = 0; i < 6; i++) {
+      const date = new Date(today.getFullYear(), today.getMonth() - i, 1);
+      const key = `${date.getFullYear()}-${date.getMonth() + 1}`;
+      monthlyProgressMap[key] = {
+        month: monthNames[date.getMonth() + 1],
+        year: date.getFullYear(),
+        total: 0,
+        completed: 0,
+        scheduled: 0,
+      };
+    }
+
+    // Fill in actual data
+    monthlyProgress.forEach((item) => {
+      const key = `${item.year}-${item.month}`;
+      if (monthlyProgressMap[key]) {
+        monthlyProgressMap[key] = {
+          month: monthNames[item.month],
+          year: item.year,
+          total: item.total,
+          completed: item.completed,
+          scheduled: item.scheduled,
+        };
+      }
+    });
+
+    const monthlyProgressArray = Object.values(monthlyProgressMap).reverse();
+
+    // Get quick statistics
+    const quickStats = {
+      totalProperties: properties.length,
+      totalJobs: jobs.length,
+      totalTechnicians: technicians.length,
+      totalPropertyManagers: propertyManagers.length,
+      activeJobs: jobs.filter((job) =>
+        ["Pending", "Scheduled"].includes(job.status)
+      ).length,
+      completedJobs: jobs.filter((job) => job.status === "Completed").length,
+      overdueJobs: jobs.filter(
+        (job) =>
+          job.status !== "Completed" &&
+          job.dueDate &&
+          new Date(job.dueDate) < new Date()
+      ).length,
+    };
+
+    // Get property status distribution
+    const propertyStatusDistribution = await Property.aggregate([
+      {
+        $match: {
+          agency: new mongoose.Types.ObjectId(agencyId),
+        },
+      },
+      {
+        $group: {
+          _id: "$status",
+          count: { $sum: 1 },
+        },
+      },
+      {
+        $project: {
+          status: "$_id",
+          count: 1,
+          _id: 0,
+        },
+      },
+    ]);
+
+    // Calculate property status percentages
+    const totalProperties = propertyStatusDistribution.reduce(
+      (sum, item) => sum + item.count,
+      0
+    );
+    const propertyStatusData = propertyStatusDistribution.map((item) => ({
+      status: item.status,
+      count: item.count,
+      percentage:
+        totalProperties > 0
+          ? Math.round((item.count / totalProperties) * 100)
+          : 0,
+    }));
+
+    // Get technician availability distribution
+    const technicianAvailability = await Technician.aggregate([
+      {
+        $match: {
+          "owner.ownerType": "Agency",
+          "owner.ownerId": new mongoose.Types.ObjectId(agencyId),
+        },
+      },
+      {
+        $group: {
+          _id: "$availabilityStatus",
+          count: { $sum: 1 },
+        },
+      },
+      {
+        $project: {
+          status: "$_id",
+          count: 1,
+          _id: 0,
+        },
+      },
+    ]);
+
+    // Calculate technician availability percentages
+    const totalTechnicians = technicianAvailability.reduce(
+      (sum, item) => sum + item.count,
+      0
+    );
+    const technicianAvailabilityData = technicianAvailability.map((item) => ({
+      status: item.status,
+      count: item.count,
+      percentage:
+        totalTechnicians > 0
+          ? Math.round((item.count / totalTechnicians) * 100)
+          : 0,
+    }));
+
+    // Get property manager status distribution
+    const propertyManagerStatus = await PropertyManager.aggregate([
+      {
+        $match: {
+          "owner.ownerType": "Agency",
+          "owner.ownerId": new mongoose.Types.ObjectId(agencyId),
+        },
+      },
+      {
+        $group: {
+          _id: "$status",
+          count: { $sum: 1 },
+        },
+      },
+      {
+        $project: {
+          status: "$_id",
+          count: 1,
+          _id: 0,
+        },
+      },
+    ]);
+
+    // Calculate property manager status percentages
+    const totalPropertyManagers = propertyManagerStatus.reduce(
+      (sum, item) => sum + item.count,
+      0
+    );
+    const propertyManagerStatusData = propertyManagerStatus.map((item) => ({
+      status: item.status,
+      count: item.count,
+      percentage:
+        totalPropertyManagers > 0
+          ? Math.round((item.count / totalPropertyManagers) * 100)
+          : 0,
+    }));
+
+    // Get recent activity (last 5 jobs)
+    const recentJobs = jobs
+      .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
+      .slice(0, 5)
+      .map((job) => ({
+        id: job._id,
+        job_id: job.job_id,
+        jobType: job.jobType,
+        status: job.status,
+        dueDate: job.dueDate,
+        updatedAt: job.updatedAt,
+        property: job.property?.address?.fullAddress || "N/A",
+      }));
+
+    // Get recent properties (last 5)
+    const recentProperties = properties
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .slice(0, 5)
+      .map((property) => ({
+        id: property._id,
+        address: property.address?.fullAddress || "N/A",
+        propertyType: property.propertyType,
+        status: property.status,
+        createdAt: property.createdAt,
+      }));
+
+    // Get recent property managers (last 5)
+    const recentPropertyManagers = propertyManagers
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .slice(0, 5)
+      .map((pm) => ({
+        id: pm._id,
+        fullName: `${pm.firstName} ${pm.lastName}`,
+        email: pm.email,
+        status: pm.status,
+        availabilityStatus: pm.availabilityStatus,
+        assignedPropertiesCount: pm.assignedProperties?.length || 0,
+        createdAt: pm.createdAt,
+      }));
+
+    // Get performance summary
+    const performanceSummary = {
+      completionRate:
+        jobs.length > 0
+          ? Math.round((quickStats.completedJobs / jobs.length) * 100)
+          : 0,
+      averageJobsPerProperty:
+        properties.length > 0
+          ? Math.round((jobs.length / properties.length) * 10) / 10
+          : 0,
+      averageJobsPerTechnician:
+        technicians.length > 0
+          ? Math.round((jobs.length / technicians.length) * 10) / 10
+          : 0,
+      averagePropertiesPerManager:
+        propertyManagers.length > 0
+          ? Math.round((properties.length / propertyManagers.length) * 10) / 10
+          : 0,
+    };
+
+    res.status(200).json({
+      status: "success",
+      message: "Dashboard data retrieved successfully",
+      data: {
+        quickStats,
+        jobStatusDistribution: statusDistribution,
+        propertyStatusDistribution: propertyStatusData,
+        technicianAvailability: technicianAvailabilityData,
+        propertyManagerStatus: propertyManagerStatusData,
+        monthlyProgress: monthlyProgressArray,
+        recentJobs,
+        recentProperties,
+        recentPropertyManagers,
+        performanceSummary,
+        lastUpdated: new Date(),
+      },
+    });
+  } catch (error) {
+    console.error("Get agency dashboard error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Failed to retrieve dashboard data",
     });
   }
 });
