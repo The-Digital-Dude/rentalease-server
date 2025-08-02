@@ -450,6 +450,108 @@ router.get("/filter-options", authenticate, async (req, res) => {
   }
 });
 
+// Get Available Agencies for Super Users
+router.get("/agencies/available", authenticateSuperUser, async (req, res) => {
+  try {
+    const { status = "Active", region } = req.query;
+
+    // Build filter object
+    const filter = { status };
+    if (region) filter.region = region;
+
+    // Get active agencies
+    const agencies = await Agency.find(filter)
+      .select(
+        "id companyName contactPerson email phone region compliance status"
+      )
+      .sort({ companyName: 1 });
+
+    res.status(200).json({
+      status: "success",
+      data: {
+        agencies: agencies.map((agency) => ({
+          id: agency._id,
+          companyName: agency.companyName,
+          contactPerson: agency.contactPerson,
+          email: agency.email,
+          phone: agency.phone,
+          region: agency.region,
+          compliance: agency.compliance,
+          status: agency.status,
+        })),
+        totalCount: agencies.length,
+      },
+    });
+  } catch (error) {
+    console.error("Get available agencies error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "An error occurred while fetching available agencies",
+    });
+  }
+});
+
+// Get Available Property Managers for Assignment (Agency/SuperUser/PropertyManager only)
+router.get("/available-property-managers", authenticate, async (req, res) => {
+  try {
+    // Check if user has permission (Agency, SuperUser, or PropertyManager)
+    if (!req.superUser && !req.agency && !req.propertyManager) {
+      return res.status(403).json({
+        status: "error",
+        message:
+          "Access denied. Only Super Users, Agencies, and Property Managers can view available Property Managers.",
+      });
+    }
+
+    const { status = "Active", availabilityStatus = "Available" } = req.query;
+
+    // Build filter object
+    const filter = { status };
+    if (availabilityStatus !== "All") {
+      filter.availabilityStatus = availabilityStatus;
+    }
+
+    // Add owner filter for agencies and property managers
+    if (req.agency) {
+      filter["owner.ownerType"] = "Agency";
+      filter["owner.ownerId"] = req.agency.id;
+    } else if (req.propertyManager) {
+      filter["owner.ownerType"] = "Agency";
+      filter["owner.ownerId"] = req.propertyManager.owner.ownerId;
+    }
+
+    // Get available property managers
+    const propertyManagers = await PropertyManager.find(filter)
+      .select(
+        "firstName lastName email phone status availabilityStatus assignedProperties"
+      )
+      .sort({ firstName: 1 });
+
+    res.status(200).json({
+      status: "success",
+      data: {
+        propertyManagers: propertyManagers.map((pm) => ({
+          id: pm._id,
+          fullName: `${pm.firstName} ${pm.lastName}`,
+          email: pm.email,
+          phone: pm.phone,
+          status: pm.status,
+          availabilityStatus: pm.availabilityStatus,
+          assignedPropertiesCount: pm.assignedProperties.length,
+          createdAt: pm.createdAt,
+        })),
+        totalCount: propertyManagers.length,
+      },
+    });
+  } catch (error) {
+    console.error("Get available property managers error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "An error occurred while fetching available property managers",
+    });
+  }
+});
+
 // Get All Properties with Advanced Filtering
 router.get("/", authenticate, async (req, res) => {
   console.log(req.pr);
@@ -914,47 +1016,6 @@ router.get("/:id/compliance", authenticate, async (req, res) => {
   }
 });
 
-// Get Available Agencies for Super Users
-router.get("/agencies/available", authenticateSuperUser, async (req, res) => {
-  try {
-    const { status = "Active", region } = req.query;
-
-    // Build filter object
-    const filter = { status };
-    if (region) filter.region = region;
-
-    // Get active agencies
-    const agencies = await Agency.find(filter)
-      .select(
-        "id companyName contactPerson email phone region compliance status"
-      )
-      .sort({ companyName: 1 });
-
-    res.status(200).json({
-      status: "success",
-      data: {
-        agencies: agencies.map((agency) => ({
-          id: agency._id,
-          companyName: agency.companyName,
-          contactPerson: agency.contactPerson,
-          email: agency.email,
-          phone: agency.phone,
-          region: agency.region,
-          compliance: agency.compliance,
-          status: agency.status,
-        })),
-        totalCount: agencies.length,
-      },
-    });
-  } catch (error) {
-    console.error("Get available agencies error:", error);
-    res.status(500).json({
-      status: "error",
-      message: "An error occurred while fetching available agencies",
-    });
-  }
-});
-
 // Property Assignment System Endpoints
 
 // Assign Property Manager to Property (Agency/SuperUser/PropertyManager only)
@@ -971,6 +1032,18 @@ router.post("/:id/assign-property-manager", authenticate, async (req, res) => {
           "Access denied. Only Super Users, Agencies, and Property Managers can assign Property Managers.",
       });
     }
+
+    console.log("Current user info:", {
+      userType: req.superUser
+        ? "SuperUser"
+        : req.agency
+        ? "Agency"
+        : req.propertyManager
+        ? "PropertyManager"
+        : "Unknown",
+      agencyId: req.agency?.id,
+      agencyIdType: typeof req.agency?.id,
+    });
 
     // Validate ObjectId
     if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -990,6 +1063,13 @@ router.post("/:id/assign-property-manager", authenticate, async (req, res) => {
     // Find property with access control
     const agencyFilter = getAgencyFilter(req);
     const filter = { _id: id, isActive: true, ...agencyFilter };
+
+    console.log("Property search filter:", {
+      id: id,
+      agencyFilter: agencyFilter,
+      finalFilter: filter,
+    });
+
     const property = await Property.findOne(filter);
 
     if (!property) {
@@ -998,6 +1078,13 @@ router.post("/:id/assign-property-manager", authenticate, async (req, res) => {
         message: "Property not found",
       });
     }
+
+    console.log("Property found:", {
+      id: property._id,
+      agency: property.agency,
+      agencyType: typeof property.agency,
+      propertyAgencyString: property.agency.toString(),
+    });
 
     // Find property manager
     const propertyManager = await PropertyManager.findById(propertyManagerId);
@@ -1008,15 +1095,79 @@ router.post("/:id/assign-property-manager", authenticate, async (req, res) => {
       });
     }
 
+    console.log("Property Manager found:", {
+      id: propertyManager._id,
+      name: `${propertyManager.firstName} ${propertyManager.lastName}`,
+      owner: propertyManager.owner,
+      ownerId: propertyManager.owner?.ownerId,
+      ownerIdType: typeof propertyManager.owner?.ownerId,
+      ownerIdString: propertyManager.owner?.ownerId?.toString(),
+    });
+
+    console.log("Agency comparison:", {
+      propertyAgency: property.agency.toString(),
+      propertyManagerOwnerId: propertyManager.owner.ownerId.toString(),
+      currentUserAgencyId: req.agency?.id?.toString(),
+      propertyManagerOwnerMatch:
+        property.agency.toString() === propertyManager.owner.ownerId.toString(),
+      currentUserAgencyMatch: req.agency
+        ? property.agency.toString() === req.agency.id.toString()
+        : false,
+    });
+
     // Check if property manager is owned by the same agency/superuser
     if (
       req.agency &&
       propertyManager.owner.ownerType === "Agency" &&
-      propertyManager.owner.ownerId.toString() !== req.agency.id
+      propertyManager.owner.ownerId.toString() !== req.agency.id.toString()
     ) {
+      console.log("Agency ownership check failed:", {
+        agencyId: req.agency.id,
+        agencyIdType: typeof req.agency.id,
+        propertyManagerOwnerId: propertyManager.owner.ownerId,
+        propertyManagerOwnerIdType: typeof propertyManager.owner.ownerId,
+        comparison:
+          propertyManager.owner.ownerId.toString() !== req.agency.id.toString(),
+        agencyIdString: req.agency.id.toString(),
+        propertyManagerOwnerIdString: propertyManager.owner.ownerId.toString(),
+      });
       return res.status(403).json({
         status: "error",
         message: "You can only assign Property Managers owned by your agency.",
+      });
+    }
+
+    // Check if the property belongs to the current user's agency
+    if (req.agency && property.agency.toString() !== req.agency.id.toString()) {
+      console.log("Property doesn't belong to current user's agency:", {
+        propertyAgency: property.agency.toString(),
+        currentUserAgencyId: req.agency.id.toString(),
+        match: property.agency.toString() === req.agency.id.toString(),
+      });
+      return res.status(403).json({
+        status: "error",
+        message:
+          "You can only assign Property Managers to properties owned by your agency.",
+      });
+    }
+
+    // Additional check: Ensure the property belongs to the same agency as the property manager's owner
+    if (
+      req.agency &&
+      propertyManager.owner.ownerType === "Agency" &&
+      property.agency.toString() !== propertyManager.owner.ownerId.toString()
+    ) {
+      console.log("Property agency mismatch:", {
+        propertyAgency: property.agency.toString(),
+        propertyManagerOwnerId: propertyManager.owner.ownerId.toString(),
+        match:
+          property.agency.toString() ===
+          propertyManager.owner.ownerId.toString(),
+      });
+      return res.status(403).json({
+        status: "error",
+        message:
+          "You can only assign Property Managers to properties from their agency.",
       });
     }
 
@@ -1051,6 +1202,14 @@ router.post("/:id/assign-property-manager", authenticate, async (req, res) => {
         message: "Property Manager is already assigned to this property",
       });
     }
+
+    console.log("Property manager assignment check:", {
+      propertyManagerId: propertyManager._id.toString(),
+      propertyId: id,
+      existingAssignment: existingAssignment ? "Yes" : "No",
+      currentAssignedPropertyManager:
+        property.assignedPropertyManager?.toString() || "None",
+    });
 
     // Assign property manager to property
     property.assignedPropertyManager = propertyManagerId;
@@ -1202,66 +1361,6 @@ router.delete(
   }
 );
 
-// Get Available Property Managers for Assignment (Agency/SuperUser/PropertyManager only)
-router.get("/available-property-managers", authenticate, async (req, res) => {
-  try {
-    // Check if user has permission (Agency, SuperUser, or PropertyManager)
-    if (!req.superUser && !req.agency && !req.propertyManager) {
-      return res.status(403).json({
-        status: "error",
-        message:
-          "Access denied. Only Super Users, Agencies, and Property Managers can view available Property Managers.",
-      });
-    }
-
-    const { status = "Active", availabilityStatus = "Available" } = req.query;
-
-    // Build filter object
-    const filter = { status };
-    if (availabilityStatus !== "All") {
-      filter.availabilityStatus = availabilityStatus;
-    }
-
-    // Add owner filter for agencies and property managers
-    if (req.agency) {
-      filter["owner.ownerType"] = "Agency";
-      filter["owner.ownerId"] = req.agency.id;
-    } else if (req.propertyManager) {
-      filter["owner.ownerType"] = "Agency";
-      filter["owner.ownerId"] = req.propertyManager.owner.ownerId;
-    }
-
-    // Get available property managers
-    const propertyManagers = await PropertyManager.find(filter)
-      .select(
-        "fullName email phone status availabilityStatus assignedProperties"
-      )
-      .sort({ fullName: 1 });
-
-    res.status(200).json({
-      status: "success",
-      data: {
-        propertyManagers: propertyManagers.map((pm) => ({
-          id: pm._id,
-          fullName: pm.fullName,
-          email: pm.email,
-          phone: pm.phone,
-          status: pm.status,
-          availabilityStatus: pm.availabilityStatus,
-          assignedPropertiesCount: pm.assignedProperties.length,
-        })),
-        totalCount: propertyManagers.length,
-      },
-    });
-  } catch (error) {
-    console.error("Get available property managers error:", error);
-    res.status(500).json({
-      status: "error",
-      message: "An error occurred while fetching available property managers",
-    });
-  }
-});
-
 // Get Property Assignment Summary (Agency/SuperUser/PropertyManager only)
 router.get("/:id/assignment-summary", authenticate, async (req, res) => {
   try {
@@ -1289,7 +1388,7 @@ router.get("/:id/assignment-summary", authenticate, async (req, res) => {
     const filter = { _id: id, isActive: true, ...agencyFilter };
     const property = await Property.findOne(filter).populate(
       "assignedPropertyManager",
-      "fullName email phone status availabilityStatus"
+      "firstName lastName email phone status availabilityStatus"
     );
 
     if (!property) {
@@ -1304,6 +1403,9 @@ router.get("/:id/assignment-summary", authenticate, async (req, res) => {
       data: {
         propertyId: id,
         fullAddress: property.fullAddressString,
+        fullName: property.assignedPropertyManager
+          ? `${property.assignedPropertyManager.firstName} ${property.assignedPropertyManager.lastName}`
+          : null,
         assignedPropertyManager: property.assignedPropertyManager,
         assignmentStatus: property.assignedPropertyManager
           ? "Assigned"
