@@ -204,8 +204,7 @@ class EmailService {
     if (
       !propertyManager ||
       !propertyManager.email ||
-      !propertyManager.contactPerson ||
-      !propertyManager.companyName
+      !propertyManager.fullName
     ) {
       throw new Error(
         "Invalid property manager data provided for credentials email"
@@ -218,24 +217,20 @@ class EmailService {
 
     console.log("Sending property manager credentials email to:", {
       email: propertyManager.email,
-      contactPerson: propertyManager.contactPerson,
-      companyName: propertyManager.companyName,
-      abn: propertyManager.abn,
-      region: propertyManager.region,
-      compliance: propertyManager.compliance,
+      fullName: propertyManager.fullName,
     });
 
     return await this.sendTemplatedEmail({
       to: propertyManager.email,
       templateName: "propertyManagerCredentials",
       templateData: {
-        name: propertyManager.contactPerson,
-        companyName: propertyManager.companyName,
+        name: propertyManager.fullName,
+        companyName: propertyManager.fullName, // Using fullName as company name for Property Managers
         email: propertyManager.email,
         password: password,
-        abn: propertyManager.abn,
-        region: propertyManager.region,
-        compliance: propertyManager.compliance,
+        abn: propertyManager.abn || "N/A",
+        region: propertyManager.address?.state || "N/A",
+        compliance: "Standard",
         loginUrl: loginUrl,
       },
     });
@@ -259,8 +254,7 @@ class EmailService {
     if (
       !propertyManager ||
       !propertyManager.email ||
-      !propertyManager.contactPerson ||
-      !propertyManager.companyName
+      !propertyManager.fullName
     ) {
       throw new Error(
         "Invalid property manager data provided for password reset OTP email"
@@ -273,8 +267,8 @@ class EmailService {
 
     console.log("Sending property manager password reset OTP email to:", {
       email: propertyManager.email,
-      name: propertyManager.contactPerson,
-      companyName: propertyManager.companyName,
+      name: propertyManager.fullName,
+      companyName: propertyManager.fullName,
       otpLength: otp.length,
       expirationMinutes,
     });
@@ -283,8 +277,8 @@ class EmailService {
       to: propertyManager.email,
       templateName: "propertyManagerPasswordResetOTP",
       templateData: {
-        name: propertyManager.contactPerson,
-        companyName: propertyManager.companyName,
+        name: propertyManager.fullName,
+        companyName: propertyManager.fullName,
         otp: otp,
         expirationMinutes: expirationMinutes,
       },

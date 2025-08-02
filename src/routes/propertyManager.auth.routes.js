@@ -85,10 +85,7 @@ router.post("/register", authenticate, async (req, res) => {
     // Send credentials email to property manager
     try {
       await emailService.sendPropertyManagerCredentialsEmail(
-        {
-          email: propertyManager.email,
-          fullName: propertyManager.fullName,
-        },
+        propertyManager, // Pass the full propertyManager object
         password,
         process.env.FRONTEND_URL || "https://rentalease-crm.com/login"
       );
