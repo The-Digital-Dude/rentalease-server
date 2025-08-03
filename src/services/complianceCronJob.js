@@ -1,17 +1,303 @@
 import cron from "node-cron";
 import Property from "../models/Property.js";
 import Job from "../models/Job.js";
+import EmailLog from "../models/EmailLog.js";
 import notificationService from "./notification.service.js";
+import emailService from "./email.service.js";
 
 class ComplianceCronJob {
   constructor() {
     this.isRunning = false;
     this.cronJob = null;
+    this.sentEmails = new Set(); // Track sent emails to prevent duplicates
   }
 
   logMessage(message) {
     const timestamp = new Date().toISOString();
     console.log(`[${timestamp}] ${message}`);
+  }
+
+  // Generate unique key for email tracking
+  generateEmailKey(propertyId, complianceType, inspectionDate) {
+    const dateString = inspectionDate.toDateString();
+    return `${propertyId}_${complianceType}_${dateString}`;
+  }
+
+  // Check if email was already sent (database check)
+  async hasEmailBeenSent(propertyId, complianceType, inspectionDate) {
+    try {
+      // Check database first
+      const wasSent = await EmailLog.wasEmailRecentlySent(
+        propertyId,
+        complianceType,
+        inspectionDate
+      );
+
+      if (wasSent) {
+        return true;
+      }
+
+      // Also check in-memory for current session
+      const emailKey = this.generateEmailKey(
+        propertyId,
+        complianceType,
+        inspectionDate
+      );
+      return this.sentEmails.has(emailKey);
+    } catch (error) {
+      this.logMessage(`❌ Error checking email history: ${error.message}`);
+      // Fallback to in-memory check only
+      const emailKey = this.generateEmailKey(
+        propertyId,
+        complianceType,
+        inspectionDate
+      );
+      return this.sentEmails.has(emailKey);
+    }
+  }
+
+  // Mark email as sent (both database and in-memory)
+  async markEmailAsSent(propertyId, complianceType, inspectionDate) {
+    const emailKey = this.generateEmailKey(
+      propertyId,
+      complianceType,
+      inspectionDate
+    );
+    this.sentEmails.add(emailKey);
+  }
+
+  // Database tracking - log email sent to database
+  async logEmailToDatabase(
+    property,
+    complianceType,
+    inspectionDate,
+    emailResult,
+    verificationToken = null,
+    tokenExpiresAt = null
+  ) {
+    try {
+      // Generate verification token if not provided
+      if (!verificationToken) {
+        verificationToken = EmailLog.generateVerificationToken();
+      }
+
+      if (!tokenExpiresAt) {
+        tokenExpiresAt = new Date();
+        tokenExpiresAt.setDate(tokenExpiresAt.getDate() + 30); // Token expires in 30 days
+      }
+
+      const emailLog = new EmailLog({
+        propertyId: property._id,
+        propertyAddress: property.address.fullAddress,
+        tenantEmail: property.currentTenant.email,
+        tenantName: property.currentTenant.name,
+        complianceType: complianceType,
+        jobType: this.getJobTypeFromComplianceType(complianceType),
+        inspectionDate: inspectionDate,
+        emailSentAt: new Date(),
+        emailStatus: emailResult ? "sent" : "failed",
+        emailResult: emailResult,
+        trackingKey: this.generateEmailKey(
+          property._id,
+          complianceType,
+          inspectionDate
+        ),
+        verificationToken: verificationToken,
+        tokenExpiresAt: tokenExpiresAt,
+        notes: emailResult ? "Email sent successfully" : "Email sending failed",
+      });
+
+      await emailLog.save();
+      this.logMessage(
+        `📧 Email logged to database: ${emailLog._id} with token: ${verificationToken}`
+      );
+
+      return verificationToken;
+    } catch (error) {
+      this.logMessage(`❌ Error logging email to database: ${error.message}`);
+      return null;
+    }
+  }
+
+  // Get email history for a property
+  async getEmailHistory(propertyId) {
+    try {
+      const emailHistory = await EmailLog.getPropertyEmailHistory(propertyId);
+      return emailHistory;
+    } catch (error) {
+      this.logMessage(`❌ Error getting email history: ${error.message}`);
+      return [];
+    }
+  }
+
+  // Initialize in-memory tracking from database
+  async initializeEmailTracking() {
+    try {
+      // Get recent email logs (last 30 days) to populate in-memory tracking
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      const recentEmails = await EmailLog.find({
+        emailSentAt: { $gte: thirtyDaysAgo },
+        emailStatus: "sent",
+      }).select("trackingKey");
+
+      // Populate in-memory tracking
+      for (const email of recentEmails) {
+        this.sentEmails.add(email.trackingKey);
+      }
+
+      this.logMessage(
+        `📧 Initialized email tracking with ${recentEmails.length} recent emails from database`
+      );
+    } catch (error) {
+      this.logMessage(`❌ Error initializing email tracking: ${error.message}`);
+    }
+  }
+
+  // Verify booking token
+  async verifyBookingToken(token) {
+    try {
+      const result = await EmailLog.verifyToken(token);
+
+      if (result.valid) {
+        this.logMessage(
+          `✅ Token verified successfully for ${result.emailLog.tenantName}`
+        );
+        return {
+          valid: true,
+          emailLog: result.emailLog,
+          message: "Token is valid and not expired",
+        };
+      } else {
+        this.logMessage(`❌ Token verification failed: ${result.reason}`);
+        return {
+          valid: false,
+          message: result.reason,
+        };
+      }
+    } catch (error) {
+      this.logMessage(`❌ Error verifying token: ${error.message}`);
+      return {
+        valid: false,
+        message: "Error verifying token",
+      };
+    }
+  }
+
+  // Mark token as used
+  async markTokenAsUsed(token) {
+    try {
+      const success = await EmailLog.markTokenAsUsed(token);
+
+      if (success) {
+        this.logMessage(`✅ Token marked as used: ${token}`);
+        return true;
+      } else {
+        this.logMessage(`❌ Failed to mark token as used: ${token}`);
+        return false;
+      }
+    } catch (error) {
+      this.logMessage(`❌ Error marking token as used: ${error.message}`);
+      return false;
+    }
+  }
+
+  // Get active tokens (for debugging)
+  async getActiveTokens() {
+    try {
+      const activeTokens = await EmailLog.getActiveTokens();
+      this.logMessage(`📋 Found ${activeTokens.length} active tokens`);
+
+      activeTokens.forEach((token, index) => {
+        this.logMessage(
+          `  ${index + 1}. Token: ${token.verificationToken.substring(
+            0,
+            8
+          )}... | Tenant: ${token.tenantEmail} | Property: ${
+            token.propertyAddress
+          } | Expires: ${token.tokenExpiresAt}`
+        );
+      });
+
+      return activeTokens;
+    } catch (error) {
+      this.logMessage(`❌ Error getting active tokens: ${error.message}`);
+      return [];
+    }
+  }
+
+  // Check email history for debugging
+  async checkEmailHistory(propertyId, complianceType, inspectionDate) {
+    try {
+      const trackingKey = this.generateEmailKey(
+        propertyId,
+        complianceType,
+        inspectionDate
+      );
+      const emailHistory = await EmailLog.find({ trackingKey }).sort({
+        emailSentAt: -1,
+      });
+
+      if (emailHistory.length > 0) {
+        this.logMessage(`📧 Email history found for ${trackingKey}:`);
+        emailHistory.forEach((log, index) => {
+          this.logMessage(
+            `  ${index + 1}. Status: ${log.emailStatus}, Sent: ${
+              log.emailSentAt
+            }, Tenant: ${log.tenantName}, Token: ${
+              log.verificationToken
+                ? log.verificationToken.substring(0, 8) + "..."
+                : "N/A"
+            }`
+          );
+        });
+        return emailHistory;
+      } else {
+        this.logMessage(`📧 No email history found for ${trackingKey}`);
+        return [];
+      }
+    } catch (error) {
+      this.logMessage(`❌ Error checking email history: ${error.message}`);
+      return [];
+    }
+  }
+
+  // Get email statistics
+  async getEmailStats() {
+    try {
+      const stats = await EmailLog.getEmailStats();
+      this.logMessage(`📊 Email Statistics: ${JSON.stringify(stats, null, 2)}`);
+      return stats;
+    } catch (error) {
+      this.logMessage(`❌ Error getting email stats: ${error.message}`);
+      return {};
+    }
+  }
+
+  // Clean up old email tracking (older than 30 days)
+  cleanupOldEmailTracking() {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const keysToRemove = [];
+    for (const key of this.sentEmails) {
+      const parts = key.split("_");
+      if (parts.length >= 3) {
+        const dateString = parts.slice(2).join("_");
+        const emailDate = new Date(dateString);
+        if (emailDate < thirtyDaysAgo) {
+          keysToRemove.push(key);
+        }
+      }
+    }
+
+    keysToRemove.forEach((key) => this.sentEmails.delete(key));
+    if (keysToRemove.length > 0) {
+      this.logMessage(
+        `🧹 Cleaned up ${keysToRemove.length} old email tracking records`
+      );
+    }
   }
 
   getDateRange() {
@@ -115,6 +401,164 @@ class ComplianceCronJob {
     return upcomingInspections;
   }
 
+  getJobTypeFromComplianceType(complianceType) {
+    const jobTypeMap = {
+      gasCompliance: "Gas Safety Inspection",
+      electricalSafety: "Electrical Safety Inspection",
+      smokeAlarms: "Smoke Alarm Inspection",
+      poolSafety: "Pool Safety Inspection",
+    };
+    return jobTypeMap[complianceType] || "Routine Inspection";
+  }
+
+  async sendTenantNotificationEmail(property, complianceType, inspectionDate) {
+    try {
+      // Check if email was already sent
+      if (
+        await this.hasEmailBeenSent(
+          property._id,
+          complianceType,
+          inspectionDate
+        )
+      ) {
+        this.logMessage(
+          `⏭️ Email already sent for ${
+            property.address.fullAddress
+          } - ${this.getJobTypeFromComplianceType(
+            complianceType
+          )} (${inspectionDate.toDateString()}) - Skipping duplicate`
+        );
+
+        // Log the email history for debugging
+        await this.checkEmailHistory(
+          property._id,
+          complianceType,
+          inspectionDate
+        );
+
+        return false;
+      }
+
+      const tenantEmail = property.currentTenant.email;
+      const tenantName = property.currentTenant.name;
+      const propertyAddress = property.address.fullAddress;
+      const jobType = this.getJobTypeFromComplianceType(complianceType);
+
+      this.logMessage(
+        `📧 Sending email to tenant ${tenantName} (${tenantEmail}) for ${jobType} at ${propertyAddress}`
+      );
+
+      // Generate verification token first
+      const verificationToken = await EmailLog.generateVerificationToken();
+      const tokenExpiresAt = new Date();
+      tokenExpiresAt.setDate(tokenExpiresAt.getDate() + 30); // Token expires in 30 days
+
+      // Create booking link with verification token
+      const bookingLink = `https://rentalease-crm.com/book-inspection/${property._id}/${complianceType}?token=${verificationToken}`;
+
+      this.logMessage(`🔗 Booking link created: ${bookingLink}`);
+
+      // Use the new tenantInspectionBooking template with actual booking link
+      const emailResult = await emailService.sendTemplatedEmail({
+        to: tenantEmail,
+        templateName: "tenantInspectionBooking",
+        templateData: {
+          tenantName: tenantName,
+          propertyAddress: propertyAddress,
+          jobType: jobType,
+          inspectionDate: inspectionDate.toLocaleDateString("en-US", {
+            weekday: "long",
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+          }),
+          bookingLink: bookingLink,
+          complianceType: jobType,
+        },
+      });
+
+      // Mark email as sent (in-memory)
+      await this.markEmailAsSent(property._id, complianceType, inspectionDate);
+
+      // Log to database with verification token
+      await this.logEmailToDatabase(
+        property,
+        complianceType,
+        inspectionDate,
+        emailResult,
+        verificationToken,
+        tokenExpiresAt
+      );
+
+      this.logMessage(
+        `✅ Email sent successfully to tenant ${tenantName} (${tenantEmail}) for ${jobType} at ${propertyAddress}`
+      );
+
+      return true;
+    } catch (error) {
+      this.logMessage(
+        `❌ Error sending email to tenant for ${property.address.fullAddress}: ${error.message}`
+      );
+
+      // Log failed email attempt
+      await this.logEmailToDatabase(
+        property,
+        complianceType,
+        inspectionDate,
+        null
+      );
+
+      return false;
+    }
+  }
+
+  async processPropertyCompliance(property, startOfToday, endOfMonth) {
+    try {
+      const compliance = property.complianceSchedule;
+      let emailsSent = 0;
+
+      // Check each compliance type and send emails
+      const complianceTypes = [
+        { type: "gasCompliance", jobType: "Gas Safety Inspection" },
+        { type: "electricalSafety", jobType: "Electrical Safety Inspection" },
+        { type: "smokeAlarms", jobType: "Smoke Alarm Inspection" },
+      ];
+
+      // Add pool safety only if required
+      if (compliance.poolSafety.required) {
+        complianceTypes.push({
+          type: "poolSafety",
+          jobType: "Pool Safety Inspection",
+        });
+      }
+
+      for (const { type, jobType } of complianceTypes) {
+        const inspection = compliance[type];
+        if (
+          inspection.nextInspection &&
+          inspection.nextInspection >= startOfToday &&
+          inspection.nextInspection <= endOfMonth
+        ) {
+          const emailSent = await this.sendTenantNotificationEmail(
+            property,
+            type,
+            inspection.nextInspection
+          );
+          if (emailSent) {
+            emailsSent++;
+          }
+        }
+      }
+
+      return emailsSent;
+    } catch (error) {
+      this.logMessage(
+        `Error processing compliance for ${property.address.fullAddress}: ${error.message}`
+      );
+      return 0;
+    }
+  }
+
   async fetchPropertiesWithUpcomingCompliance() {
     try {
       const { startOfToday, endOfMonth } = this.getDateRange();
@@ -123,7 +567,9 @@ class ComplianceCronJob {
       const properties = await Property.find(query)
         .populate("agency", "name")
         .populate("assignedPropertyManager", "name email")
-        .select("address complianceSchedule agency assignedPropertyManager");
+        .select(
+          "address complianceSchedule agency assignedPropertyManager currentTenant"
+        );
 
       return { properties, startOfToday, endOfMonth };
     } catch (error) {
@@ -134,13 +580,15 @@ class ComplianceCronJob {
     }
   }
 
-  logComplianceResults(properties, startOfToday, endOfMonth) {
+  async logComplianceResults(properties, startOfToday, endOfMonth) {
     if (properties.length > 0) {
       this.logMessage(
         `Found ${properties.length} active properties with compliance due within 1 month:`
       );
 
-      properties.forEach((property) => {
+      let totalEmailsSent = 0;
+
+      for (const property of properties) {
         const upcomingInspections = this.getUpcomingInspections(
           property,
           startOfToday,
@@ -152,7 +600,19 @@ class ComplianceCronJob {
             property.address.fullAddress
           } - ${upcomingInspections.join(", ")}`
         );
-      });
+
+        // Process compliance and send notifications
+        const emailsSent = await this.processPropertyCompliance(
+          property,
+          startOfToday,
+          endOfMonth
+        );
+        totalEmailsSent += emailsSent;
+      }
+
+      this.logMessage(
+        `📊 Summary: Sent ${totalEmailsSent} email notifications to tenants`
+      );
     } else {
       this.logMessage(
         "No active properties with compliance due within 1 month"
@@ -164,16 +624,22 @@ class ComplianceCronJob {
     if (this.isRunning) return;
     this.isRunning = true;
 
+    // Initialize email tracking on server start
+    await this.initializeEmailTracking();
+
     // Schedule a job that runs every 15 seconds
     this.cronJob = cron.schedule(
       "*/15 * * * * *",
       async () => {
         this.logMessage("hey 👋");
 
+        // Clean up old email tracking
+        this.cleanupOldEmailTracking();
+
         // Fetch and log properties with upcoming compliance
         const { properties, startOfToday, endOfMonth } =
           await this.fetchPropertiesWithUpcomingCompliance();
-        this.logComplianceResults(properties, startOfToday, endOfMonth);
+        await this.logComplianceResults(properties, startOfToday, endOfMonth);
       },
       {
         scheduled: true,

@@ -1485,6 +1485,109 @@ const complianceJobNotificationTemplate = (data) => ({
   `,
 });
 
+/**
+ * Email template for tenant inspection date selection
+ * @param {Object} data - Template data
+ * @param {string} data.tenantName - Tenant's name
+ * @param {string} data.propertyAddress - Property address
+ * @param {string} data.jobType - Type of inspection
+ * @param {string} data.inspectionDate - Due date for inspection
+ * @param {string} data.bookingLink - Link to book/reschedule inspection
+ * @param {string} data.complianceType - Type of compliance
+ * @returns {Object} - Email template configuration
+ */
+const tenantInspectionBookingTemplate = (data) => ({
+  subject: `Schedule Your ${data.jobType} - ${data.propertyAddress}`,
+  html: `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+      <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #28a745; margin-bottom: 10px;">📅 Schedule Your Inspection</h1>
+          <div style="width: 50px; height: 3px; background-color: #28a745; margin: 0 auto;"></div>
+        </div>
+        
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">Dear ${data.tenantName},</p>
+        
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">
+          We need to schedule a <strong>${data.jobType}</strong> for your property at <strong>${data.propertyAddress}</strong>. 
+          This is a required compliance inspection to ensure your property meets safety standards.
+        </p>
+        
+        <div style="background-color: #f8f9fa; border: 1px solid #dee2e6; padding: 20px; border-radius: 8px; margin: 25px 0;">
+          <h3 style="color: #495057; margin: 0 0 15px 0; font-size: 18px;">📋 Inspection Details</h3>
+          
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold; width: 40%;">Inspection Type:</td>
+              <td style="padding: 8px 0; color: #333; font-weight: bold;">${data.jobType}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold;">Property Address:</td>
+              <td style="padding: 8px 0; color: #333;">${data.propertyAddress}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold;">Due Date:</td>
+              <td style="padding: 8px 0; color: #333;">${data.inspectionDate}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold;">Compliance Type:</td>
+              <td style="padding: 8px 0; color: #333;">${data.complianceType}</td>
+            </tr>
+          </table>
+        </div>
+        
+        <div style="background-color: #d4edda; border: 1px solid #c3e6cb; padding: 20px; border-radius: 8px; margin: 25px 0;">
+          <h3 style="color: #155724; margin: 0 0 15px 0; font-size: 18px;">🎯 Choose Your Preferred Date</h3>
+          
+          <p style="color: #155724; line-height: 1.6; margin-bottom: 20px;">
+            Please click the button below to select your preferred inspection date and time. 
+            We'll do our best to accommodate your schedule.
+          </p>
+          
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${data.bookingLink}" style="background-color: #28a745; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; display: inline-block; font-size: 16px; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+              📅 Book Inspection Date
+            </a>
+          </div>
+          
+          <p style="color: #155724; font-size: 14px; margin: 0; text-align: center;">
+            <em>Click the button above to open the booking calendar</em>
+          </p>
+        </div>
+        
+        <div style="background-color: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <h4 style="color: #856404; margin: 0 0 10px 0; font-size: 16px;">⚠️ Important Information</h4>
+          <ul style="color: #856404; margin: 10px 0 0 20px; line-height: 1.6;">
+            <li>Please ensure someone is available at the property during the inspection</li>
+            <li>Clear access to all areas that need to be inspected</li>
+            <li>Inspection typically takes 30-60 minutes</li>
+            <li>You'll receive a confirmation email once scheduled</li>
+          </ul>
+        </div>
+        
+        <div style="background-color: #d1ecf1; border: 1px solid #bee5eb; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <h4 style="color: #0c5460; margin: 0 0 10px 0; font-size: 16px;">📞 Need Help?</h4>
+          <p style="color: #0c5460; margin: 0; line-height: 1.6;">
+            If you have any questions or need assistance with scheduling, please contact us at:<br>
+            <strong>Email:</strong> support@rentalease-crm.com<br>
+            <strong>Phone:</strong> 1300 123 456
+          </p>
+        </div>
+        
+        <p style="color: #333; margin-top: 30px;">
+          Best regards,<br>
+          <strong>The RentalEase Property Management Team</strong>
+        </p>
+        
+        <hr style="border: none; border-top: 1px solid #ecf0f1; margin: 30px 0;">
+        <p style="font-size: 12px; color: #7f8c8d; text-align: center;">
+          This is an automated notification. Please do not reply to this email.
+        </p>
+      </div>
+    </div>
+  `,
+});
+
 // Create templates object with all email templates
 const templates = {
   // Original templates
@@ -1513,6 +1616,7 @@ const templates = {
 
   // Compliance templates
   complianceJobNotification: complianceJobNotificationTemplate,
+  tenantInspectionBooking: tenantInspectionBookingTemplate,
 };
 
 export default templates;
