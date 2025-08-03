@@ -164,11 +164,7 @@ router.post("/", authenticate, async (req, res) => {
           : assignedTechnician;
 
       if (technicianId) {
-        technician = await Technician.findOne({
-          _id: technicianId,
-          "owner.ownerType": ownerInfo.ownerType,
-          "owner.ownerId": ownerInfo.ownerId,
-        }).session(session);
+        technician = await Technician.findById(technicianId).session(session);
 
         if (!technician) {
           await session.abortTransaction();
@@ -177,8 +173,7 @@ router.post("/", authenticate, async (req, res) => {
             status: "error",
             message: "Technician not found",
             details: {
-              assignedTechnician:
-                "The selected technician was not found or does not belong to your organization",
+              assignedTechnician: "The selected technician was not found",
             },
           });
         }
@@ -869,20 +864,16 @@ router.put("/:id", authenticate, async (req, res) => {
         updates.hasOwnProperty("assignedTechnician") &&
         updates.assignedTechnician
       ) {
-        const ownerInfo = getOwnerInfo(req);
-        const technician = await Technician.findOne({
-          _id: updates.assignedTechnician,
-          "owner.ownerType": ownerInfo.ownerType,
-          "owner.ownerId": ownerInfo.ownerId,
-        }).session(session);
+        const technician = await Technician.findById(
+          updates.assignedTechnician
+        ).session(session);
 
         if (!technician) {
           await session.abortTransaction();
           session.endSession();
           return res.status(400).json({
             status: "error",
-            message:
-              "Assigned technician not found or does not belong to your organization",
+            message: "Assigned technician not found",
           });
         }
       }
@@ -1227,16 +1218,8 @@ router.patch("/:id/assign", authenticateSuperUser, async (req, res) => {
       });
     }
 
-    // Check if technician belongs to the same organization
-    if (
-      technician.owner.ownerType !== job.owner.ownerType ||
-      technician.owner.ownerId.toString() !== job.owner.ownerId.toString()
-    ) {
-      return res.status(400).json({
-        status: "error",
-        message: "Technician does not belong to the same organization",
-      });
-    }
+    // Technicians are independent contractors and can be assigned to any job
+    // No organization validation needed - any authenticated user can assign any technician
 
     // Start a session for transaction
     const session = await mongoose.startSession();
@@ -1263,8 +1246,9 @@ router.patch("/:id/assign", authenticateSuperUser, async (req, res) => {
       // Populate technician details for response
       await job.populate(
         "assignedTechnician",
-        "fullName phone email availabilityStatus"
+        "firstName lastName phone email availabilityStatus"
       );
+      job.fullName = `${technician.firstName} ${technician.lastName}`;
 
       // Send notifications to the assigned technician, agency, and super users
       const assignedBy = getUserInfo(req);
@@ -1300,7 +1284,7 @@ router.patch("/:id/assign", authenticateSuperUser, async (req, res) => {
           job: job.getFullDetails(),
           technician: {
             id: technician._id,
-            fullName: technician.fullName,
+            fullName: technician.firstName + " " + technician.lastName,
             currentJobs: technician.currentJobs,
             availabilityStatus: technician.availabilityStatus,
           },

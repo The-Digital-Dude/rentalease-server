@@ -37,16 +37,8 @@ const validateOwnerAccess = (technician, req) => {
   const ownerInfo = getOwnerInfo(req);
   if (!ownerInfo) return false;
 
-  // Super users can access any technician
-  if (ownerInfo.ownerType === "SuperUser") {
-    return true;
-  }
-
-  // For other users, check if they own the technician
-  return (
-    technician.owner.ownerType === ownerInfo.ownerType &&
-    technician.owner.ownerId.toString() === ownerInfo.ownerId.toString()
-  );
+  // All authenticated users can access any technician (technicians are independent contractors)
+  return true;
 };
 
 // CREATE - Add new technician
@@ -84,11 +76,9 @@ router.post("/", authenticate, async (req, res) => {
       });
     }
 
-    // Check if technician with same email already exists for this owner
+    // Check if technician with same email already exists (globally)
     const existingTechnician = await Technician.findOne({
       email: email.toLowerCase(),
-      "owner.ownerType": ownerInfo.ownerType,
-      "owner.ownerId": ownerInfo.ownerId,
     });
 
     if (existingTechnician) {
@@ -167,17 +157,8 @@ router.get("/", authenticate, async (req, res) => {
     // Build query
     let query = {};
 
-    // If super user, show all technicians. If agency, show only their technicians
-    if (ownerInfo.ownerType === "SuperUser") {
-      // Super users can see all technicians
-      query = {};
-    } else {
-      // Agencies can only see their own technicians
-      query = {
-        "owner.ownerType": ownerInfo.ownerType,
-        "owner.ownerId": ownerInfo.ownerId,
-      };
-    }
+    // All users can see all technicians (technicians are independent contractors)
+    query = {};
 
     // Add filters
     if (status) query.status = status;

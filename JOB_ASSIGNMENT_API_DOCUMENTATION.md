@@ -136,7 +136,7 @@ curl -X PATCH \
 ```json
 {
   "status": "error",
-  "message": "Technician does not belong to the same organization"
+  "message": "Technician does not belong to your organization"
 }
 ```
 
@@ -455,9 +455,9 @@ Email notifications are also sent to the assigned technician.
 
 ### Organization Access
 
-- Technicians can only claim jobs that belong to their organization
-- Super users can assign jobs to any technician within the same organization
-- Agencies can only assign jobs to technicians within their organization
+- Technicians are independent contractors and can be assigned to any job
+- Any authenticated user (Super User, Agency, etc.) can assign any technician to any job they have access to
+- No organization restrictions apply to technician assignments
 
 ### Validation Rules
 

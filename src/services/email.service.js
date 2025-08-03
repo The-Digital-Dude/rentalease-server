@@ -1031,7 +1031,20 @@ class EmailService {
    * @returns {Promise} - Email send result
    */
   async sendComplianceJobNotificationEmail(recipient, job, property) {
+    console.log("📧 sendComplianceJobNotificationEmail called with:", {
+      recipient: recipient
+        ? {
+            email: recipient.email,
+            name: recipient.name,
+            type: recipient.type,
+          }
+        : null,
+      jobId: job ? job._id : null,
+      propertyId: property ? property._id : null,
+    });
+
     if (!recipient || !recipient.email || !recipient.name || !recipient.type) {
+      console.error("❌ Invalid recipient data:", recipient);
       throw new Error(
         "Invalid recipient data provided for compliance job notification email"
       );

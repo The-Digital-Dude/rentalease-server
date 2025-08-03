@@ -132,6 +132,10 @@ class NotificationService {
       // Get recipient details based on type
       let recipientDetails = null;
 
+      console.log(
+        `🔍 Looking up recipient: ${recipient.recipientType}:${recipient.recipientId}`
+      );
+
       switch (recipient.recipientType) {
         case "SuperUser":
           const superUser = await SuperUser.findById(recipient.recipientId);
@@ -141,6 +145,9 @@ class NotificationService {
               name: superUser.fullName || "Super User",
               type: "SuperUser",
             };
+            console.log(`✅ Found SuperUser: ${superUser.email}`);
+          } else {
+            console.warn(`❌ SuperUser not found: ${recipient.recipientId}`);
           }
           break;
         case "Agency":
@@ -151,6 +158,9 @@ class NotificationService {
               name: agency.contactPerson,
               type: "Agency",
             };
+            console.log(`✅ Found Agency: ${agency.email}`);
+          } else {
+            console.warn(`❌ Agency not found: ${recipient.recipientId}`);
           }
           break;
         case "PropertyManager":
@@ -163,6 +173,11 @@ class NotificationService {
               name: `${propertyManager.firstName} ${propertyManager.lastName}`,
               type: "PropertyManager",
             };
+            console.log(`✅ Found PropertyManager: ${propertyManager.email}`);
+          } else {
+            console.warn(
+              `❌ PropertyManager not found: ${recipient.recipientId}`
+            );
           }
           break;
         case "Technician":
@@ -173,8 +188,13 @@ class NotificationService {
               name: technician.fullName,
               type: "Technician",
             };
+            console.log(`✅ Found Technician: ${technician.email}`);
+          } else {
+            console.warn(`❌ Technician not found: ${recipient.recipientId}`);
           }
           break;
+        default:
+          console.warn(`❌ Unknown recipient type: ${recipient.recipientType}`);
       }
 
       if (!recipientDetails) {
@@ -186,6 +206,21 @@ class NotificationService {
           channel: "email",
           success: false,
           error: "Recipient not found",
+        };
+      }
+
+      // Validate recipient details before proceeding
+      if (
+        !recipientDetails.email ||
+        !recipientDetails.name ||
+        !recipientDetails.type
+      ) {
+        console.error(`❌ Invalid recipient details:`, recipientDetails);
+        return {
+          recipient,
+          channel: "email",
+          success: false,
+          error: "Invalid recipient details - missing email, name, or type",
         };
       }
 
@@ -575,14 +610,24 @@ class NotificationService {
    */
   async sendComplianceJobNotification(job, property) {
     try {
+      console.log("🔔 sendComplianceJobNotification called with:", {
+        jobId: job._id,
+        jobOwner: job.owner,
+        propertyId: property._id,
+        propertyAgency: property.agency,
+      });
+
       const recipients = [];
 
       // Add agency as recipient
       if (job.owner.ownerType === "Agency") {
+        console.log(`📋 Adding Agency recipient: ${job.owner.ownerId}`);
         recipients.push({
           recipientType: "Agency",
           recipientId: job.owner.ownerId,
         });
+      } else {
+        console.warn(`⚠️ Job owner type is not Agency: ${job.owner.ownerType}`);
       }
 
       // Add all super users as recipients
@@ -633,6 +678,11 @@ class NotificationService {
         },
         priority: "High",
       };
+
+      console.log(
+        `📤 Sending notifications to ${recipients.length} recipients:`,
+        recipients
+      );
 
       // Send notifications (both in-app and email)
       const results = await this.sendNotification(
