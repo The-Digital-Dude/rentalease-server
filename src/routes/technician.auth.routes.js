@@ -121,7 +121,7 @@ router.post("/register", async (req, res) => {
         technician,
         password,
         ownerDetails,
-        process.env.FRONTEND_URL || "https://rentalease-crm.com/login"
+        process.env.FRONTEND_URL || "https://rentalease-client.vercel.app/login"
       );
 
       console.log("Technician credentials email sent successfully:", {

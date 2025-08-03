@@ -125,7 +125,7 @@ router.post("/register", authenticateSuperUser, async (req, res) => {
           compliance: agency.compliance,
         },
         password,
-        process.env.FRONTEND_URL || "https://rentalease-crm.com/login"
+        process.env.FRONTEND_URL || "https://rentalease-client.vercel.app/login"
       );
 
       console.log("Agency credentials email sent successfully:", {
@@ -1596,7 +1596,8 @@ router.post(
             compliance: agency.compliance,
           },
           newPassword,
-          process.env.FRONTEND_URL || "https://rentalease-crm.com/login"
+          process.env.FRONTEND_URL ||
+            "https://rentalease-client.vercel.app/login"
         );
 
         console.log("Agency credentials resent successfully:", {

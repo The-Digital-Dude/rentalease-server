@@ -87,7 +87,7 @@ router.post("/register", authenticate, async (req, res) => {
       await emailService.sendPropertyManagerCredentialsEmail(
         propertyManager, // Pass the full propertyManager object
         password,
-        process.env.FRONTEND_URL || "https://rentalease-crm.com/login"
+        process.env.FRONTEND_URL || "https://rentalease-client.vercel.app/login"
       );
 
       console.log("Property Manager credentials email sent successfully:", {

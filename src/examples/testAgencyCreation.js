@@ -25,27 +25,33 @@ const testAgencyCreation = async () => {
 
     // Check email configuration
     console.log("\n📧 Email Configuration:");
-    console.log(`  RESEND_API_KEY: ${process.env.RESEND_API_KEY ? 'Set' : 'Not set'}`);
-    console.log(`  EMAIL_FROM: ${process.env.EMAIL_FROM || 'Not set'}`);
-    console.log(`  NODE_ENV: ${process.env.NODE_ENV || 'development'}`);
+    console.log(
+      `  RESEND_API_KEY: ${process.env.RESEND_API_KEY ? "Set" : "Not set"}`
+    );
+    console.log(`  EMAIL_FROM: ${process.env.EMAIL_FROM || "Not set"}`);
+    console.log(`  NODE_ENV: ${process.env.NODE_ENV || "development"}`);
 
     // Check existing agencies
     const existingAgencies = await Agency.find({});
     console.log(`\n📊 Existing Agencies: ${existingAgencies.length}`);
-    existingAgencies.forEach(agency => {
-      console.log(`  - ${agency.companyName} (${agency.email}) - Status: ${agency.status}`);
+    existingAgencies.forEach((agency) => {
+      console.log(
+        `  - ${agency.companyName} (${agency.email}) - Status: ${agency.status}`
+      );
     });
 
     // Check existing super users
     const existingSuperUsers = await SuperUser.find({});
     console.log(`\n👥 Existing SuperUsers: ${existingSuperUsers.length}`);
-    existingSuperUsers.forEach(superUser => {
-      console.log(`  - ${superUser.fullName || 'No name'} (${superUser.email})`);
+    existingSuperUsers.forEach((superUser) => {
+      console.log(
+        `  - ${superUser.fullName || "No name"} (${superUser.email})`
+      );
     });
 
     // Test creating a new agency
     console.log("\n🧪 Testing agency creation...");
-    
+
     const testAgencyData = {
       companyName: "Test Agency Creation",
       abn: "12345678901",
@@ -55,11 +61,13 @@ const testAgencyCreation = async () => {
       region: "Sydney Metro",
       compliance: "Standard Package",
       password: "testPassword123",
-      status: "Pending"
+      status: "Pending",
     };
 
     // Check if test agency already exists
-    const existingTestAgency = await Agency.findOne({ email: testAgencyData.email });
+    const existingTestAgency = await Agency.findOne({
+      email: testAgencyData.email,
+    });
     if (existingTestAgency) {
       console.log("⚠️ Test agency already exists, using existing one");
       await Agency.findByIdAndDelete(existingTestAgency._id);
@@ -84,9 +92,9 @@ const testAgencyCreation = async () => {
           compliance: newAgency.compliance,
         },
         testAgencyData.password,
-        process.env.FRONTEND_URL || "https://rentalease-crm.com/login"
+        process.env.FRONTEND_URL || "https://rentalease-client.vercel.app/login"
       );
-      
+
       console.log("✅ Credentials email sent successfully:", emailResult);
     } catch (emailError) {
       console.error("❌ Failed to send credentials email:", emailError.message);
@@ -99,8 +107,10 @@ const testAgencyCreation = async () => {
     // Test with a real agency from the database
     if (existingAgencies.length > 0) {
       const realAgency = existingAgencies[0];
-      console.log(`\n📧 Testing credentials email for real agency: ${realAgency.companyName}`);
-      
+      console.log(
+        `\n📧 Testing credentials email for real agency: ${realAgency.companyName}`
+      );
+
       try {
         const emailResult = await emailService.sendAgencyCredentialsEmail(
           {
@@ -112,15 +122,21 @@ const testAgencyCreation = async () => {
             compliance: realAgency.compliance,
           },
           "testPassword123", // Using a test password since we don't have the real one
-          process.env.FRONTEND_URL || "https://rentalease-crm.com/login"
+          process.env.FRONTEND_URL ||
+            "https://rentalease-client.vercel.app/login"
         );
-        
-        console.log("✅ Credentials email sent successfully for real agency:", emailResult);
+
+        console.log(
+          "✅ Credentials email sent successfully for real agency:",
+          emailResult
+        );
       } catch (emailError) {
-        console.error("❌ Failed to send credentials email for real agency:", emailError.message);
+        console.error(
+          "❌ Failed to send credentials email for real agency:",
+          emailError.message
+        );
       }
     }
-
   } catch (error) {
     console.error("❌ Error in agency creation test:", error);
   }
@@ -139,4 +155,4 @@ const runTest = async () => {
   }
 };
 
-runTest(); 
+runTest();

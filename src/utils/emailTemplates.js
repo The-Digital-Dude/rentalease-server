@@ -664,7 +664,7 @@ const propertyManagerCredentialsTemplate = (data) => ({
           <div style="background-color: white; padding: 15px; border-radius: 5px;">
             <p style="color: #333; margin: 0 0 10px 0; font-size: 14px;"><strong>🌐 Login URL:</strong></p>
             <p style="color: #007bff; margin: 0; font-size: 16px; font-weight: bold; word-break: break-all;">${
-              data.loginUrl || "https://rentalease-crm.com/login"
+              data.loginUrl || "https://rentalease-client.vercel.app/login"
             }</p>
           </div>
         </div>
@@ -728,7 +728,9 @@ const propertyManagerCredentialsTemplate = (data) => ({
         </p>
         
         <div style="text-align: center; margin: 30px 0;">
-          <a href="${data.loginUrl || "https://rentalease-crm.com/login"}" 
+          <a href="${
+            data.loginUrl || "https://rentalease-client.vercel.app/login"
+          }" 
              style="background-color: #28a745; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
             🚀 Login to Your Dashboard
           </a>
@@ -891,7 +893,7 @@ const agencyCredentialsTemplate = (data) => ({
           <div style="background-color: white; padding: 15px; border-radius: 5px;">
             <p style="color: #333; margin: 0 0 10px 0; font-size: 14px;"><strong>🌐 Login URL:</strong></p>
             <p style="color: #007bff; margin: 0; font-size: 16px; font-weight: bold; word-break: break-all;">${
-              data.loginUrl || "https://rentalease-crm.com/login"
+              data.loginUrl || "https://rentalease-client.vercel.app/login"
             }</p>
           </div>
         </div>
@@ -934,7 +936,9 @@ const agencyCredentialsTemplate = (data) => ({
         </div>
         
         <div style="text-align: center; margin: 30px 0;">
-          <a href="${data.loginUrl || "https://rentalease-crm.com/login"}" 
+          <a href="${
+            data.loginUrl || "https://rentalease-client.vercel.app/login"
+          }" 
              style="background-color: #28a745; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
             🚀 Login to Your Dashboard
           </a>
@@ -1001,7 +1005,7 @@ const technicianCredentialsTemplate = (data) => ({
           <div style="background-color: white; padding: 15px; border-radius: 5px;">
             <p style="color: #333; margin: 0 0 10px 0; font-size: 14px;"><strong>🌐 Login URL:</strong></p>
             <p style="color: #007bff; margin: 0; font-size: 16px; font-weight: bold; word-break: break-all;">${
-              data.loginUrl || "https://rentalease-crm.com/login"
+              data.loginUrl || "https://rentalease-client.vercel.app/login"
             }</p>
           </div>
         </div>
@@ -1026,7 +1030,9 @@ const technicianCredentialsTemplate = (data) => ({
         </div>
         
         <div style="text-align: center; margin: 30px 0;">
-          <a href="${data.loginUrl || "https://rentalease-crm.com/login"}" 
+          <a href="${
+            data.loginUrl || "https://rentalease-client.vercel.app/login"
+          }" 
              style="background-color: #28a745; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
             🚀 Login to Your Dashboard
           </a>

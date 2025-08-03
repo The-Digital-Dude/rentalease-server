@@ -454,7 +454,7 @@ class ComplianceCronJob {
       tokenExpiresAt.setDate(tokenExpiresAt.getDate() + 30); // Token expires in 30 days
 
       // Create booking link with verification token
-      const bookingLink = `https://rentalease-crm.com/book-inspection/${property._id}/${complianceType}?token=${verificationToken}`;
+      const bookingLink = `${process.env.FRONTEND_URL}/book-inspection/${property._id}/${complianceType}?token=${verificationToken}`;
 
       this.logMessage(`🔗 Booking link created: ${bookingLink}`);
 
