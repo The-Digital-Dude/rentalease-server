@@ -3,6 +3,8 @@ import mongoose from "mongoose";
 import Property from "../models/Property.js";
 import Agency from "../models/Agency.js";
 import PropertyManager from "../models/PropertyManager.js";
+import Job from "../models/Job.js";
+import EmailLog from "../models/EmailLog.js";
 import {
   authenticateSuperUser,
   authenticateAgency,
@@ -15,6 +17,465 @@ import {
 } from "../utils/propertyHelpers.js";
 
 const router = express.Router();
+
+// Public route to get all properties compliance summary (no auth required)
+router.get("/compliance", async (req, res) => {
+  try {
+    const { limit = 10, page = 1 } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    // Find active properties with compliance schedules
+    const properties = await Property.find({ isActive: true })
+      .select("address complianceSchedule")
+      .limit(parseInt(limit))
+      .skip(skip)
+      .lean();
+
+    const complianceList = properties.map((property) => {
+      const compliance = property.complianceSchedule;
+      const now = new Date();
+      const thirtyDaysFromNow = new Date(
+        now.getTime() + 30 * 24 * 60 * 60 * 1000
+      );
+
+      let dueSoon = 0;
+      let overdue = 0;
+      let compliant = 0;
+      let totalCompliance = 0;
+
+      Object.values(compliance).forEach((comp) => {
+        if (comp.required && comp.nextInspection) {
+          totalCompliance++;
+          const inspectionDate = new Date(comp.nextInspection);
+
+          if (inspectionDate < now) {
+            overdue++;
+          } else if (inspectionDate <= thirtyDaysFromNow) {
+            dueSoon++;
+          } else {
+            compliant++;
+          }
+        }
+      });
+
+      return {
+        propertyAddress: property.address.fullAddress,
+        complianceSummary: {
+          totalCompliance,
+          dueSoon,
+          overdue,
+          compliant,
+          complianceScore:
+            totalCompliance > 0
+              ? Math.round((compliant / totalCompliance) * 100)
+              : 100,
+        },
+        nextInspection:
+          compliance.gasCompliance.nextInspection ||
+          compliance.electricalSafety.nextInspection ||
+          compliance.smokeAlarms.nextInspection ||
+          (compliance.poolSafety.required
+            ? compliance.poolSafety.nextInspection
+            : null),
+      };
+    });
+
+    // Get total count for pagination
+    const totalProperties = await Property.countDocuments({ isActive: true });
+
+    res.status(200).json({
+      success: true,
+      message: "Properties compliance summary retrieved successfully",
+      data: {
+        properties: complianceList,
+        pagination: {
+          currentPage: parseInt(page),
+          totalPages: Math.ceil(totalProperties / parseInt(limit)),
+          totalProperties,
+          limit: parseInt(limit),
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching properties compliance:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
+});
+
+// Public route to get property compliance schedule (no auth required)
+router.get("/compliance/:propertyId", async (req, res) => {
+  try {
+    const { propertyId } = req.params;
+
+    // Validate property ID format
+    if (!propertyId || propertyId.length !== 24) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid property ID format",
+      });
+    }
+
+    // Find property and select only compliance schedule and basic info
+    const property = await Property.findById(propertyId)
+      .select("address complianceSchedule isActive")
+      .lean();
+
+    if (!property) {
+      return res.status(404).json({
+        success: false,
+        message: "Property not found",
+      });
+    }
+
+    if (!property.isActive) {
+      return res.status(404).json({
+        success: false,
+        message: "Property is not active",
+      });
+    }
+
+    // Format compliance schedule for public display
+    const complianceSchedule = {
+      propertyAddress: property.address.fullAddress,
+      isActive: property.isActive,
+      compliance: {
+        gasCompliance: {
+          required: property.complianceSchedule.gasCompliance.required,
+          status: property.complianceSchedule.gasCompliance.status,
+          nextInspection:
+            property.complianceSchedule.gasCompliance.nextInspection,
+          dueDate: property.complianceSchedule.gasCompliance.nextInspection
+            ? new Date(property.complianceSchedule.gasCompliance.nextInspection)
+                .toISOString()
+                .split("T")[0]
+            : null,
+        },
+        electricalSafety: {
+          required: property.complianceSchedule.electricalSafety.required,
+          status: property.complianceSchedule.electricalSafety.status,
+          nextInspection:
+            property.complianceSchedule.electricalSafety.nextInspection,
+          dueDate: property.complianceSchedule.electricalSafety.nextInspection
+            ? new Date(
+                property.complianceSchedule.electricalSafety.nextInspection
+              )
+                .toISOString()
+                .split("T")[0]
+            : null,
+        },
+        smokeAlarms: {
+          required: property.complianceSchedule.smokeAlarms.required,
+          status: property.complianceSchedule.smokeAlarms.status,
+          nextInspection:
+            property.complianceSchedule.smokeAlarms.nextInspection,
+          dueDate: property.complianceSchedule.smokeAlarms.nextInspection
+            ? new Date(property.complianceSchedule.smokeAlarms.nextInspection)
+                .toISOString()
+                .split("T")[0]
+            : null,
+        },
+        poolSafety: {
+          required: property.complianceSchedule.poolSafety.required,
+          status: property.complianceSchedule.poolSafety.status,
+          nextInspection: property.complianceSchedule.poolSafety.nextInspection,
+          dueDate: property.complianceSchedule.poolSafety.nextInspection
+            ? new Date(property.complianceSchedule.poolSafety.nextInspection)
+                .toISOString()
+                .split("T")[0]
+            : null,
+        },
+      },
+    };
+
+    // Calculate compliance summary
+    const now = new Date();
+    const thirtyDaysFromNow = new Date(
+      now.getTime() + 30 * 24 * 60 * 60 * 1000
+    );
+
+    let totalCompliance = 0;
+    let dueSoon = 0;
+    let overdue = 0;
+    let compliant = 0;
+
+    Object.values(complianceSchedule.compliance).forEach((compliance) => {
+      if (compliance.required && compliance.nextInspection) {
+        totalCompliance++;
+        const inspectionDate = new Date(compliance.nextInspection);
+
+        if (inspectionDate < now) {
+          overdue++;
+        } else if (inspectionDate <= thirtyDaysFromNow) {
+          dueSoon++;
+        } else {
+          compliant++;
+        }
+      }
+    });
+
+    // Add summary to response
+    complianceSchedule.summary = {
+      totalCompliance,
+      dueSoon,
+      overdue,
+      compliant,
+      complianceScore:
+        totalCompliance > 0
+          ? Math.round((compliant / totalCompliance) * 100)
+          : 100,
+    };
+
+    res.status(200).json({
+      success: true,
+      message: "Property compliance schedule retrieved successfully",
+      data: complianceSchedule,
+    });
+  } catch (error) {
+    console.error("Error fetching property compliance:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
+});
+
+// Public route to handle tenant booking requests (no auth required)
+router.post("/book-inspection", async (req, res) => {
+  try {
+    const { propertyId, complianceType, selectedDate, selectedShift, token } =
+      req.body;
+
+    // Validate required fields
+    if (
+      !propertyId ||
+      !complianceType ||
+      !selectedDate ||
+      !selectedShift ||
+      !token
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Missing required fields: propertyId, complianceType, selectedDate, selectedShift, token",
+      });
+    }
+
+    // Validate property ID format
+    if (!mongoose.Types.ObjectId.isValid(propertyId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid property ID format",
+      });
+    }
+
+    // Validate compliance type
+    const validComplianceTypes = [
+      "gasCompliance",
+      "electricalSafety",
+      "smokeAlarms",
+      "poolSafety",
+    ];
+    if (!validComplianceTypes.includes(complianceType)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid compliance type",
+      });
+    }
+
+    // Validate selected shift
+    const validShifts = ["morning", "afternoon", "evening"];
+    if (!validShifts.includes(selectedShift)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid shift selection",
+      });
+    }
+
+    // Validate date format (YYYY-MM-DD)
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(selectedDate)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid date format. Use YYYY-MM-DD",
+      });
+    }
+
+    // Debug: Check token details
+    console.log("🔍 Token verification debug:");
+    console.log("Token:", token);
+
+    // Check if token exists at all
+    const tokenExists = await EmailLog.findOne({ verificationToken: token });
+    console.log("Token exists in database:", !!tokenExists);
+
+    if (tokenExists) {
+      console.log("Token details:", {
+        tokenUsed: tokenExists.tokenUsed,
+        tokenExpiresAt: tokenExists.tokenExpiresAt,
+        isExpired: tokenExists.tokenExpiresAt < new Date(),
+        emailStatus: tokenExists.emailStatus,
+        tenantEmail: tokenExists.tenantEmail,
+        propertyId: tokenExists.propertyId,
+        complianceType: tokenExists.complianceType,
+      });
+    }
+
+    // Verify the token
+    const tokenVerification = await EmailLog.verifyToken(token);
+    console.log("Token verification result:", tokenVerification);
+
+    if (!tokenVerification.valid) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid or expired token",
+        reason: tokenVerification.reason,
+      });
+    }
+
+    const emailLog = tokenVerification.emailLog;
+
+    // Verify the token matches the property and compliance type
+    if (emailLog.propertyId.toString() !== propertyId) {
+      return res.status(400).json({
+        success: false,
+        message: "Token does not match the property",
+      });
+    }
+
+    if (emailLog.complianceType !== complianceType) {
+      return res.status(400).json({
+        success: false,
+        message: "Token does not match the compliance type",
+      });
+    }
+
+    // Find the property
+    const property = await Property.findById(propertyId).populate(
+      "agency assignedPropertyManager"
+    );
+    if (!property) {
+      return res.status(404).json({
+        success: false,
+        message: "Property not found",
+      });
+    }
+
+    if (!property.isActive) {
+      return res.status(400).json({
+        success: false,
+        message: "Property is not active",
+      });
+    }
+
+    // Parse the selected date and create inspection time
+    const inspectionDate = new Date(selectedDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Validate that the selected date is not in the past
+    if (inspectionDate < today) {
+      return res.status(400).json({
+        success: false,
+        message: "Selected date cannot be in the past",
+      });
+    }
+
+    // Set the inspection time based on the selected shift
+    let inspectionTime;
+    switch (selectedShift) {
+      case "morning":
+        inspectionTime = new Date(inspectionDate);
+        inspectionTime.setHours(9, 0, 0, 0); // 9:00 AM
+        break;
+      case "afternoon":
+        inspectionTime = new Date(inspectionDate);
+        inspectionTime.setHours(14, 0, 0, 0); // 2:00 PM
+        break;
+      case "evening":
+        inspectionTime = new Date(inspectionDate);
+        inspectionTime.setHours(17, 0, 0, 0); // 5:00 PM
+        break;
+      default:
+        inspectionTime = new Date(inspectionDate);
+        inspectionTime.setHours(10, 0, 0, 0); // Default to 10:00 AM
+    }
+
+    // Map compliance type to job type
+    const complianceToJobType = {
+      gasCompliance: "Gas",
+      electricalSafety: "Electrical",
+      smokeAlarms: "Smoke",
+      poolSafety: "Pool Safety",
+    };
+
+    const jobType = complianceToJobType[complianceType] || "Routine Inspection";
+
+    // Create the job
+    const jobData = {
+      property: propertyId,
+      jobType: jobType,
+      dueDate: inspectionTime,
+      description: `${jobType} inspection for ${property.address.fullAddress}`,
+      priority: "Medium",
+      status: "Pending",
+      estimatedDuration: 1, // 1 hour
+      notes: `Tenant booking via email link. Original inspection date: ${emailLog.inspectionDate.toLocaleDateString()}. Tenant: ${
+        emailLog.tenantName
+      } (${emailLog.tenantEmail})`,
+      owner: {
+        ownerType: "Agency",
+        ownerId: property.agency._id,
+      },
+      createdBy: {
+        userType: "Agency",
+        userId: property.agency._id,
+      },
+    };
+
+    const job = new Job(jobData);
+    await job.save();
+
+    // Mark the token as used
+    await EmailLog.markTokenAsUsed(token);
+
+    // Update the property's compliance schedule with the new inspection date
+    const complianceField = `complianceSchedule.${complianceType}.nextInspection`;
+    await Property.findByIdAndUpdate(propertyId, {
+      [complianceField]: inspectionTime,
+    });
+
+    // Populate the job with related data for response
+    await job.populate("property");
+
+    res.status(201).json({
+      success: true,
+      message: "Inspection booking successful",
+      data: {
+        jobId: job._id,
+        propertyAddress: property.address.fullAddress,
+        jobType: job.jobType,
+        scheduledDate: job.dueDate,
+        selectedShift: selectedShift,
+        tenantName: emailLog.tenantName,
+        tenantEmail: emailLog.tenantEmail,
+        complianceType: complianceType,
+        bookingConfirmedAt: new Date(),
+      },
+    });
+  } catch (error) {
+    console.error("Error creating inspection booking:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
+});
 
 // Valid regions enum
 const VALID_REGIONS = [
