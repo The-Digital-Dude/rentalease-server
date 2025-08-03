@@ -373,7 +373,10 @@ router.get("/", authenticate, async (req, res) => {
     // Execute query with pagination and sorting
     const jobs = await Job.find(query)
       .populate("property", "address _id")
-      .populate("assignedTechnician", "fullName phone email availabilityStatus")
+      .populate(
+        "assignedTechnician",
+        "firstName lastName phone email availabilityStatus"
+      )
       .sort({ [sortBy]: sortOrder === "desc" ? -1 : 1 })
       .skip(skip)
       .limit(parseInt(limit));
