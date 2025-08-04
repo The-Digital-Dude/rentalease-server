@@ -1502,9 +1502,11 @@ const complianceJobNotificationTemplate = (data) => ({
  * @param {string} data.complianceType - Type of compliance
  * @returns {Object} - Email template configuration
  */
-const tenantInspectionBookingTemplate = (data) => ({
-  subject: `Schedule Your ${data.jobType} - ${data.propertyAddress}`,
-  html: `
+const tenantInspectionBookingTemplate = (data) => {
+  console.log(data, "Tenant Booking Template Data");
+  return {
+    subject: `Schedule Your ${data.jobType} - ${data.propertyAddress}`,
+    html: `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
       <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
         <div style="text-align: center; margin-bottom: 30px;">
@@ -1592,7 +1594,8 @@ const tenantInspectionBookingTemplate = (data) => ({
       </div>
     </div>
   `,
-});
+  };
+};
 
 // Create templates object with all email templates
 const templates = {

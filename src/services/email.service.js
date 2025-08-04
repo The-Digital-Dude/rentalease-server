@@ -27,6 +27,7 @@ class EmailService {
    * @param {string} options.templateName - Name of the template to use
    * @param {Object} options.templateData - Data to populate the template
    * @param {string} [options.from] - Sender email (optional)
+   * @param {Object} [options.customTemplates] - Custom templates object (optional)
    * @returns {Promise} - Email send result
    */
   async sendTemplatedEmail({
@@ -34,9 +35,16 @@ class EmailService {
     templateName,
     templateData,
     from = this.defaultFrom,
+    customTemplates = null,
   }) {
     try {
-      if (!emailTemplates[templateName]) {
+      // Check if template exists in custom templates first, then fall back to default templates
+      let template;
+      if (customTemplates && customTemplates[templateName]) {
+        template = customTemplates[templateName](templateData);
+      } else if (emailTemplates[templateName]) {
+        template = emailTemplates[templateName](templateData);
+      } else {
         throw new Error(`Template "${templateName}" not found`);
       }
 
@@ -44,8 +52,6 @@ class EmailService {
         console.warn("📧 Email service not configured. Skipping email send.");
         return { id: "mock-email-id", status: "skipped" };
       }
-
-      const template = emailTemplates[templateName](templateData);
 
       console.log(`Preparing to send ${templateName} email...`);
       console.log("Email details:", {

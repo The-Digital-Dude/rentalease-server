@@ -160,10 +160,19 @@ emailLogSchema.statics.wasEmailRecentlySent = async function (
   complianceType,
   inspectionDate
 ) {
-  const dateString = inspectionDate.toDateString();
-  const trackingKey = `${propertyId}_${complianceType}_${dateString}`;
+  // Create a 2-month window around the inspection date
+  const twoMonthsInMs = 60 * 24 * 60 * 60 * 1000; // 60 days
+  const startOfWindow = new Date(inspectionDate.getTime() - twoMonthsInMs);
+  const endOfWindow = new Date(inspectionDate.getTime() + twoMonthsInMs);
 
-  const existingLog = await this.findOne({ trackingKey });
+  // Check if any email was sent within this 2-month window
+  const existingLog = await this.findOne({
+    propertyId: propertyId,
+    complianceType: complianceType,
+    emailSentAt: { $gte: startOfWindow, $lte: endOfWindow },
+    emailStatus: "sent",
+  });
+
   return existingLog !== null;
 };
 

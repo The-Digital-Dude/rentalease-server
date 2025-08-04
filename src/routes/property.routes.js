@@ -15,6 +15,7 @@ import {
   setDefaultInspectionDates,
   setStateSpecificCompliance,
 } from "../utils/propertyHelpers.js";
+import bookingNotificationService from "../services/bookingNotification.service.js";
 
 const router = express.Router();
 
@@ -451,6 +452,28 @@ router.post("/book-inspection", async (req, res) => {
 
     // Populate the job with related data for response
     await job.populate("property");
+
+    // Send booking notifications to all relevant parties
+    try {
+      const notificationResults =
+        await bookingNotificationService.sendBookingNotifications(
+          job,
+          property,
+          emailLog
+        );
+
+      console.log("📧 Booking notifications sent:", {
+        jobId: job.job_id,
+        totalNotifications: Object.keys(notificationResults).length,
+        errors: notificationResults.errors.length,
+      });
+    } catch (notificationError) {
+      // Log error but don't fail the booking
+      console.error(
+        "❌ Failed to send booking notifications:",
+        notificationError.message
+      );
+    }
 
     res.status(201).json({
       success: true,

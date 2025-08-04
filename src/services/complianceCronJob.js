@@ -17,43 +17,43 @@ class ComplianceCronJob {
     console.log(`[${timestamp}] ${message}`);
   }
 
-  // Generate unique key for email tracking
+  // Generate unique key for email tracking with 2-month window
   generateEmailKey(propertyId, complianceType, inspectionDate) {
-    const dateString = inspectionDate.toDateString();
-    return `${propertyId}_${complianceType}_${dateString}`;
+    // Create a 2-month window around the inspection date
+    const twoMonthsInMs = 60 * 24 * 60 * 60 * 1000; // 60 days
+    const startOfWindow = new Date(inspectionDate.getTime() - twoMonthsInMs);
+    const endOfWindow = new Date(inspectionDate.getTime() + twoMonthsInMs);
+
+    // Use the start of the window as the key date
+    const windowStartDate = startOfWindow.toDateString();
+    return `${propertyId}_${complianceType}_${windowStartDate}`;
   }
 
-  // Check if email was already sent (database check)
+  // Check if email was already sent in 2 months (database check)
   async hasEmailBeenSent(propertyId, complianceType, inspectionDate) {
-    try {
-      // Check database first
-      const wasSent = await EmailLog.wasEmailRecentlySent(
-        propertyId,
-        complianceType,
-        inspectionDate
-      );
+    const emailLogs = await EmailLog.find({
+      propertyId: propertyId,
+      complianceType: complianceType,
+    });
 
-      if (wasSent) {
-        return true;
+    for (const emailLog of emailLogs) {
+      if (emailLog) {
+        // Check if the inspection date is less than 2 months from the inspection date
+        const twoMonthsInMs = 60 * 24 * 60 * 60 * 1000; // 60 days
+        const timeDifference = Math.abs(
+          inspectionDate.getTime() - emailLog.inspectionDate.getTime()
+        );
+
+        if (timeDifference < twoMonthsInMs) {
+          this.logMessage(
+            `⏭️ Email already sent for ${propertyId} - ${complianceType} within 2 months (${inspectionDate.toDateString()}) - Skipping duplicate email`
+          );
+          return true;
+        }
       }
-
-      // Also check in-memory for current session
-      const emailKey = this.generateEmailKey(
-        propertyId,
-        complianceType,
-        inspectionDate
-      );
-      return this.sentEmails.has(emailKey);
-    } catch (error) {
-      this.logMessage(`❌ Error checking email history: ${error.message}`);
-      // Fallback to in-memory check only
-      const emailKey = this.generateEmailKey(
-        propertyId,
-        complianceType,
-        inspectionDate
-      );
-      return this.sentEmails.has(emailKey);
     }
+
+    return false;
   }
 
   // Mark email as sent (both database and in-memory)
