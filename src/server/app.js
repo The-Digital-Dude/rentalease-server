@@ -8,8 +8,10 @@ import authRoutes from "../routes/auth.routes.js";
 import agencyAuthRoutes from "../routes/agency.auth.routes.js";
 import technicianAuthRoutes from "../routes/technician.auth.routes.js";
 import propertyManagerAuthRoutes from "../routes/propertyManager.auth.routes.js";
+import teamMemberAuthRoutes from "../routes/teamMember.auth.routes.js";
 import technicianRoutes from "../routes/technician.routes.js";
 import propertyManagerRoutes from "../routes/propertyManager.routes.js";
+import teamMemberRoutes from "../routes/teamMember.routes.js";
 import jobRoutes from "../routes/job.routes.js";
 import propertyRoutes from "../routes/property.routes.js";
 import contactsRoutes from "../routes/contacts.routes.js";
@@ -17,6 +19,7 @@ import complianceRoutes from "../routes/compliance.routes.js";
 import notificationRoutes from "../routes/notification.routes.js";
 import invoiceRoutes from "../routes/invoice.routes.js";
 import technicianPaymentRoutes from "../routes/technicianPayment.routes.js";
+import dashboardRoutes from "../routes/dashboard.routes.js";
 import emailService from "../services/email.service.js";
 
 // Create Express app
@@ -34,8 +37,10 @@ app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/agency/auth", agencyAuthRoutes);
 app.use("/api/v1/technician/auth", technicianAuthRoutes);
 app.use("/api/v1/property-manager/auth", propertyManagerAuthRoutes);
+app.use("/api/v1/team-member/auth", teamMemberAuthRoutes);
 app.use("/api/v1/technicians", technicianRoutes);
 app.use("/api/v1/property-managers", propertyManagerRoutes);
+app.use("/api/v1/team-members", teamMemberRoutes);
 app.use("/api/v1/jobs", jobRoutes);
 app.use("/api/v1/properties", propertyRoutes);
 app.use("/api/v1/contacts", contactsRoutes);
@@ -43,6 +48,7 @@ app.use("/api/v1/compliance", complianceRoutes);
 app.use("/api/v1/notifications", notificationRoutes);
 app.use("/api/v1/invoices", invoiceRoutes);
 app.use("/api/v1/technician-payments", technicianPaymentRoutes);
+app.use("/api/v1/dashboard", dashboardRoutes);
 
 // Health check route
 app.get("/health", async (req, res) => {

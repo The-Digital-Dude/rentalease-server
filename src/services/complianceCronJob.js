@@ -239,8 +239,7 @@ class ComplianceCronJob {
         emailSentAt: -1,
       });
 
-      if (emailHistory.length > 0) {
-        this.logMessage(`📧 Email history found for ${trackingKey}:`);
+      /* if (emailHistory.length > 0) {
         emailHistory.forEach((log, index) => {
           this.logMessage(
             `  ${index + 1}. Status: ${log.emailStatus}, Sent: ${
@@ -256,7 +255,7 @@ class ComplianceCronJob {
       } else {
         this.logMessage(`📧 No email history found for ${trackingKey}`);
         return [];
-      }
+      } */
     } catch (error) {
       this.logMessage(`❌ Error checking email history: ${error.message}`);
       return [];

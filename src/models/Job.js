@@ -50,6 +50,11 @@ const jobSchema = new mongoose.Schema(
         message: "Due date must be in the future",
       },
     },
+    shift: {
+      type: String,
+      enum: ["morning", "afternoon", "evening"],
+      default: "morning",
+    },
     assignedTechnician: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Technician",

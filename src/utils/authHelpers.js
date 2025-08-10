@@ -14,6 +14,11 @@ export const getOwnerInfo = (req) => {
       ownerType: "SuperUser",
       ownerId: req.superUser.id,
     };
+  } else if (req.teamMember) {
+    return {
+      ownerType: "TeamMember",
+      ownerId: req.teamMember.id,
+    };
   } else if (req.agency) {
     return {
       ownerType: "Agency",
@@ -23,6 +28,11 @@ export const getOwnerInfo = (req) => {
     return {
       ownerType: "Technician",
       ownerId: req.technician.id,
+    };
+  } else if (req.propertyManager) {
+    return {
+      ownerType: "PropertyManager",
+      ownerId: req.propertyManager.id,
     };
   }
   return null;
@@ -39,6 +49,11 @@ export const getCreatorInfo = (req) => {
       userType: "SuperUser",
       userId: req.superUser.id,
     };
+  } else if (req.teamMember) {
+    return {
+      userType: "TeamMember",
+      userId: req.teamMember.id,
+    };
   } else if (req.agency) {
     return {
       userType: "Agency",
@@ -48,6 +63,11 @@ export const getCreatorInfo = (req) => {
     return {
       userType: "Technician",
       userId: req.technician.id,
+    };
+  } else if (req.propertyManager) {
+    return {
+      userType: "PropertyManager",
+      userId: req.propertyManager.id,
     };
   }
   return null;
@@ -64,6 +84,11 @@ export const getUserInfo = (req) => {
       name: req.superUser.name,
       type: "SuperUser",
     };
+  } else if (req.teamMember) {
+    return {
+      name: req.teamMember.name,
+      type: "TeamMember",
+    };
   } else if (req.agency) {
     return {
       name: req.agency.contactPerson,
@@ -73,6 +98,11 @@ export const getUserInfo = (req) => {
     return {
       name: req.technician.fullName,
       type: "Technician",
+    };
+  } else if (req.propertyManager) {
+    return {
+      name: req.propertyManager.fullName,
+      type: "PropertyManager",
     };
   }
   return null;
@@ -88,8 +118,8 @@ export const validateOwnerAccess = (resource, req) => {
   const ownerInfo = getOwnerInfo(req);
   if (!ownerInfo) return false;
 
-  // Super users can access any resource
-  if (ownerInfo.ownerType === "SuperUser") {
+  // Super users and team members can access any resource
+  if (ownerInfo.ownerType === "SuperUser" || ownerInfo.ownerType === "TeamMember") {
     return true;
   }
 
@@ -106,5 +136,5 @@ export const validateOwnerAccess = (resource, req) => {
  * @returns {Boolean} - Whether user can fully edit
  */
 export const canFullyEditResource = (req) => {
-  return !!req.superUser;
+  return !!(req.superUser || req.teamMember);
 };

@@ -115,6 +115,41 @@ class EmailService {
   }
 
   /**
+   * Send credentials email to new team member
+   * @param {Object} teamMember - Team member object
+   * @param {string} teamMember.email - Team member's email
+   * @param {string} teamMember.name - Team member's name
+   * @param {string} password - Team member's password
+   * @param {string} [loginUrl] - Login URL for the system
+   * @returns {Promise} - Email send result
+   */
+  async sendTeamMemberCredentialsEmail(teamMember, password, loginUrl = null) {
+    if (!teamMember || !teamMember.email || !teamMember.name) {
+      throw new Error("Invalid team member data provided for credentials email");
+    }
+
+    if (!password) {
+      throw new Error("Password is required for team member credentials email");
+    }
+
+    console.log("Sending team member credentials email to:", {
+      email: teamMember.email,
+      name: teamMember.name,
+    });
+
+    return await this.sendTemplatedEmail({
+      to: teamMember.email,
+      templateName: "teamMemberCredentials",
+      templateData: {
+        name: teamMember.name,
+        email: teamMember.email,
+        password: password,
+        loginUrl: loginUrl,
+      },
+    });
+  }
+
+  /**
    * Send password reset OTP email
    * @param {Object} user - User object
    * @param {string} user.email - User's email

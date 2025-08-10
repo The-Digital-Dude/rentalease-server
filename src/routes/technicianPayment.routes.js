@@ -1,13 +1,13 @@
 import express from "express";
 import mongoose from "mongoose";
 import TechnicianPayment from "../models/TechnicianPayment.js";
-import { authenticate } from "../middleware/auth.middleware.js";
+import { authenticateUserTypes } from "../middleware/auth.middleware.js";
 import { getOwnerInfo } from "../utils/authHelpers.js";
 
 const router = express.Router();
 
 // GET - Get all technician payments (with filtering)
-router.get("/", authenticate, async (req, res) => {
+router.get("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'Technician']), async (req, res) => {
   try {
     const {
       technicianId,
@@ -40,12 +40,13 @@ router.get("/", authenticate, async (req, res) => {
     else if (ownerInfo.ownerType === "Agency") {
       filter.agencyId = ownerInfo.ownerId;
     }
+    // Super users and team members can see all payments (no additional filter)
 
     // Add other filters
     if (technicianId && ownerInfo.ownerType !== "Technician") {
       filter.technicianId = technicianId;
     }
-    if (agencyId && ownerInfo.ownerType === "SuperUser") {
+    if (agencyId && (ownerInfo.ownerType === "SuperUser" || ownerInfo.ownerType === "TeamMember")) {
       filter.agencyId = agencyId;
     }
     if (status) {
@@ -70,7 +71,7 @@ router.get("/", authenticate, async (req, res) => {
 
     // Execute query with pagination
     const payments = await TechnicianPayment.find(filter)
-      .populate("technicianId", "fullName email phone")
+      .populate("technicianId", "firstName lastName email phone")
       .populate("jobId", "job_id property jobType dueDate")
       .populate("agencyId", "name email")
       .sort({ createdAt: -1 })
@@ -109,7 +110,7 @@ router.get("/", authenticate, async (req, res) => {
 });
 
 // GET - Get payments for the authenticated technician (my payments)
-router.get("/my-payments", authenticate, async (req, res) => {
+router.get("/my-payments", authenticateUserTypes(['Technician']), async (req, res) => {
   try {
     const { status, startDate, endDate, page = 1, limit = 20 } = req.query;
 
@@ -156,7 +157,7 @@ router.get("/my-payments", authenticate, async (req, res) => {
     const statusCounts = await TechnicianPayment.aggregate([
       {
         $match: {
-          technicianId: new mongoose.Types.ObjectId(ownerInfo.ownerId),
+          technicianId: new mongoose.Types.ObjectId(ownerInfo.ownerId.toString()),
         },
       },
       { $group: { _id: "$status", count: { $sum: 1 } } },
@@ -194,7 +195,7 @@ router.get("/my-payments", authenticate, async (req, res) => {
 });
 
 // GET - Get technician payment by ID
-router.get("/:id", authenticate, async (req, res) => {
+router.get("/:id", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'Technician']), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -216,7 +217,7 @@ router.get("/:id", authenticate, async (req, res) => {
     }
 
     const payment = await TechnicianPayment.findById(id)
-      .populate("technicianId", "fullName email phone")
+      .populate("technicianId", "firstName lastName email phone")
       .populate("jobId", "job_id property jobType dueDate description")
       .populate("agencyId", "name email");
 
@@ -264,7 +265,7 @@ router.get("/:id", authenticate, async (req, res) => {
 });
 
 // PATCH - Update payment status (mark as paid)
-router.patch("/:id/status", authenticate, async (req, res) => {
+router.patch("/:id/status", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency']), async (req, res) => {
   try {
     const { id } = req.params;
     const { status, notes } = req.body;
@@ -279,10 +280,10 @@ router.patch("/:id/status", authenticate, async (req, res) => {
 
     // Check if user is authorized to update this payment
     const ownerInfo = getOwnerInfo(req);
-    if (!ownerInfo || ownerInfo.ownerType !== "Agency") {
+    if (!ownerInfo || (ownerInfo.ownerType !== "Agency" && ownerInfo.ownerType !== "SuperUser" && ownerInfo.ownerType !== "TeamMember")) {
       return res.status(403).json({
         status: "error",
-        message: "Only agencies can update payment status",
+        message: "Only agencies, super users, and team members can update payment status",
       });
     }
 
@@ -294,13 +295,14 @@ router.patch("/:id/status", authenticate, async (req, res) => {
       });
     }
 
-    // Check if agency owns this payment
-    if (payment.agencyId.toString() !== ownerInfo.ownerId.toString()) {
+    // Check if user has access to this payment
+    if (ownerInfo.ownerType === "Agency" && payment.agencyId.toString() !== ownerInfo.ownerId.toString()) {
       return res.status(403).json({
         status: "error",
         message: "Access denied to this payment",
       });
     }
+    // Super users and team members can update any payment
 
     // Validate status
     if (!["Pending", "Paid", "Cancelled"].includes(status)) {
@@ -326,7 +328,7 @@ router.patch("/:id/status", authenticate, async (req, res) => {
       updateData,
       { new: true, runValidators: true }
     )
-      .populate("technicianId", "fullName email phone")
+      .populate("technicianId", "firstName lastName email phone")
       .populate("jobId", "job_id property jobType dueDate")
       .populate("agencyId", "name email");
 
@@ -347,7 +349,7 @@ router.patch("/:id/status", authenticate, async (req, res) => {
 });
 
 // GET - Get payments for a specific technician
-router.get("/technician/:technicianId", authenticate, async (req, res) => {
+router.get("/technician/:technicianId", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'Technician']), async (req, res) => {
   try {
     const { technicianId } = req.params;
     const { status, startDate, endDate, page = 1, limit = 20 } = req.query;

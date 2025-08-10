@@ -10,6 +10,7 @@ import {
   authenticateAgency,
   authenticatePropertyManager,
   authenticate,
+  authenticateUserTypes,
 } from "../middleware/auth.middleware.js";
 import {
   setDefaultInspectionDates,
@@ -421,13 +422,14 @@ router.post("/book-inspection", async (req, res) => {
       property: propertyId,
       jobType: jobType,
       dueDate: inspectionTime,
+      shift: selectedShift,
       description: `${jobType} inspection for ${property.address.fullAddress}`,
       priority: "Medium",
       status: "Pending",
       estimatedDuration: 1, // 1 hour
       notes: `Tenant booking via email link. Original inspection date: ${emailLog.inspectionDate.toLocaleDateString()}. Tenant: ${
         emailLog.tenantName
-      } (${emailLog.tenantEmail})`,
+      } (${emailLog.tenantEmail}). Scheduled for ${selectedShift} shift.`,
       owner: {
         ownerType: "Agency",
         ownerId: property.agency._id,
@@ -645,7 +647,7 @@ const getRegionFromStateAndSuburb = (state, suburb) => {
 };
 
 // Create Property
-router.post("/", authenticate, async (req, res) => {
+router.post("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency']), async (req, res) => {
   try {
     const {
       address,
@@ -889,7 +891,7 @@ router.post("/", authenticate, async (req, res) => {
 });
 
 // Get Filter Options for Properties
-router.get("/filter-options", authenticate, async (req, res) => {
+router.get("/filter-options", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'PropertyManager']), async (req, res) => {
   try {
     // Get agency filter based on user type
     const agencyFilter = getAgencyFilter(req);
@@ -935,7 +937,7 @@ router.get("/filter-options", authenticate, async (req, res) => {
 });
 
 // Get Available Agencies for Super Users
-router.get("/agencies/available", authenticateSuperUser, async (req, res) => {
+router.get("/agencies/available", authenticateUserTypes(['SuperUser', 'TeamMember']), async (req, res) => {
   try {
     const { status = "Active", region } = req.query;
 
@@ -976,7 +978,7 @@ router.get("/agencies/available", authenticateSuperUser, async (req, res) => {
 });
 
 // Get Available Property Managers for Assignment (Agency/SuperUser/PropertyManager only)
-router.get("/available-property-managers", authenticate, async (req, res) => {
+router.get("/available-property-managers", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency']), async (req, res) => {
   try {
     // Check if user has permission (Agency, SuperUser, or PropertyManager)
     if (!req.superUser && !req.agency && !req.propertyManager) {
@@ -1037,7 +1039,7 @@ router.get("/available-property-managers", authenticate, async (req, res) => {
 });
 
 // Get All Properties with Advanced Filtering
-router.get("/", authenticate, async (req, res) => {
+router.get("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'PropertyManager']), async (req, res) => {
   console.log(req.pr);
   try {
     const {
@@ -1168,7 +1170,7 @@ router.get("/", authenticate, async (req, res) => {
 });
 
 // Get Single Property
-router.get("/:id", authenticate, async (req, res) => {
+router.get("/:id", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'PropertyManager']), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -1234,7 +1236,7 @@ router.get("/:id", authenticate, async (req, res) => {
 });
 
 // Update Property
-router.put("/:id", authenticate, async (req, res) => {
+router.put("/:id", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency']), async (req, res) => {
   try {
     const { id } = req.params;
     const { address, currentTenant, complianceSchedule, notes } = req.body;
@@ -1392,7 +1394,7 @@ router.put("/:id", authenticate, async (req, res) => {
 });
 
 // Delete Property
-router.delete("/:id", authenticate, async (req, res) => {
+router.delete("/:id", authenticateUserTypes(['SuperUser', 'TeamMember']), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -1446,7 +1448,7 @@ router.delete("/:id", authenticate, async (req, res) => {
 });
 
 // Get Property Compliance Summary
-router.get("/:id/compliance", authenticate, async (req, res) => {
+router.get("/:id/compliance", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'PropertyManager']), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -1503,7 +1505,7 @@ router.get("/:id/compliance", authenticate, async (req, res) => {
 // Property Assignment System Endpoints
 
 // Assign Property Manager to Property (Agency/SuperUser/PropertyManager only)
-router.post("/:id/assign-property-manager", authenticate, async (req, res) => {
+router.post("/:id/assign-property-manager", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency']), async (req, res) => {
   try {
     const { id } = req.params;
     const { propertyManagerId, role = "Primary" } = req.body;
@@ -1846,7 +1848,7 @@ router.delete(
 );
 
 // Get Property Assignment Summary (Agency/SuperUser/PropertyManager only)
-router.get("/:id/assignment-summary", authenticate, async (req, res) => {
+router.get("/:id/assignment-summary", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'PropertyManager']), async (req, res) => {
   try {
     const { id } = req.params;
 

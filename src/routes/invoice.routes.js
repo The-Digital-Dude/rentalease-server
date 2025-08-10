@@ -8,6 +8,7 @@ import {
   authenticateSuperUser,
   authenticateAgency,
   authenticate,
+  authenticateUserTypes,
 } from "../middleware/auth.middleware.js";
 import emailService from "../services/email.service.js";
 import notificationService from "../services/notification.service.js";
@@ -82,7 +83,7 @@ const calculateInvoiceTotals = (items, tax = 0) => {
 };
 
 // POST - Create new invoice
-router.post("/", authenticate, async (req, res) => {
+router.post("/", authenticateUserTypes(['SuperUser', 'TeamMember']), async (req, res) => {
   try {
     const {
       jobId,
@@ -268,7 +269,7 @@ router.post("/", authenticate, async (req, res) => {
 });
 
 // GET - Get invoice for specific job
-router.get("/job/:jobId", authenticate, async (req, res) => {
+router.get("/job/:jobId", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency']), async (req, res) => {
   try {
     const { jobId } = req.params;
 
@@ -451,7 +452,7 @@ router.patch("/:invoiceId/send", authenticate, async (req, res) => {
 });
 
 // GET - Get all invoices (with filtering and pagination)
-router.get("/", authenticate, async (req, res) => {
+router.get("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency']), async (req, res) => {
   try {
     const userInfo = getUserInfo(req);
     if (!userInfo) {
@@ -551,7 +552,7 @@ router.get("/", authenticate, async (req, res) => {
 });
 
 // GET - Get specific invoice by ID
-router.get("/:id", authenticate, async (req, res) => {
+router.get("/:id", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency']), async (req, res) => {
   try {
     const { id } = req.params;
 

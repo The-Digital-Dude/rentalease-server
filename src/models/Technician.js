@@ -186,6 +186,15 @@ const technicianSchema = new mongoose.Schema(
   }
 );
 
+// Virtual field for fullName - computed from firstName + lastName
+technicianSchema.virtual('fullName').get(function() {
+  return `${this.firstName} ${this.lastName}`.trim();
+});
+
+// Ensure virtual fields are serialized
+technicianSchema.set('toJSON', { virtuals: true });
+technicianSchema.set('toObject', { virtuals: true });
+
 // Pre-save middleware to hash password
 technicianSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();
@@ -199,13 +208,7 @@ technicianSchema.pre("save", async function (next) {
   }
 });
 
-// Pre-save middleware to update fullName
-technicianSchema.pre("save", function (next) {
-  if (this.isModified("firstName") || this.isModified("lastName")) {
-    this.fullName = `${this.firstName} ${this.lastName}`.trim();
-  }
-  next();
-});
+// fullName is now handled by virtual field above
 
 // Pre-save middleware to update fullAddress
 technicianSchema.pre("save", function (next) {

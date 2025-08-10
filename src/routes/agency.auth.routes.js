@@ -14,8 +14,9 @@ import {
   verifyOTP,
 } from "../utils/otpGenerator.js";
 import {
-  authenticateSuperUser,
+  authenticateAdminLevel,
   authenticateAgency,
+  authenticateUserTypes,
 } from "../middleware/auth.middleware.js";
 
 const router = express.Router();
@@ -39,8 +40,8 @@ const VALID_REGIONS = [
   "Regional TAS",
 ];
 
-// Register Agency (Only Super Users can create Agencies)
-router.post("/register", authenticateSuperUser, async (req, res) => {
+// Register Agency (Only Super Users and Team Members can create Agencies)
+router.post("/register", authenticateUserTypes(['SuperUser', 'TeamMember']), async (req, res) => {
   try {
     const {
       companyName,
@@ -1002,8 +1003,8 @@ router.get("/dashboard", authenticateAgency, async (req, res) => {
   }
 });
 
-// Update Agency (Only Super Users)
-router.patch("/:id", authenticateSuperUser, async (req, res) => {
+// Update Agency (Only Super Users and Team Members)
+router.patch("/:id", authenticateUserTypes(['SuperUser', 'TeamMember']), async (req, res) => {
   try {
     const { id } = req.params;
     const {
@@ -1216,8 +1217,8 @@ router.patch("/:id", authenticateSuperUser, async (req, res) => {
   }
 });
 
-// Get All Agencies (Only Super Users)
-router.get("/all", authenticateSuperUser, async (req, res) => {
+// Get All Agencies (Only Super Users and Team Members)
+router.get("/all", authenticateUserTypes(['SuperUser', 'TeamMember']), async (req, res) => {
   try {
     const { status, region, page = 1, limit = 10 } = req.query;
 
@@ -1275,8 +1276,8 @@ router.get("/all", authenticateSuperUser, async (req, res) => {
   }
 });
 
-// Get Single Agency Details with Properties and Jobs (Only Super Users)
-router.get("/:id", authenticateSuperUser, async (req, res) => {
+// Get Single Agency Details with Properties and Jobs (Only Super Users and Team Members)
+router.get("/:id", authenticateUserTypes(['SuperUser', 'TeamMember']), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -1313,7 +1314,7 @@ router.get("/:id", authenticateSuperUser, async (req, res) => {
         "owner.ownerId": id,
       })
         .populate("property", "address")
-        .populate("assignedTechnician", "fullName tradeType availabilityStatus")
+        .populate("assignedTechnician", "firstName lastName tradeType availabilityStatus")
         .select(
           "job_id jobType dueDate status priority description cost estimatedDuration actualDuration completedAt createdAt"
         ),
@@ -1323,7 +1324,7 @@ router.get("/:id", authenticateSuperUser, async (req, res) => {
         property: { $in: properties.map((p) => p._id) },
       })
         .populate("property", "address")
-        .populate("assignedTechnician", "fullName tradeType availabilityStatus")
+        .populate("assignedTechnician", "firstName lastName tradeType availabilityStatus")
         .select(
           "job_id jobType dueDate status priority description cost estimatedDuration actualDuration completedAt createdAt"
         ),
@@ -1495,8 +1496,8 @@ router.get("/:id", authenticateSuperUser, async (req, res) => {
   }
 });
 
-// Delete Agency (Only Super Users)
-router.delete("/:id", authenticateSuperUser, async (req, res) => {
+// Delete Agency (Only Super Users and Team Members)
+router.delete("/:id", authenticateUserTypes(['SuperUser', 'TeamMember']), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -1550,7 +1551,7 @@ router.delete("/:id", authenticateSuperUser, async (req, res) => {
 // Resend Credentials Email - Agency
 router.post(
   "/:id/resend-credentials",
-  authenticateSuperUser,
+  authenticateUserTypes(['SuperUser', 'TeamMember']),
   async (req, res) => {
     try {
       const { id } = req.params;

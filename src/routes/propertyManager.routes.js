@@ -4,21 +4,15 @@ import {
   authenticate,
   authenticateAgency,
   authenticateSuperUser,
+  authenticateUserTypes,
 } from "../middleware/auth.middleware.js";
 
 const router = express.Router();
 
 // Get all PropertyManagers (Agency/SuperUser only)
-router.get("/", authenticate, async (req, res) => {
+router.get("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency']), async (req, res) => {
   try {
-    // Check if user is Agency or SuperUser
-    if (!req.agency && !req.superUser) {
-      return res.status(403).json({
-        success: false,
-        message:
-          "Access denied. Only Agency and SuperUser can view PropertyManagers.",
-      });
-    }
+    // Access already validated by authenticateUserTypes middleware
 
     const {
       page = 1,
@@ -119,7 +113,7 @@ router.get("/", authenticate, async (req, res) => {
 });
 
 // Get PropertyManager by ID (Agency/SuperUser only)
-router.get("/:id", authenticate, async (req, res) => {
+router.get("/:id", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'PropertyManager']), async (req, res) => {
   try {
     // Check if user is Agency or SuperUser
     if (!req.agency && !req.superUser) {
@@ -300,7 +294,7 @@ router.patch("/:id/availability", authenticate, async (req, res) => {
 });
 
 // Delete PropertyManager (Agency/SuperUser only)
-router.delete("/:id", authenticate, async (req, res) => {
+router.delete("/:id", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency']), async (req, res) => {
   try {
     // Check if user is Agency or SuperUser
     if (!req.agency && !req.superUser) {

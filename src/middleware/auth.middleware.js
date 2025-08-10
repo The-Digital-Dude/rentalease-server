@@ -2,6 +2,7 @@ import jwt from "jsonwebtoken";
 import SuperUser from "../models/SuperUser.js";
 import Technician from "../models/Technician.js";
 import PropertyManager from "../models/PropertyManager.js";
+import TeamMember from "../models/TeamMember.js";
 
 /**
  * Middleware to authenticate and authorize super users
@@ -209,7 +210,11 @@ const authenticate = async (req, res, next) => {
     // Check both 'type' and 'userType' fields for compatibility
     const userType = decoded.userType || decoded.type;
 
-    if (userType === "SuperUser" || userType === "superUser") {
+    if (
+      userType === "SuperUser" ||
+      userType === "superUser" ||
+      userType === "super_user"
+    ) {
       // Find the super user in database
       const superUser = await SuperUser.findById(decoded.id);
 
@@ -285,7 +290,8 @@ const authenticate = async (req, res, next) => {
       };
     } else if (
       userType === "PropertyManager" ||
-      userType === "propertyManager"
+      userType === "propertyManager" ||
+      userType === "property_manager"
     ) {
       // Find the property manager in database
       const propertyManager = await PropertyManager.findById(decoded.id);
@@ -314,6 +320,37 @@ const authenticate = async (req, res, next) => {
         availabilityStatus: propertyManager.availabilityStatus,
         assignedProperties: propertyManager.assignedProperties,
         owner: propertyManager.owner,
+      };
+    } else if (
+      userType === "TeamMember" ||
+      userType === "teamMember" ||
+      userType === "team_member"
+    ) {
+      // Find the team member in database
+      const teamMember = await TeamMember.findById(decoded.id);
+
+      if (!teamMember) {
+        return res.status(401).json({
+          status: "error",
+          message: "Team Member not found",
+        });
+      }
+
+      // Check if team member account is active
+      if (teamMember.status !== "Active") {
+        return res.status(401).json({
+          status: "error",
+          message: `Account is ${teamMember.status.toLowerCase()}. Please contact your administrator.`,
+        });
+      }
+
+      // Add team member info to request object
+      req.teamMember = {
+        id: teamMember._id,
+        name: teamMember.name,
+        email: teamMember.email,
+        status: teamMember.status,
+        createdBy: teamMember.createdBy,
       };
     } else {
       return res.status(401).json({
@@ -420,9 +457,324 @@ const authenticatePropertyManager = async (req, res, next) => {
   }
 };
 
+/**
+ * Middleware to authenticate both super users and team members (admin level access)
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next function
+ */
+const authenticateAdminLevel = async (req, res, next) => {
+  try {
+    // Check if authorization header exists
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader) {
+      return res.status(401).json({
+        status: "error",
+        message: "Authorization header is required",
+      });
+    }
+
+    // Extract token from "Bearer token" format
+    const token = authHeader.split(" ")[1];
+
+    if (!token) {
+      return res.status(401).json({
+        status: "error",
+        message: "Access token is required",
+      });
+    }
+
+    // Verify JWT token
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (tokenError) {
+      return res.status(401).json({
+        status: "error",
+        message: "Invalid or expired token",
+      });
+    }
+
+    // Check if token is for a super user or team member
+    const userType = decoded.userType || decoded.type;
+
+    if (
+      userType === "SuperUser" ||
+      userType === "superUser" ||
+      userType === "super_user"
+    ) {
+      // Find the super user in database
+      const superUser = await SuperUser.findById(decoded.id);
+
+      if (!superUser) {
+        return res.status(401).json({
+          status: "error",
+          message: "Super user not found",
+        });
+      }
+
+      // Add super user info to request object
+      req.superUser = {
+        id: superUser._id,
+        name: superUser.name,
+        email: superUser.email,
+      };
+    } else if (
+      userType === "TeamMember" ||
+      userType === "teamMember" ||
+      userType === "team_member"
+    ) {
+      // Find the team member in database
+      const teamMember = await TeamMember.findById(decoded.id);
+
+      if (!teamMember) {
+        return res.status(401).json({
+          status: "error",
+          message: "Team member not found",
+        });
+      }
+
+      // Check if team member account is active
+      if (teamMember.status !== "Active") {
+        return res.status(401).json({
+          status: "error",
+          message: `Account is ${teamMember.status.toLowerCase()}. Please contact your administrator.`,
+        });
+      }
+
+      // Add team member info to request object (same structure as superUser for compatibility)
+      req.superUser = {
+        id: teamMember._id,
+        name: teamMember.name,
+        email: teamMember.email,
+      };
+    } else {
+      return res.status(403).json({
+        status: "error",
+        message: "Access denied. Admin privileges required.",
+      });
+    }
+
+    next();
+  } catch (error) {
+    console.error("Admin level authentication error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Authentication failed",
+    });
+  }
+};
+
+/**
+ * Dynamic authentication middleware that accepts multiple user types
+ * @param {string[]} allowedUserTypes - Array of allowed user types (e.g., ['SuperUser', 'TeamMember', 'Agency'])
+ * @returns {Function} - Express middleware function
+ */
+const authenticateUserTypes = (allowedUserTypes) => {
+  return async (req, res, next) => {
+    try {
+      // Check if authorization header exists
+      const authHeader = req.headers.authorization;
+
+      if (!authHeader) {
+        return res.status(401).json({
+          status: "error",
+          message: "Authorization header is required",
+        });
+      }
+
+      // Extract token from "Bearer token" format
+      const token = authHeader.split(" ")[1];
+
+      if (!token) {
+        return res.status(401).json({
+          status: "error",
+          message: "Access token is required",
+        });
+      }
+
+      // Verify JWT token
+      let decoded;
+      try {
+        decoded = jwt.verify(token, process.env.JWT_SECRET);
+      } catch (tokenError) {
+        return res.status(401).json({
+          status: "error",
+          message: "Invalid or expired token",
+        });
+      }
+
+      // Handle different user types
+      let userType = decoded.userType || decoded.type;
+
+      if (userType === "superUser") {
+        userType = "SuperUser";
+      }
+
+      // Check if user type is allowed (handle different formats)
+      const isAllowed = allowedUserTypes.some((type) => {
+        const lowerType = type.toLowerCase();
+        const underscoreType = lowerType
+          .replace(/([A-Z])/g, "_$1")
+          .toLowerCase()
+          .replace(/^_/, "");
+
+        return (
+          userType === type ||
+          userType === lowerType ||
+          userType === underscoreType ||
+          userType ===
+            type
+              .replace(/([A-Z])/g, "_$1")
+              .toLowerCase()
+              .replace(/^_/, "")
+        );
+      });
+
+      if (!isAllowed) {
+        return res.status(403).json({
+          status: "error",
+          message: `Access denied. Required user types: ${allowedUserTypes.join(
+            ", "
+          )}`,
+        });
+      }
+
+      // Set user data based on type
+      if (
+        userType === "SuperUser" ||
+        userType === "superUser" ||
+        userType === "super_user"
+      ) {
+        const superUser = await SuperUser.findById(decoded.id);
+        if (!superUser) {
+          return res.status(401).json({
+            status: "error",
+            message: "Super user not found",
+          });
+        }
+        req.superUser = {
+          id: superUser._id,
+          name: superUser.name,
+          email: superUser.email,
+        };
+      } else if (
+        userType === "TeamMember" ||
+        userType === "teamMember" ||
+        userType === "team_member"
+      ) {
+        const teamMember = await TeamMember.findById(decoded.id);
+        if (!teamMember) {
+          return res.status(401).json({
+            status: "error",
+            message: "Team member not found",
+          });
+        }
+        if (teamMember.status !== "Active") {
+          return res.status(401).json({
+            status: "error",
+            message: `Account is ${teamMember.status.toLowerCase()}. Please contact your administrator.`,
+          });
+        }
+        // Set as superUser for compatibility (team members have admin level access)
+        req.superUser = {
+          id: teamMember._id,
+          name: teamMember.name,
+          email: teamMember.email,
+        };
+      } else if (userType === "Agency" || userType === "agency") {
+        const { default: Agency } = await import("../models/Agency.js");
+        const agency = await Agency.findById(decoded.id);
+        if (!agency) {
+          return res.status(401).json({
+            status: "error",
+            message: "Agency not found",
+          });
+        }
+        if (!agency.isActive()) {
+          return res.status(401).json({
+            status: "error",
+            message: `Account is ${agency.status.toLowerCase()}. Please contact support.`,
+          });
+        }
+        req.agency = {
+          id: agency._id,
+          companyName: agency.companyName,
+          contactPerson: agency.contactPerson,
+          email: agency.email,
+          status: agency.status,
+        };
+      } else if (userType === "Technician" || userType === "technician") {
+        const technician = await Technician.findById(decoded.id);
+        if (!technician) {
+          return res.status(401).json({
+            status: "error",
+            message: "Technician not found",
+          });
+        }
+        if (technician.status !== "Active") {
+          return res.status(401).json({
+            status: "error",
+            message: `Account is ${technician.status.toLowerCase()}. Please contact your administrator.`,
+          });
+        }
+        req.technician = {
+          id: technician._id,
+          fullName: technician.fullName,
+          email: technician.email,
+          status: technician.status,
+          availabilityStatus: technician.availabilityStatus,
+          currentJobs: technician.currentJobs,
+          maxJobs: technician.maxJobs,
+        };
+      } else if (
+        userType === "PropertyManager" ||
+        userType === "propertyManager" ||
+        userType === "property_manager"
+      ) {
+        const propertyManager = await PropertyManager.findById(decoded.id);
+        if (!propertyManager) {
+          return res.status(401).json({
+            status: "error",
+            message: "Property Manager not found",
+          });
+        }
+        if (propertyManager.status !== "Active") {
+          return res.status(401).json({
+            status: "error",
+            message: `Account is ${propertyManager.status.toLowerCase()}. Please contact your administrator.`,
+          });
+        }
+        req.propertyManager = {
+          id: propertyManager._id,
+          fullName: propertyManager.fullName,
+          email: propertyManager.email,
+          status: propertyManager.status,
+          availabilityStatus: propertyManager.availabilityStatus,
+          assignedProperties: propertyManager.assignedProperties,
+          owner: propertyManager.owner,
+        };
+      }
+
+      // Add decoded token info to request
+      req.user = decoded;
+      next();
+    } catch (error) {
+      console.error("Authentication error:", error);
+      res.status(500).json({
+        status: "error",
+        message: "Authentication failed",
+      });
+    }
+  };
+};
+
 export {
   authenticateSuperUser,
   authenticateAgency,
   authenticatePropertyManager,
   authenticate,
+  authenticateAdminLevel,
+  authenticateUserTypes,
 };

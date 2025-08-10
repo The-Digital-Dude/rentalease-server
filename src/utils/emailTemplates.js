@@ -954,6 +954,103 @@ const agencyCredentialsTemplate = (data) => ({
 });
 
 /**
+ * Email template for team member credentials with login information
+ * @param {Object} data - Template data
+ * @param {string} data.name - Team member's name
+ * @param {string} data.email - Team member's email
+ * @param {string} data.password - Team member's password
+ * @param {string} data.loginUrl - Login URL for the system
+ * @returns {Object} - Email template configuration
+ */
+const teamMemberCredentialsTemplate = (data) => ({
+  subject: `Welcome to RentalEase CRM - Your Team Member Account Credentials`,
+  html: `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+      <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #024974; margin-bottom: 10px;">🎉 Welcome to RentalEase CRM!</h1>
+          <div style="width: 50px; height: 3px; background-color: #024974; margin: 0 auto;"></div>
+        </div>
+        
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">Hello ${
+          data.name
+        },</p>
+        
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">
+          Congratulations! Your team member account has been successfully created. 
+          You now have full administrative access to the RentalEase CRM system to help manage properties, agencies, jobs, and users efficiently.
+        </p>
+        
+        <div style="background-color: #e8f4f8; border: 2px solid #024974; padding: 20px; border-radius: 8px; margin: 25px 0;">
+          <h3 style="color: #024974; margin: 0 0 15px 0; font-size: 18px;">🔐 Your Login Credentials</h3>
+          
+          <div style="background-color: white; padding: 15px; border-radius: 5px; margin-bottom: 15px;">
+            <p style="color: #333; margin: 0 0 10px 0; font-size: 14px;"><strong>📧 Email:</strong></p>
+            <p style="color: #007bff; margin: 0; font-size: 16px; font-weight: bold; word-break: break-all;">${
+              data.email
+            }</p>
+          </div>
+          
+          <div style="background-color: white; padding: 15px; border-radius: 5px; margin-bottom: 15px;">
+            <p style="color: #333; margin: 0 0 10px 0; font-size: 14px;"><strong>🔑 Password:</strong></p>
+            <p style="color: #dc3545; margin: 0; font-size: 16px; font-weight: bold; letter-spacing: 1px; font-family: monospace;">${
+              data.password
+            }</p>
+          </div>
+          
+          <div style="background-color: white; padding: 15px; border-radius: 5px;">
+            <p style="color: #333; margin: 0 0 10px 0; font-size: 14px;"><strong>🌐 Login URL:</strong></p>
+            <p style="color: #007bff; margin: 0; font-size: 16px; font-weight: bold; word-break: break-all;">${
+              data.loginUrl || "https://rentalease-client.vercel.app/login"
+            }</p>
+          </div>
+        </div>
+        
+        <div style="background-color: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <p style="color: #856404; margin: 0; font-size: 14px;">
+            <strong>🔒 Security Reminder:</strong> Please change your password after your first login for enhanced security. 
+            Keep your login credentials secure and don't share them with unauthorized personnel.
+          </p>
+        </div>
+        
+        <div style="background-color: #d1ecf1; border: 1px solid #bee5eb; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <h4 style="color: #0c5460; margin: 0 0 10px 0; font-size: 16px;">🚀 What You Can Do Now</h4>
+          <ul style="color: #0c5460; margin: 10px 0 0 20px; line-height: 1.6;">
+            <li>Log in to your admin dashboard</li>
+            <li>Manage agencies and their operations</li>
+            <li>Oversee property management activities</li>
+            <li>Handle job assignments and tracking</li>
+            <li>Manage user accounts and permissions</li>
+            <li>Access comprehensive reporting tools</li>
+            <li>Perform all Super User level operations</li>
+          </ul>
+        </div>
+        
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${
+            data.loginUrl || "https://rentalease-client.vercel.app/login"
+          }" 
+             style="background-color: #024974; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+            🚀 Login to Your Dashboard
+          </a>
+        </div>
+        
+        <div style="border-top: 1px solid #eee; padding-top: 20px; margin-top: 30px;">
+          <p style="color: #666; font-size: 12px; margin: 0;">
+            This email contains sensitive login information. Please store it securely and delete it after changing your password.
+          </p>
+        </div>
+        
+        <p style="color: #333; margin-top: 30px;">
+          Best regards,<br>
+          <strong>The RentalEase CRM Team</strong>
+        </p>
+      </div>
+    </div>
+  `,
+});
+
+/**
  * Email template for technician credentials with login information
  * @param {Object} data - Template data
  * @param {string} data.fullName - Technician's full name
@@ -1622,6 +1719,7 @@ const templates = {
   agencyPasswordResetOTP: agencyPasswordResetOTPTemplate,
   agencyCredentials: agencyCredentialsTemplate,
   technicianCredentials: technicianCredentialsTemplate,
+  teamMemberCredentials: teamMemberCredentialsTemplate,
 
   // Compliance templates
   complianceJobNotification: complianceJobNotificationTemplate,

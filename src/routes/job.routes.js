@@ -7,9 +7,10 @@ import Property from "../models/Property.js";
 import Invoice from "../models/Invoice.js";
 import TechnicianPayment from "../models/TechnicianPayment.js";
 import {
-  authenticateSuperUser,
+  authenticateAdminLevel,
   authenticateAgency,
   authenticate,
+  authenticateUserTypes,
 } from "../middleware/auth.middleware.js";
 import emailService from "../services/email.service.js";
 import notificationService from "../services/notification.service.js";
@@ -23,6 +24,11 @@ const getOwnerInfo = (req) => {
     return {
       ownerType: "SuperUser",
       ownerId: req.superUser.id,
+    };
+  } else if (req.teamMember) {
+    return {
+      ownerType: "TeamMember",
+      ownerId: req.teamMember.id,
     };
   } else if (req.agency) {
     return {
@@ -44,6 +50,11 @@ const getCreatorInfo = (req) => {
     return {
       userType: "SuperUser",
       userId: req.superUser.id,
+    };
+  } else if (req.teamMember) {
+    return {
+      userType: "TeamMember",
+      userId: req.teamMember.id,
     };
   } else if (req.agency) {
     return {
@@ -102,7 +113,7 @@ const getUserInfo = (req) => {
     };
   } else if (req.technician) {
     return {
-      name: req.technician.fullName,
+      name: `${req.technician.firstName} ${req.technician.lastName}`,
       type: "Technician",
     };
   }
@@ -110,7 +121,7 @@ const getUserInfo = (req) => {
 };
 
 // CREATE - Add new job
-router.post("/", authenticate, async (req, res) => {
+router.post("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'PropertyManager']), async (req, res) => {
   try {
     const {
       property,
@@ -151,68 +162,57 @@ router.post("/", authenticate, async (req, res) => {
       });
     }
 
-    // Start a session for transaction if we have an assigned technician
-    const session = await mongoose.startSession();
-    session.startTransaction();
+    let technician = null;
+    // Convert string "null" to actual null
+    const technicianId =
+      assignedTechnician === "null" || !assignedTechnician
+        ? null
+        : assignedTechnician;
 
-    try {
-      let technician = null;
-      // Convert string "null" to actual null
-      const technicianId =
-        assignedTechnician === "null" || !assignedTechnician
-          ? null
-          : assignedTechnician;
+    if (technicianId) {
+      technician = await Technician.findById(technicianId);
 
-      if (technicianId) {
-        technician = await Technician.findById(technicianId).session(session);
-
-        if (!technician) {
-          await session.abortTransaction();
-          session.endSession();
-          return res.status(400).json({
-            status: "error",
-            message: "Technician not found",
-            details: {
-              assignedTechnician: "The selected technician was not found",
-            },
-          });
-        }
+      if (!technician) {
+        return res.status(400).json({
+          status: "error",
+          message: "Technician not found",
+          details: {
+            assignedTechnician: "The selected technician was not found",
+          },
+        });
       }
+    }
 
-      // Create new job
-      const job = new Job({
-        property,
-        jobType,
-        dueDate: new Date(dueDate),
-        assignedTechnician: technicianId,
-        description,
-        priority: priority || "Medium",
-        estimatedDuration,
-        notes,
-        owner: ownerInfo,
-        createdBy: creatorInfo,
-        lastUpdatedBy: creatorInfo,
-        status: technicianId ? "Scheduled" : "Pending",
-      });
+    // Create new job
+    const job = new Job({
+      property,
+      jobType,
+      dueDate: new Date(dueDate),
+      assignedTechnician: technicianId,
+      description,
+      priority: priority || "Medium",
+      estimatedDuration,
+      notes,
+      owner: ownerInfo,
+      createdBy: creatorInfo,
+      lastUpdatedBy: creatorInfo,
+      status: technicianId ? "Scheduled" : "Pending",
+    });
 
-      await job.save({ session });
+    await job.save();
 
-      // Update technician's job count if assigned
-      if (technician) {
-        technician.currentJobs = (technician.currentJobs || 0) + 1;
-        technician.availabilityStatus =
-          technician.currentJobs >= 4 ? "Busy" : "Available";
-        await technician.save({ session });
-      }
+    // Update technician's job count if assigned
+    if (technician) {
+      technician.currentJobs = (technician.currentJobs || 0) + 1;
+      technician.availabilityStatus =
+        technician.currentJobs >= 4 ? "Busy" : "Available";
+      await technician.save();
+    }
 
-      // Commit the transaction
-      await session.commitTransaction();
-      session.endSession();
-
-      // Populate technician details for response
+    // Populate technician details for response
       await job.populate(
         "assignedTechnician",
-        "fullName phone email availabilityStatus"
+        "firstName lastName phone email availabilityStatus"
       );
 
       // Send comprehensive notifications for job creation
@@ -259,39 +259,34 @@ router.post("/", authenticate, async (req, res) => {
           job: job.getFullDetails(),
         },
       });
-    } catch (error) {
-      // If an error occurred, abort the transaction
-      await session.abortTransaction();
-      session.endSession();
-
-      // Handle validation errors
-      if (error.name === "ValidationError") {
-        return res.status(400).json({
-          status: "error",
-          message: "Please check the form for errors",
-          details: Object.keys(error.errors).reduce((acc, key) => {
-            acc[key] = error.errors[key].message;
-            return acc;
-          }, {}),
-        });
-      }
-
-      // Handle duplicate job error
-      if (error.name === "DuplicateJobError") {
-        return res.status(409).json({
-          status: "error",
-          message: error.message,
-          details: {
-            duplicate:
-              "A job of this type already exists for this property on the specified date",
-          },
-        });
-      }
-
-      throw error;
-    }
+    // Handle validation errors in main catch block
   } catch (error) {
     console.error("Create job error:", error);
+    
+    // Handle validation errors
+    if (error.name === "ValidationError") {
+      return res.status(400).json({
+        status: "error",
+        message: "Please check the form for errors",
+        details: Object.keys(error.errors).reduce((acc, key) => {
+          acc[key] = error.errors[key].message;
+          return acc;
+        }, {}),
+      });
+    }
+
+    // Handle duplicate job error
+    if (error.name === "DuplicateJobError") {
+      return res.status(409).json({
+        status: "error",
+        message: error.message,
+        details: {
+          duplicate:
+            "A job of this type already exists for this property on the specified date",
+        },
+      });
+    }
+    
     res.status(500).json({
       status: "error",
       message: "Unable to create job. Please try again later.",
@@ -303,7 +298,7 @@ router.post("/", authenticate, async (req, res) => {
 });
 
 // READ - Get all jobs for the authenticated user
-router.get("/", authenticate, async (req, res) => {
+router.get("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'PropertyManager', 'Technician']), async (req, res) => {
   try {
     const ownerInfo = getOwnerInfo(req);
     if (!ownerInfo) {
@@ -436,7 +431,7 @@ router.get("/", authenticate, async (req, res) => {
 });
 
 // GET - Get available (unassigned) jobs for super users and technicians
-router.get("/available-jobs", authenticate, async (req, res) => {
+router.get("/available-jobs", authenticateUserTypes(['Technician']), async (req, res) => {
   try {
     const ownerInfo = getOwnerInfo(req);
     if (!ownerInfo) {
@@ -726,7 +721,7 @@ router.get("/available-jobs", authenticate, async (req, res) => {
 });
 
 // READ - Get specific job by ID
-router.get("/:id", authenticate, async (req, res) => {
+router.get("/:id", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'PropertyManager', 'Technician']), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -800,7 +795,7 @@ router.get("/:id", authenticate, async (req, res) => {
 });
 
 // UPDATE - Update job (full edit only for super users)
-router.put("/:id", authenticate, async (req, res) => {
+router.put("/:id", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'PropertyManager', 'Technician']), async (req, res) => {
   try {
     const { id } = req.params;
     const updates = req.body;
@@ -853,10 +848,6 @@ router.put("/:id", authenticate, async (req, res) => {
       }
     }
 
-    // Start a session for transaction if technician assignment is changing
-    const session = await mongoose.startSession();
-    session.startTransaction();
-
     try {
       // Store the current assigned technician before update
       const previousTechnician = job.assignedTechnician;
@@ -869,11 +860,9 @@ router.put("/:id", authenticate, async (req, res) => {
       ) {
         const technician = await Technician.findById(
           updates.assignedTechnician
-        ).session(session);
+        );
 
         if (!technician) {
-          await session.abortTransaction();
-          session.endSession();
           return res.status(400).json({
             status: "error",
             message: "Assigned technician not found",
@@ -915,7 +904,7 @@ router.put("/:id", authenticate, async (req, res) => {
       // Update lastUpdatedBy
       job.lastUpdatedBy = getCreatorInfo(req);
 
-      await job.save({ session });
+      await job.save();
 
       // Handle technician job count updates
       if (canFullEdit && updates.hasOwnProperty("assignedTechnician")) {
@@ -923,24 +912,22 @@ router.put("/:id", authenticate, async (req, res) => {
         if (previousTechnician && (!newTechnician || newTechnician === null)) {
           const prevTech = await Technician.findById(
             previousTechnician
-          ).session(session);
+          );
           if (prevTech) {
             prevTech.currentJobs = Math.max(0, (prevTech.currentJobs || 0) - 1);
             prevTech.availabilityStatus =
               prevTech.currentJobs < 4 ? "Available" : "Busy";
-            await prevTech.save({ session });
+            await prevTech.save();
           }
         }
         // If technician was assigned to a previously unassigned job
         else if (!previousTechnician && newTechnician) {
-          const newTech = await Technician.findById(newTechnician).session(
-            session
-          );
+          const newTech = await Technician.findById(newTechnician);
           if (newTech) {
             newTech.currentJobs = (newTech.currentJobs || 0) + 1;
             newTech.availabilityStatus =
               newTech.currentJobs >= 4 ? "Busy" : "Available";
-            await newTech.save({ session });
+            await newTech.save();
           }
         }
         // If technician was changed from one to another
@@ -952,33 +939,27 @@ router.put("/:id", authenticate, async (req, res) => {
           // Decrease previous technician's job count
           const prevTech = await Technician.findById(
             previousTechnician
-          ).session(session);
+          );
           if (prevTech) {
             prevTech.currentJobs = Math.max(0, (prevTech.currentJobs || 0) - 1);
             prevTech.availabilityStatus =
               prevTech.currentJobs < 4 ? "Available" : "Busy";
-            await prevTech.save({ session });
+            await prevTech.save();
           }
 
           // Increase new technician's job count
-          const newTech = await Technician.findById(newTechnician).session(
-            session
-          );
+          const newTech = await Technician.findById(newTechnician);
           if (newTech) {
             newTech.currentJobs = (newTech.currentJobs || 0) + 1;
             newTech.availabilityStatus =
               newTech.currentJobs >= 4 ? "Busy" : "Available";
-            await newTech.save({ session });
+            await newTech.save();
           }
         }
       }
 
-      // Commit the transaction
-      await session.commitTransaction();
-      session.endSession();
-
       // Populate technician details for response
-      await job.populate("assignedTechnician", "fullName phone email");
+      await job.populate("assignedTechnician", "firstName lastName phone email");
 
       // Send notifications for technician assignments during updates
       if (canFullEdit && updates.hasOwnProperty("assignedTechnician")) {
@@ -1039,9 +1020,8 @@ router.put("/:id", authenticate, async (req, res) => {
         },
       });
     } catch (error) {
-      // If an error occurred, abort the transaction
-      await session.abortTransaction();
-      session.endSession();
+      // If an error occurred, log it and re-throw
+      console.error('Error during job update:', error);
       throw error;
     }
   } catch (error) {
@@ -1054,7 +1034,7 @@ router.put("/:id", authenticate, async (req, res) => {
 });
 
 // DELETE - Delete job (only super users)
-router.delete("/:id", authenticateSuperUser, async (req, res) => {
+router.delete("/:id", authenticateUserTypes(['SuperUser', 'TeamMember']), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -1179,7 +1159,7 @@ router.patch("/:id/status", authenticate, async (req, res) => {
 });
 
 // PATCH - Assign job to technician (super users only)
-router.patch("/:id/assign", authenticateSuperUser, async (req, res) => {
+router.patch("/:id/assign", authenticateAdminLevel, async (req, res) => {
   try {
     const { id } = req.params;
     const { technicianId } = req.body;
@@ -1224,34 +1204,27 @@ router.patch("/:id/assign", authenticateSuperUser, async (req, res) => {
     // Technicians are independent contractors and can be assigned to any job
     // No organization validation needed - any authenticated user can assign any technician
 
-    // Start a session for transaction
-    const session = await mongoose.startSession();
-    session.startTransaction();
-
     try {
       // Update job
       job.assignedTechnician = technicianId;
       job.status = "Scheduled";
       job.lastUpdatedBy = getCreatorInfo(req);
-      await job.save({ session });
+      await job.save();
 
       // Update technician's status
       technician.currentJobs = (technician.currentJobs || 0) + 1;
       technician.availabilityStatus =
         technician.currentJobs >= 4 ? "Busy" : "Available";
-      await technician.save({ session });
+      await technician.save();
 
       console.log("Technician:", technician);
-
-      // Commit the transaction
-      await session.commitTransaction();
 
       // Populate technician details for response
       await job.populate(
         "assignedTechnician",
         "firstName lastName phone email availabilityStatus"
       );
-      job.fullName = `${technician.firstName} ${technician.lastName}`;
+      // fullName is now handled by virtual field in technician model
 
       // Send notifications to the assigned technician, agency, and super users
       const assignedBy = getUserInfo(req);
@@ -1287,19 +1260,16 @@ router.patch("/:id/assign", authenticateSuperUser, async (req, res) => {
           job: job.getFullDetails(),
           technician: {
             id: technician._id,
-            fullName: technician.firstName + " " + technician.lastName,
+            fullName: technician.fullName, // Virtual field
             currentJobs: technician.currentJobs,
             availabilityStatus: technician.availabilityStatus,
           },
         },
       });
     } catch (error) {
-      // If an error occurred, abort the transaction
-      await session.abortTransaction();
+      // If an error occurred, log it and re-throw
+      console.error('Error during job assignment:', error);
       throw error;
-    } finally {
-      // End the session
-      session.endSession();
     }
   } catch (error) {
     console.error("Assign job error:", error);
@@ -1311,7 +1281,7 @@ router.patch("/:id/assign", authenticateSuperUser, async (req, res) => {
 });
 
 // PATCH - Claim job (technicians can claim available jobs)
-router.patch("/:id/claim", authenticate, async (req, res) => {
+router.patch("/:id/claim", authenticateUserTypes(['Technician']), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -1377,80 +1347,64 @@ router.patch("/:id/claim", authenticate, async (req, res) => {
       });
     }
 
-    // Start a session for transaction
-    const session = await mongoose.startSession();
-    session.startTransaction();
+    // Update job - assign to the claiming technician and set status to Scheduled
+    job.assignedTechnician = ownerInfo.ownerId;
+    job.status = "Scheduled";
+    job.lastUpdatedBy = getCreatorInfo(req);
+    await job.save();
 
-    try {
-      // Update job - assign to the claiming technician and set status to Scheduled
-      job.assignedTechnician = ownerInfo.ownerId;
-      job.status = "Scheduled";
-      job.lastUpdatedBy = getCreatorInfo(req);
-      await job.save({ session });
+    // Update technician's job count and availability status
+    technician.currentJobs = (technician.currentJobs || 0) + 1;
+    technician.availabilityStatus =
+      technician.currentJobs >= 4 ? "Busy" : "Available";
+    await technician.save();
 
-      // Update technician's job count and availability status
-      technician.currentJobs = (technician.currentJobs || 0) + 1;
-      technician.availabilityStatus =
-        technician.currentJobs >= 4 ? "Busy" : "Available";
-      await technician.save({ session });
+    // Populate technician details for response
+    await job.populate(
+      "assignedTechnician",
+      "firstName lastName phone email availabilityStatus"
+    );
 
-      // Commit the transaction
-      await session.commitTransaction();
+    // Send in-app notifications to technician, agency, and super users
+    const claimedBy = getUserInfo(req);
+    if (claimedBy) {
+      try {
+        // Get property details for notification
+        const property = await Property.findById(job.property).populate(
+          "address"
+        );
 
-      // Populate technician details for response
-      await job.populate(
-        "assignedTechnician",
-        "fullName phone email availabilityStatus"
-      );
-
-      // Send in-app notifications to technician, agency, and super users
-      const claimedBy = getUserInfo(req);
-      if (claimedBy) {
-        try {
-          // Get property details for notification
-          const property = await Property.findById(job.property).populate(
-            "address"
-          );
-
-          // Send comprehensive job assignment notification
-          await notificationService.sendJobAssignmentNotification(
-            job,
-            property,
-            technician,
-            claimedBy
-          );
-        } catch (notificationError) {
-          // Log error but don't fail the job claim
-          console.error("Failed to send job assignment notifications:", {
-            jobId: job._id,
-            technicianId: technician._id,
-            error: notificationError.message,
-            timestamp: new Date().toISOString(),
-          });
-        }
+        // Send comprehensive job assignment notification
+        await notificationService.sendJobAssignmentNotification(
+          job,
+          property,
+          technician,
+          claimedBy
+        );
+      } catch (notificationError) {
+        // Log error but don't fail the job claim
+        console.error("Failed to send job assignment notifications:", {
+          jobId: job._id,
+          technicianId: technician._id,
+          error: notificationError.message,
+          timestamp: new Date().toISOString(),
+        });
       }
-
-      res.status(200).json({
-        status: "success",
-        message: "Job claimed successfully",
-        data: {
-          job: job.getFullDetails(),
-          technician: {
-            id: technician._id,
-            fullName: technician.fullName,
-            currentJobs: technician.currentJobs,
-            availabilityStatus: technician.availabilityStatus,
-          },
-        },
-      });
-    } catch (error) {
-      // If an error occurred, abort the transaction
-      await session.abortTransaction();
-      throw error;
-    } finally {
-      // End the session
-      session.endSession();
     }
+
+    res.status(200).json({
+      status: "success",
+      message: "Job claimed successfully",
+      data: {
+        job: job.getFullDetails(),
+        technician: {
+          id: technician._id,
+          fullName: technician.fullName,
+          currentJobs: technician.currentJobs,
+          availabilityStatus: technician.availabilityStatus,
+        },
+      },
+    });
   } catch (error) {
     console.error("Claim job error:", error);
     res.status(500).json({
@@ -1550,10 +1504,6 @@ router.patch(
         });
       }
 
-      // Start a session for transaction
-      const session = await mongoose.startSession();
-      session.startTransaction();
-
       try {
         let reportFileUrl = null;
         let invoiceId = null;
@@ -1610,9 +1560,7 @@ router.patch(
               agencyId = job.owner.ownerId;
             } else {
               // If job is owned by SuperUser, we need to get the agency from the property
-              const property = await Property.findById(job.property).session(
-                session
-              );
+              const property = await Property.findById(job.property);
               if (property && property.agency) {
                 agencyId = property.agency;
               } else {
@@ -1641,7 +1589,7 @@ router.patch(
             };
 
             const invoice = new Invoice(newInvoiceData);
-            await invoice.save({ session });
+            await invoice.save();
             invoiceId = invoice._id;
           } catch (invoiceError) {
             console.error("Failed to create invoice:", invoiceError);
@@ -1664,15 +1612,12 @@ router.patch(
         };
 
         const updatedJob = await Job.findByIdAndUpdate(job._id, updateData, {
-          session,
           runValidators: false,
           new: true,
         });
 
         // Update technician's job count and availability status
-        const technician = await Technician.findById(ownerInfo.ownerId).session(
-          session
-        );
+        const technician = await Technician.findById(ownerInfo.ownerId);
         if (technician) {
           technician.currentJobs = Math.max(
             0,
@@ -1680,7 +1625,7 @@ router.patch(
           );
           technician.availabilityStatus =
             technician.currentJobs < 4 ? "Available" : "Busy";
-          await technician.save({ session });
+          await technician.save();
         }
 
         // Create technician payment for completed job
@@ -1694,9 +1639,7 @@ router.patch(
             agencyId = job.owner.ownerId;
           } else {
             // If job is owned by SuperUser, get agency from property
-            const property = await Property.findById(job.property).session(
-              session
-            );
+            const property = await Property.findById(job.property);
             if (property && property.agency) {
               agencyId = property.agency;
             }
@@ -1722,7 +1665,7 @@ router.patch(
               },
             });
 
-            await technicianPayment.save({ session });
+            await technicianPayment.save();
             technicianPaymentCreated = true;
             technicianPaymentData = technicianPayment.getSummary();
 
@@ -1754,14 +1697,13 @@ router.patch(
           });
         }
 
-        // Commit the transaction
-        await session.commitTransaction();
+        // Transaction handling removed for standalone MongoDB compatibility
 
         // Populate references for response
         await updatedJob.populate([
           {
             path: "assignedTechnician",
-            select: "fullName phone email availabilityStatus",
+            select: "firstName lastName phone email availabilityStatus",
           },
           {
             path: "invoice",
@@ -1832,12 +1774,7 @@ router.patch(
           },
         });
       } catch (error) {
-        // If an error occurred, abort the transaction
-        await session.abortTransaction();
         throw error;
-      } finally {
-        // End the session
-        session.endSession();
       }
     } catch (error) {
       console.error("Complete job error:", error);

@@ -5,6 +5,7 @@ import {
   authenticateSuperUser,
   authenticateAgency,
   authenticate,
+  authenticateUserTypes,
 } from "../middleware/auth.middleware.js";
 import Job from "../models/Job.js"; // Added import for Job model
 import TechnicianPayment from "../models/TechnicianPayment.js"; // Added import for TechnicianPayment model
@@ -28,6 +29,11 @@ const getOwnerInfo = (req) => {
       ownerType: "Technician",
       ownerId: req.technician.id,
     };
+  } else if (req.propertyManager) {
+    return {
+      ownerType: "PropertyManager",
+      ownerId: req.propertyManager.id,
+    };
   }
   return null;
 };
@@ -42,7 +48,7 @@ const validateOwnerAccess = (technician, req) => {
 };
 
 // CREATE - Add new technician
-router.post("/", authenticate, async (req, res) => {
+router.post("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency']), async (req, res) => {
   console.log(req.body, "body");
   try {
     const {
@@ -133,7 +139,7 @@ router.post("/", authenticate, async (req, res) => {
 });
 
 // READ - Get all technicians for the authenticated user
-router.get("/", authenticate, async (req, res) => {
+router.get("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency']), async (req, res) => {
   try {
     const ownerInfo = getOwnerInfo(req);
     if (!ownerInfo) {
@@ -169,7 +175,6 @@ router.get("/", authenticate, async (req, res) => {
       query.$or = [
         { firstName: { $regex: search, $options: "i" } },
         { lastName: { $regex: search, $options: "i" } },
-        { fullName: { $regex: search, $options: "i" } },
         { email: { $regex: search, $options: "i" } },
         { licenseNumber: { $regex: search, $options: "i" } },
       ];
@@ -240,7 +245,7 @@ router.get("/", authenticate, async (req, res) => {
 });
 
 // GET - Get all jobs for the authenticated technician (my jobs)
-router.get("/my-jobs", authenticate, async (req, res) => {
+router.get("/my-jobs", authenticateUserTypes(['Technician']), async (req, res) => {
   try {
     const ownerInfo = getOwnerInfo(req);
     if (!ownerInfo || ownerInfo.ownerType !== "Technician") {
@@ -360,7 +365,7 @@ router.get("/my-jobs", authenticate, async (req, res) => {
 });
 
 // GET - Get active jobs for the authenticated technician
-router.get("/active-jobs", authenticate, async (req, res) => {
+router.get("/active-jobs", authenticateUserTypes(['Technician']), async (req, res) => {
   try {
     const ownerInfo = getOwnerInfo(req);
     if (!ownerInfo || ownerInfo.ownerType !== "Technician") {
@@ -482,7 +487,7 @@ router.get("/active-jobs", authenticate, async (req, res) => {
 });
 
 // GET - Get overdue jobs for the authenticated technician
-router.get("/overdue-jobs", authenticate, async (req, res) => {
+router.get("/overdue-jobs", authenticateUserTypes(['Technician']), async (req, res) => {
   try {
     const ownerInfo = getOwnerInfo(req);
     if (!ownerInfo || ownerInfo.ownerType !== "Technician") {
@@ -604,7 +609,7 @@ router.get("/overdue-jobs", authenticate, async (req, res) => {
 });
 
 // GET - Get completed jobs for the authenticated technician
-router.get("/completed-jobs", authenticate, async (req, res) => {
+router.get("/completed-jobs", authenticateUserTypes(['Technician']), async (req, res) => {
   try {
     const ownerInfo = getOwnerInfo(req);
     if (!ownerInfo || ownerInfo.ownerType !== "Technician") {
@@ -724,7 +729,7 @@ router.get("/completed-jobs", authenticate, async (req, res) => {
 });
 
 // GET - Get technician dashboard statistics
-router.get("/dashboard", authenticate, async (req, res) => {
+router.get("/dashboard", authenticateUserTypes(['Technician']), async (req, res) => {
   try {
     const ownerInfo = getOwnerInfo(req);
     if (!ownerInfo || ownerInfo.ownerType !== "Technician") {
@@ -977,7 +982,7 @@ router.get("/dashboard", authenticate, async (req, res) => {
 });
 
 // READ - Get single technician by ID
-router.get("/:id", authenticate, async (req, res) => {
+router.get("/:id", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency']), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -1014,7 +1019,7 @@ router.get("/:id", authenticate, async (req, res) => {
 });
 
 // UPDATE - Update technician
-router.put("/:id", authenticate, async (req, res) => {
+router.put("/:id", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency']), async (req, res) => {
   try {
     const { id } = req.params;
     const updateData = req.body;
@@ -1102,7 +1107,7 @@ router.put("/:id", authenticate, async (req, res) => {
 });
 
 // DELETE - Delete technician
-router.delete("/:id", authenticate, async (req, res) => {
+router.delete("/:id", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency']), async (req, res) => {
   try {
     const { id } = req.params;
 
