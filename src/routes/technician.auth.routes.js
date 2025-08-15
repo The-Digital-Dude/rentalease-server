@@ -6,6 +6,7 @@ import SuperUser from "../models/SuperUser.js";
 import { authenticate } from "../middleware/auth.middleware.js";
 import emailService from "../services/email.service.js";
 import { generateOTP } from "../utils/otpGenerator.js";
+import fileUpload from "../services/fileUpload.service.js";
 
 const router = express.Router();
 
@@ -304,6 +305,7 @@ router.get("/profile", authenticate, async (req, res) => {
           totalRatings: technician.totalRatings,
           status: technician.status,
           address: technician.address,
+          profileImage: technician.profileImage,
           documents: technician.documents,
           owner: technician.owner,
           createdAt: technician.createdAt,
@@ -388,6 +390,7 @@ router.put("/profile", authenticate, async (req, res) => {
           totalRatings: technician.totalRatings,
           status: technician.status,
           address: technician.address,
+          profileImage: technician.profileImage,
           documents: technician.documents,
           owner: technician.owner,
           createdAt: technician.createdAt,
@@ -472,6 +475,151 @@ router.put("/change-password", authenticate, async (req, res) => {
     res.status(500).json({
       status: "error",
       message: "Failed to change password. Please try again later.",
+    });
+  }
+});
+
+// UPLOAD PROFILE IMAGE - Upload technician profile image
+router.post("/profile/image", authenticate, fileUpload.single('profileImage'), async (req, res) => {
+  try {
+    // Check if user is a technician
+    if (req.user.userType !== "Technician") {
+      return res.status(403).json({
+        status: "error",
+        message: "Access denied. Technician account required.",
+      });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({
+        status: "error",
+        message: "Please select an image to upload",
+      });
+    }
+
+    // Validate file type (additional check)
+    const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png'];
+    if (!allowedMimeTypes.includes(req.file.mimetype)) {
+      return res.status(400).json({
+        status: "error",
+        message: "Invalid file type. Only JPG, JPEG, and PNG images are allowed.",
+      });
+    }
+
+    const technician = await Technician.findById(req.user.id);
+    if (!technician) {
+      return res.status(404).json({
+        status: "error",
+        message: "Technician not found",
+      });
+    }
+
+    try {
+      // Delete old profile image if exists
+      if (technician.profileImage && technician.profileImage.cloudinaryId) {
+        await fileUpload.deleteFromCloudinary(technician.profileImage.cloudinaryId);
+      }
+
+      // Upload new image to Cloudinary
+      const cloudinaryResult = await fileUpload.uploadToCloudinary(req.file.buffer, {
+        public_id: `technician-${req.user.id}-profile-${Date.now()}`,
+        folder: "technician-profiles",
+        transformation: [
+          { width: 400, height: 400, crop: "fill", gravity: "face" },
+          { quality: "auto" },
+          { fetch_format: "auto" }
+        ]
+      });
+
+      // Update technician with new profile image
+      technician.profileImage = {
+        cloudinaryId: cloudinaryResult.public_id,
+        cloudinaryUrl: cloudinaryResult.secure_url,
+        uploadDate: new Date()
+      };
+      
+      technician.lastUpdated = new Date();
+      await technician.save();
+
+      res.status(200).json({
+        status: "success",
+        message: "Profile image updated successfully",
+        data: {
+          profileImage: technician.profileImage
+        }
+      });
+    } catch (uploadError) {
+      console.error("Cloudinary upload error:", uploadError);
+      res.status(500).json({
+        status: "error",
+        message: "Failed to upload image. Please try again later.",
+      });
+    }
+  } catch (error) {
+    console.error("Upload profile image error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Failed to upload profile image. Please try again later.",
+    });
+  }
+});
+
+// DELETE PROFILE IMAGE - Remove technician profile image
+router.delete("/profile/image", authenticate, async (req, res) => {
+  try {
+    // Check if user is a technician
+    if (req.user.userType !== "Technician") {
+      return res.status(403).json({
+        status: "error",
+        message: "Access denied. Technician account required.",
+      });
+    }
+
+    const technician = await Technician.findById(req.user.id);
+    if (!technician) {
+      return res.status(404).json({
+        status: "error",
+        message: "Technician not found",
+      });
+    }
+
+    if (!technician.profileImage || !technician.profileImage.cloudinaryId) {
+      return res.status(400).json({
+        status: "error",
+        message: "No profile image to delete",
+      });
+    }
+
+    try {
+      // Delete image from Cloudinary
+      await fileUpload.deleteFromCloudinary(technician.profileImage.cloudinaryId);
+      
+      // Remove profile image from technician
+      technician.profileImage = {
+        cloudinaryId: null,
+        cloudinaryUrl: null,
+        uploadDate: null
+      };
+      
+      technician.lastUpdated = new Date();
+      await technician.save();
+
+      res.status(200).json({
+        status: "success",
+        message: "Profile image deleted successfully",
+      });
+    } catch (deleteError) {
+      console.error("Cloudinary delete error:", deleteError);
+      res.status(500).json({
+        status: "error",
+        message: "Failed to delete image. Please try again later.",
+      });
+    }
+  } catch (error) {
+    console.error("Delete profile image error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Failed to delete profile image. Please try again later.",
     });
   }
 });

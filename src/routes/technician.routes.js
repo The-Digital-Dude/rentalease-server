@@ -244,6 +244,140 @@ router.get("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency']), as
   }
 });
 
+// GET - Get jobs for the authenticated technician by status (for mobile app compatibility)
+router.get("/jobs", authenticateUserTypes(['Technician']), async (req, res) => {
+  try {
+    const ownerInfo = getOwnerInfo(req);
+    if (!ownerInfo || ownerInfo.ownerType !== "Technician") {
+      return res.status(403).json({
+        status: "error",
+        message: "Only technicians can access their jobs",
+      });
+    }
+
+    // Query parameters for filtering
+    const {
+      status,
+      jobType,
+      priority,
+      search,
+      startDate,
+      endDate,
+      page = 1,
+      limit = 50,
+      sortBy = "dueDate",
+      sortOrder = "asc",
+    } = req.query;
+
+    // Build query for jobs assigned to this technician
+    let query = {
+      assignedTechnician: ownerInfo.ownerId,
+    };
+
+    // Add filters based on status
+    if (status) {
+      if (status === "Active") {
+        query.status = { $in: ["Pending", "Scheduled"] };
+        query.dueDate = { $gte: new Date() };
+      } else if (status === "Scheduled") {
+        query.status = "Scheduled";
+      } else if (status === "In Progress") {
+        query.status = "In Progress";
+      } else if (status === "Completed") {
+        query.status = "Completed";
+      } else {
+        query.status = status;
+      }
+    }
+
+    if (jobType) query.jobType = jobType;
+    if (priority) query.priority = priority;
+
+    // Add date range filter
+    if (startDate || endDate) {
+      query.dueDate = query.dueDate || {};
+      if (startDate) query.dueDate.$gte = new Date(startDate);
+      if (endDate) query.dueDate.$lte = new Date(endDate);
+    }
+
+    // Add search functionality
+    if (search) {
+      query.$or = [
+        { description: { $regex: search, $options: "i" } },
+        { notes: { $regex: search, $options: "i" } },
+        { jobType: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    // Calculate pagination
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    // Execute query with pagination and sorting
+    const jobs = await Job.find(query)
+      .populate(
+        "property",
+        "address _id propertyType region status currentTenant currentLandlord agency"
+      )
+      .populate(
+        "createdBy.userId",
+        "name email companyName contactPerson",
+        null,
+        { strictPopulate: false }
+      )
+      .populate(
+        "lastUpdatedBy.userId",
+        "name email companyName contactPerson",
+        null,
+        { strictPopulate: false }
+      )
+      .sort({ [sortBy]: sortOrder === "desc" ? -1 : 1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    // Get total count for pagination
+    const totalJobs = await Job.countDocuments(query);
+
+    // Get status counts for dashboard
+    const statusCounts = await Job.aggregate([
+      {
+        $match: {
+          assignedTechnician: new mongoose.Types.ObjectId(ownerInfo.ownerId),
+        },
+      },
+      { $group: { _id: "$status", count: { $sum: 1 } } },
+    ]);
+
+    res.status(200).json({
+      status: "success",
+      message: "Jobs retrieved successfully",
+      data: {
+        jobs: jobs.map((job) => job.getFullDetails()),
+        pagination: {
+          currentPage: parseInt(page),
+          totalPages: Math.ceil(totalJobs / parseInt(limit)),
+          totalItems: totalJobs,
+          itemsPerPage: parseInt(limit),
+          hasNextPage: skip + jobs.length < totalJobs,
+          hasPrevPage: parseInt(page) > 1,
+        },
+        statistics: {
+          statusCounts: statusCounts.reduce((acc, item) => {
+            acc[item._id] = item.count;
+            return acc;
+          }, {}),
+          totalJobs,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Get technician jobs error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Failed to retrieve jobs",
+    });
+  }
+});
+
 // GET - Get all jobs for the authenticated technician (my jobs)
 router.get("/my-jobs", authenticateUserTypes(['Technician']), async (req, res) => {
   try {

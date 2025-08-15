@@ -149,6 +149,22 @@ const technicianSchema = new mongoose.Schema(
       },
     },
 
+    // Profile Image Information
+    profileImage: {
+      cloudinaryId: {
+        type: String,
+        default: null,
+      },
+      cloudinaryUrl: {
+        type: String,
+        default: null,
+      },
+      uploadDate: {
+        type: Date,
+        default: null,
+      },
+    },
+
     // Password reset OTP fields
     resetPasswordOTP: {
       type: String,
