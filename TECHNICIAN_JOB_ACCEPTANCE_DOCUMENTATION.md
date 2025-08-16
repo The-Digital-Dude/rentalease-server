@@ -343,3 +343,4 @@ const getAvailableJobs = async (filters = {}) => {
 - Claimed jobs cannot be transferred to other technicians
 - Job completion is required to free up technician capacity
 - All job activities are logged and tracked for reporting
+

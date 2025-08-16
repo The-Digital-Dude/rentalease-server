@@ -20,6 +20,7 @@ import notificationRoutes from "../routes/notification.routes.js";
 import invoiceRoutes from "../routes/invoice.routes.js";
 import technicianPaymentRoutes from "../routes/technicianPayment.routes.js";
 import dashboardRoutes from "../routes/dashboard.routes.js";
+import calendarRoutes from "../routes/calendar.routes.js";
 import emailService from "../services/email.service.js";
 
 // Create Express app
@@ -49,6 +50,7 @@ app.use("/api/v1/notifications", notificationRoutes);
 app.use("/api/v1/invoices", invoiceRoutes);
 app.use("/api/v1/technician-payments", technicianPaymentRoutes);
 app.use("/api/v1/dashboard", dashboardRoutes);
+app.use("/api/v1/calendar", calendarRoutes);
 
 // Health check route
 app.get("/health", async (req, res) => {

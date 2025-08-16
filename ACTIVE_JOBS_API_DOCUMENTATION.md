@@ -179,3 +179,4 @@ Common error codes:
 - `401` - Unauthorized (missing/invalid token)
 - `403` - Forbidden (insufficient permissions)
 - `500` - Internal server error
+
