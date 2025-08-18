@@ -379,4 +379,155 @@ router.get(
   }
 );
 
+// GET - Filtered dashboard statistics with advanced options
+router.get(
+  "/admin-stats-filtered",
+  authenticateUserTypes(["SuperUser", "TeamMember"]),
+  async (req, res) => {
+    try {
+      console.log("Fetching filtered admin dashboard statistics...");
+      
+      const {
+        startDate,
+        endDate,
+        viewType = 'monthly', // daily, weekly, monthly
+        statusFilter = 'all'
+      } = req.query;
+
+      let dateFilter = {};
+      if (startDate && endDate) {
+        dateFilter = {
+          createdAt: {
+            $gte: new Date(startDate),
+            $lte: new Date(endDate)
+          }
+        };
+      }
+
+      // Build status filter
+      let jobStatusFilter = {};
+      if (statusFilter && statusFilter !== 'all') {
+        jobStatusFilter.status = statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1).replace('_', ' ');
+      }
+
+      // Get filtered monthly/weekly/daily trends
+      const getTimeGrouping = () => {
+        switch (viewType) {
+          case 'daily':
+            return {
+              year: { $year: "$createdAt" },
+              month: { $month: "$createdAt" },
+              day: { $dayOfMonth: "$createdAt" }
+            };
+          case 'weekly':
+            return {
+              year: { $year: "$createdAt" },
+              week: { $week: "$createdAt" }
+            };
+          case 'monthly':
+          default:
+            return {
+              year: { $year: "$createdAt" },
+              month: { $month: "$createdAt" }
+            };
+        }
+      };
+
+      const timeGrouping = getTimeGrouping();
+      
+      const trendsData = await Job.aggregate([
+        {
+          $match: { ...dateFilter, ...jobStatusFilter }
+        },
+        {
+          $group: {
+            _id: timeGrouping,
+            totalJobs: { $sum: 1 },
+            completedJobs: {
+              $sum: { $cond: [{ $eq: ["$status", "Completed"] }, 1, 0] }
+            },
+            pendingJobs: {
+              $sum: { $cond: [{ $eq: ["$status", "Pending"] }, 1, 0] }
+            },
+            inProgressJobs: {
+              $sum: { $cond: [{ $eq: ["$status", "In Progress"] }, 1, 0] }
+            },
+            overdueJobs: {
+              $sum: { $cond: [{ $eq: ["$status", "Overdue"] }, 1, 0] }
+            }
+          }
+        },
+        { $sort: { "_id.year": 1, "_id.month": 1, "_id.week": 1, "_id.day": 1 } }
+      ]);
+
+      // Format trends data based on view type
+      const formatTrendsData = (data) => {
+        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        
+        return data.map(item => {
+          let label = '';
+          
+          switch (viewType) {
+            case 'daily':
+              label = `${item._id.day}/${item._id.month}/${item._id.year}`;
+              break;
+            case 'weekly':
+              label = `Week ${item._id.week}, ${item._id.year}`;
+              break;
+            case 'monthly':
+            default:
+              label = `${monthNames[item._id.month - 1]} ${item._id.year}`;
+              break;
+          }
+          
+          return {
+            period: label,
+            totalJobs: item.totalJobs,
+            completedJobs: item.completedJobs,
+            pendingJobs: item.pendingJobs,
+            inProgressJobs: item.inProgressJobs,
+            overdueJobs: item.overdueJobs,
+            completionRate: item.totalJobs > 0 ? ((item.completedJobs / item.totalJobs) * 100).toFixed(1) : 0
+          };
+        });
+      };
+
+      const formattedTrendsData = formatTrendsData(trendsData);
+
+      // Get filtered job status distribution
+      const statusDistribution = await Job.aggregate([
+        { $match: { ...dateFilter } },
+        { $group: { _id: "$status", count: { $sum: 1 } } },
+        { $sort: { count: -1 } }
+      ]);
+
+      const totalFilteredJobs = statusDistribution.reduce((sum, item) => sum + item.count, 0);
+
+      res.status(200).json({
+        status: "success",
+        message: "Filtered dashboard statistics retrieved successfully",
+        data: {
+          trends: formattedTrendsData,
+          statusDistribution: statusDistribution.map(item => ({
+            status: item._id || "Unknown",
+            count: item.count,
+            percentage: totalFilteredJobs > 0 ? ((item.count / totalFilteredJobs) * 100).toFixed(1) : 0
+          })),
+          totalJobs: totalFilteredJobs,
+          dateRange: { startDate, endDate },
+          viewType,
+          statusFilter,
+          lastUpdated: new Date().toISOString()
+        }
+      });
+    } catch (error) {
+      console.error("Get filtered dashboard statistics error:", error);
+      res.status(500).json({
+        status: "error",
+        message: error.message || "Failed to get filtered dashboard statistics"
+      });
+    }
+  }
+);
+
 export default router;
