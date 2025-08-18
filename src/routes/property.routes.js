@@ -17,6 +17,7 @@ import {
   setStateSpecificCompliance,
 } from "../utils/propertyHelpers.js";
 import bookingNotificationService from "../services/bookingNotification.service.js";
+import fileUploadService from "../services/fileUpload.service.js";
 
 const router = express.Router();
 
@@ -1906,5 +1907,355 @@ router.get("/:id/assignment-summary", authenticateUserTypes(['SuperUser', 'TeamM
     });
   }
 });
+
+// Upload Document to Property
+router.post(
+  "/:id/documents",
+  authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency']),
+  fileUploadService.single('document'),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        return res.status(400).json({
+          status: "error",
+          message: "Invalid property ID",
+        });
+      }
+
+      const agencyFilter = getAgencyFilter(req);
+      if (agencyFilter === null) {
+        return res.status(401).json({
+          status: "error",
+          message: "Authentication required",
+        });
+      }
+
+      const filter = { _id: id, isActive: true, ...agencyFilter };
+      const property = await Property.findOne(filter);
+
+      if (!property) {
+        return res.status(404).json({
+          status: "error",
+          message: "Property not found",
+        });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({
+          status: "error",
+          message: "No file uploaded",
+        });
+      }
+
+      const cloudinaryResult = await fileUploadService.uploadToCloudinary(
+        req.file.buffer,
+        {
+          folder: `properties/${id}/documents`,
+          public_id: req.file.originalname,
+        }
+      );
+
+      const document = {
+        name: req.file.originalname,
+        type: req.file.mimetype,
+        size: req.file.size,
+        url: cloudinaryResult.secure_url,
+        cloudinaryId: cloudinaryResult.public_id,
+        uploadDate: new Date(),
+      };
+
+      property.documents.push(document);
+      await property.save();
+
+      res.status(200).json({
+        status: "success",
+        message: "Document uploaded successfully",
+        data: { property },
+      });
+    } catch (error) {
+      console.error("Upload document error:", error);
+      res.status(500).json({
+        status: "error",
+        message: "An error occurred while uploading the document",
+      });
+    }
+  }
+);
+
+// Toggle Property Doubt Status
+router.patch(
+  "/:id/toggle-doubt",
+  authenticateUserTypes(["SuperUser", "TeamMember", "Agency"]),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        return res.status(400).json({
+          status: "error",
+          message: "Invalid property ID",
+        });
+      }
+
+      const agencyFilter = getAgencyFilter(req);
+      if (agencyFilter === null) {
+        return res.status(401).json({
+          status: "error",
+          message: "Authentication required",
+        });
+      }
+
+      const filter = { _id: id, isActive: true, ...agencyFilter };
+      const property = await Property.findOne(filter);
+
+      if (!property) {
+        return res.status(404).json({
+          status: "error",
+          message: "Property not found",
+        });
+      }
+
+      property.hasDoubt = !property.hasDoubt;
+      await property.save();
+
+      res.status(200).json({
+        status: "success",
+        message: "Property doubt status toggled successfully",
+        data: { property },
+      });
+    } catch (error) {
+      console.error("Toggle doubt status error:", error);
+      res.status(500).json({
+        status: "error",
+        message: "An error occurred while toggling the doubt status",
+      });
+    }
+  }
+);
+
+// Assign Team Member to Property
+router.post(
+  "/:id/assign-team-member",
+  authenticateUserTypes(["SuperUser", "Agency"]),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { teamMemberId } = req.body;
+
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        return res.status(400).json({
+          status: "error",
+          message: "Invalid property ID",
+        });
+      }
+
+      if (!mongoose.Types.ObjectId.isValid(teamMemberId)) {
+        return res.status(400).json({
+          status: "error",
+          message: "Invalid team member ID",
+        });
+      }
+
+      const agencyFilter = getAgencyFilter(req);
+      if (agencyFilter === null) {
+        return res.status(401).json({
+          status: "error",
+          message: "Authentication required",
+        });
+      }
+
+      const filter = { _id: id, isActive: true, ...agencyFilter };
+      const property = await Property.findOne(filter);
+
+      if (!property) {
+        return res.status(404).json({
+          status: "error",
+          message: "Property not found",
+        });
+      }
+
+      property.assignedTeamMember = teamMemberId;
+      await property.save();
+
+      res.status(200).json({
+        status: "success",
+        message: "Team member assigned successfully",
+        data: { property },
+      });
+    } catch (error) {
+      console.error("Assign team member error:", error);
+      res.status(500).json({
+        status: "error",
+        message: "An error occurred while assigning the team member",
+      });
+    }
+  }
+);
+
+// Get Compliance Report Data
+router.get(
+  "/reports/compliance",
+  authenticateUserTypes(["SuperUser", "Agency"]),
+  async (req, res) => {
+    try {
+      const { groupBy = "agency" } = req.query;
+      const agencyFilter = getAgencyFilter(req);
+
+      if (agencyFilter === null) {
+        return res.status(401).json({
+          status: "error",
+          message: "Authentication required",
+        });
+      }
+
+      const aggregation = [
+        {
+          $match: { ...agencyFilter, isActive: true },
+        },
+        {
+          $lookup: {
+            from: "jobs",
+            localField: "_id",
+            foreignField: "property",
+            as: "jobs",
+          },
+        },
+        {
+          $unwind: "$jobs",
+        },
+        {
+          $group: {
+            _id: `${groupBy}`,
+            totalJobs: { $sum: 1 },
+            completedJobs: {
+              $sum: {
+                $cond: [{ $eq: ["$jobs.status", "Completed"] }, 1, 0],
+              },
+            },
+            overdueJobs: {
+              $sum: {
+                $cond: [{ $eq: ["$jobs.status", "Overdue"] }, 1, 0],
+              },
+            },
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            name: "$_id",
+            type: groupBy,
+            totalJobs: "$totalJobs",
+            completedJobs: "$completedJobs",
+            overdueJobs: "$overdueJobs",
+            compliantJobs: {
+              $subtract: ["$completedJobs", "$overdueJobs"],
+            },
+            complianceRate: {
+              $cond: [
+                { $eq: ["$totalJobs", 0] },
+                0,
+                {
+                  $multiply: [
+                    { $divide: ["$completedJobs", "$totalJobs"] },
+                    100,
+                  ],
+                },
+              ],
+            },
+            avgCompletionTime: 0, // This would require more complex aggregation
+          },
+        },
+      ];
+
+      const data = await Property.aggregate(aggregation);
+
+      res.status(200).json({
+        status: "success",
+        data,
+      });
+    } catch (error) {
+      console.error("Get compliance report error:", error);
+      res.status(500).json({
+        status: "error",
+        message: "An error occurred while fetching the compliance report",
+      });
+    }
+  }
+);
+
+// Get Revenue Report Data
+router.get(
+  "/reports/revenue",
+  authenticateUserTypes(["SuperUser", "Agency"]),
+  async (req, res) => {
+    try {
+      const { groupBy = "agency", period = "month" } = req.query;
+      const agencyFilter = getAgencyFilter(req);
+
+      if (agencyFilter === null) {
+        return res.status(401).json({
+          status: "error",
+          message: "Authentication required",
+        });
+      }
+
+      // This is a simplified example. A real implementation would require
+      // more complex date filtering and aggregation.
+      const aggregation = [
+        {
+          $match: { ...agencyFilter, isActive: true },
+        },
+        {
+          $lookup: {
+            from: "jobs",
+            localField: "_id",
+            foreignField: "property",
+            as: "jobs",
+          },
+        },
+        {
+          $unwind: "$jobs",
+        },
+        {
+          $match: {
+            "jobs.status": "Completed",
+          },
+        },
+        {
+          $group: {
+            _id: `${groupBy}`,
+            amount: { $sum: "$jobs.cost.totalCost" },
+            jobCount: { $sum: 1 },
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            period: period,
+            [groupBy]: "$_id",
+            amount: "$amount",
+            jobCount: "$jobCount",
+            avgJobValue: { $divide: ["$amount", "$jobCount"] },
+          },
+        },
+      ];
+
+      const data = await Property.aggregate(aggregation);
+
+      res.status(200).json({
+        status: "success",
+        data,
+      });
+    } catch (error) {
+      console.error("Get revenue report error:", error);
+      res.status(500).json({
+        status: "error",
+        message: "An error occurred while fetching the revenue report",
+      });
+    }
+  }
+);
 
 export default router;

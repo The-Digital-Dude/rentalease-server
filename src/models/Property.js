@@ -47,6 +47,10 @@ const propertySchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "PropertyManager",
     },
+    assignedTeamMember: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "TeamMember",
+    },
 
     region: {
       type: String,
@@ -172,6 +176,11 @@ const propertySchema = new mongoose.Schema(
       type: String,
       maxlength: [1000, "Notes cannot exceed 1000 characters"],
       default: "",
+    },
+
+    hasDoubt: {
+      type: Boolean,
+      default: false,
     },
 
     // Metadata

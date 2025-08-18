@@ -54,10 +54,14 @@ const technicianSchema = new mongoose.Schema(
       min: [0, "Current jobs cannot be negative"],
     },
     maxJobs: {
-      type: Number,
-      default: 4,
-      min: [1, "Maximum jobs must be at least 1"],
-    },
+        type: Number,
+        default: 4,
+      },
+      bankDetails: {
+        bsb: String,
+        accountNumber: String,
+        accountName: String,
+      },
 
     // Job Management
     assignedJobs: [

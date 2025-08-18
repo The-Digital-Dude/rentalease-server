@@ -72,9 +72,9 @@ const jobSchema = new mongoose.Schema(
       type: String,
       required: [true, "Status is required"],
       enum: {
-        values: ["Pending", "Scheduled", "Completed", "Overdue"],
+        values: ["Pending", "Scheduled", "Completed", "Overdue", "Cancelled"],
         message:
-          "Status must be one of: Pending, Scheduled, Completed, Overdue",
+          "Status must be one of: Pending, Scheduled, Completed, Overdue, Cancelled",
       },
       default: "Pending",
     },

@@ -9,6 +9,7 @@ import {
 } from "../middleware/auth.middleware.js";
 import Job from "../models/Job.js"; // Added import for Job model
 import TechnicianPayment from "../models/TechnicianPayment.js"; // Added import for TechnicianPayment model
+import Notification from "../models/Notification.js";
 
 const router = express.Router();
 
@@ -177,6 +178,10 @@ router.get("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency']), as
         { lastName: { $regex: search, $options: "i" } },
         { email: { $regex: search, $options: "i" } },
         { licenseNumber: { $regex: search, $options: "i" } },
+        { "address.street": { $regex: search, $options: "i" } },
+        { "address.suburb": { $regex: search, $options: "i" } },
+        { "address.state": { $regex: search, $options: "i" } },
+        { "address.postcode": { $regex: search, $options: "i" } },
       ];
     }
 
@@ -1204,6 +1209,33 @@ router.put("/:id", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency']),
       updateData.licenseExpiry = new Date(updateData.licenseExpiry);
     }
 
+    // Check if bank details have changed
+    if (updateData.bankDetails) {
+      const oldBankDetails = technician.bankDetails || {};
+      const newBankDetails = updateData.bankDetails;
+      if (
+        oldBankDetails.bsb !== newBankDetails.bsb ||
+        oldBankDetails.accountNumber !== newBankDetails.accountNumber ||
+        oldBankDetails.accountName !== newBankDetails.accountName
+      ) {
+        // Bank details have changed, create a notification for the agency owner
+        const notification = new Notification({
+          recipient: {
+            recipientType: technician.owner.ownerType,
+            recipientId: technician.owner.ownerId,
+          },
+          type: "SYSTEM_ALERT",
+          title: "Technician Bank Details Changed",
+          message: `Technician ${technician.firstName} ${technician.lastName} has updated their bank details.`,
+          data: {
+            technicianId: technician._id,
+          },
+          priority: "High",
+        });
+        await notification.save();
+      }
+    }
+
     // Update technician
     const updatedTechnician = await Technician.findByIdAndUpdate(
       id,
@@ -1394,6 +1426,85 @@ router.patch("/:id/availability", authenticate, async (req, res) => {
     res.status(500).json({
       status: "error",
       message: "Failed to update technician availability",
+    });
+  }
+});
+
+// Get Technician Performance Report Data
+router.get("/reports/performance", async (req, res) => {
+  try {
+    const technicians = await Technician.find({});
+
+    const performanceData = await Promise.all(
+      technicians.map(async (technician) => {
+        const jobs = await Job.find({ assignedTechnician: technician._id });
+        const completedJobs = jobs.filter((job) => job.status === "Completed");
+        const totalRevenue = completedJobs.reduce(
+          (acc, job) => acc + (job.cost?.totalCost || 0),
+          0
+        );
+        const avgCompletionTime = completedJobs.length
+          ? completedJobs.reduce(
+              (acc, job) =>
+                acc +
+                (job.completedAt.getTime() - job.createdAt.getTime()) /
+                  (1000 * 60 * 60 * 24),
+              0
+            ) / completedJobs.length
+          : 0;
+
+        return {
+          id: technician._id,
+          name: `${technician.firstName} ${technician.lastName}`,
+          tradeType: "N/A", // This field is not in the Technician model
+          jobsCompleted: completedJobs.length,
+          avgCompletionTime,
+          rating: technician.averageRating,
+          onTimeRate: 0, // This would require more complex logic
+          totalRevenue,
+          efficiency: 0, // This would require more complex logic
+        };
+      })
+    );
+
+    res.status(200).json({
+      status: "success",
+      data: performanceData,
+    });
+  } catch (error) {
+    console.error("Get technician performance report error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "An error occurred while fetching the technician performance report",
+    });
+  }
+});
+
+// Get Technician Payments Report Data
+router.get("/reports/payments", async (req, res) => {
+  try {
+    const payments = await TechnicianPayment.find({}).populate(
+      "technicianId",
+      "firstName lastName"
+    );
+
+    const paymentData = payments.map((payment) => ({
+      id: payment._id,
+      technicianName: `${payment.technicianId.firstName} ${payment.technicianId.lastName}`,
+      amount: payment.amount,
+      status: payment.status,
+      paymentDate: payment.paymentDate,
+    }));
+
+    res.status(200).json({
+      status: "success",
+      data: paymentData,
+    });
+  } catch (error) {
+    console.error("Get technician payments report error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "An error occurred while fetching the technician payments report",
     });
   }
 });

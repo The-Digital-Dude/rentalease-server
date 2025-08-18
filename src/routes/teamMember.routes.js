@@ -32,6 +32,7 @@ router.get('/', async (req, res) => {
     const [teamMembers, total] = await Promise.all([
       TeamMember.find(query)
         .populate('createdBy', 'name email')
+        .populate('updatedBy', 'name email')
         .select('-password')
         .sort({ createdAt: -1 })
         .skip(skip)
@@ -136,7 +137,8 @@ router.post('/', async (req, res) => {
       name,
       email,
       password,
-      createdBy: req.superUser.id
+      createdBy: req.superUser.id,
+      agency: req.body.agency, // Assuming agency ID is sent in the request body
     });
 
     await teamMember.save();
@@ -227,6 +229,7 @@ router.put('/:id', async (req, res) => {
     if (email) teamMember.email = email;
     if (status) teamMember.status = status;
     teamMember.lastUpdated = new Date();
+    teamMember.updatedBy = req.superUser.id;
 
     await teamMember.save();
 

@@ -27,6 +27,15 @@ const teamMemberSchema = new mongoose.Schema({
     ref: 'SuperUser',
     required: [true, 'CreatedBy is required']
   },
+  updatedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'SuperUser',
+  },
+  agency: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Agency',
+    required: [true, 'Agency is required']
+  },
   status: {
     type: String,
     enum: ['Active', 'Inactive'],
