@@ -351,12 +351,34 @@ router.get("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'Pro
       if (endDate) query.dueDate.$lte = new Date(endDate);
     }
 
-    // Add search functionality
+    // Add comprehensive search functionality
     if (search) {
-      query.$or = [
-        { description: { $regex: search, $options: "i" } },
-        { notes: { $regex: search, $options: "i" } },
+      // Create a more comprehensive search that includes job_id, status, jobType, and populated fields
+      const searchRegex = { $regex: search, $options: "i" };
+      
+      // Basic text fields search
+      const textSearchFields = [
+        { description: searchRegex },
+        { notes: searchRegex },
+        { jobType: searchRegex },
+        { status: searchRegex },
+        { priority: searchRegex }
       ];
+      
+      // Search for job_id with or without 'J-' prefix
+      const cleanSearch = search.replace(/^(j-|#)/i, ''); // Remove J- or # prefix
+      if (/^\d+$/.test(cleanSearch)) {
+        // If search is numeric, search both with and without J- prefix
+        textSearchFields.push(
+          { job_id: { $regex: `J-${cleanSearch}`, $options: "i" } },
+          { job_id: { $regex: cleanSearch, $options: "i" } }
+        );
+      } else {
+        // If search contains letters, search job_id as is
+        textSearchFields.push({ job_id: searchRegex });
+      }
+      
+      query.$or = textSearchFields;
     }
     if (req.query.property) {
       query.property = req.query.property;
@@ -365,19 +387,227 @@ router.get("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'Pro
     // Calculate pagination
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    // Execute query with pagination and sorting
-    const jobs = await Job.find(query)
-      .populate("property", "address _id")
-      .populate(
-        "assignedTechnician",
-        "firstName lastName phone email availabilityStatus"
-      )
-      .sort({ [sortBy]: sortOrder === "desc" ? -1 : 1 })
-      .skip(skip)
-      .limit(parseInt(limit));
+    let jobs;
+    
+    // If search is provided, we need to do a more complex aggregation to search in populated fields
+    if (search) {
+      const searchRegex = { $regex: search, $options: "i" };
+      const cleanSearch = search.replace(/^(j-|#)/i, '');
+      
+      jobs = await Job.aggregate([
+        // Match the base query first
+        { $match: query },
+        // Lookup property data
+        {
+          $lookup: {
+            from: "properties",
+            localField: "property",
+            foreignField: "_id",
+            as: "propertyData"
+          }
+        },
+        // Lookup technician data
+        {
+          $lookup: {
+            from: "technicians",
+            localField: "assignedTechnician",
+            foreignField: "_id",
+            as: "technicianData"
+          }
+        },
+        // Add search conditions that include populated fields
+        {
+          $match: {
+            $or: [
+              { description: searchRegex },
+              { notes: searchRegex },
+              { jobType: searchRegex },
+              { status: searchRegex },
+              { priority: searchRegex },
+              // Job ID search with flexible prefix handling
+              ...((/^\d+$/.test(cleanSearch)) ? [
+                { job_id: { $regex: `J-${cleanSearch}`, $options: "i" } },
+                { job_id: { $regex: cleanSearch, $options: "i" } }
+              ] : [
+                { job_id: searchRegex }
+              ]),
+              // Property address search
+              { "propertyData.address.street": searchRegex },
+              { "propertyData.address.suburb": searchRegex },
+              { "propertyData.address.state": searchRegex },
+              { "propertyData.address.postcode": searchRegex },
+              { "propertyData.address.fullAddress": searchRegex },
+              // Technician name search
+              { "technicianData.firstName": searchRegex },
+              { "technicianData.lastName": searchRegex },
+              {
+                $expr: {
+                  $regexMatch: {
+                    input: { $concat: ["$technicianData.firstName", " ", "$technicianData.lastName"] },
+                    regex: search,
+                    options: "i"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        // Sort
+        { $sort: { [sortBy]: sortOrder === "desc" ? -1 : 1 } },
+        // Pagination
+        { $skip: skip },
+        { $limit: parseInt(limit) },
+        // Reshape the data to match the original structure
+        {
+          $addFields: {
+            property: { $arrayElemAt: ["$propertyData", 0] },
+            assignedTechnician: { $arrayElemAt: ["$technicianData", 0] }
+          }
+        },
+        // Remove the temporary lookup arrays
+        {
+          $project: {
+            propertyData: 0,
+            technicianData: 0
+          }
+        }
+      ]);
+      
+      // For aggregated results, we can't convert to full Mongoose documents
+      // but we need to call getSummary() manually for each job
+      jobs = jobs.map(job => {
+        // Create a mock job document for calling getSummary
+        const mockJob = {
+          _id: job._id,
+          job_id: job.job_id,
+          property: job.property,
+          jobType: job.jobType,
+          dueDate: job.dueDate,
+          shift: job.shift,
+          scheduledStartTime: job.scheduledStartTime,
+          scheduledEndTime: job.scheduledEndTime,
+          assignedTechnician: job.assignedTechnician,
+          status: job.status,
+          reportFile: job.reportFile,
+          hasInvoice: job.hasInvoice,
+          invoice: job.invoice,
+          priority: job.priority,
+          isOverdue: job.isOverdue,
+          cost: job.cost || { totalCost: 0 },
+          createdAt: job.createdAt,
+          getSummary: function() {
+            // Transform assignedTechnician data for frontend compatibility
+            let transformedTechnician = null;
+            if (this.assignedTechnician) {
+              transformedTechnician = {
+                id: this.assignedTechnician._id || this.assignedTechnician.id,
+                name: this.assignedTechnician.fullName || 
+                      `${this.assignedTechnician.firstName || ''} ${this.assignedTechnician.lastName || ''}`.trim(),
+                tradeType: this.assignedTechnician.tradeType || 'Technician',
+              };
+            }
+
+            return {
+              id: this._id,
+              job_id: this.job_id,
+              property: this.property,
+              jobType: this.jobType,
+              dueDate: this.dueDate,
+              shift: this.shift,
+              scheduledStartTime: this.scheduledStartTime,
+              scheduledEndTime: this.scheduledEndTime,
+              assignedTechnician: transformedTechnician,
+              status: this.status,
+              reportFile: this.reportFile,
+              hasInvoice: this.hasInvoice,
+              invoice: this.invoice,
+              priority: this.priority,
+              isOverdue: this.isOverdue,
+              totalCost: this.cost.totalCost,
+              createdAt: this.createdAt,
+            };
+          }
+        };
+        return mockJob;
+      });
+    } else {
+      // Execute normal query without search
+      jobs = await Job.find(query)
+        .populate("property", "address _id")
+        .populate(
+          "assignedTechnician",
+          "firstName lastName phone email availabilityStatus"
+        )
+        .sort({ [sortBy]: sortOrder === "desc" ? -1 : 1 })
+        .skip(skip)
+        .limit(parseInt(limit));
+    }
 
     // Get total count for pagination
-    const totalJobs = await Job.countDocuments(query);
+    let totalJobs;
+    if (search) {
+      // For search queries, we need to count using the same aggregation logic
+      const searchRegex = { $regex: search, $options: "i" };
+      const cleanSearch = search.replace(/^(j-|#)/i, '');
+      
+      const countResult = await Job.aggregate([
+        { $match: query },
+        {
+          $lookup: {
+            from: "properties",
+            localField: "property",
+            foreignField: "_id",
+            as: "propertyData"
+          }
+        },
+        {
+          $lookup: {
+            from: "technicians",
+            localField: "assignedTechnician",
+            foreignField: "_id",
+            as: "technicianData"
+          }
+        },
+        {
+          $match: {
+            $or: [
+              { description: searchRegex },
+              { notes: searchRegex },
+              { jobType: searchRegex },
+              { status: searchRegex },
+              { priority: searchRegex },
+              ...((/^\d+$/.test(cleanSearch)) ? [
+                { job_id: { $regex: `J-${cleanSearch}`, $options: "i" } },
+                { job_id: { $regex: cleanSearch, $options: "i" } }
+              ] : [
+                { job_id: searchRegex }
+              ]),
+              { "propertyData.address.street": searchRegex },
+              { "propertyData.address.suburb": searchRegex },
+              { "propertyData.address.state": searchRegex },
+              { "propertyData.address.postcode": searchRegex },
+              { "propertyData.address.fullAddress": searchRegex },
+              { "technicianData.firstName": searchRegex },
+              { "technicianData.lastName": searchRegex },
+              {
+                $expr: {
+                  $regexMatch: {
+                    input: { $concat: ["$technicianData.firstName", " ", "$technicianData.lastName"] },
+                    regex: search,
+                    options: "i"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        { $count: "total" }
+      ]);
+      
+      totalJobs = countResult.length > 0 ? countResult[0].total : 0;
+    } else {
+      totalJobs = await Job.countDocuments(query);
+    }
 
     // Get status counts for dashboard
     let statusCountsMatch = {};
@@ -1137,8 +1367,22 @@ router.patch("/:id/status", authenticate, async (req, res) => {
       });
     }
 
+    // Store previous status to check for completion
+    const previousStatus = job.status;
+    
     job.status = status;
     job.lastUpdatedBy = getCreatorInfo(req);
+
+    // If job is being marked as completed and has an assigned technician
+    if (status === "Completed" && previousStatus !== "Completed" && job.assignedTechnician) {
+      const technician = await Technician.findById(job.assignedTechnician);
+      if (technician) {
+        technician.completedJobs = (technician.completedJobs || 0) + 1;
+        technician.currentJobs = Math.max(0, (technician.currentJobs || 0) - 1);
+        technician.availabilityStatus = technician.currentJobs < 4 ? "Available" : "Busy";
+        await technician.save();
+      }
+    }
 
     await job.save();
 
@@ -1623,6 +1867,7 @@ router.patch(
             0,
             (technician.currentJobs || 0) - 1
           );
+          technician.completedJobs = (technician.completedJobs || 0) + 1;
           technician.availabilityStatus =
             technician.currentJobs < 4 ? "Available" : "Busy";
           await technician.save();
@@ -1785,5 +2030,75 @@ router.patch(
     }
   }
 );
+
+// UTILITY - Recalculate technician job statistics (Super users only)
+router.patch("/utility/recalculate-technician-stats", authenticateAdminLevel, async (req, res) => {
+  try {
+    console.log("Starting technician stats recalculation...");
+    
+    // Get all technicians
+    const technicians = await Technician.find({});
+    const results = [];
+    
+    for (const technician of technicians) {
+      // Count completed jobs for this technician
+      const completedJobsCount = await Job.countDocuments({
+        assignedTechnician: technician._id,
+        status: "Completed"
+      });
+      
+      // Count current active jobs (non-completed jobs)
+      const currentJobsCount = await Job.countDocuments({
+        assignedTechnician: technician._id,
+        status: { $in: ["Pending", "Scheduled", "Overdue"] }
+      });
+      
+      // Update technician stats
+      const oldCompleted = technician.completedJobs || 0;
+      const oldCurrent = technician.currentJobs || 0;
+      
+      technician.completedJobs = completedJobsCount;
+      technician.currentJobs = currentJobsCount;
+      technician.availabilityStatus = currentJobsCount < 4 ? "Available" : "Busy";
+      
+      await technician.save();
+      
+      results.push({
+        technicianId: technician._id,
+        fullName: technician.fullName,
+        completedJobs: {
+          old: oldCompleted,
+          new: completedJobsCount,
+          fixed: oldCompleted !== completedJobsCount
+        },
+        currentJobs: {
+          old: oldCurrent,
+          new: currentJobsCount,
+          fixed: oldCurrent !== currentJobsCount
+        }
+      });
+    }
+    
+    const fixedCount = results.filter(r => r.completedJobs.fixed || r.currentJobs.fixed).length;
+    
+    console.log(`Technician stats recalculation completed. Fixed ${fixedCount} technicians.`);
+    
+    res.status(200).json({
+      status: "success",
+      message: `Technician statistics recalculated successfully. Fixed ${fixedCount} technicians.`,
+      data: {
+        totalTechnicians: technicians.length,
+        fixedTechnicians: fixedCount,
+        results: results
+      }
+    });
+  } catch (error) {
+    console.error("Recalculate technician stats error:", error);
+    res.status(500).json({
+      status: "error",
+      message: error.message || "Failed to recalculate technician statistics"
+    });
+  }
+});
 
 export default router;

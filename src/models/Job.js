@@ -267,6 +267,17 @@ jobSchema.methods.getFullDetails = function () {
 
 // Method to get summary details (for list views)
 jobSchema.methods.getSummary = function () {
+  // Transform assignedTechnician data for frontend compatibility
+  let transformedTechnician = null;
+  if (this.assignedTechnician) {
+    transformedTechnician = {
+      id: this.assignedTechnician._id || this.assignedTechnician.id,
+      name: this.assignedTechnician.fullName || 
+            `${this.assignedTechnician.firstName || ''} ${this.assignedTechnician.lastName || ''}`.trim(),
+      tradeType: this.assignedTechnician.tradeType || 'Technician',
+    };
+  }
+
   return {
     id: this._id,
     job_id: this.job_id,
@@ -276,7 +287,7 @@ jobSchema.methods.getSummary = function () {
     shift: this.shift,
     scheduledStartTime: this.scheduledStartTime,
     scheduledEndTime: this.scheduledEndTime,
-    assignedTechnician: this.assignedTechnician,
+    assignedTechnician: transformedTechnician,
     status: this.status,
     reportFile: this.reportFile,
     hasInvoice: this.hasInvoice,
