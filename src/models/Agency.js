@@ -112,6 +112,43 @@ const agencySchema = new mongoose.Schema(
       default: 0,
     },
 
+    // Subscription Information
+    stripeCustomerId: {
+      type: String,
+      default: null,
+    },
+    subscriptionId: {
+      type: String,
+      default: null,
+    },
+    subscriptionStatus: {
+      type: String,
+      enum: ["trial", "active", "past_due", "canceled", "unpaid", "incomplete"],
+      default: null,
+    },
+    planType: {
+      type: String,
+      enum: ["starter", "pro", "enterprise"],
+      default: null,
+    },
+    billingPeriod: {
+      type: String,
+      enum: ["monthly", "yearly"],
+      default: "monthly",
+    },
+    subscriptionStartDate: {
+      type: Date,
+      default: null,
+    },
+    subscriptionEndDate: {
+      type: Date,
+      default: null,
+    },
+    trialEndsAt: {
+      type: Date,
+      default: null,
+    },
+
     // Additional metadata
     properties: [
       {
@@ -163,6 +200,35 @@ agencySchema.methods.getDisplayName = function () {
 // Method to check if account is active
 agencySchema.methods.isActive = function () {
   return this.status === "Active";
+};
+
+// Method to check if subscription is active
+agencySchema.methods.hasActiveSubscription = function () {
+  return this.subscriptionStatus === "active" || this.subscriptionStatus === "trial";
+};
+
+// Method to check if within plan limits
+agencySchema.methods.canCreateProperty = function () {
+  if (!this.planType) return false;
+  
+  const limits = {
+    starter: 50,
+    pro: 150,
+    enterprise: Infinity
+  };
+  
+  return this.totalProperties < limits[this.planType];
+};
+
+// Method to get plan limits
+agencySchema.methods.getPlanLimits = function () {
+  const limits = {
+    starter: { properties: 50 },
+    pro: { properties: 150 },
+    enterprise: { properties: Infinity }
+  };
+  
+  return limits[this.planType] || limits.starter;
 };
 
 // Method to update last login
