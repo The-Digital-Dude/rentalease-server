@@ -279,6 +279,81 @@ propertySchema.methods.getComplianceSummary = function () {
   };
 };
 
+// Post-save middleware to update agency totalProperties count
+propertySchema.post('save', async function() {
+  if (this.isNew && this.agency) {
+    try {
+      // Import Agency model dynamically to avoid circular dependency
+      const Agency = mongoose.model('Agency');
+      
+      // Count active properties for this agency
+      const activePropertiesCount = await mongoose.model('Property').countDocuments({
+        agency: this.agency,
+        isActive: true
+      });
+      
+      // Update agency's totalProperties count
+      await Agency.findByIdAndUpdate(this.agency, {
+        totalProperties: activePropertiesCount
+      });
+      
+      console.log(`Updated agency ${this.agency} totalProperties to ${activePropertiesCount}`);
+    } catch (error) {
+      console.error('Error updating agency totalProperties:', error);
+    }
+  }
+});
+
+// Post-remove middleware to update agency totalProperties count
+propertySchema.post('remove', async function() {
+  if (this.agency) {
+    try {
+      // Import Agency model dynamically to avoid circular dependency
+      const Agency = mongoose.model('Agency');
+      
+      // Count active properties for this agency
+      const activePropertiesCount = await mongoose.model('Property').countDocuments({
+        agency: this.agency,
+        isActive: true
+      });
+      
+      // Update agency's totalProperties count
+      await Agency.findByIdAndUpdate(this.agency, {
+        totalProperties: activePropertiesCount
+      });
+      
+      console.log(`Updated agency ${this.agency} totalProperties to ${activePropertiesCount}`);
+    } catch (error) {
+      console.error('Error updating agency totalProperties:', error);
+    }
+  }
+});
+
+// Post-findOneAndUpdate middleware to handle isActive changes
+propertySchema.post('findOneAndUpdate', async function(doc) {
+  if (doc && doc.agency) {
+    try {
+      // Import Agency model dynamically to avoid circular dependency
+      const Agency = mongoose.model('Agency');
+      
+      // Count active properties for this agency
+      const activePropertiesCount = await mongoose.model('Property').countDocuments({
+        agency: doc.agency,
+        isActive: true
+      });
+      
+      // Update agency's totalProperties count
+      await Agency.findByIdAndUpdate(doc.agency, {
+        totalProperties: activePropertiesCount
+      });
+      
+      console.log(`Updated agency ${doc.agency} totalProperties to ${activePropertiesCount}`);
+    } catch (error) {
+      console.error('Error updating agency totalProperties:', error);
+    }
+  }
+});
+
 // Indexes for better query performance
 propertySchema.index({ agency: 1 });
 propertySchema.index({ assignedPropertyManager: 1 });

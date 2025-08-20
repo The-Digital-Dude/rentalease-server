@@ -1,6 +1,10 @@
 import express from "express";
 import mongoose from "mongoose";
 import Agency from "../models/Agency.js";
+import Property from "../models/Property.js";
+import Contact from "../models/Contact.js";
+import PropertyManager from "../models/PropertyManager.js";
+import Job from "../models/Job.js";
 import { stripe, STRIPE_PLANS } from "../config/stripe.js";
 import emailService from "../services/email.service.js";
 import jwt from "jsonwebtoken";
@@ -532,6 +536,202 @@ router.get("/status", authenticateAgency, async (req, res) => {
   }
 });
 
+// Get analytics data for agency
+router.get("/analytics", authenticateAgency, async (req, res) => {
+  try {
+    const agencyId = req.agency.id;
+    const now = new Date();
+    const oneMonthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+    const twoMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 2, now.getDate());
+
+    // Get total all-time properties for this agency
+    const totalProperties = await Property.countDocuments({ agency: agencyId, isActive: true });
+
+    // Get total all-time property managers for this agency
+    const totalPropertyManagers = await PropertyManager.countDocuments({ 
+      'owner.ownerType': 'Agency', 
+      'owner.ownerId': agencyId,
+      status: { $in: ['Active', 'Inactive'] } // Exclude only suspended/pending
+    });
+
+    // Get total all-time completed jobs for this agency's properties
+    const totalCompletedJobs = await Job.aggregate([
+      {
+        $lookup: {
+          from: 'properties',
+          localField: 'property',
+          foreignField: '_id',
+          as: 'propertyData'
+        }
+      },
+      {
+        $match: {
+          'propertyData.agency': new mongoose.Types.ObjectId(agencyId),
+          status: 'Completed'
+        }
+      },
+      {
+        $count: 'totalCompleted'
+      }
+    ]);
+
+    const completedJobsCount = totalCompletedJobs.length > 0 ? totalCompletedJobs[0].totalCompleted : 0;
+
+    // Calculate trends (comparing this month vs last month)
+    const propertiesThisMonth = await Property.countDocuments({
+      agency: agencyId,
+      isActive: true,
+      createdAt: { $gte: oneMonthAgo }
+    });
+    
+    const propertiesLastMonth = await Property.countDocuments({
+      agency: agencyId,
+      isActive: true,
+      createdAt: { $gte: twoMonthsAgo, $lt: oneMonthAgo }
+    });
+
+    const propertyManagersThisMonth = await PropertyManager.countDocuments({
+      'owner.ownerType': 'Agency',
+      'owner.ownerId': agencyId,
+      status: 'Active',
+      createdAt: { $gte: oneMonthAgo }
+    });
+
+    const propertyManagersLastMonth = await PropertyManager.countDocuments({
+      'owner.ownerType': 'Agency',
+      'owner.ownerId': agencyId,
+      status: 'Active',
+      createdAt: { $gte: twoMonthsAgo, $lt: oneMonthAgo }
+    });
+
+    const completedJobsThisMonth = await Job.aggregate([
+      {
+        $lookup: {
+          from: 'properties',
+          localField: 'property',
+          foreignField: '_id',
+          as: 'propertyData'
+        }
+      },
+      {
+        $match: {
+          'propertyData.agency': new mongoose.Types.ObjectId(agencyId),
+          status: 'Completed',
+          completedAt: { $gte: oneMonthAgo }
+        }
+      },
+      {
+        $count: 'totalCompleted'
+      }
+    ]);
+
+    const completedJobsLastMonth = await Job.aggregate([
+      {
+        $lookup: {
+          from: 'properties',
+          localField: 'property',
+          foreignField: '_id',
+          as: 'propertyData'
+        }
+      },
+      {
+        $match: {
+          'propertyData.agency': new mongoose.Types.ObjectId(agencyId),
+          status: 'Completed',
+          completedAt: { $gte: twoMonthsAgo, $lt: oneMonthAgo }
+        }
+      },
+      {
+        $count: 'totalCompleted'
+      }
+    ]);
+
+    const completedJobsThisMonthCount = completedJobsThisMonth.length > 0 ? completedJobsThisMonth[0].totalCompleted : 0;
+    const completedJobsLastMonthCount = completedJobsLastMonth.length > 0 ? completedJobsLastMonth[0].totalCompleted : 0;
+
+    // Calculate trends
+    let propertiesTrend = 0;
+    if (propertiesLastMonth > 0) {
+      propertiesTrend = Math.round(((propertiesThisMonth - propertiesLastMonth) / propertiesLastMonth) * 100);
+    } else if (propertiesThisMonth > 0) {
+      propertiesTrend = 100;
+    }
+
+    let propertyManagersTrend = 0;
+    if (propertyManagersLastMonth > 0) {
+      propertyManagersTrend = Math.round(((propertyManagersThisMonth - propertyManagersLastMonth) / propertyManagersLastMonth) * 100);
+    } else if (propertyManagersThisMonth > 0) {
+      propertyManagersTrend = 100;
+    }
+
+    let completedJobsTrend = 0;
+    if (completedJobsLastMonthCount > 0) {
+      completedJobsTrend = Math.round(((completedJobsThisMonthCount - completedJobsLastMonthCount) / completedJobsLastMonthCount) * 100);
+    } else if (completedJobsThisMonthCount > 0) {
+      completedJobsTrend = 100;
+    }
+
+    // Get 30-day activity data (completed jobs per week)
+    const weeklyActivity = [];
+    for (let i = 3; i >= 0; i--) {
+      const weekStart = new Date(now.getTime() - (i + 1) * 7 * 24 * 60 * 60 * 1000);
+      const weekEnd = new Date(now.getTime() - i * 7 * 24 * 60 * 60 * 1000);
+      
+      const weekCompletedJobs = await Job.aggregate([
+        {
+          $lookup: {
+            from: 'properties',
+            localField: 'property',
+            foreignField: '_id',
+            as: 'propertyData'
+          }
+        },
+        {
+          $match: {
+            'propertyData.agency': new mongoose.Types.ObjectId(agencyId),
+            status: 'Completed',
+            completedAt: { $gte: weekStart, $lt: weekEnd }
+          }
+        },
+        {
+          $count: 'weeklyCompleted'
+        }
+      ]);
+      
+      const weekCount = weekCompletedJobs.length > 0 ? weekCompletedJobs[0].weeklyCompleted : 0;
+      weeklyActivity.push(weekCount);
+    }
+
+    res.status(200).json({
+      status: "success",
+      data: {
+        totalProperties: {
+          value: totalProperties,
+          trend: propertiesTrend,
+          trendDirection: propertiesTrend > 0 ? 'positive' : propertiesTrend < 0 ? 'negative' : 'neutral'
+        },
+        totalPropertyManagers: {
+          value: totalPropertyManagers,
+          trend: propertyManagersTrend,
+          trendDirection: propertyManagersTrend > 0 ? 'positive' : propertyManagersTrend < 0 ? 'negative' : 'neutral'
+        },
+        totalCompletedJobs: {
+          value: completedJobsCount,
+          trend: completedJobsTrend,
+          trendDirection: completedJobsTrend > 0 ? 'positive' : completedJobsTrend < 0 ? 'negative' : 'neutral'
+        },
+        weeklyActivity
+      },
+    });
+  } catch (error) {
+    console.error("Get analytics error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "An error occurred while fetching analytics data",
+    });
+  }
+});
+
 // Create customer portal session for managing subscription
 router.post("/create-portal-session", authenticateAgency, async (req, res) => {
   try {
@@ -546,7 +746,7 @@ router.post("/create-portal-session", authenticateAgency, async (req, res) => {
 
     const portalSession = await stripe.billingPortal.sessions.create({
       customer: agency.stripeCustomerId,
-      return_url: `${process.env.WEBSITE_URL || 'http://localhost:3001'}/dashboard`,
+      return_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/subscription`,
     });
 
     res.status(200).json({
@@ -560,6 +760,82 @@ router.post("/create-portal-session", authenticateAgency, async (req, res) => {
     res.status(500).json({
       status: "error",
       message: "An error occurred while creating portal session",
+    });
+  }
+});
+
+// Create checkout session for an existing agency to subscribe
+router.post("/create-checkout-session", authenticateAgency, async (req, res) => {
+  try {
+    const { planType, billingPeriod = 'monthly' } = req.body;
+    const agency = await Agency.findById(req.agency.id);
+
+    if (!agency) {
+      return res.status(404).json({ status: "error", message: "Agency not found" });
+    }
+
+    if (agency.subscriptionId && agency.subscriptionStatus === 'active') {
+        return res.status(400).json({ status: "error", message: "Agency already has an active subscription" });
+    }
+
+    const planConfig = STRIPE_PLANS[planType];
+    if (!planConfig) {
+      return res.status(400).json({ status: "error", message: "Invalid plan type" });
+    }
+
+    const stripePrice = await stripe.prices.create({
+      unit_amount: planConfig.price,
+      currency: 'aud',
+      recurring: {
+        interval: billingPeriod === "yearly" ? "year" : "month",
+      },
+      product_data: {
+          name: planConfig.name,
+          description: `RentalEase CRM ${planConfig.name}`
+      },
+      metadata: {
+        planType,
+        billingPeriod,
+      },
+    });
+
+    const checkoutSession = await stripe.checkout.sessions.create({
+      customer: agency.stripeCustomerId,
+      payment_method_types: ['card'],
+      line_items: [
+        {
+          price: stripePrice.id,
+          quantity: 1,
+        },
+      ],
+      mode: 'subscription',
+      success_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/subscription?subscription_success=true`,
+      cancel_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/subscription?subscription_cancelled=true`,
+      metadata: {
+        agencyId: agency._id.toString(),
+        planType,
+        billingPeriod,
+      },
+      subscription_data: {
+        trial_period_days: 14,
+        metadata: {
+          agencyId: agency._id.toString(),
+          planType,
+        },
+      },
+    });
+
+    res.status(200).json({
+      status: "success",
+      data: {
+        url: checkoutSession.url,
+      },
+    });
+  } catch (error) {
+    console.error("Create checkout session error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "An error occurred while creating checkout session",
     });
   }
 });
