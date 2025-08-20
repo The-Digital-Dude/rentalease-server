@@ -21,12 +21,14 @@ import invoiceRoutes from "../routes/invoice.routes.js";
 import technicianPaymentRoutes from "../routes/technicianPayment.routes.js";
 import dashboardRoutes from "../routes/dashboard.routes.js";
 import calendarRoutes from "../routes/calendar.routes.js";
+import subscriptionRoutes from "../routes/subscription.routes.js";
 import emailService from "../services/email.service.js";
 
 // Create Express app
 const app = express();
 
 // Middleware
+app.use("/api/v1/subscription/webhook", express.raw({ type: 'application/json' })); // Stripe webhook needs raw body
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cors());
@@ -51,6 +53,7 @@ app.use("/api/v1/invoices", invoiceRoutes);
 app.use("/api/v1/technician-payments", technicianPaymentRoutes);
 app.use("/api/v1/dashboard", dashboardRoutes);
 app.use("/api/v1/calendar", calendarRoutes);
+app.use("/api/v1/subscription", subscriptionRoutes);
 
 // Health check route
 app.get("/health", async (req, res) => {
