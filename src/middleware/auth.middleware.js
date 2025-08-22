@@ -758,7 +758,10 @@ const authenticateUserTypes = (allowedUserTypes) => {
       }
 
       // Add decoded token info to request
-      req.user = decoded;
+      req.user = {
+        ...decoded,
+        type: userType
+      };
       next();
     } catch (error) {
       console.error("Authentication error:", error);

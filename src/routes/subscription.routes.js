@@ -482,10 +482,41 @@ async function handlePaymentFailed(invoice) {
   }
 }
 
-// Get subscription status for agency
-router.get("/status", authenticateAgency, async (req, res) => {
+// Get subscription status for agency and team members
+router.get("/status", authenticateUserTypes(['SuperUser', 'Agency', 'TeamMember']), async (req, res) => {
   try {
-    const agency = await Agency.findById(req.agency.id);
+    // Get agency ID based on user type
+    let agencyId;
+    if (req.user && req.user.type === 'SuperUser') {
+      // For super users, get agency ID from request body, params, or query
+      agencyId = req.body.agencyId || req.params.id || req.params.agencyId || req.query.agencyId;
+      if (!agencyId) {
+        return res.status(400).json({
+          status: "error",
+          message: "Agency ID is required for super user requests. Please provide agencyId in request body.",
+        });
+      }
+    } else if (req.user && req.user.type === 'TeamMember') {
+      // For team members, get their associated agency from the database
+      const TeamMember = (await import("../models/TeamMember.js")).default;
+      const teamMember = await TeamMember.findById(req.user.id).populate('agency');
+      if (!teamMember || !teamMember.agency) {
+        return res.status(400).json({
+          status: "error",
+          message: "Team member agency not found",
+        });
+      }
+      agencyId = teamMember.agency._id;
+    } else if (req.agency) {
+      agencyId = req.agency.id;
+    } else {
+      return res.status(400).json({
+        status: "error",
+        message: "Unable to determine agency",
+      });
+    }
+
+    const agency = await Agency.findById(agencyId);
     
     if (!agency) {
       return res.status(404).json({
@@ -536,10 +567,21 @@ router.get("/status", authenticateAgency, async (req, res) => {
   }
 });
 
-// Get analytics data for agency
-router.get("/analytics", authenticateAgency, async (req, res) => {
+// Get analytics data for agency (accessible by agency and team members)
+router.get("/analytics", authenticateUserTypes(['SuperUser', 'Agency', 'TeamMember']), async (req, res) => {
   try {
-    const agencyId = req.agency.id;
+    // Get agency ID based on user type
+    let agencyId;
+    if (req.user && req.user.type === 'TeamMember') {
+      agencyId = req.user.agencyId || req.user.id;
+    } else if (req.agency) {
+      agencyId = req.agency.id;
+    } else {
+      return res.status(400).json({
+        status: "error",
+        message: "Unable to determine agency",
+      });
+    }
     const now = new Date();
     const oneMonthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
     const twoMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 2, now.getDate());
@@ -732,10 +774,41 @@ router.get("/analytics", authenticateAgency, async (req, res) => {
   }
 });
 
-// Create customer portal session for managing subscription
-router.post("/create-portal-session", authenticateAgency, async (req, res) => {
+// Create customer portal session for managing subscription (accessible by agency and team members)
+router.post("/create-portal-session", authenticateUserTypes(['SuperUser', 'Agency', 'TeamMember']), async (req, res) => {
   try {
-    const agency = await Agency.findById(req.agency.id);
+    // Get agency ID based on user type
+    let agencyId;
+    if (req.user && req.user.type === 'SuperUser') {
+      // For super users, get agency ID from request body, params, or query
+      agencyId = req.body.agencyId || req.params.id || req.params.agencyId || req.query.agencyId;
+      if (!agencyId) {
+        return res.status(400).json({
+          status: "error",
+          message: "Agency ID is required for super user requests. Please provide agencyId in request body.",
+        });
+      }
+    } else if (req.user && req.user.type === 'TeamMember') {
+      // For team members, get their associated agency from the database
+      const TeamMember = (await import("../models/TeamMember.js")).default;
+      const teamMember = await TeamMember.findById(req.user.id).populate('agency');
+      if (!teamMember || !teamMember.agency) {
+        return res.status(400).json({
+          status: "error",
+          message: "Team member agency not found",
+        });
+      }
+      agencyId = teamMember.agency._id;
+    } else if (req.agency) {
+      agencyId = req.agency.id;
+    } else {
+      return res.status(400).json({
+        status: "error",
+        message: "Unable to determine agency",
+      });
+    }
+
+    const agency = await Agency.findById(agencyId);
     
     if (!agency || !agency.stripeCustomerId) {
       return res.status(404).json({
@@ -764,11 +837,24 @@ router.post("/create-portal-session", authenticateAgency, async (req, res) => {
   }
 });
 
-// Create checkout session for an existing agency to subscribe
-router.post("/create-checkout-session", authenticateAgency, async (req, res) => {
+// Create checkout session for an existing agency to subscribe (accessible by agency and team members)
+router.post("/create-checkout-session", authenticateUserTypes(['SuperUser', 'Agency', 'TeamMember']), async (req, res) => {
   try {
     const { planType, billingPeriod = 'monthly' } = req.body;
-    const agency = await Agency.findById(req.agency.id);
+    // Get agency ID based on user type
+    let agencyId;
+    if (req.user && req.user.type === 'TeamMember') {
+      agencyId = req.user.agencyId || req.user.id;
+    } else if (req.agency) {
+      agencyId = req.agency.id;
+    } else {
+      return res.status(400).json({
+        status: "error",
+        message: "Unable to determine agency",
+      });
+    }
+
+    const agency = await Agency.findById(agencyId);
 
     if (!agency) {
       return res.status(404).json({ status: "error", message: "Agency not found" });
@@ -836,6 +922,53 @@ router.post("/create-checkout-session", authenticateAgency, async (req, res) => 
     res.status(500).json({
       status: "error",
       message: "An error occurred while creating checkout session",
+    });
+  }
+});
+
+// Test endpoint to manually set subscription data for debugging (remove in production)
+router.post("/test-set-subscription/:agencyEmail", async (req, res) => {
+  try {
+    const { agencyEmail } = req.params;
+    const { planType = "pro", subscriptionStatus = "trial" } = req.body;
+
+    const agency = await Agency.findOne({ email: agencyEmail.toLowerCase() });
+    
+    if (!agency) {
+      return res.status(404).json({
+        status: "error",
+        message: "Agency not found with email: " + agencyEmail,
+      });
+    }
+
+    // Set subscription data for testing
+    agency.planType = planType;
+    agency.subscriptionStatus = subscriptionStatus;
+    agency.subscriptionStartDate = new Date();
+    agency.trialEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000); // 14 days from now
+    agency.subscriptionEndDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days from now
+
+    await agency.save();
+
+    res.status(200).json({
+      status: "success",
+      message: "Subscription data set for testing",
+      data: {
+        agencyId: agency._id,
+        email: agency.email,
+        companyName: agency.companyName,
+        planType: agency.planType,
+        subscriptionStatus: agency.subscriptionStatus,
+        subscriptionStartDate: agency.subscriptionStartDate,
+        subscriptionEndDate: agency.subscriptionEndDate,
+        trialEndsAt: agency.trialEndsAt,
+      },
+    });
+  } catch (error) {
+    console.error("Set subscription test data error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "An error occurred while setting subscription data",
     });
   }
 });

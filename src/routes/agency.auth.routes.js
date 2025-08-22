@@ -1257,6 +1257,16 @@ router.get("/all", authenticateUserTypes(['SuperUser', 'TeamMember']), async (re
           lastLogin: agency.lastLogin,
           joinedDate: agency.joinedDate,
           createdAt: agency.createdAt,
+          subscription: (agency.subscriptionId || agency.subscriptionStatus || agency.planType) ? {
+            id: agency.subscriptionId,
+            planType: agency.planType,
+            status: agency.subscriptionStatus,
+            subscriptionStartDate: agency.subscriptionStartDate,
+            subscriptionEndDate: agency.subscriptionEndDate,
+            trialEndsAt: agency.trialEndsAt,
+            currentPeriodStart: agency.currentPeriodStart,
+            currentPeriodEnd: agency.currentPeriodEnd,
+          } : null,
         })),
         pagination: {
           currentPage: parseInt(page),
@@ -1417,6 +1427,16 @@ router.get("/:id", authenticateUserTypes(['SuperUser', 'TeamMember']), async (re
           joinedDate: agency.joinedDate,
           createdAt: agency.createdAt,
           lastUpdated: agency.lastUpdated,
+          subscription: (agency.subscriptionId || agency.subscriptionStatus || agency.planType) ? {
+            id: agency.subscriptionId,
+            planType: agency.planType,
+            status: agency.subscriptionStatus,
+            subscriptionStartDate: agency.subscriptionStartDate,
+            subscriptionEndDate: agency.subscriptionEndDate,
+            trialEndsAt: agency.trialEndsAt,
+            currentPeriodStart: agency.currentPeriodStart,
+            currentPeriodEnd: agency.currentPeriodEnd,
+          } : null,
         },
         statistics: stats,
         properties: properties.map((property) => ({
