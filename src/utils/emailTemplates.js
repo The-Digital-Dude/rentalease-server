@@ -1694,6 +1694,218 @@ const tenantInspectionBookingTemplate = (data) => {
   };
 };
 
+/**
+ * Email template for tenant booking time selection request
+ * @param {Object} data - Template data
+ * @param {string} data.recipientName - Tenant's name
+ * @param {string} data.propertyAddress - Property address
+ * @param {string} data.complianceType - Type of compliance (Gas, Electrical, Smoke Alarm)
+ * @param {string} data.bookingLink - Link to select time slots
+ * @param {string} data.dueDate - Due date for compliance
+ * @returns {Object} - Email template configuration
+ */
+const tenantBookingRequestTemplate = (data) => ({
+  subject: `Schedule Your ${data.complianceType} Safety Inspection - ${data.propertyAddress}`,
+  html: `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+      <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #333; margin-bottom: 10px;">Safety Inspection Required</h1>
+          <div style="width: 50px; height: 3px; background-color: #007bff; margin: 0 auto;"></div>
+        </div>
+        
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">Dear ${data.recipientName},</p>
+        
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">
+          Your property requires a ${data.complianceType} safety inspection to ensure compliance with Australian safety regulations.
+        </p>
+        
+        <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3 style="color: #495057; margin-top: 0;">Property Details:</h3>
+          <p style="margin: 5px 0; color: #666;"><strong>Address:</strong> ${data.propertyAddress}</p>
+          <p style="margin: 5px 0; color: #666;"><strong>Inspection Type:</strong> ${data.complianceType} Safety Check</p>
+          <p style="margin: 5px 0; color: #666;"><strong>Due Date:</strong> ${data.dueDate}</p>
+        </div>
+        
+        <p style="color: #333; line-height: 1.6; margin-bottom: 25px;">
+          Please select your preferred time slot for the inspection by clicking the button below:
+        </p>
+        
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${data.bookingLink}" 
+             style="display: inline-block; background-color: #007bff; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 16px;">
+            Select Your Time Slot
+          </a>
+        </div>
+        
+        <div style="background-color: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 8px; margin: 20px 0;">
+          <h4 style="color: #856404; margin-top: 0;">Important Notes:</h4>
+          <ul style="color: #856404; margin: 0; padding-left: 20px;">
+            <li>The inspection typically takes 30-60 minutes</li>
+            <li>Someone must be present during the inspection</li>
+            <li>Please ensure access to all required areas</li>
+            <li>No special preparation is needed</li>
+          </ul>
+        </div>
+        
+        <p style="color: #333; margin-top: 30px;">
+          Best regards,<br>
+          <strong>RentalEase Property Management</strong>
+        </p>
+        
+        <hr style="border: none; border-top: 1px solid #ecf0f1; margin: 30px 0;">
+        <p style="font-size: 12px; color: #7f8c8d; text-align: center;">
+          This is an automated notification. If you have questions, please contact your property manager.
+        </p>
+      </div>
+    </div>
+  `,
+});
+
+/**
+ * Email template for tenant booking confirmation
+ * @param {Object} data - Template data
+ * @param {string} data.recipientName - Tenant's name
+ * @param {string} data.propertyAddress - Property address
+ * @param {string} data.complianceType - Type of compliance
+ * @param {string} data.selectedDate - Selected date
+ * @param {string} data.selectedTime - Selected time
+ * @param {string} data.technicianName - Technician name
+ * @param {string} data.technicianPhone - Technician phone
+ * @returns {Object} - Email template configuration
+ */
+const tenantBookingConfirmationTemplate = (data) => ({
+  subject: `Inspection Confirmed - ${data.complianceType} Safety Check on ${data.selectedDate}`,
+  html: `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+      <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #28a745; margin-bottom: 10px;">✅ Inspection Confirmed</h1>
+          <div style="width: 50px; height: 3px; background-color: #28a745; margin: 0 auto;"></div>
+        </div>
+        
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">Dear ${data.recipientName},</p>
+        
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">
+          Your ${data.complianceType} safety inspection has been successfully scheduled.
+        </p>
+        
+        <div style="background-color: #d4edda; border: 1px solid #c3e6cb; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3 style="color: #155724; margin-top: 0;">Appointment Details:</h3>
+          <p style="margin: 8px 0; color: #155724;"><strong>Date:</strong> ${data.selectedDate}</p>
+          <p style="margin: 8px 0; color: #155724;"><strong>Time:</strong> ${data.selectedTime}</p>
+          <p style="margin: 8px 0; color: #155724;"><strong>Property:</strong> ${data.propertyAddress}</p>
+          <p style="margin: 8px 0; color: #155724;"><strong>Inspection:</strong> ${data.complianceType} Safety Check</p>
+        </div>
+        
+        <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3 style="color: #495057; margin-top: 0;">Technician Details:</h3>
+          <p style="margin: 5px 0; color: #666;"><strong>Name:</strong> ${data.technicianName}</p>
+          <p style="margin: 5px 0; color: #666;"><strong>Phone:</strong> ${data.technicianPhone}</p>
+        </div>
+        
+        <div style="background-color: #cce7ff; border: 1px solid #99d6ff; padding: 15px; border-radius: 8px; margin: 20px 0;">
+          <h4 style="color: #0056b3; margin-top: 0;">Please Remember:</h4>
+          <ul style="color: #0056b3; margin: 0; padding-left: 20px;">
+            <li>Be available at the scheduled time</li>
+            <li>Provide access to all areas requiring inspection</li>
+            <li>The technician will call if there are any delays</li>
+            <li>A compliance certificate will be issued upon completion</li>
+          </ul>
+        </div>
+        
+        <p style="color: #333; margin-top: 30px;">
+          Best regards,<br>
+          <strong>RentalEase Property Management</strong>
+        </p>
+        
+        <hr style="border: none; border-top: 1px solid #ecf0f1; margin: 30px 0;">
+        <p style="font-size: 12px; color: #7f8c8d; text-align: center;">
+          Need to reschedule? Please contact your property manager as soon as possible.
+        </p>
+      </div>
+    </div>
+  `,
+});
+
+/**
+ * Email template for compliance due notifications
+ * @param {Object} data - Template data
+ * @param {string} data.recipientName - Recipient's name
+ * @param {string} data.complianceType - Type of compliance
+ * @param {string} data.propertyAddress - Property address
+ * @param {string} data.dueDate - Due date
+ * @returns {Object} - Email template configuration
+ */
+const complianceDueTemplate = (data) => ({
+  subject: `Urgent: ${data.complianceType} Compliance Due - ${data.propertyAddress}`,
+  html: `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+      <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #dc3545; margin-bottom: 10px;">⚠️ Compliance Due</h1>
+          <div style="width: 50px; height: 3px; background-color: #dc3545; margin: 0 auto;"></div>
+        </div>
+        
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">Dear ${data.recipientName},</p>
+        
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">
+          This is a reminder that ${data.complianceType} compliance is due for the following property:
+        </p>
+        
+        <div style="background-color: #f8d7da; border: 1px solid #f5c6cb; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3 style="color: #721c24; margin-top: 0;">Urgent Action Required:</h3>
+          <p style="margin: 8px 0; color: #721c24;"><strong>Property:</strong> ${data.propertyAddress}</p>
+          <p style="margin: 8px 0; color: #721c24;"><strong>Compliance Type:</strong> ${data.complianceType}</p>
+          <p style="margin: 8px 0; color: #721c24;"><strong>Due Date:</strong> ${data.dueDate}</p>
+        </div>
+        
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">
+          Please schedule the required inspection immediately to maintain compliance with Australian safety regulations.
+        </p>
+        
+        <p style="color: #333; margin-top: 30px;">
+          Best regards,<br>
+          <strong>RentalEase Compliance Team</strong>
+        </p>
+      </div>
+    </div>
+  `,
+});
+
+/**
+ * General email template for custom notifications
+ * @param {Object} data - Template data
+ * @param {string} data.recipientName - Recipient's name
+ * @param {string} data.subject - Email subject
+ * @param {string} data.message - Email message
+ * @returns {Object} - Email template configuration
+ */
+const generalTemplate = (data) => ({
+  subject: data.subject || "Notification from RentalEase",
+  html: `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+      <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #333; margin-bottom: 10px;">RentalEase Notification</h1>
+          <div style="width: 50px; height: 3px; background-color: #007bff; margin: 0 auto;"></div>
+        </div>
+        
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">Dear ${data.recipientName},</p>
+        
+        <div style="color: #333; line-height: 1.6; margin-bottom: 20px;">
+          ${data.message}
+        </div>
+        
+        <p style="color: #333; margin-top: 30px;">
+          Best regards,<br>
+          <strong>RentalEase Team</strong>
+        </p>
+      </div>
+    </div>
+  `,
+});
+
 // Create templates object with all email templates
 const templates = {
   // Original templates
@@ -1724,6 +1936,12 @@ const templates = {
   // Compliance templates
   complianceJobNotification: complianceJobNotificationTemplate,
   tenantInspectionBooking: tenantInspectionBookingTemplate,
+
+  // Tenant booking templates
+  tenantBookingRequest: tenantBookingRequestTemplate,
+  tenantBookingConfirmation: tenantBookingConfirmationTemplate,
+  complianceDue: complianceDueTemplate,
+  general: generalTemplate,
 };
 
 export default templates;

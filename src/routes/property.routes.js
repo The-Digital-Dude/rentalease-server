@@ -18,6 +18,7 @@ import {
 } from "../utils/propertyHelpers.js";
 import bookingNotificationService from "../services/bookingNotification.service.js";
 import fileUploadService from "../services/fileUpload.service.js";
+import { sanitizePropertyInput, sanitizeInput } from "../middleware/sanitizer.middleware.js";
 
 const router = express.Router();
 
@@ -248,7 +249,7 @@ router.get("/compliance/:propertyId", async (req, res) => {
 });
 
 // Public route to handle tenant booking requests (no auth required)
-router.post("/book-inspection", async (req, res) => {
+router.post("/book-inspection", sanitizeInput(), async (req, res) => {
   try {
     const { propertyId, complianceType, selectedDate, selectedShift, token } =
       req.body;
@@ -648,7 +649,7 @@ const getRegionFromStateAndSuburb = (state, suburb) => {
 };
 
 // Create Property
-router.post("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency']), async (req, res) => {
+router.post("/", sanitizePropertyInput(), authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency']), async (req, res) => {
   try {
     const {
       address,
@@ -1237,7 +1238,7 @@ router.get("/:id", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', '
 });
 
 // Update Property
-router.put("/:id", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency']), async (req, res) => {
+router.put("/:id", sanitizePropertyInput(), authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency']), async (req, res) => {
   try {
     const { id } = req.params;
     const { address, currentTenant, complianceSchedule, notes } = req.body;

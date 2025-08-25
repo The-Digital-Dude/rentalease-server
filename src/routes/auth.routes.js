@@ -9,11 +9,12 @@ import {
   hashOTP,
   verifyOTP,
 } from "../utils/otpGenerator.js";
+import { sanitizeUserInput } from "../middleware/sanitizer.middleware.js";
 
 const router = express.Router();
 
 // Register Super User
-router.post("/register", async (req, res) => {
+router.post("/register", sanitizeUserInput(), async (req, res) => {
   try {
     const { name, email, password } = req.body;
 

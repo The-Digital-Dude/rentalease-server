@@ -15,6 +15,7 @@ import {
 import emailService from "../services/email.service.js";
 import notificationService from "../services/notification.service.js";
 import fileUploadService from "../services/fileUpload.service.js";
+import { sanitizeJobInput } from "../middleware/sanitizer.middleware.js";
 
 const router = express.Router();
 
@@ -121,7 +122,7 @@ const getUserInfo = (req) => {
 };
 
 // CREATE - Add new job
-router.post("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'PropertyManager']), async (req, res) => {
+router.post("/", sanitizeJobInput(), authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'PropertyManager']), async (req, res) => {
   try {
     const {
       property,
@@ -1025,7 +1026,7 @@ router.get("/:id", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', '
 });
 
 // UPDATE - Update job (full edit only for super users)
-router.put("/:id", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'PropertyManager', 'Technician']), async (req, res) => {
+router.put("/:id", sanitizeJobInput(), authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'PropertyManager', 'Technician']), async (req, res) => {
   try {
     const { id } = req.params;
     const updates = req.body;

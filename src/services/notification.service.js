@@ -1160,18 +1160,63 @@ class NotificationService {
     }
   }
 
-  // Future methods for email and SMS (commented out for now)
-  /*
+  // Email notification implementation
   async sendEmailNotification(recipient, notificationData) {
-    // TODO: Implement email notification
-    console.log("Email notification would be sent:", { recipient, notificationData });
+    try {
+      console.log("Sending email notification:", { recipient, type: notificationData.type });
+      
+      // Use the email service to send templated emails
+      const emailService = (await import('./email.service.js')).default;
+      
+      // Map notification types to email templates
+      let templateName;
+      let templateData = {
+        recipientName: notificationData.recipientName || 'User',
+        ...notificationData.data
+      };
+
+      switch (notificationData.type) {
+        case 'job_assigned':
+          templateName = 'jobAssignment';
+          break;
+        case 'job_completed':
+          templateName = 'jobCompletion';
+          break;
+        case 'compliance_due':
+          templateName = 'complianceDue';
+          break;
+        case 'tenant_booking_request':
+          templateName = 'tenantBookingRequest';
+          break;
+        case 'tenant_booking_confirmation':
+          templateName = 'tenantBookingConfirmation';
+          break;
+        default:
+          templateName = 'general';
+          templateData.subject = notificationData.title;
+          templateData.message = notificationData.message;
+      }
+
+      const result = await emailService.sendTemplatedEmail({
+        to: recipient,
+        templateName,
+        templateData
+      });
+
+      console.log("Email notification sent successfully:", result.id);
+      return result;
+    } catch (error) {
+      console.error("Failed to send email notification:", error);
+      throw error;
+    }
   }
 
+  // SMS notification placeholder (implement later)
   async sendSMSNotification(recipient, notificationData) {
-    // TODO: Implement SMS notification
-    console.log("SMS notification would be sent:", { recipient, notificationData });
+    console.log("SMS notification (not implemented):", { recipient, notificationData });
+    // SMS implementation will be added later
+    return { id: "sms-placeholder", status: "pending" };
   }
-  */
 }
 
 // Create singleton instance
