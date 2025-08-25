@@ -16,6 +16,14 @@ const teamMemberSchema = new mongoose.Schema({
     lowercase: true,
     match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Please enter a valid email']
   },
+  systemEmail: {
+    type: String,
+    unique: true,
+    sparse: true,
+    lowercase: true,
+    trim: true,
+    match: [/^[a-z0-9.-]+@rentalease\.com\.au$/, 'Must be a valid @rentalease.com.au email']
+  },
   password: {
     type: String,
     required: [true, 'Password is required'],

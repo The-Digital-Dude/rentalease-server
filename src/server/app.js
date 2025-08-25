@@ -23,6 +23,7 @@ import dashboardRoutes from "../routes/dashboard.routes.js";
 import calendarRoutes from "../routes/calendar.routes.js";
 import subscriptionRoutes from "../routes/subscription.routes.js";
 import tenantRoutes from "../routes/tenant.routes.js";
+import emailRoutes from "../routes/email.routes.js";
 import emailService from "../services/email.service.js";
 
 // Create Express app
@@ -56,6 +57,7 @@ app.use("/api/v1/dashboard", dashboardRoutes);
 app.use("/api/v1/calendar", calendarRoutes);
 app.use("/api/v1/subscription", subscriptionRoutes);
 app.use("/api/v1/tenant", tenantRoutes);
+app.use("/api/v1/emails", emailRoutes);
 
 // Health check route
 app.get("/health", async (req, res) => {

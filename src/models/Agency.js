@@ -37,6 +37,14 @@ const agencySchema = new mongoose.Schema(
         "Please enter a valid email",
       ],
     },
+    systemEmail: {
+      type: String,
+      unique: true,
+      sparse: true,
+      lowercase: true,
+      trim: true,
+      match: [/^[a-z0-9.-]+@rentalease\.com\.au$/, 'Must be a valid @rentalease.com.au email']
+    },
     phone: {
       type: String,
       required: [true, "Phone number is required"],

@@ -1,6 +1,11 @@
 import { Resend } from "resend";
 import emailConfig from "../config/email.js";
 import emailTemplates from "../utils/emailTemplates.js";
+import SuperUser from "../models/SuperUser.js";
+import Agency from "../models/Agency.js";
+import PropertyManager from "../models/PropertyManager.js";
+import TeamMember from "../models/TeamMember.js";
+import Technician from "../models/Technician.js";
 
 class EmailService {
   constructor() {
@@ -1059,6 +1064,97 @@ class EmailService {
         totalCost: totalCost,
       },
     });
+  }
+
+  /**
+   * Send email from user's system email address
+   * @param {Object} options - Email options  
+   * @returns {Promise} - Email send result
+   */
+  async sendUserEmail({ from, to, cc, bcc, subject, bodyHtml, bodyText, attachments }) {
+    try {
+      if (!this.resend) {
+        console.warn("📧 Email service not configured. Skipping email send.");
+        return { id: "mock-email-id", status: "skipped" };
+      }
+
+      // Format recipients
+      const formatRecipient = (r) => {
+        if (typeof r === 'string') return r;
+        return r.name ? `${r.name} <${r.email}>` : r.email;
+      };
+
+      const emailData = {
+        from: formatRecipient(from),
+        to: Array.isArray(to) ? to.map(formatRecipient) : [formatRecipient(to)],
+        subject,
+        html: bodyHtml || bodyText,
+        text: bodyText || this.stripHtml(bodyHtml)
+      };
+
+      if (cc && cc.length > 0) {
+        emailData.cc = Array.isArray(cc) ? cc.map(formatRecipient) : [formatRecipient(cc)];
+      }
+
+      if (bcc && bcc.length > 0) {
+        emailData.bcc = Array.isArray(bcc) ? bcc.map(formatRecipient) : [formatRecipient(bcc)];
+      }
+
+      if (attachments && attachments.length > 0) {
+        emailData.attachments = attachments;
+      }
+
+      console.log(`📤 Sending email from ${from.email} to ${to.length} recipients`);
+      const result = await this.resend.emails.send(emailData);
+      
+      console.log("✅ Email sent successfully:", result.id);
+      return result;
+    } catch (error) {
+      console.error("❌ Error sending user email:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Find user by system email address
+   * @param {string} email - System email to search for
+   * @returns {Promise} - User object with userType
+   */
+  async findUserBySystemEmail(email) {
+    try {
+      const normalizedEmail = email.toLowerCase();
+      
+      // Check all user types
+      const checks = [
+        { model: SuperUser, type: 'SuperUser' },
+        { model: Agency, type: 'Agency' },
+        { model: PropertyManager, type: 'PropertyManager' },
+        { model: TeamMember, type: 'TeamMember' },
+        { model: Technician, type: 'Technician' }
+      ];
+      
+      for (const { model, type } of checks) {
+        const user = await model.findOne({ systemEmail: normalizedEmail });
+        if (user) {
+          return { ...user.toObject(), userType: type };
+        }
+      }
+      
+      return null;
+    } catch (error) {
+      console.error("❌ Error finding user by system email:", error);
+      return null;
+    }
+  }
+
+  /**
+   * Strip HTML tags from content
+   * @param {string} html - HTML content
+   * @returns {string} - Plain text
+   */
+  stripHtml(html) {
+    if (!html) return '';
+    return html.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
   }
 
   /**
