@@ -1,7 +1,9 @@
+import { createServer } from 'http';
 import app from "./app.js";
 import connectDB from "../config/database.js";
 import { testCloudinaryConnection } from "../config/cloudinary.js";
 import ComplianceCronJob from "../services/complianceCronJob.js";
+import websocketService from "../services/websocket.service.js";
 
 const PORT = process.env.PORT || 4000;
 
@@ -16,11 +18,18 @@ const startServer = async () => {
 
     console.log(`🔑 PORT: ${PORT}`);
 
+    // Create HTTP server
+    const server = createServer(app);
+
+    // Initialize WebSocket server
+    websocketService.initialize(server);
+
     // Start the server
-    app.listen(PORT, () => {
+    server.listen(PORT, () => {
       console.log(`🚀 Server is running on http://localhost:${PORT}`);
       console.log("📝 API Documentation available at /api-docs");
       console.log("💚 Health check available at /health");
+      console.log("🔌 WebSocket server ready for connections");
       console.log("----------------------------------------");
     });
 
