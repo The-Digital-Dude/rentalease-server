@@ -1148,6 +1148,148 @@ class EmailService {
   }
 
   /**
+   * Check if email address is internal (@rentalease.com.au)
+   * @param {string} email - Email address to check
+   * @returns {boolean} - True if internal
+   */
+  isInternalEmail(email) {
+    if (!email || typeof email !== 'string') return false;
+    return email.toLowerCase().endsWith('@rentalease.com.au');
+  }
+
+  /**
+   * Check if all recipients are internal
+   * @param {Array} recipients - Array of recipient objects
+   * @returns {boolean} - True if all recipients are internal
+   */
+  areAllRecipientsInternal(recipients) {
+    if (!Array.isArray(recipients) || recipients.length === 0) return false;
+    return recipients.every(recipient => {
+      const email = typeof recipient === 'string' ? recipient : recipient.email;
+      return this.isInternalEmail(email);
+    });
+  }
+
+  /**
+   * Deliver email internally (no external service needed)
+   * Creates email records directly in database
+   * @param {Object} emailData - Email data to deliver
+   * @returns {Promise} - Delivery result
+   */
+  async deliverInternalEmail(emailData) {
+    try {
+      const Email = (await import('../models/Email.js')).default;
+      const EmailThread = (await import('../models/EmailThread.js')).default;
+      
+      console.log('📨 Delivering internal email internally');
+      
+      const { from, to, cc = [], bcc = [], subject, bodyHtml, bodyText, attachments = [], inReplyTo, references } = emailData;
+      
+      // Generate a shared conversation ID and unique message IDs for each record
+      const conversationId = `internal-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      
+      const allRecipients = [...to, ...cc, ...bcc];
+      const emailRecords = [];
+      
+      // Create email record for each recipient (inbox)
+      for (const recipient of allRecipients) {
+        const recipientUser = await this.findUserBySystemEmail(recipient.email);
+        if (!recipientUser) {
+          console.warn(`⚠️ Recipient user not found for: ${recipient.email}`);
+          continue;
+        }
+        
+        // Generate unique messageId for this specific email record
+        const uniqueMessageId = `${conversationId}-inbox-${recipientUser._id}`;
+        
+        const recipientEmail = await Email.create({
+          messageId: uniqueMessageId,
+          from,
+          to: [recipient],
+          cc: cc.filter(ccRecipient => ccRecipient.email !== recipient.email),
+          bcc: [], // BCC recipients don't see other BCC recipients
+          subject,
+          bodyHtml,
+          bodyText: bodyText || this.stripHtml(bodyHtml),
+          attachments,
+          folder: 'inbox',
+          isRead: false,
+          owner: {
+            userId: recipientUser._id,
+            userType: recipientUser.userType
+          },
+          timestamp: new Date(),
+          resendStatus: 'delivered', // Mark as delivered since it's internal
+          inReplyTo: inReplyTo || undefined,
+          references: references || []
+        });
+        
+        emailRecords.push(recipientEmail);
+      }
+      
+      // Create email record for sender (sent)
+      const senderUser = await this.findUserBySystemEmail(from.email);
+      if (senderUser) {
+        // Generate unique messageId for sender's record
+        const senderMessageId = `${conversationId}-sent-${senderUser._id}`;
+        
+        const senderEmail = await Email.create({
+          messageId: senderMessageId,
+          from,
+          to,
+          cc,
+          bcc,
+          subject,
+          bodyHtml,
+          bodyText: bodyText || this.stripHtml(bodyHtml),
+          attachments,
+          folder: 'sent',
+          isRead: true, // Sender has "read" their own sent email
+          owner: {
+            userId: senderUser._id,
+            userType: senderUser.userType
+          },
+          timestamp: new Date(),
+          resendStatus: 'delivered',
+          inReplyTo: inReplyTo || undefined,
+          references: references || []
+        });
+        
+        emailRecords.push(senderEmail);
+      }
+      
+      // Create or update threads for all users involved
+      const threadPromises = emailRecords.map(async (email) => {
+        const thread = await EmailThread.findOrCreateThread(email, {
+          userId: email.owner.userId,
+          userType: email.owner.userType
+        });
+        
+        email.threadId = thread._id;
+        await email.save();
+        await thread.addEmail(email);
+        
+        return thread;
+      });
+      
+      await Promise.all(threadPromises);
+      
+      console.log(`✅ Internal email delivered to ${emailRecords.length} records`);
+      
+      return {
+        id: conversationId,
+        status: 'delivered',
+        emailRecords,
+        recipientCount: allRecipients.length
+      };
+      
+    } catch (error) {
+      console.error('❌ Error delivering internal email:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Strip HTML tags from content
    * @param {string} html - HTML content
    * @returns {string} - Plain text

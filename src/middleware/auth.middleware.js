@@ -608,8 +608,13 @@ const authenticateUserTypes = (allowedUserTypes) => {
       // Handle different user types
       let userType = decoded.userType || decoded.type;
 
-      if (userType === "superUser") {
-        userType = "SuperUser";
+      // Normalize user types for consistent matching
+      if (userType === "superUser" || userType === "SuperUser") {
+        userType = "super_user";
+      } else if (userType === "teamMember" || userType === "TeamMember") {
+        userType = "team_member";
+      } else if (userType === "agency" || userType === "Agency") {
+        userType = "agency";
       }
 
       // Check if user type is allowed (handle different formats)
@@ -642,11 +647,7 @@ const authenticateUserTypes = (allowedUserTypes) => {
       }
 
       // Set user data based on type
-      if (
-        userType === "SuperUser" ||
-        userType === "superUser" ||
-        userType === "super_user"
-      ) {
+      if (userType === "super_user") {
         const superUser = await SuperUser.findById(decoded.id);
         if (!superUser) {
           return res.status(401).json({
@@ -659,11 +660,7 @@ const authenticateUserTypes = (allowedUserTypes) => {
           name: superUser.name,
           email: superUser.email,
         };
-      } else if (
-        userType === "TeamMember" ||
-        userType === "teamMember" ||
-        userType === "team_member"
-      ) {
+      } else if (userType === "team_member") {
         const teamMember = await TeamMember.findById(decoded.id);
         if (!teamMember) {
           return res.status(401).json({
@@ -683,7 +680,7 @@ const authenticateUserTypes = (allowedUserTypes) => {
           name: teamMember.name,
           email: teamMember.email,
         };
-      } else if (userType === "Agency" || userType === "agency") {
+      } else if (userType === "agency") {
         const { default: Agency } = await import("../models/Agency.js");
         const agency = await Agency.findById(decoded.id);
         if (!agency) {
@@ -760,7 +757,7 @@ const authenticateUserTypes = (allowedUserTypes) => {
       // Add decoded token info to request
       req.user = {
         ...decoded,
-        type: userType
+        type: userType,
       };
       next();
     } catch (error) {

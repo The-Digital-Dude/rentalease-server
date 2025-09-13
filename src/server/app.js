@@ -24,13 +24,18 @@ import calendarRoutes from "../routes/calendar.routes.js";
 import subscriptionRoutes from "../routes/subscription.routes.js";
 import tenantRoutes from "../routes/tenant.routes.js";
 import emailRoutes from "../routes/email.routes.js";
+import profileRoutes from "../routes/profile.routes.js";
+import chatRoutes from "../routes/chat.routes.js";
 import emailService from "../services/email.service.js";
 
 // Create Express app
 const app = express();
 
 // Middleware
-app.use("/api/v1/subscription/webhook", express.raw({ type: 'application/json' })); // Stripe webhook needs raw body
+app.use(
+  "/api/v1/subscription/webhook",
+  express.raw({ type: "application/json" })
+); // Stripe webhook needs raw body
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cors());
@@ -58,6 +63,8 @@ app.use("/api/v1/calendar", calendarRoutes);
 app.use("/api/v1/subscription", subscriptionRoutes);
 app.use("/api/v1/tenant", tenantRoutes);
 app.use("/api/v1/emails", emailRoutes);
+app.use("/api/v1", profileRoutes);
+app.use("/api/chat", chatRoutes);
 
 // Health check route
 app.get("/health", async (req, res) => {

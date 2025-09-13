@@ -56,11 +56,12 @@ class EmailController {
    */
   async getThreads(req, res) {
     try {
-      const { page = 1, limit = 50, unread, starred, category, search } = req.query;
+      const { page = 1, limit = 50, folder = 'inbox', unread, starred, category, search } = req.query;
       const userId = req.user._id;
       const userType = req.userType;
       
       const result = await EmailThread.getThreadsForUser(userId, userType, {
+        folder,
         page: parseInt(page),
         limit: parseInt(limit),
         unread: unread === 'true',
@@ -129,9 +130,39 @@ class EmailController {
    */
   async sendEmail(req, res) {
     try {
-      const { to, cc, bcc, subject, bodyHtml, bodyText } = req.body;
+      // Parse JSON fields from multipart form data
+      const { subject, bodyHtml, bodyText } = req.body;
+      let { to, cc, bcc } = req.body;
+      
+      // Parse JSON strings if they exist
+      if (typeof to === 'string') to = JSON.parse(to);
+      if (typeof cc === 'string') cc = JSON.parse(cc);
+      if (typeof bcc === 'string') bcc = JSON.parse(bcc);
+      
       const userId = req.user.id;
-      const userType = req.user.type === 'superUser' ? 'SuperUser' : req.user.type;
+      
+      // Normalize user type to match model names
+      let userType;
+      switch (req.user.type) {
+        case 'superUser':
+          userType = 'SuperUser';
+          break;
+        case 'agency':
+          userType = 'Agency';
+          break;
+        case 'propertyManager':
+          userType = 'PropertyManager';
+          break;
+        case 'teamMember':
+          userType = 'TeamMember';
+          break;
+        case 'technician':
+          userType = 'Technician';
+          break;
+        default:
+          userType = req.user.type; // fallback to original
+          break;
+      }
       
       // Get actual user from database to access systemEmail
       let user;
@@ -203,55 +234,96 @@ class EmailController {
           });
         }
       }
+
+      // Check if all recipients are internal
+      const allRecipients = [...toRecipients, ...ccRecipients, ...bccRecipients];
+      const isInternalOnly = emailService.areAllRecipientsInternal(allRecipients);
       
-      // Send via Resend
-      const resendResult = await emailService.sendUserEmail({
-        from,
-        to: toRecipients,
-        cc: ccRecipients,
-        bcc: bccRecipients,
-        subject,
-        bodyHtml,
-        bodyText: bodyText || this.stripHtml(bodyHtml),
-        attachments: attachments.map(att => ({
-          filename: att.filename,
-          path: att.cloudinaryUrl
-        }))
-      });
+      let result;
       
-      // Create email record in database
-      const email = await Email.create({
-        messageId: resendResult.id || `local-${Date.now()}`,
-        from,
-        to: toRecipients,
-        cc: ccRecipients,
-        bcc: bccRecipients,
-        subject,
-        bodyHtml,
-        bodyText: bodyText || this.stripHtml(bodyHtml),
-        attachments,
-        folder: 'sent',
-        isRead: true,
-        owner: { userId, userType },
-        resendData: resendResult,
-        timestamp: new Date()
-      });
-      
-      // Find or create thread
-      const thread = await EmailThread.findOrCreateThread(email, { userId, userType });
-      email.threadId = thread._id;
-      await email.save();
-      
-      // Add email to thread
-      await thread.addEmail(email);
-      
-      console.log(`✅ Email sent successfully: ${email._id}`);
-      
-      res.json({
-        success: true,
-        data: { email, thread },
-        message: 'Email sent successfully'
-      });
+      if (isInternalOnly) {
+        console.log('📨 Sending internal email (no external delivery)');
+        
+        // Handle internal email delivery
+        result = await emailService.deliverInternalEmail({
+          from,
+          to: toRecipients,
+          cc: ccRecipients,
+          bcc: bccRecipients,
+          subject,
+          bodyHtml,
+          bodyText: bodyText || this.stripHtml(bodyHtml),
+          attachments
+        });
+        
+        // Return the first email record created (sender's sent copy) for response
+        const senderEmailRecord = result.emailRecords.find(record => record.folder === 'sent');
+        
+        console.log(`✅ Internal email delivered to ${result.recipientCount} recipients`);
+        
+        res.json({
+          success: true,
+          data: { 
+            email: senderEmailRecord, 
+            messageId: result.id,
+            internal: true,
+            recipientCount: result.recipientCount
+          },
+          message: 'Internal email sent successfully'
+        });
+        
+      } else {
+        console.log('📤 Sending external email via Resend');
+        
+        // Send via Resend for external recipients
+        const resendResult = await emailService.sendUserEmail({
+          from,
+          to: toRecipients,
+          cc: ccRecipients,
+          bcc: bccRecipients,
+          subject,
+          bodyHtml,
+          bodyText: bodyText || this.stripHtml(bodyHtml),
+          attachments: attachments.map(att => ({
+            filename: att.filename,
+            path: att.cloudinaryUrl
+          }))
+        });
+        
+        // Create email record in database (sent folder for sender)
+        const email = await Email.create({
+          messageId: resendResult.id || `local-${Date.now()}`,
+          from,
+          to: toRecipients,
+          cc: ccRecipients,
+          bcc: bccRecipients,
+          subject,
+          bodyHtml,
+          bodyText: bodyText || this.stripHtml(bodyHtml),
+          attachments,
+          folder: 'sent',
+          isRead: true,
+          owner: { userId, userType },
+          resendData: resendResult,
+          timestamp: new Date()
+        });
+        
+        // Find or create thread
+        const thread = await EmailThread.findOrCreateThread(email, { userId, userType });
+        email.threadId = thread._id;
+        await email.save();
+        
+        // Add email to thread
+        await thread.addEmail(email);
+        
+        console.log(`✅ External email sent successfully: ${email._id}`);
+        
+        res.json({
+          success: true,
+          data: { email, thread, external: true },
+          message: 'Email sent successfully'
+        });
+      }
     } catch (error) {
       console.error('❌ Error sending email:', error);
       res.status(500).json({
@@ -263,15 +335,65 @@ class EmailController {
 
   /**
    * Reply to email
-   * Thinking: Must maintain thread context
+   * Handles both internal and external replies
    */
   async replyToEmail(req, res) {
     try {
       const { id } = req.params;
       const { bodyHtml, bodyText, replyAll = false } = req.body;
-      const userId = req.user._id;
-      const userType = req.userType;
-      const user = req.user;
+      const userId = req.user._id || req.user.id;
+      
+      // Normalize user type to match model names
+      let userType = req.userType || req.user.type;
+      switch (userType) {
+        case 'superUser':
+          userType = 'SuperUser';
+          break;
+        case 'agency':
+          userType = 'Agency';
+          break;
+        case 'propertyManager':
+          userType = 'PropertyManager';
+          break;
+        case 'teamMember':
+          userType = 'TeamMember';
+          break;
+        case 'technician':
+          userType = 'Technician';
+          break;
+        default:
+          // Keep as is if already normalized
+          break;
+      }
+      
+      // Get actual user from database to access systemEmail
+      let user;
+      switch (userType) {
+        case 'SuperUser':
+          user = await SuperUser.findById(userId);
+          break;
+        case 'Agency':
+          user = await Agency.findById(userId);
+          break;
+        case 'PropertyManager':
+          user = await PropertyManager.findById(userId);
+          break;
+        case 'TeamMember':
+          user = await TeamMember.findById(userId);
+          break;
+        case 'Technician':
+          user = await Technician.findById(userId);
+          break;
+        default:
+          throw new Error(`Unknown user type: ${userType}`);
+      }
+      
+      if (!user || !user.systemEmail) {
+        return res.status(400).json({
+          success: false,
+          message: 'User system email not found'
+        });
+      }
       
       // Get original email
       const originalEmail = await Email.findOne({
@@ -287,9 +409,20 @@ class EmailController {
         });
       }
       
+      // Prepare sender information
+      const from = {
+        email: user.systemEmail,
+        name: user.name || user.fullName || user.companyName || user.firstName + ' ' + user.lastName,
+        userId,
+        userType
+      };
+      
       // Prepare reply recipients
       const to = [originalEmail.from];
-      const cc = replyAll ? [...originalEmail.to.filter(r => r.email !== user.systemEmail), ...originalEmail.cc] : [];
+      const cc = replyAll ? [
+        ...originalEmail.to.filter(r => r.email !== user.systemEmail), 
+        ...(originalEmail.cc || []).filter(r => r.email !== user.systemEmail)
+      ] : [];
       
       // Create reply subject
       const subject = originalEmail.subject.startsWith('Re:') 
@@ -304,21 +437,126 @@ class EmailController {
       
       const finalBodyHtml = bodyHtml + quotedText;
       
-      // Send the reply using the main sendEmail logic
-      req.body = {
-        to,
-        cc,
-        subject,
-        bodyHtml: finalBodyHtml,
-        bodyText: bodyText || this.stripHtml(bodyHtml)
-      };
+      // Handle attachments if any
+      let attachments = [];
+      if (req.files && req.files.length > 0) {
+        console.log(`📎 Processing ${req.files.length} reply attachments`);
+        
+        for (const file of req.files) {
+          // Upload to Cloudinary
+          const result = await cloudinary.uploader.upload(file.path, {
+            resource_type: 'auto',
+            folder: 'email-attachments',
+            public_id: `${Date.now()}-${file.originalname}`
+          });
+          
+          attachments.push({
+            id: result.public_id,
+            filename: file.originalname,
+            contentType: file.mimetype,
+            size: file.size,
+            cloudinaryUrl: result.secure_url,
+            cloudinaryPublicId: result.public_id
+          });
+        }
+      }
       
-      // Set email threading headers
-      req.body.inReplyTo = originalEmail.messageId;
-      req.body.references = [...(originalEmail.references || []), originalEmail.messageId];
+      // Check if all recipients are internal
+      const allRecipients = [...to, ...cc];
+      const isInternalOnly = emailService.areAllRecipientsInternal(allRecipients);
       
-      // Call sendEmail with modified request
-      await this.sendEmail(req, res);
+      if (isInternalOnly) {
+        console.log('📨 Sending internal reply');
+        
+        // Handle internal email reply
+        const result = await emailService.deliverInternalEmail({
+          from,
+          to,
+          cc,
+          bcc: [],
+          subject,
+          bodyHtml: finalBodyHtml,
+          bodyText: bodyText || this.stripHtml(finalBodyHtml),
+          attachments,
+          inReplyTo: originalEmail.messageId,
+          references: [...(originalEmail.references || []), originalEmail.messageId]
+        });
+        
+        // Update the email records with threading information
+        for (const emailRecord of result.emailRecords) {
+          emailRecord.inReplyTo = originalEmail.messageId;
+          emailRecord.references = [...(originalEmail.references || []), originalEmail.messageId];
+          await emailRecord.save();
+        }
+        
+        const senderEmailRecord = result.emailRecords.find(record => record.folder === 'sent');
+        
+        console.log(`✅ Internal reply delivered to ${result.recipientCount} recipients`);
+        
+        res.json({
+          success: true,
+          data: { 
+            email: senderEmailRecord, 
+            messageId: result.id,
+            internal: true,
+            recipientCount: result.recipientCount
+          },
+          message: 'Reply sent successfully'
+        });
+        
+      } else {
+        console.log('📤 Sending external reply via Resend');
+        
+        // Send external reply via Resend
+        const resendResult = await emailService.sendUserEmail({
+          from,
+          to,
+          cc,
+          subject,
+          bodyHtml: finalBodyHtml,
+          bodyText: bodyText || this.stripHtml(finalBodyHtml),
+          attachments: attachments.map(att => ({
+            filename: att.filename,
+            path: att.cloudinaryUrl
+          }))
+        });
+        
+        // Create email record for sender
+        const email = await Email.create({
+          messageId: resendResult.id || `reply-${Date.now()}`,
+          from,
+          to,
+          cc,
+          subject,
+          bodyHtml: finalBodyHtml,
+          bodyText: bodyText || this.stripHtml(finalBodyHtml),
+          attachments,
+          folder: 'sent',
+          isRead: true,
+          owner: { userId, userType },
+          resendData: resendResult,
+          inReplyTo: originalEmail.messageId,
+          references: [...(originalEmail.references || []), originalEmail.messageId],
+          timestamp: new Date()
+        });
+        
+        // Find or create thread (should use existing thread)
+        const thread = await EmailThread.findOrCreateThread(email, { userId, userType });
+        email.threadId = thread._id;
+        await email.save();
+        
+        // Add email to thread
+        await thread.addEmail(email);
+        
+        console.log(`✅ External reply sent successfully: ${email._id}`);
+        
+        res.json({
+          success: true,
+          data: { email, thread, external: true },
+          message: 'Reply sent successfully'
+        });
+      }
+      
     } catch (error) {
       console.error('❌ Error replying to email:', error);
       res.status(500).json({
@@ -372,6 +610,103 @@ class EmailController {
       res.status(500).json({
         success: false,
         message: error.message || 'Failed to update email status'
+      });
+    }
+  }
+
+  /**
+   * Save email as draft
+   */
+  async saveDraft(req, res) {
+    try {
+      const { to, cc, bcc, subject, bodyHtml, bodyText } = req.body;
+      
+      // Get user info from middleware (set by authenticate middleware)
+      const userId = req.user.id || req.user._id;  // JWT has 'id' field
+      let userType = req.user.type;
+
+      // Normalize user type to match model names
+      switch (req.user.type) {
+        case 'superUser': userType = 'SuperUser'; break;
+        case 'agency': userType = 'Agency'; break;
+        case 'propertyManager': userType = 'PropertyManager'; break;
+        case 'technician': userType = 'Technician'; break;
+        default: userType = req.user.type;
+      }
+
+      console.log(`💾 Saving draft for ${userType} ${userId}`);
+
+      // Handle file attachments from multipart
+      const attachments = [];
+      if (req.files && req.files.length > 0) {
+        // Process file uploads with cloudinary (same as sendEmail)
+        for (const file of req.files) {
+          try {
+            const result = await cloudinary.uploader.upload(file.path, {
+              folder: 'email-attachments',
+              resource_type: 'auto',
+              public_id: `${Date.now()}-${file.originalname}`,
+            });
+
+            attachments.push({
+              filename: file.originalname,
+              contentType: file.mimetype,
+              size: file.size,
+              cloudinaryUrl: result.secure_url,
+              cloudinaryPublicId: result.public_id
+            });
+
+            // Clean up temp file
+            if (fs.existsSync(file.path)) {
+              fs.unlinkSync(file.path);
+            }
+          } catch (uploadError) {
+            console.error('❌ Attachment upload failed:', uploadError);
+            // Continue with other attachments
+          }
+        }
+      }
+
+      // Parse recipients
+      const parsedTo = typeof to === 'string' ? JSON.parse(to) : to;
+      const parsedCc = cc ? (typeof cc === 'string' ? JSON.parse(cc) : cc) : [];
+      const parsedBcc = bcc ? (typeof bcc === 'string' ? JSON.parse(bcc) : bcc) : [];
+
+      // Create draft email record
+      const draftEmail = new Email({
+        messageId: `draft-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        from: {
+          email: req.user.email,
+          name: req.user.name || req.user.email,
+          userId: userId,  // Use the extracted userId
+          userType: userType
+        },
+        to: parsedTo,
+        cc: parsedCc,
+        bcc: parsedBcc,
+        subject: subject || '(No Subject)',
+        bodyHtml,
+        bodyText: bodyText || (bodyHtml ? bodyHtml.replace(/<[^>]*>/g, '').trim() : ''),
+        attachments,
+        folder: 'drafts',
+        isRead: false,
+        owner: { userId, userType },
+        timestamp: new Date()
+      });
+
+      await draftEmail.save();
+
+      res.json({
+        success: true,
+        data: { email: draftEmail },
+        message: 'Draft saved successfully'
+      });
+
+    } catch (error) {
+      console.error('❌ Error saving draft:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Failed to save draft'
       });
     }
   }
@@ -458,6 +793,49 @@ class EmailController {
       res.status(500).json({
         success: false,
         message: error.message || 'Failed to delete email'
+      });
+    }
+  }
+
+  /**
+   * Restore email from trash
+   */
+  async restoreEmail(req, res) {
+    try {
+      const { id } = req.params;
+      const userId = req.user._id;
+      const userType = req.userType;
+      
+      const email = await Email.findOne({
+        _id: id,
+        'owner.userId': userId,
+        'owner.userType': userType,
+        folder: 'trash'
+      });
+      
+      if (!email) {
+        return res.status(404).json({
+          success: false,
+          message: 'Email not found in trash'
+        });
+      }
+      
+      // Restore to sent folder for our transactional email system
+      email.folder = 'sent';
+      email.deletedAt = undefined;
+      email.deletedBy = undefined;
+      await email.save();
+      
+      res.json({
+        success: true,
+        data: { email },
+        message: 'Email restored to sent folder'
+      });
+    } catch (error) {
+      console.error('❌ Error restoring email:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Failed to restore email'
       });
     }
   }

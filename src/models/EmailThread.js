@@ -229,6 +229,7 @@ emailThreadSchema.methods.softDelete = async function (userId) {
 // Static method to get threads for a user
 emailThreadSchema.statics.getThreadsForUser = async function (userId, userType, options = {}) {
   const {
+    folder = "inbox",
     page = 1,
     limit = 50,
     unread = undefined,
@@ -239,7 +240,20 @@ emailThreadSchema.statics.getThreadsForUser = async function (userId, userType, 
     category = undefined
   } = options;
 
+  // First, find email IDs that match the folder and owner
+  const Email = mongoose.model("Email");
+  const emailsInFolder = await Email.find({
+    "owner.userId": userId,
+    "owner.userType": userType,
+    folder: folder,
+    deletedAt: { $exists: false }
+  }).select("_id threadId");
+
+  // Get unique thread IDs from these emails
+  const threadIds = [...new Set(emailsInFolder.filter(e => e.threadId).map(e => e.threadId))];
+
   const query = {
+    _id: { $in: threadIds },
     "owner.userId": userId,
     "owner.userType": userType,
     deletedAt: { $exists: false }

@@ -75,6 +75,19 @@ router.post(
 );
 
 /**
+ * POST /api/v1/emails/draft
+ * Save email as draft
+ * Body: to[], cc[], bcc[], subject, bodyHtml, bodyText
+ * Files: attachments (multipart/form-data)
+ */
+router.post(
+  "/draft",
+  authenticate,
+  upload.array("attachments", 5),
+  emailController.saveDraft
+);
+
+/**
  * POST /api/v1/emails/:id/reply
  * Reply to email
  * Body: bodyHtml, bodyText, replyAll (boolean)
@@ -105,6 +118,12 @@ router.put("/:id/star", authenticate, emailController.toggleStar);
  * Query params: permanent (boolean)
  */
 router.delete("/:id", authenticate, emailController.deleteEmail);
+
+/**
+ * PUT /api/v1/emails/:id/restore
+ * Restore email from trash
+ */
+router.put("/:id/restore", authenticate, emailController.restoreEmail);
 
 // ============================================
 // THREAD OPERATIONS

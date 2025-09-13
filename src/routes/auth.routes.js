@@ -71,10 +71,14 @@ router.post("/register", sanitizeUserInput(), async (req, res) => {
 // Login Super User
 router.post("/login", async (req, res) => {
   try {
+    console.log("🔑 Login request received:", { email: req.body.email });
     const { email, password } = req.body;
 
+    console.log("🔍 Looking up user in database...");
     // Find super user and select password
     const superUser = await SuperUser.findOne({ email }).select("+password");
+    console.log("✅ Database query complete:", superUser ? "User found" : "No user found");
+    
     if (!superUser) {
       return res.status(401).json({
         status: "error",
@@ -82,8 +86,11 @@ router.post("/login", async (req, res) => {
       });
     }
 
+    console.log("🔐 Comparing password...");
     // Check password
     const isPasswordValid = await superUser.comparePassword(password);
+    console.log("✅ Password comparison complete:", isPasswordValid);
+    
     if (!isPasswordValid) {
       return res.status(401).json({
         status: "error",

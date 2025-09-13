@@ -32,9 +32,11 @@
     "node-cron": "^4.2.1",
     "react-hot-toast": "^2.5.2",
     "resend": "^4.6.0",
-    "stripe": "^18.4.0"
+    "stripe": "^18.4.0",
+    "ws": "^8.18.3"
   },
   "devDependencies": {
+    "node-fetch": "^3.3.2",
     "nodemon": "^3.1.10"
   }
 }
