@@ -26,6 +26,7 @@ import tenantRoutes from "../routes/tenant.routes.js";
 import emailRoutes from "../routes/email.routes.js";
 import profileRoutes from "../routes/profile.routes.js";
 import chatRoutes from "../routes/chat.routes.js";
+import websiteLeadRoutes from "../routes/websiteLead.routes.js";
 import emailService from "../services/email.service.js";
 
 // Create Express app
@@ -65,6 +66,7 @@ app.use("/api/v1/tenant", tenantRoutes);
 app.use("/api/v1/emails", emailRoutes);
 app.use("/api/v1", profileRoutes);
 app.use("/api/chat", chatRoutes);
+app.use("/api/v1/website-leads", websiteLeadRoutes);
 
 // Health check route
 app.get("/health", async (req, res) => {
