@@ -121,7 +121,9 @@ router.get("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'Tec
               { "technicianData.lastName": searchRegex },
               { "technicianData.email": searchRegex },
               { "jobData.job_id": searchRegex },
-              { "jobData.property": searchRegex }
+              { "propertyData.address.street": searchRegex },
+              { "propertyData.address.suburb": searchRegex },
+              { "propertyData.address.fullAddress": searchRegex }
             ]
           }
         },
@@ -168,8 +170,9 @@ router.get("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'Tec
               { "technicianData.lastName": searchRegex },
               { "technicianData.email": searchRegex },
               { "jobData.job_id": searchRegex },
-              { "propertyData.name": searchRegex },
-              { "propertyData.address": searchRegex }
+              { "propertyData.address.street": searchRegex },
+              { "propertyData.address.suburb": searchRegex },
+              { "propertyData.address.fullAddress": searchRegex }
             ]
           }
         },
@@ -214,7 +217,7 @@ router.get("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'Tec
           select: "job_id property jobType dueDate",
           populate: {
             path: "property",
-            select: "name address"
+            select: "address"
           }
         })
         .populate("agencyId", "name email")
