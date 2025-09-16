@@ -272,9 +272,12 @@ jobSchema.methods.getSummary = function () {
   if (this.assignedTechnician) {
     transformedTechnician = {
       id: this.assignedTechnician._id || this.assignedTechnician.id,
-      name: this.assignedTechnician.fullName || 
-            `${this.assignedTechnician.firstName || ''} ${this.assignedTechnician.lastName || ''}`.trim(),
-      tradeType: this.assignedTechnician.tradeType || 'Technician',
+      name:
+        this.assignedTechnician.fullName ||
+        `${this.assignedTechnician.firstName || ""} ${
+          this.assignedTechnician.lastName || ""
+        }`.trim(),
+      tradeType: this.assignedTechnician.tradeType || "Technician",
     };
   }
 
