@@ -124,6 +124,7 @@ technicianPaymentSchema.methods.getSummary = function () {
     amount: this.amount,
     status: this.status,
     jobCompletedAt: this.jobCompletedAt,
+    paymentDate: this.paymentDate,
     createdAt: this.createdAt,
   };
 };
