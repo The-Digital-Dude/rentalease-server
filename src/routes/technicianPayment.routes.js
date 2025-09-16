@@ -98,6 +98,14 @@ router.get("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'Tec
         },
         {
           $lookup: {
+            from: "properties",
+            localField: "jobData.property",
+            foreignField: "_id",
+            as: "propertyData"
+          }
+        },
+        {
+          $lookup: {
             from: "agencies",
             localField: "agencyId",
             foreignField: "_id",
@@ -144,6 +152,14 @@ router.get("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'Tec
           }
         },
         {
+          $lookup: {
+            from: "properties",
+            localField: "jobData.property",
+            foreignField: "_id",
+            as: "propertyData"
+          }
+        },
+        {
           $match: {
             $or: [
               { paymentNumber: searchRegex },
@@ -152,7 +168,8 @@ router.get("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'Tec
               { "technicianData.lastName": searchRegex },
               { "technicianData.email": searchRegex },
               { "jobData.job_id": searchRegex },
-              { "jobData.property": searchRegex }
+              { "propertyData.name": searchRegex },
+              { "propertyData.address": searchRegex }
             ]
           }
         },
@@ -166,7 +183,10 @@ router.get("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'Tec
       payments = result.map(doc => ({
         ...doc,
         technicianId: doc.technicianData[0],
-        jobId: doc.jobData[0],
+        jobId: {
+          ...doc.jobData[0],
+          property: doc.propertyData[0]
+        },
         agencyId: doc.agencyData[0],
         getSummary: function() {
           return {
@@ -189,7 +209,14 @@ router.get("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'Tec
       // Regular query without search
       payments = await TechnicianPayment.find(filter)
         .populate("technicianId", "firstName lastName email phone")
-        .populate("jobId", "job_id property jobType dueDate")
+        .populate({
+          path: "jobId",
+          select: "job_id property jobType dueDate",
+          populate: {
+            path: "property",
+            select: "name address"
+          }
+        })
         .populate("agencyId", "name email")
         .sort({ createdAt: -1 })
         .skip(skip)
