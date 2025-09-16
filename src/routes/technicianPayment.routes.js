@@ -16,6 +16,7 @@ router.get("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'Tec
       jobType,
       startDate,
       endDate,
+      search,
       page = 1,
       limit = 20,
     } = req.query;
@@ -65,21 +66,137 @@ router.get("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'Tec
       }
     }
 
+
     // Pagination
     const skip = (parseInt(page) - 1) * parseInt(limit);
     const limitNum = parseInt(limit);
 
-    // Execute query with pagination
-    const payments = await TechnicianPayment.find(filter)
-      .populate("technicianId", "firstName lastName email phone")
-      .populate("jobId", "job_id property jobType dueDate")
-      .populate("agencyId", "name email")
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limitNum);
+    // Execute query with pagination and search
+    let payments, total;
 
-    // Get total count for pagination
-    const total = await TechnicianPayment.countDocuments(filter);
+    if (search && search.trim()) {
+      // Use aggregation pipeline for searching populated fields
+      const searchRegex = new RegExp(search.trim(), 'i');
+
+      const pipeline = [
+        { $match: filter },
+        {
+          $lookup: {
+            from: "technicians",
+            localField: "technicianId",
+            foreignField: "_id",
+            as: "technicianData"
+          }
+        },
+        {
+          $lookup: {
+            from: "jobs",
+            localField: "jobId",
+            foreignField: "_id",
+            as: "jobData"
+          }
+        },
+        {
+          $lookup: {
+            from: "agencies",
+            localField: "agencyId",
+            foreignField: "_id",
+            as: "agencyData"
+          }
+        },
+        {
+          $match: {
+            $or: [
+              { paymentNumber: searchRegex },
+              { notes: searchRegex },
+              { "technicianData.firstName": searchRegex },
+              { "technicianData.lastName": searchRegex },
+              { "technicianData.email": searchRegex },
+              { "jobData.job_id": searchRegex },
+              { "jobData.property": searchRegex }
+            ]
+          }
+        },
+        { $sort: { createdAt: -1 } },
+        { $skip: skip },
+        { $limit: limitNum }
+      ];
+
+      const result = await TechnicianPayment.aggregate(pipeline);
+
+      // Get total count for pagination
+      const countPipeline = [
+        { $match: filter },
+        {
+          $lookup: {
+            from: "technicians",
+            localField: "technicianId",
+            foreignField: "_id",
+            as: "technicianData"
+          }
+        },
+        {
+          $lookup: {
+            from: "jobs",
+            localField: "jobId",
+            foreignField: "_id",
+            as: "jobData"
+          }
+        },
+        {
+          $match: {
+            $or: [
+              { paymentNumber: searchRegex },
+              { notes: searchRegex },
+              { "technicianData.firstName": searchRegex },
+              { "technicianData.lastName": searchRegex },
+              { "technicianData.email": searchRegex },
+              { "jobData.job_id": searchRegex },
+              { "jobData.property": searchRegex }
+            ]
+          }
+        },
+        { $count: "total" }
+      ];
+
+      const countResult = await TechnicianPayment.aggregate(countPipeline);
+      total = countResult.length > 0 ? countResult[0].total : 0;
+
+      // Convert aggregation result to proper TechnicianPayment documents
+      payments = result.map(doc => ({
+        ...doc,
+        technicianId: doc.technicianData[0],
+        jobId: doc.jobData[0],
+        agencyId: doc.agencyData[0],
+        getSummary: function() {
+          return {
+            id: this._id,
+            paymentNumber: this.paymentNumber,
+            technicianId: this.technicianId,
+            jobId: this.jobId,
+            agencyId: this.agencyId,
+            jobType: this.jobType,
+            amount: this.amount,
+            status: this.status,
+            jobCompletedAt: this.jobCompletedAt,
+            paymentDate: this.paymentDate,
+            notes: this.notes,
+            createdAt: this.createdAt
+          };
+        }
+      }));
+    } else {
+      // Regular query without search
+      payments = await TechnicianPayment.find(filter)
+        .populate("technicianId", "firstName lastName email phone")
+        .populate("jobId", "job_id property jobType dueDate")
+        .populate("agencyId", "name email")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNum);
+
+      total = await TechnicianPayment.countDocuments(filter);
+    }
 
     // Calculate pagination info
     const totalPages = Math.ceil(total / limitNum);
