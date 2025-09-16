@@ -20,6 +20,7 @@ router.get("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency']), as
       status,
       availabilityStatus,
       search,
+      agencyId,
       sortBy = "createdAt",
       sortOrder = "desc",
     } = req.query;
@@ -32,6 +33,10 @@ router.get("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency']), as
       console.log(req.agency, "req agency....");
       filter["owner.ownerType"] = "Agency";
       filter["owner.ownerId"] = req.agency.id.toString();
+    } else if (agencyId) {
+      // Super users and team members can filter by specific agency
+      filter["owner.ownerType"] = "Agency";
+      filter["owner.ownerId"] = agencyId;
     }
 
     if (status) {
@@ -59,7 +64,8 @@ router.get("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency']), as
       .sort(sort)
       .skip(skip)
       .limit(parseInt(limit))
-      .select("-password -otp -otpExpiry");
+      .select("-password -otp -otpExpiry")
+      .populate("owner.ownerId", "companyName email phone");
 
     const total = await PropertyManager.countDocuments(filter);
     const totalPages = Math.ceil(total / parseInt(limit));
