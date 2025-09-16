@@ -284,6 +284,7 @@ jobSchema.methods.getSummary = function () {
     property: this.property,
     jobType: this.jobType,
     dueDate: this.dueDate,
+    completedAt: this.completedAt,
     shift: this.shift,
     scheduledStartTime: this.scheduledStartTime,
     scheduledEndTime: this.scheduledEndTime,
