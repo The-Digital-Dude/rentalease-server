@@ -138,7 +138,8 @@ router.post('/', async (req, res) => {
       email,
       password,
       createdBy: req.superUser.id,
-      agency: req.body.agency, // Assuming agency ID is sent in the request body
+      // Agency is optional for SuperUser-created team members
+      ...(req.body.agency && { agency: req.body.agency })
     });
 
     await teamMember.save();

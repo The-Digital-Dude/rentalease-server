@@ -42,7 +42,7 @@ const teamMemberSchema = new mongoose.Schema({
   agency: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Agency',
-    required: [true, 'Agency is required']
+    required: false // Optional - SuperUsers can create team members without agency
   },
   status: {
     type: String,
