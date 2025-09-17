@@ -1994,6 +1994,102 @@ router.post(
   }
 );
 
+// Delete Document from Property
+router.delete(
+  "/:id/documents/:documentId",
+  authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency']),
+  async (req, res) => {
+    try {
+      const { id, documentId } = req.params;
+
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        return res.status(400).json({
+          status: "error",
+          message: "Invalid property ID",
+        });
+      }
+
+      if (!mongoose.Types.ObjectId.isValid(documentId)) {
+        return res.status(400).json({
+          status: "error",
+          message: "Invalid document ID",
+        });
+      }
+
+      const agencyFilter = getAgencyFilter(req);
+      if (agencyFilter === null) {
+        return res.status(401).json({
+          status: "error",
+          message: "Authentication required",
+        });
+      }
+
+      const filter = { _id: id, isActive: true, ...agencyFilter };
+      const property = await Property.findOne(filter);
+
+      if (!property) {
+        return res.status(404).json({
+          status: "error",
+          message: "Property not found",
+        });
+      }
+
+      // Find the document to delete
+      const documentIndex = property.documents.findIndex(
+        (doc) => doc._id.toString() === documentId
+      );
+
+      if (documentIndex === -1) {
+        return res.status(404).json({
+          status: "error",
+          message: "Document not found",
+        });
+      }
+
+      const documentToDelete = property.documents[documentIndex];
+
+      // Delete from Cloudinary if it has a cloudinaryId
+      if (documentToDelete.cloudinaryId) {
+        try {
+          await fileUploadService.deleteFromCloudinary(documentToDelete.cloudinaryId);
+        } catch (cloudinaryError) {
+          console.warn("Failed to delete from Cloudinary:", cloudinaryError);
+          // Continue with database deletion even if Cloudinary deletion fails
+        }
+      }
+
+      // Remove document from array
+      property.documents.splice(documentIndex, 1);
+      await property.save();
+
+      res.status(200).json({
+        status: "success",
+        message: "Document deleted successfully",
+        data: {
+          property: {
+            id: property._id,
+            documents: property.documents?.map((document) => ({
+              id: document._id,
+              name: document.name,
+              type: document.type,
+              size: document.size,
+              url: document.url,
+              cloudinaryId: document.cloudinaryId,
+              uploadDate: document.uploadDate,
+            })),
+          }
+        },
+      });
+    } catch (error) {
+      console.error("Delete document error:", error);
+      res.status(500).json({
+        status: "error",
+        message: "An error occurred while deleting the document",
+      });
+    }
+  }
+);
+
 // Toggle Property Doubt Status
 router.patch(
   "/:id/toggle-doubt",
