@@ -183,6 +183,38 @@ const propertySchema = new mongoose.Schema(
       default: false,
     },
 
+    documents: {
+      type: [
+        {
+          name: {
+            type: String,
+            required: true,
+            trim: true,
+          },
+          type: {
+            type: String,
+            required: true,
+          },
+          size: {
+            type: Number,
+            required: true,
+          },
+          url: {
+            type: String,
+            required: true,
+          },
+          cloudinaryId: {
+            type: String,
+          },
+          uploadDate: {
+            type: Date,
+            default: Date.now,
+          },
+        },
+      ],
+      default: [],
+    },
+
     // Metadata
     isActive: {
       type: Boolean,
