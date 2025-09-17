@@ -26,6 +26,14 @@ const websiteLeadSchema = new mongoose.Schema(
         "Please enter a valid email",
       ],
     },
+    phone: {
+      type: String,
+      trim: true,
+      match: [
+        /^\+?[0-9()\-\.\s]{7,20}$/,
+        "Please enter a valid phone number",
+      ],
+    },
     message: {
       type: String,
       required: [true, "Message is required"],

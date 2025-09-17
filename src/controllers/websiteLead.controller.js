@@ -5,10 +5,16 @@ import mongoose from "mongoose";
 const isValidEmail = (email) =>
   /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/.test(email);
 
+const isValidPhone = (phone) =>
+  /^\+?[0-9()\-\.\s]{7,20}$/.test(phone);
+
+const escapeRegex = (value = "") =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 // Create a new website lead (PUBLIC ENDPOINT - no auth required)
 export const createLead = async (req, res) => {
   try {
-    const { firstName, lastName, email, message } = req.body;
+    const { firstName, lastName, email, message, phone } = req.body;
 
     // Validation
     const errors = {};
@@ -25,6 +31,12 @@ export const createLead = async (req, res) => {
     }
     if (!message || message.trim().length < 10) {
       errors.message = "Message is required (min 10 characters)";
+    }
+
+    const trimmedPhone = typeof phone === "string" ? phone.trim() : "";
+
+    if (trimmedPhone && !isValidPhone(trimmedPhone)) {
+      errors.phone = "Invalid phone format";
     }
 
     if (Object.keys(errors).length > 0) {
@@ -54,6 +66,7 @@ export const createLead = async (req, res) => {
       lastName: lastName.trim(),
       email: email.toLowerCase().trim(),
       message: message.trim(),
+      ...(trimmedPhone ? { phone: trimmedPhone } : {}),
     });
 
     const savedLead = await newLead.save();
@@ -67,6 +80,7 @@ export const createLead = async (req, res) => {
           firstName: savedLead.firstName,
           lastName: savedLead.lastName,
           email: savedLead.email,
+          phone: savedLead.phone,
           status: savedLead.status,
           createdAt: savedLead.createdAt,
         },
@@ -95,6 +109,11 @@ export const getLeads = async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
     const status = req.query.status;
+    const searchTerm = typeof req.query.search === "string" ? req.query.search.trim() : "";
+    const sortByQuery = typeof req.query.sortBy === "string" ? req.query.sortBy : "createdAt";
+    const sortOrderQuery = req.query.sortOrder === "asc" ? "asc" : "desc";
+    const startDateParam = req.query.startDate;
+    const endDateParam = req.query.endDate;
     const skip = (page - 1) * limit;
 
     // Build query
@@ -103,9 +122,74 @@ export const getLeads = async (req, res) => {
       query.status = status;
     }
 
+    let startDate = null;
+    let endDate = null;
+
+    if (typeof startDateParam === "string" && startDateParam.trim()) {
+      const parsedStart = new Date(startDateParam);
+      if (Number.isNaN(parsedStart.getTime())) {
+        return res.status(400).json({
+          status: "error",
+          message: "Invalid startDate parameter",
+        });
+      }
+      startDate = parsedStart;
+    }
+
+    if (typeof endDateParam === "string" && endDateParam.trim()) {
+      const parsedEnd = new Date(endDateParam);
+      if (Number.isNaN(parsedEnd.getTime())) {
+        return res.status(400).json({
+          status: "error",
+          message: "Invalid endDate parameter",
+        });
+      }
+      endDate = parsedEnd;
+    }
+
+    if (startDate && endDate && startDate > endDate) {
+      return res.status(400).json({
+        status: "error",
+        message: "startDate cannot be later than endDate",
+      });
+    }
+
+    if (startDate || endDate) {
+      query.createdAt = {};
+      if (startDate) {
+        query.createdAt.$gte = startDate;
+      }
+      if (endDate) {
+        query.createdAt.$lte = endDate;
+      }
+    }
+
+    if (searchTerm) {
+      const regex = new RegExp(escapeRegex(searchTerm), "i");
+      query.$or = [
+        { firstName: regex },
+        { lastName: regex },
+        { email: regex },
+        { phone: regex },
+        { message: regex },
+      ];
+    }
+
+    const allowedSortFields = {
+      createdAt: "createdAt",
+      firstName: "firstName",
+      lastName: "lastName",
+      email: "email",
+      status: "status",
+    };
+
+    const sortField = allowedSortFields[sortByQuery] || "createdAt";
+    const sortDirection = sortOrderQuery === "asc" ? 1 : -1;
+    const sortCriteria = { [sortField]: sortDirection };
+
     // Get leads with pagination
     const leads = await WebsiteLead.find(query)
-      .sort({ createdAt: -1 })
+      .sort(sortCriteria)
       .skip(skip)
       .limit(limit);
 
