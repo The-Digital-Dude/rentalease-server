@@ -36,7 +36,10 @@ const propertyManagerSchema = new mongoose.Schema(
       sparse: true,
       lowercase: true,
       trim: true,
-      match: [/^[a-z0-9.-]+@rentalease\.com\.au$/, 'Must be a valid @rentalease.com.au email']
+      match: [
+        /^[a-z0-9.-]+@rentalease\.com\.au$/,
+        "Must be a valid @rentalease.com.au email",
+      ],
     },
 
     phone: {
@@ -96,7 +99,7 @@ const propertyManagerSchema = new mongoose.Schema(
       ownerType: {
         type: String,
         required: true,
-        enum: ["Agency"],
+        enum: ["Agency", "SuperUser"],
       },
       ownerId: {
         type: mongoose.Schema.Types.ObjectId,
