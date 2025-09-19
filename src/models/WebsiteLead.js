@@ -34,6 +34,22 @@ const websiteLeadSchema = new mongoose.Schema(
         "Please enter a valid phone number",
       ],
     },
+    profession: {
+      type: String,
+      trim: true,
+      enum: [
+        "Property Manager",
+        "Landlord",
+        "Tenant",
+        "Real Estate Agent",
+        "Property Developer",
+        "Property Investor",
+        "Strata Manager",
+        "Building Manager",
+        "Facility Manager",
+        "Other"
+      ],
+    },
     message: {
       type: String,
       required: [true, "Message is required"],
@@ -64,6 +80,7 @@ const websiteLeadSchema = new mongoose.Schema(
 // Index for efficient queries
 websiteLeadSchema.index({ email: 1 });
 websiteLeadSchema.index({ status: 1 });
+websiteLeadSchema.index({ profession: 1 });
 websiteLeadSchema.index({ createdAt: -1 });
 
 const WebsiteLead = mongoose.model("WebsiteLead", websiteLeadSchema);

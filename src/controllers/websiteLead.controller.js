@@ -14,7 +14,7 @@ const escapeRegex = (value = "") =>
 // Create a new website lead (PUBLIC ENDPOINT - no auth required)
 export const createLead = async (req, res) => {
   try {
-    const { firstName, lastName, email, message, phone } = req.body;
+    const { firstName, lastName, email, message, phone, profession } = req.body;
 
     // Validation
     const errors = {};
@@ -67,6 +67,7 @@ export const createLead = async (req, res) => {
       email: email.toLowerCase().trim(),
       message: message.trim(),
       ...(trimmedPhone ? { phone: trimmedPhone } : {}),
+      ...(profession ? { profession: profession.trim() } : {}),
     });
 
     const savedLead = await newLead.save();
@@ -81,6 +82,7 @@ export const createLead = async (req, res) => {
           lastName: savedLead.lastName,
           email: savedLead.email,
           phone: savedLead.phone,
+          profession: savedLead.profession,
           status: savedLead.status,
           createdAt: savedLead.createdAt,
         },
@@ -171,6 +173,7 @@ export const getLeads = async (req, res) => {
         { lastName: regex },
         { email: regex },
         { phone: regex },
+        { profession: regex },
         { message: regex },
       ];
     }
@@ -180,6 +183,7 @@ export const getLeads = async (req, res) => {
       firstName: "firstName",
       lastName: "lastName",
       email: "email",
+      profession: "profession",
       status: "status",
     };
 
@@ -272,7 +276,7 @@ export const updateLead = async (req, res) => {
     }
 
     const { id } = req.params;
-    const { status, notes } = req.body;
+    const { status, notes, profession } = req.body;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({
@@ -289,6 +293,13 @@ export const updateLead = async (req, res) => {
     if (notes && notes.length > 500) {
       errors.notes = "Notes cannot exceed 500 characters";
     }
+    if (profession && ![
+      "Property Manager", "Landlord", "Tenant", "Real Estate Agent",
+      "Property Developer", "Property Investor", "Strata Manager",
+      "Building Manager", "Facility Manager", "Other"
+    ].includes(profession)) {
+      errors.profession = "Invalid profession value";
+    }
 
     if (Object.keys(errors).length > 0) {
       return res.status(400).json({
@@ -301,6 +312,7 @@ export const updateLead = async (req, res) => {
     const updateData = {};
     if (status) updateData.status = status;
     if (notes !== undefined) updateData.notes = notes.trim();
+    if (profession !== undefined) updateData.profession = profession ? profession.trim() : null;
 
     const updatedLead = await WebsiteLead.findByIdAndUpdate(
       id,
