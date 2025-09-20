@@ -1906,6 +1906,229 @@ const generalTemplate = (data) => ({
   `,
 });
 
+/**
+ * Email template for quotation request notification to SuperUser
+ * @param {Object} data - Template data
+ * @param {string} data.agencyName - Agency name
+ * @param {string} data.jobType - Type of job requested
+ * @param {string} data.propertyAddress - Property address
+ * @param {string} data.dueDate - Due date for the job
+ * @param {string} data.description - Job description
+ * @returns {Object} - Email template configuration
+ */
+const quotationRequestTemplate = (data) => ({
+  subject: `New Quotation Request from ${data.agencyName}`,
+  html: `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+      <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #333; margin-bottom: 10px;">New Quotation Request</h1>
+          <div style="width: 50px; height: 3px; background-color: #17a2b8; margin: 0 auto;"></div>
+        </div>
+
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">
+          A new quotation request has been submitted by <strong>${data.agencyName}</strong> for beyond-compliance services.
+        </p>
+
+        <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3 style="color: #333; margin-top: 0;">Request Details:</h3>
+          <ul style="color: #333; line-height: 1.8; margin: 0; padding-left: 20px;">
+            <li><strong>Service Type:</strong> ${data.jobType}</li>
+            <li><strong>Property:</strong> ${data.propertyAddress}</li>
+            <li><strong>Required by:</strong> ${new Date(data.dueDate).toLocaleDateString()}</li>
+            <li><strong>Description:</strong> ${data.description}</li>
+          </ul>
+        </div>
+
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">
+          Please review this request and provide a quotation at your earliest convenience.
+        </p>
+
+        <div style="border-top: 1px solid #eee; padding-top: 20px; margin-top: 30px;">
+          <p style="color: #666; font-size: 12px; margin: 0;">
+            This is an automated notification from RentalEase CRM.
+          </p>
+        </div>
+
+        <p style="color: #333; margin-top: 30px;">
+          Best regards,<br>
+          <strong>RentalEase CRM System</strong>
+        </p>
+      </div>
+    </div>
+  `,
+});
+
+/**
+ * Email template for quotation received notification to Agency
+ * @param {Object} data - Template data
+ * @param {string} data.agencyName - Agency name
+ * @param {string} data.jobType - Type of job
+ * @param {string} data.propertyAddress - Property address
+ * @param {number} data.amount - Quotation amount
+ * @param {string} data.validUntil - Quotation expiry date
+ * @param {string} data.notes - Additional notes
+ * @returns {Object} - Email template configuration
+ */
+const quotationReceivedTemplate = (data) => ({
+  subject: `Quotation Received for ${data.jobType} - ${data.propertyAddress}`,
+  html: `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+      <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #333; margin-bottom: 10px;">Quotation Received</h1>
+          <div style="width: 50px; height: 3px; background-color: #28a745; margin: 0 auto;"></div>
+        </div>
+
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">Dear ${data.agencyName},</p>
+
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">
+          We've prepared a quotation for your requested beyond-compliance service.
+        </p>
+
+        <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3 style="color: #333; margin-top: 0;">Quotation Details:</h3>
+          <ul style="color: #333; line-height: 1.8; margin: 0; padding-left: 20px;">
+            <li><strong>Service:</strong> ${data.jobType}</li>
+            <li><strong>Property:</strong> ${data.propertyAddress}</li>
+            <li><strong>Amount:</strong> <span style="color: #28a745; font-size: 18px; font-weight: bold;">$${data.amount}</span></li>
+            <li><strong>Valid Until:</strong> ${new Date(data.validUntil).toLocaleDateString()}</li>
+            ${data.notes ? `<li><strong>Notes:</strong> ${data.notes}</li>` : ''}
+          </ul>
+        </div>
+
+        <div style="background-color: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <p style="color: #856404; margin: 0; font-size: 14px;">
+            <strong>⏰ Time-Sensitive:</strong> This quotation expires on ${new Date(data.validUntil).toLocaleDateString()}.
+            Please accept or reject this quotation before the expiry date.
+          </p>
+        </div>
+
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">
+          Please log into your RentalEase CRM dashboard to review and respond to this quotation.
+        </p>
+
+        <div style="border-top: 1px solid #eee; padding-top: 20px; margin-top: 30px;">
+          <p style="color: #666; font-size: 12px; margin: 0;">
+            This is an automated notification from RentalEase CRM.
+          </p>
+        </div>
+
+        <p style="color: #333; margin-top: 30px;">
+          Best regards,<br>
+          <strong>RentalEase Team</strong>
+        </p>
+      </div>
+    </div>
+  `,
+});
+
+/**
+ * Email template for quotation acceptance notification to SuperUser
+ * @param {Object} data - Template data
+ * @param {string} data.agencyName - Agency name
+ * @param {string} data.jobType - Type of job
+ * @param {string} data.propertyAddress - Property address
+ * @param {number} data.amount - Quotation amount
+ * @param {string} data.responseNotes - Agency response notes
+ * @returns {Object} - Email template configuration
+ */
+const quotationAcceptedTemplate = (data) => ({
+  subject: `Quotation Accepted by ${data.agencyName} - ${data.jobType}`,
+  html: `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+      <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #333; margin-bottom: 10px;">Quotation Accepted ✅</h1>
+          <div style="width: 50px; height: 3px; background-color: #28a745; margin: 0 auto;"></div>
+        </div>
+
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">
+          Great news! <strong>${data.agencyName}</strong> has accepted your quotation.
+        </p>
+
+        <div style="background-color: #d4edda; border: 1px solid #c3e6cb; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3 style="color: #155724; margin-top: 0;">Accepted Quotation:</h3>
+          <ul style="color: #155724; line-height: 1.8; margin: 0; padding-left: 20px;">
+            <li><strong>Service:</strong> ${data.jobType}</li>
+            <li><strong>Property:</strong> ${data.propertyAddress}</li>
+            <li><strong>Amount:</strong> <span style="font-size: 18px; font-weight: bold;">$${data.amount}</span></li>
+            ${data.responseNotes ? `<li><strong>Agency Notes:</strong> ${data.responseNotes}</li>` : ''}
+          </ul>
+        </div>
+
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">
+          The job and invoice have been automatically created. You can now assign a technician to complete this work.
+        </p>
+
+        <div style="border-top: 1px solid #eee; padding-top: 20px; margin-top: 30px;">
+          <p style="color: #666; font-size: 12px; margin: 0;">
+            This is an automated notification from RentalEase CRM.
+          </p>
+        </div>
+
+        <p style="color: #333; margin-top: 30px;">
+          Best regards,<br>
+          <strong>RentalEase CRM System</strong>
+        </p>
+      </div>
+    </div>
+  `,
+});
+
+/**
+ * Email template for quotation rejection notification to SuperUser
+ * @param {Object} data - Template data
+ * @param {string} data.agencyName - Agency name
+ * @param {string} data.jobType - Type of job
+ * @param {string} data.propertyAddress - Property address
+ * @param {number} data.amount - Quotation amount
+ * @param {string} data.responseNotes - Agency response notes
+ * @returns {Object} - Email template configuration
+ */
+const quotationRejectedTemplate = (data) => ({
+  subject: `Quotation Rejected by ${data.agencyName} - ${data.jobType}`,
+  html: `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+      <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #333; margin-bottom: 10px;">Quotation Rejected</h1>
+          <div style="width: 50px; height: 3px; background-color: #dc3545; margin: 0 auto;"></div>
+        </div>
+
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">
+          <strong>${data.agencyName}</strong> has rejected your quotation for the following service:
+        </p>
+
+        <div style="background-color: #f8d7da; border: 1px solid #f5c6cb; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3 style="color: #721c24; margin-top: 0;">Rejected Quotation:</h3>
+          <ul style="color: #721c24; line-height: 1.8; margin: 0; padding-left: 20px;">
+            <li><strong>Service:</strong> ${data.jobType}</li>
+            <li><strong>Property:</strong> ${data.propertyAddress}</li>
+            <li><strong>Amount:</strong> $${data.amount}</li>
+            ${data.responseNotes ? `<li><strong>Agency Notes:</strong> ${data.responseNotes}</li>` : ''}
+          </ul>
+        </div>
+
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">
+          You may consider revising your quotation or reaching out to the agency for further discussion.
+        </p>
+
+        <div style="border-top: 1px solid #eee; padding-top: 20px; margin-top: 30px;">
+          <p style="color: #666; font-size: 12px; margin: 0;">
+            This is an automated notification from RentalEase CRM.
+          </p>
+        </div>
+
+        <p style="color: #333; margin-top: 30px;">
+          Best regards,<br>
+          <strong>RentalEase CRM System</strong>
+        </p>
+      </div>
+    </div>
+  `,
+});
+
 // Create templates object with all email templates
 const templates = {
   // Original templates
@@ -1942,6 +2165,12 @@ const templates = {
   tenantBookingConfirmation: tenantBookingConfirmationTemplate,
   complianceDue: complianceDueTemplate,
   general: generalTemplate,
+
+  // Quotation templates
+  quotationRequest: quotationRequestTemplate,
+  quotationReceived: quotationReceivedTemplate,
+  quotationAccepted: quotationAcceptedTemplate,
+  quotationRejected: quotationRejectedTemplate,
 };
 
 export default templates;

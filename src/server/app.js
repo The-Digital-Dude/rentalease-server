@@ -28,6 +28,7 @@ import profileRoutes from "../routes/profile.routes.js";
 import chatRoutes from "../routes/chat.routes.js";
 import websiteLeadRoutes from "../routes/websiteLead.routes.js";
 import regionalRoutes from "../routes/regional.routes.js";
+import quotationRoutes from "../routes/quotation.routes.js";
 import emailService from "../services/email.service.js";
 
 // Create Express app
@@ -69,6 +70,7 @@ app.use("/api/v1", profileRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/v1/website-leads", websiteLeadRoutes);
 app.use("/api/v1/regional", regionalRoutes);
+app.use("/api/v1/quotations", quotationRoutes);
 
 // Health check route
 app.get("/health", async (req, res) => {

@@ -29,6 +29,10 @@ const notificationSchema = new mongoose.Schema(
         "CHAT_ACCEPTED",
         "CHAT_TRANSFERRED",
         "CHAT_CLOSED",
+        "QUOTATION_REQUESTED",
+        "QUOTATION_RECEIVED",
+        "QUOTATION_ACCEPTED",
+        "QUOTATION_REJECTED",
       ],
     },
     title: {
