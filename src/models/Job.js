@@ -20,21 +20,55 @@ const jobSchema = new mongoose.Schema(
       ref: "Property",
       required: [true, "Property reference is required"],
     },
+    // Job Category - determines if this is compliance or beyond-compliance
+    jobCategory: {
+      type: String,
+      required: [true, "Job category is required"],
+      enum: {
+        values: ["compliance", "beyond-compliance"],
+        message: "Job category must be either 'compliance' or 'beyond-compliance'",
+      },
+      default: "compliance",
+    },
     jobType: {
       type: String,
       required: [true, "Job type is required"],
-      enum: {
-        values: [
-          "Gas",
-          "Electrical",
-          "Smoke",
-          "Repairs",
-          "Pool Safety",
-          "Routine Inspection",
-        ],
-        message:
-          "Job type must be one of: Gas, Electrical, Smoke, Repairs, Pool Safety, Routine Inspection",
-      },
+      validate: {
+        validator: function(jobType) {
+          const complianceTypes = [
+            "Gas",
+            "Electrical",
+            "Smoke",
+            "Repairs",
+            "Pool Safety",
+            "Routine Inspection"
+          ];
+          const beyondComplianceTypes = [
+            "Vacant Property Cleaning",
+            "Water Connection",
+            "Gas Connection",
+            "Electricity Connection",
+            "Landscaping & Outdoor Maintenance",
+            "Pest Control",
+            "Grout Cleaning",
+            "Removalists",
+            "Handyman Services",
+            "Painters"
+          ];
+
+          // If compliance category, must be compliance type
+          if (this.jobCategory === "compliance") {
+            return complianceTypes.includes(jobType);
+          }
+          // If beyond-compliance category, must be beyond-compliance type
+          if (this.jobCategory === "beyond-compliance") {
+            return beyondComplianceTypes.includes(jobType);
+          }
+
+          return false;
+        },
+        message: "Job type must match the job category (compliance or beyond-compliance types)"
+      }
     },
     dueDate: {
       type: Date,
@@ -72,9 +106,17 @@ const jobSchema = new mongoose.Schema(
       type: String,
       required: [true, "Status is required"],
       enum: {
-        values: ["Pending", "Scheduled", "Completed", "Overdue", "Cancelled"],
+        values: [
+          "Pending",
+          "Pending Quotation",
+          "Quotation Sent",
+          "Scheduled",
+          "Completed",
+          "Overdue",
+          "Cancelled"
+        ],
         message:
-          "Status must be one of: Pending, Scheduled, Completed, Overdue, Cancelled",
+          "Status must be one of: Pending, Pending Quotation, Quotation Sent, Scheduled, Completed, Overdue, Cancelled",
       },
       default: "Pending",
     },
@@ -89,6 +131,11 @@ const jobSchema = new mongoose.Schema(
     invoice: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Invoice",
+      default: null,
+    },
+    quotation: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Quotation",
       default: null,
     },
     description: {
@@ -180,6 +227,8 @@ const jobSchema = new mongoose.Schema(
 jobSchema.index({ status: 1, dueDate: 1 });
 jobSchema.index({ assignedTechnician: 1, status: 1 });
 jobSchema.index({ "owner.ownerType": 1, "owner.ownerId": 1 });
+jobSchema.index({ jobCategory: 1, status: 1 });
+jobSchema.index({ quotation: 1 });
 
 // Index for better query performance
 jobSchema.index({ property: 1, jobType: 1, dueDate: 1 });
@@ -202,6 +251,7 @@ jobSchema.pre("save", async function (next) {
     const existingJob = await this.constructor.findOne({
       property: this.property,
       jobType: this.jobType,
+      jobCategory: this.jobCategory, // Include job category to allow same job type for different categories
       dueDate: { $gte: startOfDay, $lte: endOfDay },
       _id: { $ne: this._id }, // Exclude current job if updating
     });
@@ -307,6 +357,7 @@ jobSchema.methods.getSummary = function () {
 jobSchema.statics.checkForDuplicate = async function (
   propertyId,
   jobType,
+  jobCategory,
   dueDate,
   excludeJobId = null
 ) {
@@ -319,6 +370,7 @@ jobSchema.statics.checkForDuplicate = async function (
   const query = {
     property: propertyId,
     jobType: jobType,
+    jobCategory: jobCategory, // Include job category to allow same job type for different categories
     dueDate: { $gte: startOfDay, $lte: endOfDay },
     status: { $in: ["Pending", "Scheduled", "Overdue"] },
   };

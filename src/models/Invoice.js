@@ -46,12 +46,29 @@ const invoiceSchema = new mongoose.Schema(
     technicianId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Technician",
-      required: [true, "Technician ID is required"],
+      required: function() {
+        // Technician ID is only required for compliance jobs
+        // Beyond-compliance jobs start without a technician and get one assigned later
+        return this.jobCategory === "compliance";
+      },
+      default: null,
     },
     agencyId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Agency",
       required: [true, "Agency ID is required"],
+    },
+    quotationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Quotation",
+      default: null,
+    },
+
+    // Job Category - to differentiate between compliance and beyond-compliance invoices
+    jobCategory: {
+      type: String,
+      enum: ["compliance", "beyond-compliance"],
+      default: "compliance",
     },
 
     // Invoice Details

@@ -146,7 +146,7 @@ const authenticateAgency = async (req, res, next) => {
 
     // Add agency info to request object
     req.agency = {
-      id: agency._id,
+      id: agency._id.toString(),
       companyName: agency.companyName,
       contactPerson: agency.contactPerson,
       email: agency.email,
