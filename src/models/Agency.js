@@ -226,7 +226,7 @@ agencySchema.methods.getDisplayName = function () {
 
 // Method to check if account is active
 agencySchema.methods.isActive = function () {
-  return this.status === "Active";
+  return this.status === "active";
 };
 
 // Method to check if subscription is active

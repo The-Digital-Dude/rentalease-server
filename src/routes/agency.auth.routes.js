@@ -297,8 +297,26 @@ router.post("/login", async (req, res) => {
       });
     }
 
+    // Debug logging for agency status
+    console.log("Agency login debug:", {
+      email: agency.email,
+      status: agency.status,
+      statusType: typeof agency.status,
+      isActiveResult: agency.isActive(),
+      agencyId: agency._id,
+      timestamp: new Date().toISOString(),
+    });
+
     // Check if account is active
     if (!agency.isActive()) {
+      console.log("Agency login failed - not active:", {
+        email: agency.email,
+        status: agency.status,
+        statusType: typeof agency.status,
+        isActiveResult: agency.isActive(),
+        agencyId: agency._id,
+        timestamp: new Date().toISOString(),
+      });
       return res.status(401).json({
         status: "error",
         message: `Account is ${agency.status.toLowerCase()}. Please contact support.`,

@@ -239,18 +239,10 @@ router.post("/webhook", express.raw({ type: 'application/json' }), async (req, r
   const sig = req.headers['stripe-signature'];
   let event;
 
-  console.log('🔍 Webhook Debug Info:');
-  console.log('- Body type:', typeof req.body);
-  console.log('- Body length:', req.body ? req.body.length : 'No body');
-  console.log('- Signature present:', !!sig);
-  console.log('- Webhook secret configured:', !!process.env.STRIPE_WEBHOOK_SECRET);
-
   try {
     event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
-    console.log('✅ Webhook signature verified successfully');
   } catch (err) {
-    console.error(`❌ Webhook signature verification failed:`, err.message);
-    console.error('- Error type:', err.constructor.name);
+    console.error(`Webhook signature verification failed:`, err.message);
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
@@ -431,7 +423,7 @@ async function handleSubscriptionDeleted(subscription) {
     }
 
     agency.subscriptionStatus = "canceled";
-    agency.status = "Inactive"; // Deactivate agency
+    agency.status = "inactive"; // Deactivate agency
     agency.subscriptionEndDate = new Date();
 
     await agency.save();
@@ -984,6 +976,42 @@ router.post("/test-set-subscription/:agencyEmail", async (req, res) => {
     res.status(500).json({
       status: "error",
       message: "An error occurred while setting subscription data",
+    });
+  }
+});
+
+
+// Get current user's subscription status
+router.get("/status", authenticateUserTypes(['Agency']), async (req, res) => {
+  try {
+    const agencyId = req.user._id;
+    const agency = await Agency.findById(agencyId);
+
+    if (!agency) {
+      return res.status(404).json({
+        status: "error",
+        message: "Agency not found"
+      });
+    }
+
+    res.json({
+      status: "success",
+      subscription: {
+        status: agency.subscriptionStatus || "pending_payment",
+        amount: agency.subscriptionAmount || 0,
+        paymentLinkUrl: agency.paymentLinkUrl,
+        trialEndsAt: agency.trialEndsAt,
+        subscriptionStartDate: agency.subscriptionStartDate,
+        paymentStatus: agency.paymentStatus
+      }
+    });
+
+  } catch (error) {
+    console.error("Error fetching subscription status:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Failed to fetch subscription status",
+      error: error.message
     });
   }
 });
