@@ -563,7 +563,7 @@ router.get("/status", authenticateUserTypes(['SuperUser', 'Agency', 'TeamMember'
 
           console.log(`Retrieved subscription details for agency ${agency.companyName}:`, {
             subscriptionId: subscriptionDetails.id,
-            status: subscriptionDetails.status,
+            originalStripeStatus: subscriptionDetails.status,
             trialEnd: subscriptionDetails.trial_end ? new Date(subscriptionDetails.trial_end * 1000) : null,
             currentPeriodEnd: new Date(subscriptionDetails.current_period_end * 1000)
           });
@@ -571,6 +571,11 @@ router.get("/status", authenticateUserTypes(['SuperUser', 'Agency', 'TeamMember'
           // Update real-time values from Stripe
           realTimeStatus = subscriptionDetails.status;
           hasActiveSubscription = ['active', 'trialing'].includes(subscriptionDetails.status);
+
+          // Map Stripe's "trialing" status to our "trial" status for consistency
+          if (subscriptionDetails.status === 'trialing') {
+            realTimeStatus = 'trial';
+          }
 
           // Get amount from subscription items
           if (subscriptionDetails.items?.data?.[0]?.price?.unit_amount) {
@@ -631,12 +636,13 @@ router.get("/status", authenticateUserTypes(['SuperUser', 'Agency', 'TeamMember'
             });
 
             // Update agency with found subscription
+            const mappedStatus = latestSubscription.status === 'trialing' ? 'trial' : latestSubscription.status;
             await Agency.findByIdAndUpdate(agencyId, {
               subscriptionId: latestSubscription.id,
-              subscriptionStatus: latestSubscription.status
+              subscriptionStatus: mappedStatus
             });
 
-            realTimeStatus = latestSubscription.status;
+            realTimeStatus = mappedStatus;
             hasActiveSubscription = ['active', 'trialing'].includes(latestSubscription.status);
           }
         } catch (listError) {
@@ -678,6 +684,13 @@ router.get("/status", authenticateUserTypes(['SuperUser', 'Agency', 'TeamMember'
       storage: realTimeStatus === "pending_payment" ? 0 : 10000
     };
 
+    console.log(`Final subscription status for agency ${agency.companyName}:`, {
+      realTimeStatus,
+      hasActiveSubscription,
+      dbStatus: agency.subscriptionStatus,
+      trialEndsAt: realTimeTrialEnd
+    });
+
     res.status(200).json({
       status: "success",
       data: {
@@ -697,7 +710,7 @@ router.get("/status", authenticateUserTypes(['SuperUser', 'Agency', 'TeamMember'
           },
           canCreateProperty: hasActiveSubscription || realTimeStatus === "trial",
           hasActiveSubscription: hasActiveSubscription,
-          isTrialing: realTimeStatus === "trialing",
+          isTrialing: realTimeStatus === "trial",
           isPastDue: realTimeStatus === "past_due",
           isCanceled: realTimeStatus === "canceled",
           needsPayment: ["pending_payment", "past_due", "incomplete"].includes(realTimeStatus),
