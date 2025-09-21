@@ -34,11 +34,13 @@ import emailService from "../services/email.service.js";
 // Create Express app
 const app = express();
 
-// Middleware
+// Stripe webhook needs raw body - must come before express.json()
 app.use(
   "/api/v1/subscription/webhook",
   express.raw({ type: "application/json" })
-); // Stripe webhook needs raw body
+);
+
+// Other middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cors());

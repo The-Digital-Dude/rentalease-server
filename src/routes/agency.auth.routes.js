@@ -6,6 +6,7 @@ import Job from "../models/Job.js";
 import PropertyManager from "../models/PropertyManager.js";
 import jwt from "jsonwebtoken";
 import emailService from "../services/email.service.js";
+import { stripe } from "../config/stripe.js";
 import {
   generateOTP,
   generateOTPExpiration,
@@ -52,6 +53,7 @@ router.post("/register", authenticateUserTypes(['SuperUser', 'TeamMember']), asy
       region,
       compliance,
       password,
+      subscriptionAmount,
     } = req.body;
 
     // Validate required fields
@@ -63,11 +65,21 @@ router.post("/register", authenticateUserTypes(['SuperUser', 'TeamMember']), asy
       !phone ||
       !region ||
       !compliance ||
-      !password
+      !password ||
+      !subscriptionAmount
     ) {
       return res.status(400).json({
         status: "error",
-        message: "All fields are required",
+        message: "All fields including subscription amount are required",
+      });
+    }
+
+    // Convert and validate subscription amount
+    const numericSubscriptionAmount = Number(subscriptionAmount);
+    if (isNaN(numericSubscriptionAmount) || numericSubscriptionAmount < 1 || numericSubscriptionAmount > 100000) {
+      return res.status(400).json({
+        status: "error",
+        message: "Subscription amount must be between $1 and $100,000",
       });
     }
 
@@ -99,6 +111,44 @@ router.post("/register", authenticateUserTypes(['SuperUser', 'TeamMember']), asy
       });
     }
 
+    // Create Stripe customer
+    const stripeCustomer = await stripe.customers.create({
+      email: email.toLowerCase(),
+      name: `${companyName} - ${contactPerson}`,
+      metadata: {
+        companyName,
+        abn,
+        contactPerson,
+        region,
+        compliance,
+        subscriptionAmount: numericSubscriptionAmount.toString(),
+      },
+    });
+
+    // Create Stripe product first
+    const stripeProduct = await stripe.products.create({
+      name: `RentalEase CRM - ${companyName}`,
+      description: `Custom subscription plan for ${companyName} - $${numericSubscriptionAmount}/month`,
+      metadata: {
+        agencyCompanyName: companyName,
+        subscriptionAmount: numericSubscriptionAmount.toString(),
+      },
+    });
+
+    // Create dynamic Stripe price
+    const stripePrice = await stripe.prices.create({
+      unit_amount: Math.round(numericSubscriptionAmount * 100), // Convert to cents
+      currency: 'aud',
+      recurring: {
+        interval: 'month',
+      },
+      product: stripeProduct.id,
+      metadata: {
+        agencyCompanyName: companyName,
+        subscriptionAmount: numericSubscriptionAmount.toString(),
+      },
+    });
+
     // Create new agency
     const agency = new Agency({
       companyName,
@@ -109,34 +159,69 @@ router.post("/register", authenticateUserTypes(['SuperUser', 'TeamMember']), asy
       region,
       compliance,
       password,
-      status: "Pending", // Default status, can be activated by admin
+      subscriptionAmount: numericSubscriptionAmount,
+      stripeCustomerId: stripeCustomer.id,
+      stripePriceId: stripePrice.id,
+      status: "pending", // Will be activated after payment
+      subscriptionStatus: "pending_payment",
+      paymentStatus: "pending",
+      planType: "custom",
     });
 
     await agency.save();
 
-    // Send credentials email to agency
-    try {
-      await emailService.sendAgencyCredentialsEmail(
+    // Create Stripe checkout session
+    const checkoutSession = await stripe.checkout.sessions.create({
+      customer: stripeCustomer.id,
+      payment_method_types: ['card'],
+      line_items: [
         {
-          email: agency.email,
-          contactPerson: agency.contactPerson,
-          companyName: agency.companyName,
-          abn: agency.abn,
-          region: agency.region,
-          compliance: agency.compliance,
+          price: stripePrice.id,
+          quantity: 1,
         },
-        password,
-        process.env.FRONTEND_URL || "https://rentalease-client.vercel.app/login"
-      );
+      ],
+      mode: 'subscription',
+      success_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/login?payment_success=true`,
+      cancel_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/login?payment_cancelled=true`,
+      metadata: {
+        agencyId: agency._id.toString(),
+        subscriptionAmount: numericSubscriptionAmount.toString(),
+      },
+      subscription_data: {
+        metadata: {
+          agencyId: agency._id.toString(),
+          subscriptionAmount: numericSubscriptionAmount.toString(),
+        },
+        trial_period_days: 14, // 14-day free trial
+      },
+    });
 
-      console.log("Agency credentials email sent successfully:", {
+    // Update agency with payment link
+    agency.paymentLinkUrl = checkoutSession.url;
+    await agency.save();
+
+    // Send payment link email to agency
+    try {
+      await emailService.sendAgencyPaymentLinkEmail({
+        email: agency.email,
+        contactPerson: agency.contactPerson,
+        companyName: agency.companyName,
+        subscriptionAmount: subscriptionAmount,
+        paymentLinkUrl: checkoutSession.url,
+        loginPassword: password,
+        loginUrl: process.env.FRONTEND_URL || "http://localhost:5173/login"
+      });
+
+      console.log("Agency payment link email sent successfully:", {
         agencyId: agency._id,
         email: agency.email,
         companyName: agency.companyName,
+        subscriptionAmount: subscriptionAmount,
+        paymentLinkUrl: checkoutSession.url,
         timestamp: new Date().toISOString(),
       });
     } catch (emailError) {
-      console.error("Failed to send agency credentials email:", emailError);
+      console.error("Failed to send agency payment link email:", emailError);
       // Continue with response even if email fails
     }
 
@@ -145,15 +230,17 @@ router.post("/register", authenticateUserTypes(['SuperUser', 'TeamMember']), asy
       companyName: agency.companyName,
       contactPerson: agency.contactPerson,
       email: agency.email,
-      createdBy: req.superUser.email,
-      credentialsEmailSent: "Credentials email sent with login information",
+      subscriptionAmount: subscriptionAmount,
+      stripeCustomerId: stripeCustomer.id,
+      stripePriceId: stripePrice.id,
+      paymentLinkUrl: checkoutSession.url,
+      createdBy: req.superUser?.email || req.user?.email,
       timestamp: new Date().toISOString(),
     });
 
     res.status(201).json({
       status: "success",
-      message:
-        "Agency registered successfully. Credentials email has been sent.",
+      message: "Agency registered successfully. Payment link email has been sent to activate the subscription.",
       data: {
         agency: {
           id: agency._id,
@@ -165,6 +252,10 @@ router.post("/register", authenticateUserTypes(['SuperUser', 'TeamMember']), asy
           compliance: agency.compliance,
           status: agency.status,
           abn: agency.abn,
+          subscriptionAmount: agency.subscriptionAmount,
+          subscriptionStatus: agency.subscriptionStatus,
+          paymentStatus: agency.paymentStatus,
+          paymentLinkUrl: agency.paymentLinkUrl,
           outstandingAmount: agency.outstandingAmount,
           totalProperties: agency.totalProperties,
           joinedDate: agency.joinedDate,

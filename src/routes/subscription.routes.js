@@ -239,10 +239,18 @@ router.post("/webhook", express.raw({ type: 'application/json' }), async (req, r
   const sig = req.headers['stripe-signature'];
   let event;
 
+  console.log('🔍 Webhook Debug Info:');
+  console.log('- Body type:', typeof req.body);
+  console.log('- Body length:', req.body ? req.body.length : 'No body');
+  console.log('- Signature present:', !!sig);
+  console.log('- Webhook secret configured:', !!process.env.STRIPE_WEBHOOK_SECRET);
+
   try {
     event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
+    console.log('✅ Webhook signature verified successfully');
   } catch (err) {
-    console.error(`Webhook signature verification failed:`, err.message);
+    console.error(`❌ Webhook signature verification failed:`, err.message);
+    console.error('- Error type:', err.constructor.name);
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
@@ -287,7 +295,7 @@ router.post("/webhook", express.raw({ type: 'application/json' }), async (req, r
 // Handle successful checkout completion
 async function handleCheckoutCompleted(session) {
   const agencyId = session.metadata.agencyId;
-  
+
   if (!agencyId) {
     console.error('No agency ID found in checkout session metadata');
     return;
@@ -301,10 +309,11 @@ async function handleCheckoutCompleted(session) {
     }
 
     // Activate the agency
-    agency.status = "Active";
+    agency.status = "active";
     agency.subscriptionStatus = "trial"; // Starts with trial
+    agency.paymentStatus = "completed"; // Payment completed successfully
     agency.subscriptionStartDate = new Date();
-    
+
     // Set trial end date (14 days from now)
     const trialEnd = new Date();
     trialEnd.setDate(trialEnd.getDate() + 14);
@@ -316,16 +325,19 @@ async function handleCheckoutCompleted(session) {
     try {
       await emailService.sendAgencyWelcomeEmail({
         email: agency.email,
+        name: agency.contactPerson,
         contactPerson: agency.contactPerson,
         companyName: agency.companyName,
-        planType: agency.planType,
+        subscriptionAmount: agency.subscriptionAmount,
         trialEndDate: trialEnd,
+        loginUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
       });
 
       console.log("Welcome email sent to activated agency:", {
         agencyId: agency._id,
         email: agency.email,
         companyName: agency.companyName,
+        subscriptionAmount: agency.subscriptionAmount,
         timestamp: new Date().toISOString(),
       });
     } catch (emailError) {
@@ -540,10 +552,13 @@ router.get("/status", authenticateUserTypes(['SuperUser', 'Agency', 'TeamMember'
         subscription: {
           status: agency.subscriptionStatus,
           planType: agency.planType,
+          subscriptionAmount: agency.subscriptionAmount,
           billingPeriod: agency.billingPeriod,
           subscriptionStartDate: agency.subscriptionStartDate,
           subscriptionEndDate: agency.subscriptionEndDate,
           trialEndsAt: agency.trialEndsAt,
+          paymentLinkUrl: agency.paymentLinkUrl,
+          paymentStatus: agency.paymentStatus,
           limits: agency.getPlanLimits(),
           currentUsage: {
             properties: agency.totalProperties || 0,
@@ -972,5 +987,6 @@ router.post("/test-set-subscription/:agencyEmail", async (req, res) => {
     });
   }
 });
+
 
 export default router;

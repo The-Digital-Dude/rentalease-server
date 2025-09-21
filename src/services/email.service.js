@@ -419,6 +419,54 @@ class EmailService {
   }
 
   /**
+   * Send payment link email to agency with subscription details
+   * @param {Object} options - Email options
+   * @param {string} options.email - Agency's email
+   * @param {string} options.contactPerson - Agency's contact person name
+   * @param {string} options.companyName - Agency's company name
+   * @param {number} options.subscriptionAmount - Monthly subscription amount
+   * @param {string} options.paymentLinkUrl - Stripe checkout URL
+   * @param {string} options.loginPassword - Login password for the agency
+   * @param {string} options.loginUrl - Login URL for the CRM
+   * @returns {Promise} - Email send result
+   */
+  async sendAgencyPaymentLinkEmail({
+    email,
+    contactPerson,
+    companyName,
+    subscriptionAmount,
+    paymentLinkUrl,
+    loginPassword,
+    loginUrl
+  }) {
+    if (!email || !contactPerson || !companyName || !subscriptionAmount || !paymentLinkUrl) {
+      throw new Error("Required fields missing for payment link email");
+    }
+
+    console.log("Sending agency payment link email to:", {
+      email,
+      contactPerson,
+      companyName,
+      subscriptionAmount,
+      paymentLinkUrl,
+    });
+
+    return await this.sendTemplatedEmail({
+      to: email,
+      templateName: "agencyPaymentLink",
+      templateData: {
+        name: contactPerson,
+        companyName,
+        email,
+        subscriptionAmount,
+        paymentLinkUrl,
+        loginPassword,
+        loginUrl,
+      },
+    });
+  }
+
+  /**
    * Send password reset OTP email to agency
    * @param {Object} agency - Agency object
    * @param {string} agency.email - Agency's email

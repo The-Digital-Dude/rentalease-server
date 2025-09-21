@@ -759,7 +759,7 @@ const propertyManagerCredentialsTemplate = (data) => ({
  * @returns {Object} - Email template configuration
  */
 const agencyWelcomeTemplate = (data) => ({
-  subject: "Welcome to RentalEase CRM - Agency Registration",
+  subject: "Welcome to RentalEase CRM - Your Account is Active!",
   html: `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
       <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
@@ -767,29 +767,54 @@ const agencyWelcomeTemplate = (data) => ({
           <h1 style="color: #333; margin-bottom: 10px;">Welcome to RentalEase CRM!</h1>
           <div style="width: 50px; height: 3px; background-color: #28a745; margin: 0 auto;"></div>
         </div>
-        
+
         <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">Hello ${data.name},</p>
-        
+
         <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">
-          Welcome to RentalEase CRM! We're excited to have <strong>${data.companyName}</strong> join our platform as an Agency.
+          🎉 Congratulations! Your payment has been successfully processed and <strong>${data.companyName}</strong> is now active on RentalEase CRM!
         </p>
-        
-        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">
-          Your agency account has been successfully created by our admin team and is currently pending approval. Our team will review your registration and activate your account shortly.
-        </p>
-        
-        <div style="background-color: #d4edda; border: 1px solid #c3e6cb; padding: 15px; border-radius: 5px; margin: 20px 0;">
-          <p style="color: #155724; margin: 0; font-size: 14px;">
-            <strong>📋 What's Next:</strong>
+
+        <div style="background-color: #d4edda; border: 1px solid #c3e6cb; padding: 20px; border-radius: 8px; margin: 25px 0;">
+          <h3 style="color: #155724; margin: 0 0 15px 0; font-size: 16px;">🔑 Your Login Credentials</h3>
+          <p style="color: #155724; margin: 0; font-size: 14px; line-height: 1.5;">
+            <strong>Email:</strong> ${data.email || 'Your registered email'}<br>
+            <strong>Password:</strong> The password you set during registration<br>
+            <strong>Login URL:</strong> <a href="${data.loginUrl || process.env.FRONTEND_URL || 'http://localhost:5173'}/login" style="color: #155724; text-decoration: underline;">${data.loginUrl || process.env.FRONTEND_URL || 'http://localhost:5173'}/login</a>
           </p>
-          <ul style="color: #155724; margin: 10px 0 0 20px;">
-            <li>Our team will verify your company details and compliance requirements</li>
-            <li>You'll receive a confirmation email once your account is activated</li>
-            <li>Once approved, you can log in to access your dashboard</li>
-            <li>You'll be able to manage all your properties from one central location</li>
+        </div>
+
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${data.loginUrl || process.env.FRONTEND_URL || 'http://localhost:5173'}/login"
+             style="background-color: #007bff; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+            🚀 Access Your CRM Dashboard
+          </a>
+        </div>
+
+        <div style="background-color: #e7f3ff; border: 1px solid #b3d9ff; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <p style="color: #0056b3; margin: 0; font-size: 14px;">
+            <strong>🆓 14-Day Free Trial:</strong>
+          </p>
+          <ul style="color: #0056b3; margin: 10px 0 0 20px;">
+            <li>Your subscription of <strong>$${data.subscriptionAmount}/month</strong> starts after your trial ends</li>
+            <li>Trial period ends on: <strong>${data.trialEndDate ? new Date(data.trialEndDate).toLocaleDateString('en-AU', { year: 'numeric', month: 'long', day: 'numeric' }) : '14 days from today'}</strong></li>
+            <li>Full access to all CRM features during the trial</li>
+            <li>No charges until your trial period expires</li>
           </ul>
         </div>
-        
+
+        <div style="background-color: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <p style="color: #856404; margin: 0; font-size: 14px;">
+            <strong>🚀 What You Can Do Now:</strong>
+          </p>
+          <ul style="color: #856404; margin: 10px 0 0 20px;">
+            <li>Log in to your agency dashboard immediately</li>
+            <li>Add and manage your property portfolio</li>
+            <li>Create jobs and assign them to technicians</li>
+            <li>Track compliance requirements and deadlines</li>
+            <li>Manage team members and property managers</li>
+          </ul>
+        </div>
+
         <p style="color: #333; margin-top: 30px;">
           Best regards,<br>
           <strong>The RentalEase CRM Team</strong>
@@ -948,6 +973,104 @@ const agencyCredentialsTemplate = (data) => ({
           Best regards,<br>
           <strong>The RentalEase CRM Team</strong>
         </p>
+      </div>
+    </div>
+  `,
+});
+
+/**
+ * Email template for agency payment link with subscription details
+ * @param {Object} data - Template data
+ * @param {string} data.name - Agency contact person's name
+ * @param {string} data.companyName - Agency company name
+ * @param {string} data.email - Agency email
+ * @param {number} data.subscriptionAmount - Monthly subscription amount
+ * @param {string} data.paymentLinkUrl - Stripe checkout URL
+ * @param {string} data.loginPassword - Login password for the agency
+ * @param {string} data.loginUrl - Login URL for the CRM
+ * @returns {Object} - Email template configuration
+ */
+const agencyPaymentLinkTemplate = (data) => ({
+  subject: `Complete Your RentalEase CRM Subscription - ${data.companyName}`,
+  html: `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+      <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #28a745; margin-bottom: 10px;">🎉 Welcome to RentalEase CRM!</h1>
+          <div style="width: 50px; height: 3px; background-color: #28a745; margin: 0 auto;"></div>
+        </div>
+
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">Hello ${data.name},</p>
+
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">
+          Great news! Your agency account for <strong>${data.companyName}</strong> has been successfully created.
+          To activate your CRM access and start your 14-day free trial, please complete your subscription setup below.
+        </p>
+
+        <div style="background-color: #e8f4f8; border: 2px solid #007bff; padding: 20px; border-radius: 8px; margin: 25px 0;">
+          <h3 style="color: #007bff; margin: 0 0 15px 0; font-size: 18px;">💰 Your Subscription Details</h3>
+
+          <div style="background-color: white; padding: 15px; border-radius: 5px; margin-bottom: 15px;">
+            <p style="color: #333; margin: 0 0 10px 0; font-size: 14px;"><strong>📊 Monthly Subscription:</strong></p>
+            <p style="color: #28a745; margin: 0; font-size: 24px; font-weight: bold;">$${data.subscriptionAmount} AUD/month</p>
+          </div>
+
+          <div style="background-color: white; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+            <p style="color: #333; margin: 0; font-size: 14px;"><strong>✨ Includes:</strong></p>
+            <ul style="color: #333; margin: 10px 0 0 0; padding-left: 20px;">
+              <li>14-day free trial</li>
+              <li>Full CRM access</li>
+              <li>Property management tools</li>
+              <li>Job tracking & compliance</li>
+              <li>Email support</li>
+            </ul>
+          </div>
+
+          <div style="text-align: center;">
+            <a href="${data.paymentLinkUrl}" style="display: inline-block; background-color: #007bff; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-size: 16px; font-weight: bold; margin: 10px 0;">
+              🚀 Start Your Free Trial
+            </a>
+          </div>
+        </div>
+
+        <div style="background-color: #fff3cd; border: 2px solid #ffc107; padding: 20px; border-radius: 8px; margin: 25px 0;">
+          <h3 style="color: #856404; margin: 0 0 15px 0; font-size: 18px;">🔐 Your Login Credentials</h3>
+          <p style="color: #856404; margin: 0 0 15px 0; font-size: 14px;">
+            <strong>Note:</strong> You can log in to explore the system during your trial period, but full functionality will be available after subscription activation.
+          </p>
+
+          <div style="background-color: white; padding: 15px; border-radius: 5px; margin-bottom: 15px;">
+            <p style="color: #333; margin: 0 0 10px 0; font-size: 14px;"><strong>📧 Email:</strong></p>
+            <p style="color: #007bff; margin: 0; font-size: 16px; font-weight: bold; word-break: break-all;">${data.email}</p>
+          </div>
+
+          <div style="background-color: white; padding: 15px; border-radius: 5px; margin-bottom: 15px;">
+            <p style="color: #333; margin: 0 0 10px 0; font-size: 14px;"><strong>🔑 Password:</strong></p>
+            <p style="color: #dc3545; margin: 0; font-size: 16px; font-weight: bold; letter-spacing: 1px; font-family: monospace;">${data.loginPassword}</p>
+          </div>
+
+          <div style="text-align: center; margin-top: 20px;">
+            <a href="${data.loginUrl}" style="display: inline-block; background-color: #6c757d; color: white; padding: 12px 25px; text-decoration: none; border-radius: 6px; font-size: 14px;">
+              🔑 Login to CRM
+            </a>
+          </div>
+        </div>
+
+        <div style="border-left: 4px solid #28a745; padding-left: 20px; margin: 25px 0;">
+          <h4 style="color: #28a745; margin: 0 0 10px 0;">What happens next?</h4>
+          <ol style="color: #333; line-height: 1.6; margin: 0; padding-left: 20px;">
+            <li>Click the "Start Your Free Trial" button above</li>
+            <li>Complete your payment setup with Stripe</li>
+            <li>Enjoy 14 days of free access</li>
+            <li>Your subscription will auto-renew monthly at $${data.subscriptionAmount} AUD</li>
+          </ol>
+        </div>
+
+        <p style="color: #666; line-height: 1.6; margin: 30px 0 0 0; font-size: 14px;">
+          Need help? Contact our support team or reply to this email. We're here to help you get the most out of RentalEase CRM.
+        </p>
+
+        <p style="color: #333; margin-top: 30px;">Best regards,<br>The RentalEase Team</p>
       </div>
     </div>
   `,
@@ -2153,6 +2276,7 @@ const templates = {
   agencyWelcome: agencyWelcomeTemplate,
   agencyPasswordResetOTP: agencyPasswordResetOTPTemplate,
   agencyCredentials: agencyCredentialsTemplate,
+  agencyPaymentLink: agencyPaymentLinkTemplate,
   technicianCredentials: technicianCredentialsTemplate,
   teamMemberCredentials: teamMemberCredentialsTemplate,
 

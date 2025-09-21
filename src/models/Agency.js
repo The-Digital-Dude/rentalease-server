@@ -80,8 +80,8 @@ const agencySchema = new mongoose.Schema(
     // Account Status
     status: {
       type: String,
-      enum: ["Active", "Inactive", "Suspended", "Pending"],
-      default: "Pending",
+      enum: ["active", "inactive", "suspended", "pending"],
+      default: "pending",
     },
 
     // Authentication Information
@@ -131,13 +131,32 @@ const agencySchema = new mongoose.Schema(
     },
     subscriptionStatus: {
       type: String,
-      enum: ["trial", "active", "past_due", "canceled", "unpaid", "incomplete"],
-      default: null,
+      enum: ["trial", "active", "past_due", "canceled", "unpaid", "incomplete", "pending_payment"],
+      default: "pending_payment",
     },
     planType: {
       type: String,
-      enum: ["starter", "pro", "enterprise"],
+      enum: ["starter", "pro", "enterprise", "custom"],
+      default: "custom",
+    },
+    subscriptionAmount: {
+      type: Number,
+      required: [true, "Subscription amount is required"],
+      min: [1, "Subscription amount must be at least $1"],
+      max: [100000, "Subscription amount cannot exceed $100,000"],
+    },
+    stripePriceId: {
+      type: String,
       default: null,
+    },
+    paymentLinkUrl: {
+      type: String,
+      default: null,
+    },
+    paymentStatus: {
+      type: String,
+      enum: ["pending", "completed", "failed", "expired"],
+      default: "pending",
     },
     billingPeriod: {
       type: String,
@@ -217,26 +236,43 @@ agencySchema.methods.hasActiveSubscription = function () {
 
 // Method to check if within plan limits
 agencySchema.methods.canCreateProperty = function () {
-  if (!this.planType) return false;
-  
-  const limits = {
-    starter: 50,
-    pro: 150,
-    enterprise: Infinity
-  };
-  
-  return this.totalProperties < limits[this.planType];
+  // With dynamic pricing, we'll use subscription amount to determine limits
+  if (!this.hasActiveSubscription()) return false;
+
+  // Base limit calculation on subscription amount (can be adjusted)
+  // For now, we'll be generous with limits based on subscription amount
+  let propertyLimit;
+  if (this.subscriptionAmount < 100) {
+    propertyLimit = 50; // Under $100/month = 50 properties
+  } else if (this.subscriptionAmount < 200) {
+    propertyLimit = 150; // $100-199/month = 150 properties
+  } else if (this.subscriptionAmount < 500) {
+    propertyLimit = 500; // $200-499/month = 500 properties
+  } else {
+    propertyLimit = Infinity; // $500+/month = unlimited
+  }
+
+  return this.totalProperties < propertyLimit;
 };
 
 // Method to get plan limits
 agencySchema.methods.getPlanLimits = function () {
-  const limits = {
-    starter: { properties: 50 },
-    pro: { properties: 150 },
-    enterprise: { properties: Infinity }
+  // Dynamic limits based on subscription amount
+  let propertyLimit;
+  if (this.subscriptionAmount < 100) {
+    propertyLimit = 50;
+  } else if (this.subscriptionAmount < 200) {
+    propertyLimit = 150;
+  } else if (this.subscriptionAmount < 500) {
+    propertyLimit = 500;
+  } else {
+    propertyLimit = Infinity;
+  }
+
+  return {
+    properties: propertyLimit,
+    subscriptionAmount: this.subscriptionAmount
   };
-  
-  return limits[this.planType] || limits.starter;
 };
 
 // Method to update last login
