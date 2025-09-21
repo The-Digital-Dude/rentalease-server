@@ -486,7 +486,7 @@ async function handlePaymentFailed(invoice) {
   }
 }
 
-// Get subscription status for agency and team members
+// Get subscription status for agency and team members with real-time Stripe data
 router.get("/status", authenticateUserTypes(['SuperUser', 'Agency', 'TeamMember']), async (req, res) => {
   try {
     // Get agency ID based on user type
@@ -521,7 +521,7 @@ router.get("/status", authenticateUserTypes(['SuperUser', 'Agency', 'TeamMember'
     }
 
     const agency = await Agency.findById(agencyId);
-    
+
     if (!agency) {
       return res.status(404).json({
         status: "error",
@@ -529,40 +529,194 @@ router.get("/status", authenticateUserTypes(['SuperUser', 'Agency', 'TeamMember'
       });
     }
 
+    // Fetch real-time data from Stripe
     let subscriptionDetails = null;
-    if (agency.subscriptionId) {
-      try {
-        subscriptionDetails = await stripe.subscriptions.retrieve(agency.subscriptionId);
-      } catch (stripeError) {
-        console.error("Error fetching subscription from Stripe:", stripeError);
+    let customerDetails = null;
+    let realTimeStatus = agency.subscriptionStatus || "pending_payment";
+    let realTimeAmount = agency.subscriptionAmount || 0;
+    let realTimeTrialEnd = agency.trialEndsAt;
+    let realTimePeriodEnd = agency.subscriptionEndDate;
+    let hasActiveSubscription = false;
+    let paymentLinkUrl = agency.paymentLinkUrl;
+
+    try {
+      // First, try to get customer details if we have a Stripe customer ID
+      if (agency.stripeCustomerId) {
+        try {
+          customerDetails = await stripe.customers.retrieve(agency.stripeCustomerId);
+          console.log(`Retrieved customer details for agency ${agency.companyName}:`, {
+            customerId: customerDetails.id,
+            email: customerDetails.email,
+            subscriptions: customerDetails.subscriptions?.data?.length || 0
+          });
+        } catch (customerError) {
+          console.warn(`Customer not found in Stripe for agency ${agency.companyName}:`, customerError.message);
+        }
       }
+
+      // Try to get subscription details
+      if (agency.subscriptionId) {
+        try {
+          subscriptionDetails = await stripe.subscriptions.retrieve(agency.subscriptionId, {
+            expand: ['latest_invoice', 'customer', 'items.data.price']
+          });
+
+          console.log(`Retrieved subscription details for agency ${agency.companyName}:`, {
+            subscriptionId: subscriptionDetails.id,
+            status: subscriptionDetails.status,
+            trialEnd: subscriptionDetails.trial_end ? new Date(subscriptionDetails.trial_end * 1000) : null,
+            currentPeriodEnd: new Date(subscriptionDetails.current_period_end * 1000)
+          });
+
+          // Update real-time values from Stripe
+          realTimeStatus = subscriptionDetails.status;
+          hasActiveSubscription = ['active', 'trialing'].includes(subscriptionDetails.status);
+
+          // Get amount from subscription items
+          if (subscriptionDetails.items?.data?.[0]?.price?.unit_amount) {
+            realTimeAmount = subscriptionDetails.items.data[0].price.unit_amount / 100; // Convert from cents
+          }
+
+          // Get trial end date
+          if (subscriptionDetails.trial_end) {
+            realTimeTrialEnd = new Date(subscriptionDetails.trial_end * 1000);
+          }
+
+          // Get current period end
+          if (subscriptionDetails.current_period_end) {
+            realTimePeriodEnd = new Date(subscriptionDetails.current_period_end * 1000);
+          }
+
+          // Update database with latest Stripe data for caching
+          const updateData = {
+            subscriptionStatus: realTimeStatus,
+            subscriptionAmount: realTimeAmount,
+            subscriptionEndDate: realTimePeriodEnd,
+          };
+
+          if (realTimeTrialEnd) {
+            updateData.trialEndsAt = realTimeTrialEnd;
+          }
+
+          await Agency.findByIdAndUpdate(agencyId, updateData);
+          console.log(`Updated agency ${agency.companyName} with latest Stripe data`);
+
+        } catch (subscriptionError) {
+          console.warn(`Subscription not found or error fetching from Stripe for agency ${agency.companyName}:`, subscriptionError.message);
+
+          // If subscription doesn't exist in Stripe but exists in DB, mark as canceled
+          if (subscriptionError.code === 'resource_missing') {
+            realTimeStatus = "canceled";
+            await Agency.findByIdAndUpdate(agencyId, {
+              subscriptionStatus: "canceled",
+              subscriptionId: null
+            });
+            console.log(`Marked subscription as canceled for agency ${agency.companyName}`);
+          }
+        }
+      } else if (agency.stripeCustomerId && customerDetails) {
+        // No subscription ID but has customer - check if customer has any subscriptions
+        try {
+          const subscriptions = await stripe.subscriptions.list({
+            customer: agency.stripeCustomerId,
+            limit: 1,
+            status: 'all'
+          });
+
+          if (subscriptions.data.length > 0) {
+            const latestSubscription = subscriptions.data[0];
+            console.log(`Found subscription for customer without subscription ID in agency ${agency.companyName}:`, {
+              subscriptionId: latestSubscription.id,
+              status: latestSubscription.status
+            });
+
+            // Update agency with found subscription
+            await Agency.findByIdAndUpdate(agencyId, {
+              subscriptionId: latestSubscription.id,
+              subscriptionStatus: latestSubscription.status
+            });
+
+            realTimeStatus = latestSubscription.status;
+            hasActiveSubscription = ['active', 'trialing'].includes(latestSubscription.status);
+          }
+        } catch (listError) {
+          console.warn(`Error listing subscriptions for customer ${agency.stripeCustomerId}:`, listError.message);
+        }
+      }
+
+      // Handle cases where no Stripe data exists
+      if (!agency.stripeCustomerId && !agency.subscriptionId) {
+        console.log(`Agency ${agency.companyName} has no Stripe integration`);
+
+        // Check if this is a development/test scenario
+        if (process.env.NODE_ENV === 'development' || agency.planType) {
+          // For development or if agency has a plan type, might be a test setup
+          realTimeStatus = agency.subscriptionStatus || "pending_payment";
+        } else {
+          realTimeStatus = "pending_payment";
+        }
+      }
+
+    } catch (stripeError) {
+      console.error(`Stripe API error for agency ${agency.companyName}:`, stripeError);
+      // Fall back to database values on Stripe API errors
+      realTimeStatus = agency.subscriptionStatus || "pending_payment";
+      hasActiveSubscription = agency.hasActiveSubscription?.() || false;
     }
+
+    // Determine if we need a payment link
+    if (!hasActiveSubscription && realTimeStatus === "pending_payment" && !paymentLinkUrl) {
+      // For pending payments without a payment link, we might need to create one
+      // This would typically be handled by creating a checkout session
+      console.log(`Agency ${agency.companyName} needs payment setup`);
+    }
+
+    // Get plan configuration
+    const planLimits = agency.getPlanLimits?.() || {
+      properties: realTimeStatus === "pending_payment" ? 0 : 1000,
+      users: realTimeStatus === "pending_payment" ? 0 : 100,
+      storage: realTimeStatus === "pending_payment" ? 0 : 10000
+    };
 
     res.status(200).json({
       status: "success",
       data: {
         subscription: {
-          status: agency.subscriptionStatus,
-          planType: agency.planType,
-          subscriptionAmount: agency.subscriptionAmount,
-          billingPeriod: agency.billingPeriod,
+          status: realTimeStatus,
+          amount: realTimeAmount,
+          planType: agency.planType || "starter",
+          billingPeriod: agency.billingPeriod || "monthly",
           subscriptionStartDate: agency.subscriptionStartDate,
-          subscriptionEndDate: agency.subscriptionEndDate,
-          trialEndsAt: agency.trialEndsAt,
-          paymentLinkUrl: agency.paymentLinkUrl,
-          paymentStatus: agency.paymentStatus,
-          limits: agency.getPlanLimits(),
+          subscriptionEndDate: realTimePeriodEnd,
+          trialEndsAt: realTimeTrialEnd,
+          paymentLinkUrl: paymentLinkUrl,
+          paymentStatus: agency.paymentStatus || "pending",
+          limits: planLimits,
           currentUsage: {
             properties: agency.totalProperties || 0,
           },
-          canCreateProperty: agency.canCreateProperty(),
-          hasActiveSubscription: agency.hasActiveSubscription(),
+          canCreateProperty: hasActiveSubscription || realTimeStatus === "trial",
+          hasActiveSubscription: hasActiveSubscription,
+          isTrialing: realTimeStatus === "trialing",
+          isPastDue: realTimeStatus === "past_due",
+          isCanceled: realTimeStatus === "canceled",
+          needsPayment: ["pending_payment", "past_due", "incomplete"].includes(realTimeStatus),
         },
         stripe: subscriptionDetails ? {
+          subscriptionId: subscriptionDetails.id,
           currentPeriodStart: new Date(subscriptionDetails.current_period_start * 1000),
           currentPeriodEnd: new Date(subscriptionDetails.current_period_end * 1000),
           cancelAtPeriodEnd: subscriptionDetails.cancel_at_period_end,
+          trialStart: subscriptionDetails.trial_start ? new Date(subscriptionDetails.trial_start * 1000) : null,
+          trialEnd: subscriptionDetails.trial_end ? new Date(subscriptionDetails.trial_end * 1000) : null,
         } : null,
+        debug: {
+          hasStripeCustomer: !!agency.stripeCustomerId,
+          hasSubscriptionId: !!agency.subscriptionId,
+          dbStatus: agency.subscriptionStatus,
+          realTimeStatus: realTimeStatus,
+          timestamp: new Date().toISOString()
+        }
       },
     });
   } catch (error) {
@@ -570,6 +724,7 @@ router.get("/status", authenticateUserTypes(['SuperUser', 'Agency', 'TeamMember'
     res.status(500).json({
       status: "error",
       message: "An error occurred while fetching subscription status",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });
@@ -981,36 +1136,57 @@ router.post("/test-set-subscription/:agencyEmail", async (req, res) => {
 });
 
 
-// Get current user's subscription status
-router.get("/status", authenticateUserTypes(['Agency']), async (req, res) => {
-  try {
-    const agencyId = req.user._id;
-    const agency = await Agency.findById(agencyId);
 
-    if (!agency) {
-      return res.status(404).json({
-        status: "error",
-        message: "Agency not found"
+// Fix agency status case issues - convert any uppercase status to lowercase
+router.post("/fix-agency-status", authenticateUserTypes(['SuperUser']), async (req, res) => {
+  try {
+    // Find all agencies with incorrect case status
+    const agenciesWithWrongCase = await Agency.find({
+      status: { $in: ["Active", "Inactive", "Suspended", "Pending"] }
+    });
+
+    console.log(`Found ${agenciesWithWrongCase.length} agencies with wrong case status:`,
+      agenciesWithWrongCase.map(a => ({
+        id: a._id,
+        email: a.email,
+        status: a.status
+      }))
+    );
+
+    const updates = [];
+    for (const agency of agenciesWithWrongCase) {
+      const oldStatus = agency.status;
+      agency.status = agency.status.toLowerCase();
+      await agency.save();
+      updates.push({
+        agencyId: agency._id,
+        email: agency.email,
+        companyName: agency.companyName,
+        oldStatus,
+        newStatus: agency.status
       });
     }
 
-    res.json({
+    console.log("Agency status case fixes completed:", {
+      fixedCount: updates.length,
+      updates,
+      timestamp: new Date().toISOString(),
+    });
+
+    res.status(200).json({
       status: "success",
-      subscription: {
-        status: agency.subscriptionStatus || "pending_payment",
-        amount: agency.subscriptionAmount || 0,
-        paymentLinkUrl: agency.paymentLinkUrl,
-        trialEndsAt: agency.trialEndsAt,
-        subscriptionStartDate: agency.subscriptionStartDate,
-        paymentStatus: agency.paymentStatus
+      message: `Fixed ${updates.length} agencies with wrong case status`,
+      data: {
+        fixedCount: updates.length,
+        updates
       }
     });
 
   } catch (error) {
-    console.error("Error fetching subscription status:", error);
+    console.error("Fix agency status error:", error);
     res.status(500).json({
       status: "error",
-      message: "Failed to fetch subscription status",
+      message: "An error occurred while fixing agency status",
       error: error.message
     });
   }
