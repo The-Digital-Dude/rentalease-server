@@ -171,6 +171,106 @@ router.get("/:id", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', '
   }
 });
 
+// Update PropertyManager (Agency/SuperUser/TeamMember only)
+router.patch("/:id", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency']), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { firstName, lastName, email, phone, address } = req.body;
+
+    // Validate required fields
+    if (!firstName || !lastName || !email || !phone) {
+      return res.status(400).json({
+        success: false,
+        message: "First name, last name, email, and phone are required",
+      });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+        success: false,
+        message: "Please enter a valid email address",
+      });
+    }
+
+    // Build filter object
+    const filter = { _id: id };
+
+    // Agency can only update their own PropertyManagers
+    if (req.agency) {
+      filter["owner.ownerType"] = "Agency";
+      filter["owner.ownerId"] = req.agency.id.toString();
+    }
+
+    // Check if property manager exists and user has permission
+    const existingPropertyManager = await PropertyManager.findOne(filter);
+    if (!existingPropertyManager) {
+      return res.status(404).json({
+        success: false,
+        message: "PropertyManager not found or you don't have permission to update it",
+      });
+    }
+
+    // Check if email is already in use by another property manager
+    const emailExists = await PropertyManager.findOne({
+      email,
+      _id: { $ne: id }
+    });
+    if (emailExists) {
+      return res.status(400).json({
+        success: false,
+        message: "Email address is already in use by another property manager",
+      });
+    }
+
+    // Prepare update data
+    const updateData = {
+      firstName,
+      lastName,
+      email,
+      phone,
+      updatedAt: new Date()
+    };
+
+    // Update address if provided
+    if (address) {
+      updateData.address = {
+        street: address.street || existingPropertyManager.address?.street,
+        suburb: address.suburb || existingPropertyManager.address?.suburb,
+        state: address.state || existingPropertyManager.address?.state,
+        postcode: address.postcode || existingPropertyManager.address?.postcode,
+      };
+
+      // Create fullAddress if all components are available
+      if (updateData.address.street && updateData.address.suburb && updateData.address.state && updateData.address.postcode) {
+        updateData.address.fullAddress = `${updateData.address.street}, ${updateData.address.suburb}, ${updateData.address.state} ${updateData.address.postcode}`;
+      }
+    }
+
+    const propertyManager = await PropertyManager.findOneAndUpdate(
+      filter,
+      updateData,
+      { new: true, runValidators: true }
+    ).select("-password -otp -otpExpiry");
+
+    res.status(200).json({
+      success: true,
+      message: "PropertyManager updated successfully",
+      data: {
+        propertyManager,
+      },
+    });
+  } catch (error) {
+    console.error("Error updating PropertyManager:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to update PropertyManager",
+      error: error.message,
+    });
+  }
+});
+
 // Update PropertyManager status (Agency/SuperUser only)
 router.patch("/:id/status", authenticate, async (req, res) => {
   try {
