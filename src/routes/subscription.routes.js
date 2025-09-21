@@ -193,7 +193,6 @@ router.post("/register-with-subscription", async (req, res) => {
           agencyId: agency._id.toString(),
           planType,
         },
-        trial_period_days: 14, // 14-day free trial
       },
     });
 
@@ -302,14 +301,9 @@ async function handleCheckoutCompleted(session) {
 
     // Activate the agency
     agency.status = "active";
-    agency.subscriptionStatus = "trial"; // Starts with trial
+    agency.subscriptionStatus = "active"; // Immediately active after payment
     agency.paymentStatus = "completed"; // Payment completed successfully
     agency.subscriptionStartDate = new Date();
-
-    // Set trial end date (14 days from now)
-    const trialEnd = new Date();
-    trialEnd.setDate(trialEnd.getDate() + 14);
-    agency.trialEndsAt = trialEnd;
 
     await agency.save();
 
@@ -321,7 +315,6 @@ async function handleCheckoutCompleted(session) {
         contactPerson: agency.contactPerson,
         companyName: agency.companyName,
         subscriptionAmount: agency.subscriptionAmount,
-        trialEndDate: trialEnd,
         loginUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
       });
 
@@ -570,12 +563,9 @@ router.get("/status", authenticateUserTypes(['SuperUser', 'Agency', 'TeamMember'
 
           // Update real-time values from Stripe
           realTimeStatus = subscriptionDetails.status;
-          hasActiveSubscription = ['active', 'trialing'].includes(subscriptionDetails.status);
+          hasActiveSubscription = ['active'].includes(subscriptionDetails.status);
 
-          // Map Stripe's "trialing" status to our "trial" status for consistency
-          if (subscriptionDetails.status === 'trialing') {
-            realTimeStatus = 'trial';
-          }
+          // Note: Since we removed trials, trialing status should not occur
 
           // Get amount from subscription items
           if (subscriptionDetails.items?.data?.[0]?.price?.unit_amount) {
@@ -643,7 +633,7 @@ router.get("/status", authenticateUserTypes(['SuperUser', 'Agency', 'TeamMember'
             });
 
             realTimeStatus = mappedStatus;
-            hasActiveSubscription = ['active', 'trialing'].includes(latestSubscription.status);
+            hasActiveSubscription = ['active'].includes(latestSubscription.status);
           }
         } catch (listError) {
           console.warn(`Error listing subscriptions for customer ${agency.stripeCustomerId}:`, listError.message);
@@ -1078,7 +1068,6 @@ router.post("/create-checkout-session", authenticateUserTypes(['SuperUser', 'Age
         billingPeriod,
       },
       subscription_data: {
-        trial_period_days: 14,
         metadata: {
           agencyId: agency._id.toString(),
           planType,
@@ -1105,7 +1094,7 @@ router.post("/create-checkout-session", authenticateUserTypes(['SuperUser', 'Age
 router.post("/test-set-subscription/:agencyEmail", async (req, res) => {
   try {
     const { agencyEmail } = req.params;
-    const { planType = "pro", subscriptionStatus = "trial" } = req.body;
+    const { planType = "pro", subscriptionStatus = "active" } = req.body;
 
     const agency = await Agency.findOne({ email: agencyEmail.toLowerCase() });
     
@@ -1120,7 +1109,6 @@ router.post("/test-set-subscription/:agencyEmail", async (req, res) => {
     agency.planType = planType;
     agency.subscriptionStatus = subscriptionStatus;
     agency.subscriptionStartDate = new Date();
-    agency.trialEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000); // 14 days from now
     agency.subscriptionEndDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days from now
 
     await agency.save();
@@ -1136,7 +1124,6 @@ router.post("/test-set-subscription/:agencyEmail", async (req, res) => {
         subscriptionStatus: agency.subscriptionStatus,
         subscriptionStartDate: agency.subscriptionStartDate,
         subscriptionEndDate: agency.subscriptionEndDate,
-        trialEndsAt: agency.trialEndsAt,
       },
     });
   } catch (error) {
