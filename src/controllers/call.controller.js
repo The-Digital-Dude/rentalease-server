@@ -476,20 +476,25 @@ export const handleRecordingWebhook = async (req, res) => {
  */
 export const generateTwiML = (req, res) => {
   const response = new twilio.twiml.VoiceResponse();
+  const destination = req.query.to;
 
-  // Play a greeting and then wait/record for a proper call experience
-  response.say("Hello, this call is from your CRM system.");
+  if (destination) {
+    // Brief greeting
+    response.say("Hello! Connecting your call now.");
 
-  // Add a pause to keep the call alive and allow conversation
-  response.pause({ length: 1 });
+    // Establish direct connection to destination number
+    const dial = response.dial({
+      timeout: 30,
+      record: 'record-from-answer',
+      recordingStatusCallback: `${process.env.TWILIO_WEBHOOK_URL || process.env.BACKEND_URL}/api/v1/calls/recording-webhook`
+    });
 
-  // Record the conversation (optional)
-  response.record({
-    timeout: 30,
-    transcribe: false,
-    maxLength: 3600, // 1 hour max
-    finishOnKey: '#'
-  });
+    dial.number(destination);
+  } else {
+    // Fallback for when no destination is provided
+    response.say("Unable to connect call. Please try again.");
+    response.hangup();
+  }
 
   res.type("text/xml");
   res.send(response.toString());
