@@ -22,71 +22,47 @@ class TwilioService {
    * Initiate a click-to-call where caller gets called first, then connected to destination
    * This creates a proper call flow for CRM calling
    */
-  async initiateCall({ to, from = twilioPhoneNumber, callerPhone, statusCallback }) {
+  async initiateCall({ to, from = twilioPhoneNumber, statusCallback }) {
     if (!client) {
       throw new Error("Twilio client not initialized");
     }
 
     try {
-      // Use ngrok URL if available
+      // Use webhook URL if available
       const webhookBase = process.env.TWILIO_WEBHOOK_URL || process.env.BACKEND_URL;
-
-      // Default caller phone (the verified number that should receive the call)
-      const defaultCallerPhone = process.env.VERIFIED_CALLER_PHONE || "+8801620692839";
-      const actualCallerPhone = callerPhone || defaultCallerPhone;
 
       // For development testing without actual calls (set TWILIO_TEST_MODE=true in .env)
       if (process.env.TWILIO_TEST_MODE === "true") {
-        console.log(`[TWILIO TEST MODE] Would call ${actualCallerPhone} and connect to ${to}`);
+        console.log(`[TWILIO TEST MODE] Would call ${to}`);
         return {
           success: true,
           callSid: `test-call-${Date.now()}`,
           status: "completed",
           from: from || twilioPhoneNumber,
-          to: actualCallerPhone,
+          to: to,
           direction: "outbound-api",
           dateCreated: new Date().toISOString(),
         };
       }
 
-      if (!webhookBase || webhookBase.includes("localhost")) {
-        // For localhost testing, create a simple call to the caller
-        const call = await client.calls.create({
-          to: actualCallerPhone,
-          from: from || twilioPhoneNumber,
-          url: "http://demo.twilio.com/docs/voice.xml",
-          record: true,
-        });
-
-        return {
-          success: true,
-          callSid: call.sid,
-          status: call.status,
-          from: call.from,
-          to: call.to,
-          direction: call.direction,
-          dateCreated: call.dateCreated,
-        };
-      }
-
-      // Step 1: Call the caller (you) first
-      const callerCall = await client.calls.create({
-        to: actualCallerPhone, // Call your verified phone number
+      // Create a direct call to the destination number
+      const call = await client.calls.create({
+        to: to,
         from: from || twilioPhoneNumber,
-        url: `${webhookBase}/api/v1/calls/twiml/connect?destination=${encodeURIComponent(to)}`,
+        url: "http://demo.twilio.com/docs/voice.xml", // Simple demo TwiML
         record: true,
-        statusCallback: statusCallback || `${webhookBase}/api/v1/calls/status-webhook`,
+        statusCallback: statusCallback || (webhookBase ? `${webhookBase}/api/v1/calls/status-webhook` : undefined),
         statusCallbackEvent: ["initiated", "ringing", "answered", "completed"],
       });
 
       return {
         success: true,
-        callSid: callerCall.sid,
-        status: callerCall.status,
-        from: callerCall.from,
-        to: callerCall.to,
-        direction: callerCall.direction,
-        dateCreated: callerCall.dateCreated,
+        callSid: call.sid,
+        status: call.status,
+        from: call.from,
+        to: call.to,
+        direction: call.direction,
+        dateCreated: call.dateCreated,
       };
     } catch (error) {
       console.error("Twilio call initiation error:", error);

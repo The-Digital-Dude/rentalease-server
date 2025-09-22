@@ -8,7 +8,7 @@ import twilio from "twilio";
  */
 export const initiateCall = async (req, res) => {
   try {
-    const { to, contactId, notes, callerPhone } = req.body;
+    const { to, contactId, notes } = req.body;
 
     // Get user information from the appropriate source
     let userId, userType;
@@ -71,7 +71,6 @@ export const initiateCall = async (req, res) => {
     // Initiate call with Twilio
     const twilioResponse = await twilioService.initiateCall({
       to,
-      callerPhone,
     });
 
     // Update call history with Twilio call SID
