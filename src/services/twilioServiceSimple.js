@@ -49,7 +49,7 @@ class TwilioService {
       const call = await client.calls.create({
         to: to,
         from: from || twilioPhoneNumber,
-        url: "http://demo.twilio.com/docs/voice.xml", // Simple demo TwiML
+        url: webhookBase ? `${webhookBase}/api/v1/calls/twiml?to=${encodeURIComponent(to)}` : "http://demo.twilio.com/docs/voice.xml",
         record: true,
         statusCallback: statusCallback || (webhookBase ? `${webhookBase}/api/v1/calls/status-webhook` : undefined),
         statusCallbackEvent: ["initiated", "ringing", "answered", "completed"],

@@ -477,17 +477,8 @@ export const handleRecordingWebhook = async (req, res) => {
 export const generateTwiML = (req, res) => {
   const response = new twilio.twiml.VoiceResponse();
 
-  // Get the destination number from query parameters
-  const destinationNumber = req.query.to;
-
-  if (destinationNumber) {
-    // For real-time calls, directly dial the destination number
-    response.say("Connecting your call. This call may be recorded for quality purposes.");
-    response.dial(destinationNumber);
-  } else {
-    // Fallback if no destination number is provided
-    response.say("Unable to connect call. Destination number not provided.");
-  }
+  // For simple calls, just play a brief greeting and dial
+  response.say("Hello, you have an incoming call.");
 
   res.type("text/xml");
   res.send(response.toString());
