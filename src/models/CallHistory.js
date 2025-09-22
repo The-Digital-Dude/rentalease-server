@@ -78,6 +78,13 @@ const callHistorySchema = new mongoose.Schema(
       type: String,
       maxlength: [1000, "Notes cannot exceed 1000 characters"],
     },
+    retryAttempts: {
+      type: Number,
+      default: 0,
+    },
+    originalCallSid: {
+      type: String,
+    },
     metadata: {
       contactName: String,
       contactRole: String,

@@ -425,6 +425,46 @@ export const handleStatusWebhook = async (req, res) => {
 
         await call.save();
         console.log(`Call ${CallSid} updated successfully`);
+
+        // Auto-retry failed calls if they haven't been retried too many times
+        if ((CallStatus === "failed" || CallStatus === "busy" || CallStatus === "no-answer") &&
+            (!call.retryAttempts || call.retryAttempts < 2)) {
+          console.log(`Call ${CallSid} failed with status ${CallStatus}. Scheduling retry...`);
+
+          // Schedule a retry in 5 seconds
+          setTimeout(async () => {
+            try {
+              const retryAttempts = (call.retryAttempts || 0) + 1;
+              console.log(`Retrying failed call to ${call.to} (attempt ${retryAttempts}/2)`);
+
+              const retryResponse = await twilioService.initiateCall({
+                to: call.to,
+                retryAttempt: retryAttempts
+              });
+
+              // Create a new call history record for the retry
+              const retryCall = new CallHistory({
+                from: call.from,
+                to: call.to,
+                contactId: call.contactId,
+                userId: call.userId,
+                userType: call.userType,
+                status: "ringing",
+                direction: "outbound",
+                notes: `Retry attempt ${retryAttempts} for original call ${CallSid}`,
+                retryAttempts: retryAttempts,
+                originalCallSid: CallSid,
+                callSid: retryResponse.callSid,
+                metadata: call.metadata,
+              });
+
+              await retryCall.save();
+              console.log(`Retry call initiated with SID: ${retryResponse.callSid}`);
+            } catch (retryError) {
+              console.error(`Failed to retry call ${CallSid}:`, retryError);
+            }
+          }, 5000); // 5 second delay
+        }
       } else {
         console.warn(`No call record found for CallSid: ${CallSid}`);
       }

@@ -19,13 +19,15 @@ class TwilioService {
   }
 
   /**
-   * Initiate a click-to-call where caller gets called first, then connected to destination
+   * Initiate a call with retry logic for better reliability
    * This creates a proper call flow for CRM calling
    */
-  async initiateCall({ to, from = twilioPhoneNumber, statusCallback }) {
+  async initiateCall({ to, from = twilioPhoneNumber, statusCallback, retryAttempt = 0 }) {
     if (!client) {
       throw new Error("Twilio client not initialized");
     }
+
+    const maxRetries = 2; // Allow up to 2 retries (3 total attempts)
 
     try {
       // Use webhook URL if available
@@ -33,7 +35,7 @@ class TwilioService {
 
       // For development testing without actual calls (set TWILIO_TEST_MODE=true in .env)
       if (process.env.TWILIO_TEST_MODE === "true") {
-        console.log(`[TWILIO TEST MODE] Would call ${to}`);
+        console.log(`[TWILIO TEST MODE] Would call ${to}${retryAttempt > 0 ? ` (Retry ${retryAttempt})` : ''}`);
         return {
           success: true,
           callSid: `test-call-${Date.now()}`,
@@ -42,8 +44,11 @@ class TwilioService {
           to: to,
           direction: "outbound-api",
           dateCreated: new Date().toISOString(),
+          retryAttempt,
         };
       }
+
+      console.log(`Initiating call to ${to}${retryAttempt > 0 ? ` (Retry attempt ${retryAttempt})` : ''}`);
 
       // Create a direct call to the destination number
       const call = await client.calls.create({
@@ -52,7 +57,7 @@ class TwilioService {
         url: webhookBase ? `${webhookBase}/api/v1/calls/twiml?to=${encodeURIComponent(to)}` : "http://demo.twilio.com/docs/voice.xml",
         record: true,
         statusCallback: statusCallback || (webhookBase ? `${webhookBase}/api/v1/calls/status-webhook` : undefined),
-        statusCallbackEvent: ["initiated", "ringing", "answered", "completed"],
+        statusCallbackEvent: ["initiated", "ringing", "answered", "completed", "failed", "busy", "no-answer"],
       });
 
       return {
@@ -63,10 +68,28 @@ class TwilioService {
         to: call.to,
         direction: call.direction,
         dateCreated: call.dateCreated,
+        retryAttempt,
       };
     } catch (error) {
-      console.error("Twilio call initiation error:", error);
-      throw new Error(`Failed to initiate call: ${error.message}`);
+      console.error(`Twilio call initiation error (attempt ${retryAttempt + 1}):`, error);
+
+      // Check if we should retry based on error type
+      const isRetryableError = error.message.includes('temporarily unavailable') ||
+                              error.message.includes('timeout') ||
+                              error.code === 20003 || // Unreachable destination number
+                              error.code === 21211;   // Invalid 'To' Phone Number
+
+      if (retryAttempt < maxRetries && isRetryableError) {
+        console.log(`Retrying call to ${to} in 2 seconds... (attempt ${retryAttempt + 2}/${maxRetries + 1})`);
+
+        // Wait 2 seconds before retry
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        // Recursive retry with incremented attempt count
+        return this.initiateCall({ to, from, statusCallback, retryAttempt: retryAttempt + 1 });
+      }
+
+      throw new Error(`Failed to initiate call after ${retryAttempt + 1} attempts: ${error.message}`);
     }
   }
 
