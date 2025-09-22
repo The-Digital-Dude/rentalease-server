@@ -55,9 +55,8 @@ class TwilioService {
         to: to,
         from: from || twilioPhoneNumber,
         url: webhookBase ? `${webhookBase}/api/v1/calls/twiml?to=${encodeURIComponent(to)}` : "http://demo.twilio.com/docs/voice.xml",
-        record: true,
         statusCallback: statusCallback || (webhookBase ? `${webhookBase}/api/v1/calls/status-webhook` : undefined),
-        statusCallbackEvent: ["initiated", "ringing", "answered", "completed", "failed", "busy", "no-answer"],
+        statusCallbackEvent: ["completed"],
       });
 
       return {

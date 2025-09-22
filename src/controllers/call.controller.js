@@ -524,9 +524,7 @@ export const generateTwiML = (req, res) => {
 
     // Establish direct connection to destination number
     const dial = response.dial({
-      timeout: 30,
-      record: 'record-from-answer',
-      recordingStatusCallback: `${process.env.TWILIO_WEBHOOK_URL || process.env.BACKEND_URL}/api/v1/calls/recording-webhook`
+      timeout: 30
     });
 
     dial.number(destination);
