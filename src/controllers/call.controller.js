@@ -477,8 +477,19 @@ export const handleRecordingWebhook = async (req, res) => {
 export const generateTwiML = (req, res) => {
   const response = new twilio.twiml.VoiceResponse();
 
-  // For simple calls, just play a brief greeting and dial
-  response.say("Hello, you have an incoming call.");
+  // Play a greeting and then wait/record for a proper call experience
+  response.say("Hello, this call is from your CRM system.");
+
+  // Add a pause to keep the call alive and allow conversation
+  response.pause({ length: 1 });
+
+  // Record the conversation (optional)
+  response.record({
+    timeout: 30,
+    transcribe: false,
+    maxLength: 3600, // 1 hour max
+    finishOnKey: '#'
+  });
 
   res.type("text/xml");
   res.send(response.toString());
