@@ -300,7 +300,7 @@ async function handleCheckoutCompleted(session) {
     }
 
     // Activate the agency
-    agency.status = "active";
+    agency.status = "Active";
     agency.subscriptionStatus = "active"; // Immediately active after payment
     agency.paymentStatus = "completed"; // Payment completed successfully
     agency.subscriptionStartDate = new Date();
@@ -334,6 +334,8 @@ async function handleCheckoutCompleted(session) {
       email: agency.email,
       companyName: agency.companyName,
       planType: agency.planType,
+      status: agency.status,
+      subscriptionStatus: agency.subscriptionStatus,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -416,7 +418,7 @@ async function handleSubscriptionDeleted(subscription) {
     }
 
     agency.subscriptionStatus = "canceled";
-    agency.status = "inactive"; // Deactivate agency
+    agency.status = "Inactive"; // Deactivate agency
     agency.subscriptionEndDate = new Date();
 
     await agency.save();

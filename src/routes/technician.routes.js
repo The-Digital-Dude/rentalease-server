@@ -9,6 +9,7 @@ import {
 } from "../middleware/auth.middleware.js";
 import Job from "../models/Job.js"; // Added import for Job model
 import TechnicianPayment from "../models/TechnicianPayment.js"; // Added import for TechnicianPayment model
+import Property from "../models/Property.js"; // Added import for Property model
 import Notification from "../models/Notification.js";
 
 const router = express.Router();
@@ -1481,9 +1482,29 @@ router.get("/reports/performance", async (req, res) => {
 });
 
 // Get Technician Payments Report Data
-router.get("/reports/payments", async (req, res) => {
+router.get("/reports/payments", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'PropertyManager']), async (req, res) => {
   try {
-    const payments = await TechnicianPayment.find({}).populate(
+    let paymentQuery = {};
+
+    // Filter payments based on user type
+    if (req.propertyManager) {
+      // Property manager should only see payments for jobs on their assigned properties
+      const properties = await Property.find({ assignedPropertyManager: req.propertyManager.id }).select('_id');
+      const propertyIds = properties.map(p => p._id);
+
+      // Get all jobs for these properties
+      const jobs = await Job.find({ property: { $in: propertyIds } }).select('_id');
+      const jobIds = jobs.map(j => j._id);
+
+      // Filter payments to only those for these jobs
+      paymentQuery.jobId = { $in: jobIds };
+    } else if (req.agency) {
+      // Agency should only see payments for their properties
+      paymentQuery.agencyId = req.agency.id;
+    }
+    // SuperUser and TeamMember can see all payments (no additional filter)
+
+    const payments = await TechnicianPayment.find(paymentQuery).populate(
       "technicianId",
       "firstName lastName"
     );
