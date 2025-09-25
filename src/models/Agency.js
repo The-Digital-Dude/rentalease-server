@@ -80,8 +80,8 @@ const agencySchema = new mongoose.Schema(
     // Account Status
     status: {
       type: String,
-      enum: ["active", "inactive", "suspended", "pending"],
-      default: "pending",
+      enum: ["Active", "Inactive", "Suspended", "Pending"],
+      default: "Pending",
     },
 
     // Authentication Information
@@ -226,7 +226,7 @@ agencySchema.methods.getDisplayName = function () {
 
 // Method to check if account is active
 agencySchema.methods.isActive = function () {
-  return this.status === "active";
+  return this.status === "Active";
 };
 
 // Method to check if subscription is active

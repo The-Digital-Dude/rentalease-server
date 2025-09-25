@@ -162,7 +162,7 @@ router.post("/register", authenticateUserTypes(['SuperUser', 'TeamMember']), asy
       subscriptionAmount: numericSubscriptionAmount,
       stripeCustomerId: stripeCustomer.id,
       stripePriceId: stripePrice.id,
-      status: "pending", // Will be activated after payment
+      status: "Pending", // Will be activated after payment
       subscriptionStatus: "pending_payment",
       paymentStatus: "pending",
       planType: "custom",
