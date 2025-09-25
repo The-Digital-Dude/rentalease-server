@@ -141,7 +141,7 @@ const agencySchema = new mongoose.Schema(
     },
     subscriptionAmount: {
       type: Number,
-      required: [true, "Subscription amount is required"],
+      default: 99,
       min: [1, "Subscription amount must be at least $1"],
       max: [100000, "Subscription amount cannot exceed $100,000"],
     },
