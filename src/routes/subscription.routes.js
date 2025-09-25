@@ -1139,12 +1139,12 @@ router.post("/test-set-subscription/:agencyEmail", async (req, res) => {
 
 
 
-// Fix agency status case issues - convert any uppercase status to lowercase
+// Fix agency status case issues - convert any lowercase status to uppercase
 router.post("/fix-agency-status", authenticateUserTypes(['SuperUser']), async (req, res) => {
   try {
-    // Find all agencies with incorrect case status
+    // Find all agencies with incorrect case status (lowercase when should be uppercase)
     const agenciesWithWrongCase = await Agency.find({
-      status: { $in: ["Active", "Inactive", "Suspended", "Pending"] }
+      status: { $in: ["active", "inactive", "suspended", "pending"] }
     });
 
     console.log(`Found ${agenciesWithWrongCase.length} agencies with wrong case status:`,
@@ -1158,7 +1158,8 @@ router.post("/fix-agency-status", authenticateUserTypes(['SuperUser']), async (r
     const updates = [];
     for (const agency of agenciesWithWrongCase) {
       const oldStatus = agency.status;
-      agency.status = agency.status.toLowerCase();
+      // Convert lowercase to uppercase (first letter capitalized)
+      agency.status = agency.status.charAt(0).toUpperCase() + agency.status.slice(1).toLowerCase();
       await agency.save();
       updates.push({
         agencyId: agency._id,
@@ -1177,7 +1178,7 @@ router.post("/fix-agency-status", authenticateUserTypes(['SuperUser']), async (r
 
     res.status(200).json({
       status: "success",
-      message: `Fixed ${updates.length} agencies with wrong case status`,
+      message: `Fixed ${updates.length} agencies by converting lowercase status to uppercase`,
       data: {
         fixedCount: updates.length,
         updates
