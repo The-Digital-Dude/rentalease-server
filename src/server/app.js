@@ -30,6 +30,7 @@ import websiteLeadRoutes from "../routes/websiteLead.routes.js";
 import regionalRoutes from "../routes/regional.routes.js";
 import quotationRoutes from "../routes/quotation.routes.js";
 import callRoutes from "../routes/call.routes.js";
+import propertyManagerReportsRoutes from "../routes/propertyManagerReports.routes.js";
 import emailService from "../services/email.service.js";
 
 // Create Express app
@@ -75,6 +76,7 @@ app.use("/api/v1/website-leads", websiteLeadRoutes);
 app.use("/api/v1/regional", regionalRoutes);
 app.use("/api/v1/quotations", quotationRoutes);
 app.use("/api/v1/calls", callRoutes);
+app.use("/api/v1/reports/property-manager", propertyManagerReportsRoutes);
 
 // Health check route
 app.get("/health", async (req, res) => {

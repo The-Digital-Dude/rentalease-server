@@ -1135,4 +1135,161 @@ router.get(
   }
 );
 
+// GET - PropertyManager Dashboard Statistics
+router.get(
+  "/property-manager-stats",
+  authenticateUserTypes(["PropertyManager"]),
+  async (req, res) => {
+    try {
+      console.log("Fetching PropertyManager dashboard statistics...");
+
+      const propertyManagerId = req.propertyManager.id;
+
+      // Get PropertyManager's assigned properties
+      const propertyManager = await PropertyManager.findById(propertyManagerId)
+        .populate('assignedProperties.propertyId');
+
+      if (!propertyManager) {
+        return res.status(404).json({
+          status: "error",
+          message: "PropertyManager not found"
+        });
+      }
+
+      // Get active property IDs
+      const activePropertyIds = propertyManager.assignedProperties
+        .filter(assignment => assignment.status === 'Active')
+        .map(assignment => assignment.propertyId);
+
+      if (activePropertyIds.length === 0) {
+        return res.status(200).json({
+          status: "success",
+          message: "PropertyManager dashboard statistics retrieved successfully",
+          data: {
+            propertiesManaged: 0,
+            totalJobs: 0,
+            activeJobs: 0,
+            completedJobs: 0,
+            pendingJobs: 0,
+            overdueJobs: 0,
+            complianceOverview: {
+              compliant: 0,
+              dueSoon: 0,
+              overdue: 0,
+              total: 0
+            },
+            recentActivity: [],
+            lastUpdated: new Date().toISOString()
+          }
+        });
+      }
+
+      // Get job statistics for assigned properties
+      const [
+        totalJobs,
+        activeJobs,
+        completedJobs,
+        pendingJobs,
+        overdueJobs,
+        recentJobs
+      ] = await Promise.all([
+        Job.countDocuments({ property: { $in: activePropertyIds } }),
+        Job.countDocuments({ property: { $in: activePropertyIds }, status: "In Progress" }),
+        Job.countDocuments({ property: { $in: activePropertyIds }, status: "Completed" }),
+        Job.countDocuments({ property: { $in: activePropertyIds }, status: "Pending" }),
+        Job.countDocuments({ property: { $in: activePropertyIds }, status: "Overdue" }),
+        Job.find({ property: { $in: activePropertyIds } })
+          .populate('property', 'address')
+          .populate('assignedTechnician', 'fullName')
+          .sort({ createdAt: -1 })
+          .limit(10)
+          .select('job_id jobType status dueDate property assignedTechnician createdAt')
+      ]);
+
+      // Get compliance overview for assigned properties
+      const properties = await Property.find({
+        _id: { $in: activePropertyIds },
+        isActive: true
+      }).select('complianceSchedule address');
+
+      let complianceOverview = {
+        compliant: 0,
+        dueSoon: 0,
+        overdue: 0,
+        total: 0
+      };
+
+      const now = new Date();
+      const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+      properties.forEach(property => {
+        const compliance = property.complianceSchedule;
+        const inspections = [
+          compliance.gasCompliance,
+          compliance.electricalSafety,
+          compliance.smokeAlarms
+        ];
+
+        if (compliance.poolSafety && compliance.poolSafety.required) {
+          inspections.push(compliance.poolSafety);
+        }
+
+        inspections.forEach(inspection => {
+          if (inspection.nextInspection) {
+            complianceOverview.total++;
+            const inspectionDate = new Date(inspection.nextInspection);
+
+            if (inspectionDate < now) {
+              complianceOverview.overdue++;
+            } else if (inspectionDate <= thirtyDaysFromNow) {
+              complianceOverview.dueSoon++;
+            } else {
+              complianceOverview.compliant++;
+            }
+          }
+        });
+      });
+
+      // Format recent activity
+      const recentActivity = recentJobs.map(job => ({
+        id: job._id,
+        jobId: job.job_id,
+        jobType: job.jobType,
+        status: job.status,
+        propertyAddress: job.property ?
+          `${job.property.address.street}, ${job.property.address.suburb}` :
+          'Unknown Property',
+        technicianName: job.assignedTechnician ? job.assignedTechnician.fullName : 'Unassigned',
+        dueDate: job.dueDate,
+        createdAt: job.createdAt
+      }));
+
+      const dashboardData = {
+        propertiesManaged: activePropertyIds.length,
+        totalJobs,
+        activeJobs,
+        completedJobs,
+        pendingJobs,
+        overdueJobs,
+        complianceOverview,
+        recentActivity,
+        lastUpdated: new Date().toISOString()
+      };
+
+      res.status(200).json({
+        status: "success",
+        message: "PropertyManager dashboard statistics retrieved successfully",
+        data: dashboardData
+      });
+
+    } catch (error) {
+      console.error("Get PropertyManager dashboard statistics error:", error);
+      res.status(500).json({
+        status: "error",
+        message: error.message || "Failed to get PropertyManager dashboard statistics"
+      });
+    }
+  }
+);
+
 export default router;

@@ -10,6 +10,7 @@ import {
 import Job from "../models/Job.js"; // Added import for Job model
 import TechnicianPayment from "../models/TechnicianPayment.js"; // Added import for TechnicianPayment model
 import Property from "../models/Property.js"; // Added import for Property model
+import PropertyManager from "../models/PropertyManager.js"; // Added import for PropertyManager model
 import Notification from "../models/Notification.js";
 
 const router = express.Router();
@@ -1489,11 +1490,29 @@ router.get("/reports/payments", authenticateUserTypes(['SuperUser', 'TeamMember'
     // Filter payments based on user type
     if (req.propertyManager) {
       // Property manager should only see payments for jobs on their assigned properties
-      const properties = await Property.find({ assignedPropertyManager: req.propertyManager.id }).select('_id');
-      const propertyIds = properties.map(p => p._id);
+      const propertyManager = await PropertyManager.findById(req.propertyManager.id);
+      if (!propertyManager) {
+        return res.status(404).json({
+          status: "error",
+          message: "PropertyManager not found"
+        });
+      }
+
+      // Get active property IDs from PropertyManager's assignedProperties
+      const activePropertyIds = propertyManager.assignedProperties
+        .filter(assignment => assignment.status === 'Active')
+        .map(assignment => assignment.propertyId);
+
+      if (activePropertyIds.length === 0) {
+        // No assigned properties, return empty result
+        return res.status(200).json({
+          status: "success",
+          data: []
+        });
+      }
 
       // Get all jobs for these properties
-      const jobs = await Job.find({ property: { $in: propertyIds } }).select('_id');
+      const jobs = await Job.find({ property: { $in: activePropertyIds } }).select('_id');
       const jobIds = jobs.map(j => j._id);
 
       // Filter payments to only those for these jobs
