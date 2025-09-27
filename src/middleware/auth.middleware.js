@@ -615,6 +615,8 @@ const authenticateUserTypes = (allowedUserTypes) => {
         userType = "team_member";
       } else if (userType === "agency" || userType === "Agency") {
         userType = "agency";
+      } else if (userType === "propertyManager" || userType === "PropertyManager") {
+        userType = "property_manager";
       }
 
       // Check if user type is allowed (handle different formats)
@@ -725,11 +727,7 @@ const authenticateUserTypes = (allowedUserTypes) => {
           currentJobs: technician.currentJobs,
           maxJobs: technician.maxJobs,
         };
-      } else if (
-        userType === "PropertyManager" ||
-        userType === "propertyManager" ||
-        userType === "property_manager"
-      ) {
+      } else if (userType === "property_manager") {
         const propertyManager = await PropertyManager.findById(decoded.id);
         if (!propertyManager) {
           return res.status(401).json({
