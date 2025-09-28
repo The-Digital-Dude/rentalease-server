@@ -10,7 +10,7 @@ import {
 const router = express.Router();
 
 // Get all PropertyManagers (Agency/SuperUser only)
-router.get("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency']), async (req, res) => {
+router.get("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'PropertyManager']), async (req, res) => {
   try {
     // Access already validated by authenticateUserTypes middleware
 
@@ -172,7 +172,7 @@ router.get("/:id", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', '
 });
 
 // Update PropertyManager (Agency/SuperUser/TeamMember only)
-router.patch("/:id", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency']), async (req, res) => {
+router.patch("/:id", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'PropertyManager']), async (req, res) => {
   try {
     const { id } = req.params;
     const { firstName, lastName, email, phone, address } = req.body;

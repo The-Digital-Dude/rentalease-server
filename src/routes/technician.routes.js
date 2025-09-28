@@ -142,7 +142,7 @@ router.post("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency']), a
 });
 
 // READ - Get all technicians for the authenticated user
-router.get("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency']), async (req, res) => {
+router.get("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'PropertyManager']), async (req, res) => {
   try {
     const ownerInfo = getOwnerInfo(req);
     if (!ownerInfo) {
@@ -1123,7 +1123,7 @@ router.get("/dashboard", authenticateUserTypes(['Technician']), async (req, res)
 });
 
 // READ - Get single technician by ID
-router.get("/:id", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency']), async (req, res) => {
+router.get("/:id", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'PropertyManager']), async (req, res) => {
   try {
     const { id } = req.params;
 

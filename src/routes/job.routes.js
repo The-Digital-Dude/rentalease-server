@@ -19,6 +19,15 @@ import { sanitizeJobInput } from "../middleware/sanitizer.middleware.js";
 
 const router = express.Router();
 
+const getTechnicianMaxJobs = (technician) => {
+  if (!technician) {
+    return 4;
+  }
+
+  const { maxJobs } = technician;
+  return typeof maxJobs === "number" && !Number.isNaN(maxJobs) ? maxJobs : 4;
+};
+
 // Helper function to get owner info based on user type
 const getOwnerInfo = (req) => {
   if (req.superUser) {
@@ -35,6 +44,14 @@ const getOwnerInfo = (req) => {
     return {
       ownerType: "Agency",
       ownerId: req.agency.id,
+    };
+  } else if (req.propertyManager) {
+    // Property Manager should see jobs from their agency but limited to assigned properties
+    return {
+      ownerType: req.propertyManager.owner.ownerType,
+      ownerId: req.propertyManager.owner.ownerId,
+      propertyManagerId: req.propertyManager.id,
+      assignedProperties: req.propertyManager.assignedProperties,
     };
   } else if (req.technician) {
     return {
@@ -62,6 +79,11 @@ const getCreatorInfo = (req) => {
       userType: "Agency",
       userId: req.agency.id,
     };
+  } else if (req.propertyManager) {
+    return {
+      userType: "PropertyManager",
+      userId: req.propertyManager.id,
+    };
   } else if (req.technician) {
     return {
       userType: "Technician",
@@ -86,6 +108,15 @@ const validateOwnerAccess = (job, req) => {
   // 2. Pending (unassigned) jobs from their organization
   if (ownerInfo.ownerType === "Technician") {
     return true;
+  }
+
+  // Property Managers can access jobs for their assigned properties
+  if (ownerInfo.propertyManagerId) {
+    const activePropertyIds = ownerInfo.assignedProperties
+      .filter(assignment => assignment.status === 'Active')
+      .map(assignment => assignment.propertyId.toString());
+
+    return activePropertyIds.includes(job.property.toString());
   }
 
   // For agencies, check if they own the job
@@ -192,6 +223,17 @@ router.post(
             },
           });
         }
+
+        const technicianMaxJobs = getTechnicianMaxJobs(technician);
+        const technicianCurrentJobs = technician.currentJobs || 0;
+
+        if (technicianCurrentJobs >= technicianMaxJobs) {
+          return res.status(400).json({
+            status: "error",
+            message:
+              "The technician has reached their job limit and cannot take more assignments right now.",
+          });
+        }
       }
 
       // Create new job
@@ -215,8 +257,11 @@ router.post(
       // Update technician's job count if assigned
       if (technician) {
         technician.currentJobs = (technician.currentJobs || 0) + 1;
+        const technicianMaxJobs = getTechnicianMaxJobs(technician);
         technician.availabilityStatus =
-          technician.currentJobs >= 4 ? "Busy" : "Available";
+          technician.currentJobs >= technicianMaxJobs
+            ? "Busy"
+            : "Available";
         await technician.save();
       }
 
@@ -347,12 +392,21 @@ router.get(
       // Build query
       let query = {};
 
-      // If super user, show all jobs. If agency, show only their jobs
+      // If super user, show all jobs. If agency, show only their jobs. If property manager, show jobs for assigned properties only
       if (ownerInfo.ownerType === "SuperUser") {
         // Super users can see all jobs
         query = {};
+      } else if (ownerInfo.propertyManagerId) {
+        // Property Manager: filter by assigned properties only
+        const activePropertyIds = ownerInfo.assignedProperties
+          .filter(assignment => assignment.status === 'Active')
+          .map(assignment => assignment.propertyId);
+
+        query = {
+          property: { $in: activePropertyIds }
+        };
       } else {
-        // Agencies can only see their own jobs
+        // Agencies and other user types can only see their own jobs
         query = {
           "owner.ownerType": ownerInfo.ownerType,
           "owner.ownerId": ownerInfo.ownerId,
@@ -1301,8 +1355,11 @@ router.put(
                 0,
                 (prevTech.currentJobs || 0) - 1
               );
+              const prevTechMaxJobs = getTechnicianMaxJobs(prevTech);
               prevTech.availabilityStatus =
-                prevTech.currentJobs < 4 ? "Available" : "Busy";
+                prevTech.currentJobs < prevTechMaxJobs
+                  ? "Available"
+                  : "Busy";
               await prevTech.save();
             }
           }
@@ -1311,8 +1368,11 @@ router.put(
             const newTech = await Technician.findById(newTechnician);
             if (newTech) {
               newTech.currentJobs = (newTech.currentJobs || 0) + 1;
+              const newTechMaxJobs = getTechnicianMaxJobs(newTech);
               newTech.availabilityStatus =
-                newTech.currentJobs >= 4 ? "Busy" : "Available";
+                newTech.currentJobs >= newTechMaxJobs
+                  ? "Busy"
+                  : "Available";
               await newTech.save();
             }
           }
@@ -1329,8 +1389,11 @@ router.put(
                 0,
                 (prevTech.currentJobs || 0) - 1
               );
+              const prevTechMaxJobs = getTechnicianMaxJobs(prevTech);
               prevTech.availabilityStatus =
-                prevTech.currentJobs < 4 ? "Available" : "Busy";
+                prevTech.currentJobs < prevTechMaxJobs
+                  ? "Available"
+                  : "Busy";
               await prevTech.save();
             }
 
@@ -1338,8 +1401,11 @@ router.put(
             const newTech = await Technician.findById(newTechnician);
             if (newTech) {
               newTech.currentJobs = (newTech.currentJobs || 0) + 1;
+              const newTechMaxJobs = getTechnicianMaxJobs(newTech);
               newTech.availabilityStatus =
-                newTech.currentJobs >= 4 ? "Busy" : "Available";
+                newTech.currentJobs >= newTechMaxJobs
+                  ? "Busy"
+                  : "Available";
               await newTech.save();
             }
           }
@@ -1548,8 +1614,11 @@ router.patch("/:id/status", authenticate, async (req, res) => {
       if (technician) {
         technician.completedJobs = (technician.completedJobs || 0) + 1;
         technician.currentJobs = Math.max(0, (technician.currentJobs || 0) - 1);
+        const technicianMaxJobs = getTechnicianMaxJobs(technician);
         technician.availabilityStatus =
-          technician.currentJobs < 4 ? "Available" : "Busy";
+          technician.currentJobs < technicianMaxJobs
+            ? "Available"
+            : "Busy";
         await technician.save();
       }
     }
@@ -1618,6 +1687,17 @@ router.patch("/:id/assign", authenticateAdminLevel, async (req, res) => {
     // Technicians are independent contractors and can be assigned to any job
     // No organization validation needed - any authenticated user can assign any technician
 
+    const technicianMaxJobs = getTechnicianMaxJobs(technician);
+    const technicianCurrentJobs = technician.currentJobs || 0;
+
+    if (technicianCurrentJobs >= technicianMaxJobs) {
+      return res.status(400).json({
+        status: "error",
+        message:
+          "The technician has reached their job limit and cannot take more assignments right now.",
+      });
+    }
+
     try {
       // Update job
       job.assignedTechnician = technicianId;
@@ -1626,9 +1706,9 @@ router.patch("/:id/assign", authenticateAdminLevel, async (req, res) => {
       await job.save();
 
       // Update technician's status
-      technician.currentJobs = (technician.currentJobs || 0) + 1;
+      technician.currentJobs = technicianCurrentJobs + 1;
       technician.availabilityStatus =
-        technician.currentJobs >= 4 ? "Busy" : "Available";
+        technician.currentJobs >= technicianMaxJobs ? "Busy" : "Available";
       await technician.save();
 
       console.log("Technician:", technician);
@@ -1753,11 +1833,11 @@ router.patch(
         });
       }
 
+      const technicianMaxJobs = getTechnicianMaxJobs(technician);
+      const technicianCurrentJobs = technician.currentJobs || 0;
+
       // Check if technician is available (not too busy)
-      if (
-        technician.availabilityStatus === "Busy" &&
-        technician.currentJobs >= 4
-      ) {
+      if (technicianCurrentJobs >= technicianMaxJobs) {
         return res.status(400).json({
           status: "error",
           message:
@@ -1772,9 +1852,9 @@ router.patch(
       await job.save();
 
       // Update technician's job count and availability status
-      technician.currentJobs = (technician.currentJobs || 0) + 1;
+      technician.currentJobs = technicianCurrentJobs + 1;
       technician.availabilityStatus =
-        technician.currentJobs >= 4 ? "Busy" : "Available";
+        technician.currentJobs >= technicianMaxJobs ? "Busy" : "Available";
       await technician.save();
 
       // Populate technician details for response
@@ -2043,8 +2123,11 @@ router.patch(
             (technician.currentJobs || 0) - 1
           );
           technician.completedJobs = (technician.completedJobs || 0) + 1;
+          const technicianMaxJobs = getTechnicianMaxJobs(technician);
           technician.availabilityStatus =
-            technician.currentJobs < 4 ? "Available" : "Busy";
+            technician.currentJobs < technicianMaxJobs
+              ? "Available"
+              : "Busy";
           await technician.save();
         }
 
@@ -2237,8 +2320,9 @@ router.patch(
 
         technician.completedJobs = completedJobsCount;
         technician.currentJobs = currentJobsCount;
+        const technicianMaxJobs = getTechnicianMaxJobs(technician);
         technician.availabilityStatus =
-          currentJobsCount < 4 ? "Available" : "Busy";
+          currentJobsCount < technicianMaxJobs ? "Available" : "Busy";
 
         await technician.save();
 

@@ -323,7 +323,12 @@ class BookingNotificationService {
     const availableTechnicians = await Technician.find({
       status: "Active",
       availabilityStatus: "Available",
-      currentJobs: { $lt: "$maxJobs" }, // Has capacity for more jobs
+      $expr: {
+        $lt: [
+          { $ifNull: ["$currentJobs", 0] },
+          { $ifNull: ["$maxJobs", 4] },
+        ],
+      }, // Has capacity for more jobs based on individual limit
     });
 
     const results = [];

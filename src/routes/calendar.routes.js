@@ -112,7 +112,7 @@ const generateICSContent = (jobs, technicianName) => {
 };
 
 // GET - Get technician's calendar in JSON format
-router.get("/technician/:technicianId", authenticateUserTypes(['SuperUser', 'Agency', 'Technician']), async (req, res) => {
+router.get("/technician/:technicianId", authenticateUserTypes(['SuperUser', 'Agency', 'PropertyManager', 'Technician']), async (req, res) => {
   try {
     const { technicianId } = req.params;
     const { startDate, endDate, status, format } = req.query;
@@ -258,7 +258,7 @@ router.get("/my-calendar", authenticateUserTypes(['Technician']), async (req, re
 });
 
 // GET - Download technician's calendar as ICS file
-router.get("/technician/:technicianId/download", authenticateUserTypes(['SuperUser', 'Agency', 'Technician']), async (req, res) => {
+router.get("/technician/:technicianId/download", authenticateUserTypes(['SuperUser', 'Agency', 'PropertyManager', 'Technician']), async (req, res) => {
   try {
     const { technicianId } = req.params;
 
@@ -288,7 +288,7 @@ router.get("/technician/:technicianId/download", authenticateUserTypes(['SuperUs
 });
 
 // PUT - Update job schedule time
-router.put("/jobs/:jobId/schedule", authenticateUserTypes(['SuperUser', 'Agency', 'Technician']), async (req, res) => {
+router.put("/jobs/:jobId/schedule", authenticateUserTypes(['SuperUser', 'Agency', 'PropertyManager', 'Technician']), async (req, res) => {
   try {
     const { jobId } = req.params;
     const { scheduledStartTime, scheduledEndTime, shift } = req.body;
@@ -355,7 +355,7 @@ router.put("/jobs/:jobId/schedule", authenticateUserTypes(['SuperUser', 'Agency'
 });
 
 // GET - Get calendar feed URL for mobile app integration
-router.get("/technician/:technicianId/feed-url", authenticateUserTypes(['SuperUser', 'Agency', 'Technician']), async (req, res) => {
+router.get("/technician/:technicianId/feed-url", authenticateUserTypes(['SuperUser', 'Agency', 'PropertyManager', 'Technician']), async (req, res) => {
   try {
     const { technicianId } = req.params;
 

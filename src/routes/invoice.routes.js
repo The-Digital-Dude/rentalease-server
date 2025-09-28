@@ -269,7 +269,7 @@ router.post("/", authenticateUserTypes(['SuperUser', 'TeamMember']), async (req,
 });
 
 // GET - Get invoice for specific job
-router.get("/job/:jobId", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency']), async (req, res) => {
+router.get("/job/:jobId", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'PropertyManager']), async (req, res) => {
   try {
     const { jobId } = req.params;
 
@@ -452,7 +452,7 @@ router.patch("/:invoiceId/send", authenticate, async (req, res) => {
 });
 
 // GET - Get all invoices (with filtering and pagination)
-router.get("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency']), async (req, res) => {
+router.get("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'PropertyManager']), async (req, res) => {
   try {
     const userInfo = getUserInfo(req);
     if (!userInfo) {
@@ -552,7 +552,7 @@ router.get("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency']), as
 });
 
 // GET - Get specific invoice by ID
-router.get("/:id", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency']), async (req, res) => {
+router.get("/:id", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'PropertyManager']), async (req, res) => {
   try {
     const { id } = req.params;
 

@@ -10,6 +10,7 @@ import Technician from "../models/Technician.js";
 import PropertyManager from "../models/PropertyManager.js";
 import TeamMember from "../models/TeamMember.js";
 import TechnicianPayment from "../models/TechnicianPayment.js";
+import Quotation from "../models/Quotation.js";
 
 const router = express.Router();
 
@@ -693,7 +694,8 @@ router.get(
         jobCompletionRate,
         avgJobValue,
         customerSatisfaction,
-        technicianUtilization
+        technicianUtilization,
+        quotationMetrics
       ] = await Promise.all([
         // Active entities count
         Promise.all([
@@ -773,7 +775,25 @@ router.get(
               avgUtilization: { $avg: { $divide: ["$activeJobs", { $max: ["$totalJobs", 1] }] } }
             }
           }
-        ]).then(result => (result[0]?.avgUtilization * 100) || 0)
+        ]).then(result => (result[0]?.avgUtilization * 100) || 0),
+
+        // Quotation metrics
+        Promise.all([
+          // Total quotations sent
+          Quotation.countDocuments(),
+          // Accepted quotations (status: "Accepted")
+          Quotation.countDocuments({ status: "Accepted" }),
+          // Total value of accepted quotations
+          Quotation.aggregate([
+            { $match: { status: "Accepted" } },
+            { $group: { _id: null, totalValue: { $sum: "$amount" } } }
+          ])
+        ]).then(([totalQuotations, acceptedQuotations, acceptedValue]) => ({
+          totalQuotations,
+          acceptedQuotations,
+          acceptedValue: acceptedValue[0]?.totalValue || 0,
+          acceptanceRate: totalQuotations > 0 ? (acceptedQuotations / totalQuotations * 100).toFixed(1) : 0
+        }))
       ]);
 
       const executiveDashboard = {
@@ -820,6 +840,12 @@ router.get(
           avgJobValue: parseFloat(avgJobValue.toFixed(2)),
           customerSatisfaction,
           technicianUtilization: parseFloat(technicianUtilization.toFixed(1))
+        },
+        quotations: {
+          totalQuotations: quotationMetrics.totalQuotations,
+          acceptedQuotations: quotationMetrics.acceptedQuotations,
+          acceptedValue: quotationMetrics.acceptedValue,
+          acceptanceRate: parseFloat(quotationMetrics.acceptanceRate)
         },
         alerts: {
           critical: await Job.countDocuments({ status: "Overdue" }),

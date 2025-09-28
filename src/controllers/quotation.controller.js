@@ -60,7 +60,7 @@ export const createQuotationRequest = async (req, res) => {
       });
     }
 
-    // For agencies, use their own ID. For super users, require agencyId in body
+    // For agencies, use their own ID. For super users, require agencyId in body. For property managers, use their agency
     let agencyId;
     if (userInfo.userType === "Agency") {
       agencyId = userInfo.userId;
@@ -72,10 +72,24 @@ export const createQuotationRequest = async (req, res) => {
           message: "Agency ID is required when creating quotation as SuperUser",
         });
       }
+    } else if (userInfo.userType === "PropertyManager") {
+      agencyId = req.propertyManager.owner.ownerId;
+
+      // Verify property is assigned to this property manager
+      const activePropertyIds = req.propertyManager.assignedProperties
+        .filter(assignment => assignment.status === 'Active')
+        .map(assignment => assignment.propertyId.toString());
+
+      if (!activePropertyIds.includes(property)) {
+        return res.status(403).json({
+          success: false,
+          message: "Access denied. Property not assigned to you",
+        });
+      }
     } else {
       return res.status(403).json({
         success: false,
-        message: "Only agencies and super users can create quotation requests",
+        message: "Only agencies, property managers, and super users can create quotation requests",
       });
     }
 
@@ -193,6 +207,12 @@ export const getQuotations = async (req, res) => {
     // Apply role-based filtering
     if (userInfo.userType === "Agency") {
       filter.agency = userInfo.userId;
+    } else if (userInfo.userType === "PropertyManager") {
+      // Property managers can only see quotations for their assigned properties
+      const activePropertyIds = req.propertyManager.assignedProperties
+        .filter(assignment => assignment.status === 'Active')
+        .map(assignment => assignment.propertyId);
+      filter.property = { $in: activePropertyIds };
     }
     // SuperUsers can see all quotations
 
@@ -270,6 +290,18 @@ export const getQuotation = async (req, res) => {
         success: false,
         message: "Access denied",
       });
+    } else if (userInfo.userType === "PropertyManager") {
+      // Property managers can only access quotations for their assigned properties
+      const activePropertyIds = req.propertyManager.assignedProperties
+        .filter(assignment => assignment.status === 'Active')
+        .map(assignment => assignment.propertyId.toString());
+
+      if (!activePropertyIds.includes(quotation.property._id.toString())) {
+        return res.status(403).json({
+          success: false,
+          message: "Access denied",
+        });
+      }
     }
 
     res.status(200).json({
@@ -622,6 +654,25 @@ export const deleteQuotation = async (req, res) => {
         });
       }
       // Agencies can only delete Draft quotations
+      if (quotation.status !== "Draft") {
+        return res.status(400).json({
+          success: false,
+          message: "You can only delete draft quotations",
+        });
+      }
+    } else if (userInfo.userType === "PropertyManager") {
+      // Property managers can only delete quotations for their assigned properties
+      const activePropertyIds = req.propertyManager.assignedProperties
+        .filter(assignment => assignment.status === 'Active')
+        .map(assignment => assignment.propertyId.toString());
+
+      if (!activePropertyIds.includes(quotation.property.toString())) {
+        return res.status(403).json({
+          success: false,
+          message: "You can only delete quotations for your assigned properties",
+        });
+      }
+      // Property managers can only delete Draft quotations
       if (quotation.status !== "Draft") {
         return res.status(400).json({
           success: false,

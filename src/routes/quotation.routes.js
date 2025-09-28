@@ -20,13 +20,13 @@ const router = express.Router();
 // Routes accessible by agencies and super users
 router.post(
   "/",
-  authenticateUserTypes(["agency", "super_user"]),
+  authenticateUserTypes(["agency", "super_user", "property_manager"]),
   createQuotationRequest
 );
 
 router.get(
   "/",
-  authenticateUserTypes(["agency", "super_user"]),
+  authenticateUserTypes(["agency", "super_user", "property_manager"]),
   getQuotations
 );
 
@@ -38,7 +38,7 @@ router.get(
 
 router.get(
   "/:id",
-  authenticateUserTypes(["agency", "super_user"]),
+  authenticateUserTypes(["agency", "super_user", "property_manager"]),
   getQuotation
 );
 
@@ -65,7 +65,7 @@ router.post(
 // Delete route - agencies can delete draft quotations, super users can delete any
 router.delete(
   "/:id",
-  authenticateUserTypes(["agency", "super_user"]),
+  authenticateUserTypes(["agency", "super_user", "property_manager"]),
   deleteQuotation
 );
 

@@ -588,8 +588,12 @@ const getAgencyFilter = (req) => {
     // Agencies can only access their own properties
     return { agency: req.agency.id };
   } else if (req.propertyManager) {
-    // Property managers can only access properties they're assigned to as the assignedPropertyManager
-    return { assignedPropertyManager: req.propertyManager.id };
+    // Property managers can only access properties they're assigned to
+    const activePropertyIds = req.propertyManager.assignedProperties
+      .filter(assignment => assignment.status === 'Active')
+      .map(assignment => assignment.propertyId);
+
+    return { _id: { $in: activePropertyIds } };
   }
   return null;
 };
@@ -649,7 +653,7 @@ const getRegionFromStateAndSuburb = (state, suburb) => {
 };
 
 // Create Property
-router.post("/", sanitizePropertyInput(), authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency']), async (req, res) => {
+router.post("/", sanitizePropertyInput(), authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'PropertyManager']), async (req, res) => {
   try {
     const {
       address,
@@ -980,7 +984,7 @@ router.get("/agencies/available", authenticateUserTypes(['SuperUser', 'TeamMembe
 });
 
 // Get Available Property Managers for Assignment (Agency/SuperUser/PropertyManager only)
-router.get("/available-property-managers", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency']), async (req, res) => {
+router.get("/available-property-managers", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'PropertyManager']), async (req, res) => {
   try {
     // Check if user has permission (Agency, SuperUser, or PropertyManager)
     if (!req.superUser && !req.agency && !req.propertyManager) {
@@ -1247,7 +1251,7 @@ router.get("/:id", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', '
 });
 
 // Update Property
-router.put("/:id", sanitizePropertyInput(), authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency']), async (req, res) => {
+router.put("/:id", sanitizePropertyInput(), authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'PropertyManager']), async (req, res) => {
   try {
     const { id } = req.params;
     const { address, currentTenant, complianceSchedule, notes } = req.body;
@@ -1921,7 +1925,7 @@ router.get("/:id/assignment-summary", authenticateUserTypes(['SuperUser', 'TeamM
 // Upload Document to Property
 router.post(
   "/:id/documents",
-  authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency']),
+  authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'PropertyManager']),
   fileUploadService.single('document'),
   async (req, res) => {
     try {
@@ -1997,7 +2001,7 @@ router.post(
 // Delete Document from Property
 router.delete(
   "/:id/documents/:documentId",
-  authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency']),
+  authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'PropertyManager']),
   async (req, res) => {
     try {
       const { id, documentId } = req.params;
@@ -2093,7 +2097,7 @@ router.delete(
 // Toggle Property Doubt Status
 router.patch(
   "/:id/toggle-doubt",
-  authenticateUserTypes(["SuperUser", "TeamMember", "Agency"]),
+  authenticateUserTypes(["SuperUser", "TeamMember", "Agency", "PropertyManager"]),
   async (req, res) => {
     try {
       const { id } = req.params;
