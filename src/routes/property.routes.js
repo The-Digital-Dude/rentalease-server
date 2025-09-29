@@ -18,6 +18,8 @@ import {
 } from "../utils/propertyHelpers.js";
 import bookingNotificationService from "../services/bookingNotification.service.js";
 import fileUploadService from "../services/fileUpload.service.js";
+import notificationService from "../services/notification.service.js";
+import emailService from "../services/email.service.js";
 import { sanitizePropertyInput, sanitizeInput } from "../middleware/sanitizer.middleware.js";
 
 const router = express.Router();
@@ -1726,6 +1728,43 @@ router.post("/:id/assign-property-manager", authenticateUserTypes(['SuperUser', 
       role: role,
       timestamp: new Date().toISOString(),
     });
+
+    // Send notification to property manager
+    try {
+      const assignedBy = req.superUser || req.agency || req.teamMember;
+
+      // Send both in-app notification and email
+      await notificationService.sendNotification(
+        [{ recipientType: "PropertyManager", recipientId: propertyManagerId }],
+        {
+          type: "PROPERTY_ASSIGNED",
+          title: "New Property Assignment",
+          message: `You have been assigned to manage the property at ${property.address.fullAddress}`,
+          data: {
+            propertyId: id,
+            propertyAddress: property.address.fullAddress,
+            assignmentRole: role,
+            assignedBy: assignedBy.firstName || assignedBy.businessName || 'System',
+            assignedDate: new Date().toISOString(),
+            actionUrl: `/properties/${id}`,
+          },
+        },
+        ["notification", "email"]
+      );
+
+      // Send detailed email notification
+      await emailService.sendPropertyAssignmentEmail(
+        propertyManager,
+        property,
+        assignedBy,
+        role
+      );
+
+      console.log("✅ Property assignment notifications sent successfully");
+    } catch (notificationError) {
+      console.error("❌ Error sending property assignment notifications:", notificationError);
+      // Don't fail the assignment if notifications fail
+    }
 
     res.status(200).json({
       status: "success",

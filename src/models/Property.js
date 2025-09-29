@@ -22,7 +22,7 @@ const propertySchema = new mongoose.Schema(
       postcode: {
         type: String,
         required: [true, "Postcode is required"],
-        match: [/^\d{4}$/, "Postcode must be 4 digits"],
+        match: [/^\d{4}$/, "Postcode must be exactly 4 digits (example: 2000, 3000, 4000)"],
       },
       fullAddress: {
         type: String,
@@ -85,13 +85,13 @@ const propertySchema = new mongoose.Schema(
         required: [true, "Tenant email is required"],
         match: [
           /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/,
-          "Please enter a valid email",
+          "Please enter a valid email address (example: john@example.com)",
         ],
       },
       phone: {
         type: String,
         required: [true, "Tenant phone is required"],
-        match: [/^\+?[\d\s\-\(\)]+$/, "Please enter a valid phone number"],
+        match: [/^\+?[\d\s\-\(\)]+$/, "Phone number can only contain numbers, spaces, dashes, parentheses and plus sign. Examples: 0412345678, (02) 9123-4567, +61 412 345 678"],
       },
     },
 
@@ -106,13 +106,13 @@ const propertySchema = new mongoose.Schema(
         required: [true, "Landlord email is required"],
         match: [
           /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/,
-          "Please enter a valid email",
+          "Please enter a valid email address (example: john@example.com)",
         ],
       },
       phone: {
         type: String,
         required: [true, "Landlord phone is required"],
-        match: [/^\+?[\d\s\-\(\)]+$/, "Please enter a valid phone number"],
+        match: [/^\+?[\d\s\-\(\)]+$/, "Phone number can only contain numbers, spaces, dashes, parentheses and plus sign. Examples: 0412345678, (02) 9123-4567, +61 412 345 678"],
       },
     },
 

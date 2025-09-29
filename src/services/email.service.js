@@ -1416,6 +1416,109 @@ class EmailService {
       },
     });
   }
+
+  /**
+   * Send property assignment notification email to property manager
+   * @param {Object} propertyManager - Property manager object
+   * @param {Object} property - Property object
+   * @param {Object} assignedBy - User who assigned the property
+   * @param {string} role - Assignment role (Primary, Secondary, etc.)
+   */
+  async sendPropertyAssignmentEmail(propertyManager, property, assignedBy, role = 'Primary') {
+    try {
+      console.log('📧 Sending property assignment email to:', propertyManager.email);
+
+      const subject = `New Property Assignment - ${property.address.fullAddress}`;
+
+      const htmlContent = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f8f9fa;">
+          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center;">
+            <h1 style="color: white; margin: 0; font-size: 28px;">New Property Assignment</h1>
+          </div>
+
+          <div style="padding: 30px; background-color: white; margin: 20px;">
+            <h2 style="color: #333; margin-bottom: 20px;">Hello ${propertyManager.firstName} ${propertyManager.lastName},</h2>
+
+            <p style="color: #666; font-size: 16px; line-height: 1.6;">
+              You have been assigned to manage a new property. Here are the details:
+            </p>
+
+            <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+              <h3 style="color: #333; margin-top: 0;">Property Details</h3>
+              <table style="width: 100%; border-collapse: collapse;">
+                <tr>
+                  <td style="padding: 8px 0; color: #666; font-weight: bold;">Address:</td>
+                  <td style="padding: 8px 0; color: #333;">${property.address.fullAddress}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; color: #666; font-weight: bold;">Property Type:</td>
+                  <td style="padding: 8px 0; color: #333;">${property.propertyType || 'Not specified'}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; color: #666; font-weight: bold;">Assignment Role:</td>
+                  <td style="padding: 8px 0; color: #333;">${role}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; color: #666; font-weight: bold;">Assigned By:</td>
+                  <td style="padding: 8px 0; color: #333;">${assignedBy.firstName || assignedBy.businessName || 'System'} ${assignedBy.lastName || ''}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; color: #666; font-weight: bold;">Assignment Date:</td>
+                  <td style="padding: 8px 0; color: #333;">${new Date().toLocaleDateString()}</td>
+                </tr>
+              </table>
+            </div>
+
+            <div style="background-color: #e3f2fd; padding: 20px; border-radius: 8px; margin: 20px 0;">
+              <h4 style="color: #1976d2; margin-top: 0;">What's Next?</h4>
+              <ul style="color: #666; line-height: 1.6;">
+                <li>Review the property details and compliance requirements</li>
+                <li>Schedule any necessary inspections</li>
+                <li>Update the property status if needed</li>
+                <li>Contact the property owner if required</li>
+              </ul>
+            </div>
+
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${process.env.FRONTEND_URL || 'https://app.rentalease.com.au'}/properties/${property._id}"
+                 style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        color: white; padding: 12px 30px; text-decoration: none;
+                        border-radius: 25px; font-weight: bold; display: inline-block;">
+                View Property Details
+              </a>
+            </div>
+
+            <p style="color: #666; font-size: 14px; text-align: center; margin-top: 30px;">
+              If you have any questions about this assignment, please contact your agency administrator.
+            </p>
+          </div>
+
+          <div style="background-color: #f8f9fa; padding: 20px; text-align: center; color: #666; font-size: 12px;">
+            <p>© ${new Date().getFullYear()} RentalEase CRM. All rights reserved.</p>
+            <p>This is an automated notification. Please do not reply to this email.</p>
+          </div>
+        </div>
+      `;
+
+      if (!this.resend) {
+        console.warn("📧 Email service not configured. Skipping email send.");
+        return { id: "mock-email-id", status: "skipped" };
+      }
+
+      const result = await this.resend.emails.send({
+        from: this.defaultFrom,
+        to: [propertyManager.email],
+        subject: subject,
+        html: htmlContent,
+      });
+
+      console.log('✅ Property assignment email sent successfully:', result.id);
+      return result;
+    } catch (error) {
+      console.error('❌ Error sending property assignment email:', error);
+      throw error;
+    }
+  }
 }
 
 // Create and export a singleton instance

@@ -33,6 +33,7 @@ const notificationSchema = new mongoose.Schema(
         "QUOTATION_RECEIVED",
         "QUOTATION_ACCEPTED",
         "QUOTATION_REJECTED",
+        "PROPERTY_ASSIGNED",
       ],
     },
     title: {
