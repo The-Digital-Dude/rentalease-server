@@ -5,8 +5,7 @@ import mongoose from "mongoose";
 const isValidEmail = (email) =>
   /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/.test(email);
 
-const isValidPhone = (phone) =>
-  /^\+?[0-9()\-\.\s]{7,20}$/.test(phone);
+const isValidPhone = (phone) => /^\+?[0-9()\-\.\s]{7,20}$/.test(phone);
 
 const escapeRegex = (value = "") =>
   value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -14,7 +13,8 @@ const escapeRegex = (value = "") =>
 // Create a new website lead (PUBLIC ENDPOINT - no auth required)
 export const createLead = async (req, res) => {
   try {
-    const { firstName, lastName, email, message, phone, profession } = req.body;
+    const { firstName, lastName, email, message, phone, profession, source } =
+      req.body;
 
     // Validation
     const errors = {};
@@ -56,7 +56,8 @@ export const createLead = async (req, res) => {
     if (recentLead) {
       return res.status(409).json({
         status: "error",
-        message: "A lead with this email was already submitted within the last 24 hours",
+        message:
+          "A lead with this email was already submitted within the last 24 hours",
       });
     }
 
@@ -66,6 +67,7 @@ export const createLead = async (req, res) => {
       lastName: lastName.trim(),
       email: email.toLowerCase().trim(),
       message: message.trim(),
+      source,
       ...(trimmedPhone ? { phone: trimmedPhone } : {}),
       ...(profession ? { profession: profession.trim() } : {}),
     });
@@ -85,6 +87,7 @@ export const createLead = async (req, res) => {
           profession: savedLead.profession,
           status: savedLead.status,
           createdAt: savedLead.createdAt,
+          source: savedLead.source,
         },
       },
     });
@@ -111,8 +114,10 @@ export const getLeads = async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
     const status = req.query.status;
-    const searchTerm = typeof req.query.search === "string" ? req.query.search.trim() : "";
-    const sortByQuery = typeof req.query.sortBy === "string" ? req.query.sortBy : "createdAt";
+    const searchTerm =
+      typeof req.query.search === "string" ? req.query.search.trim() : "";
+    const sortByQuery =
+      typeof req.query.sortBy === "string" ? req.query.sortBy : "createdAt";
     const sortOrderQuery = req.query.sortOrder === "asc" ? "asc" : "desc";
     const startDateParam = req.query.startDate;
     const endDateParam = req.query.endDate;
@@ -120,7 +125,10 @@ export const getLeads = async (req, res) => {
 
     // Build query
     let query = {};
-    if (status && ["new", "contacted", "qualified", "converted", "closed"].includes(status)) {
+    if (
+      status &&
+      ["new", "contacted", "qualified", "converted", "closed"].includes(status)
+    ) {
       query.status = status;
     }
 
@@ -287,17 +295,31 @@ export const updateLead = async (req, res) => {
 
     // Validation
     const errors = {};
-    if (status && !["new", "contacted", "qualified", "converted", "closed"].includes(status)) {
-      errors.status = "Invalid status. Must be one of: new, contacted, qualified, converted, closed";
+    if (
+      status &&
+      !["new", "contacted", "qualified", "converted", "closed"].includes(status)
+    ) {
+      errors.status =
+        "Invalid status. Must be one of: new, contacted, qualified, converted, closed";
     }
     if (notes && notes.length > 500) {
       errors.notes = "Notes cannot exceed 500 characters";
     }
-    if (profession && ![
-      "Property Manager", "Landlord", "Tenant", "Real Estate Agent",
-      "Property Developer", "Property Investor", "Strata Manager",
-      "Building Manager", "Facility Manager", "Other"
-    ].includes(profession)) {
+    if (
+      profession &&
+      ![
+        "Property Manager",
+        "Landlord",
+        "Tenant",
+        "Real Estate Agent",
+        "Property Developer",
+        "Property Investor",
+        "Strata Manager",
+        "Building Manager",
+        "Facility Manager",
+        "Other",
+      ].includes(profession)
+    ) {
       errors.profession = "Invalid profession value";
     }
 
@@ -312,13 +334,13 @@ export const updateLead = async (req, res) => {
     const updateData = {};
     if (status) updateData.status = status;
     if (notes !== undefined) updateData.notes = notes.trim();
-    if (profession !== undefined) updateData.profession = profession ? profession.trim() : null;
+    if (profession !== undefined)
+      updateData.profession = profession ? profession.trim() : null;
 
-    const updatedLead = await WebsiteLead.findByIdAndUpdate(
-      id,
-      updateData,
-      { new: true, runValidators: true }
-    );
+    const updatedLead = await WebsiteLead.findByIdAndUpdate(id, updateData, {
+      new: true,
+      runValidators: true,
+    });
 
     if (!updatedLead) {
       return res.status(404).json({
@@ -390,7 +412,8 @@ export const getLeadStats = async (req, res) => {
     if (!req.superUser && !req.agency) {
       return res.status(403).json({
         status: "error",
-        message: "Unauthorized. Only SuperUser and Agency can access lead statistics.",
+        message:
+          "Unauthorized. Only SuperUser and Agency can access lead statistics.",
       });
     }
 
@@ -416,7 +439,7 @@ export const getLeadStats = async (req, res) => {
       closed: 0,
     };
 
-    stats.forEach(stat => {
+    stats.forEach((stat) => {
       statusStats[stat._id] = stat.count;
     });
 
