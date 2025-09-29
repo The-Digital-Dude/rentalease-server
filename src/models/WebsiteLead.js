@@ -29,10 +29,7 @@ const websiteLeadSchema = new mongoose.Schema(
     phone: {
       type: String,
       trim: true,
-      match: [
-        /^\+?[0-9()\-\.\s]{7,20}$/,
-        "Please enter a valid phone number",
-      ],
+      match: [/^\+?[0-9()\-\.\s]{7,20}$/, "Please enter a valid phone number"],
     },
     profession: {
       type: String,
@@ -47,7 +44,7 @@ const websiteLeadSchema = new mongoose.Schema(
         "Strata Manager",
         "Building Manager",
         "Facility Manager",
-        "Other"
+        "Other",
       ],
     },
     message: {
@@ -65,6 +62,7 @@ const websiteLeadSchema = new mongoose.Schema(
     source: {
       type: String,
       default: "website_contact_form",
+      enum: ["website_contact_form", "website_bookNow_form", "other"],
     },
     notes: {
       type: String,
