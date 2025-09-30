@@ -146,7 +146,14 @@ export const createQuotationRequest = async (req, res) => {
     // Populate the quotation for response
     const populatedQuotation = await Quotation.findById(quotation._id)
       .populate("agency", "companyName email contactPerson")
-      .populate("property", "title address");
+      .populate({
+        path: "property",
+        select: "title address assignedPropertyManager",
+        populate: {
+          path: "assignedPropertyManager",
+          select: "firstName lastName email phone status"
+        }
+      });
 
     // Send notification to all SuperUsers
     const superUsers = await mongoose.model("SuperUser").find({});
@@ -227,7 +234,14 @@ export const getQuotations = async (req, res) => {
     // Build query
     const quotations = await Quotation.find(filter)
       .populate("agency", "companyName email contactPerson")
-      .populate("property", "title address")
+      .populate({
+        path: "property",
+        select: "title address assignedPropertyManager",
+        populate: {
+          path: "assignedPropertyManager",
+          select: "firstName lastName email phone status"
+        }
+      })
       .populate("createdBy.userId", "companyName email contactPerson")
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -272,7 +286,14 @@ export const getQuotation = async (req, res) => {
 
     const quotation = await Quotation.findById(id)
       .populate("agency", "companyName email contactPerson")
-      .populate("property", "title address")
+      .populate({
+        path: "property",
+        select: "title address assignedPropertyManager",
+        populate: {
+          path: "assignedPropertyManager",
+          select: "firstName lastName email phone status"
+        }
+      })
       .populate("createdBy.userId", "companyName email contactPerson")
       .populate("generatedJob")
       .populate("generatedInvoice");
@@ -367,7 +388,14 @@ export const updateQuotation = async (req, res) => {
 
     const updatedQuotation = await Quotation.findById(id)
       .populate("agency", "companyName email contactPerson")
-      .populate("property", "title address");
+      .populate({
+        path: "property",
+        select: "title address assignedPropertyManager",
+        populate: {
+          path: "assignedPropertyManager",
+          select: "firstName lastName email phone status"
+        }
+      });
 
     res.status(200).json({
       success: true,
@@ -401,7 +429,14 @@ export const sendQuotation = async (req, res) => {
 
     const quotation = await Quotation.findById(id)
       .populate("agency", "companyName email contactPerson")
-      .populate("property", "title address");
+      .populate({
+        path: "property",
+        select: "title address assignedPropertyManager",
+        populate: {
+          path: "assignedPropertyManager",
+          select: "firstName lastName email phone status"
+        }
+      });
 
     if (!quotation) {
       return res.status(404).json({
@@ -490,7 +525,14 @@ export const respondToQuotation = async (req, res) => {
 
     const quotation = await Quotation.findById(id)
       .populate("agency", "companyName email contactPerson")
-      .populate("property", "title address");
+      .populate({
+        path: "property",
+        select: "title address assignedPropertyManager",
+        populate: {
+          path: "assignedPropertyManager",
+          select: "firstName lastName email phone status"
+        }
+      });
 
     if (!quotation) {
       return res.status(404).json({
