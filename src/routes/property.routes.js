@@ -577,6 +577,11 @@ const getCreatorInfo = (req) => {
       userType: "PropertyManager",
       userId: req.propertyManager.id,
     };
+  } else if (req.teamMember) {
+    return {
+      userType: "TeamMember",
+      userId: req.teamMember.id,
+    };
   }
   return null;
 };
@@ -596,6 +601,8 @@ const getAgencyFilter = (req) => {
       .map(assignment => assignment.propertyId);
 
     return { _id: { $in: activePropertyIds } };
+  } else if (req.teamMember && req.teamMember.agencyId) {
+    return { agency: req.teamMember.agencyId };
   }
   return null;
 };
@@ -790,6 +797,24 @@ router.post("/", sanitizePropertyInput(), authenticateUserTypes(['SuperUser', 'T
 
       agencyId = req.propertyManager.owner.ownerId;
       assignedPropertyManagerId = req.propertyManager.id;
+    } else if (req.teamMember) {
+      if (!req.teamMember.agencyId) {
+        return res.status(400).json({
+          status: "error",
+          message:
+            "Team members must be linked to an agency to create properties",
+        });
+      }
+
+      const agency = await Agency.findById(req.teamMember.agencyId);
+      if (!agency) {
+        return res.status(400).json({
+          status: "error",
+          message: "Associated agency not found",
+        });
+      }
+
+      agencyId = req.teamMember.agencyId;
     }
 
     // Get creator info

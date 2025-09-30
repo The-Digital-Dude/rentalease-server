@@ -351,6 +351,7 @@ const authenticate = async (req, res, next) => {
         email: teamMember.email,
         status: teamMember.status,
         createdBy: teamMember.createdBy,
+        agencyId: teamMember.agency ? teamMember.agency.toString() : null,
       };
     } else {
       return res.status(401).json({

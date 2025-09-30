@@ -22,11 +22,11 @@ const router = express.Router();
 router.post("/register", authenticate, async (req, res) => {
   try {
     // Check if user has permission to create property managers
-    if (!req.superUser && !req.agency) {
+    if (!req.superUser && !req.agency && !req.teamMember) {
       return res.status(403).json({
         status: "error",
         message:
-          "Access denied. Only Super Users and Agencies can create Property Managers.",
+          "Access denied. Only Super Users, Agencies, or authorized Team Members can create Property Managers.",
       });
     }
 
@@ -66,6 +66,19 @@ router.post("/register", authenticate, async (req, res) => {
         ownerType: "Agency",
         ownerId: req.agency.id,
       };
+    } else if (req.teamMember) {
+      if (!req.teamMember.agencyId) {
+        return res.status(403).json({
+          status: "error",
+          message:
+            "Access denied. Team members must belong to an agency to create Property Managers.",
+        });
+      }
+
+      owner = {
+        ownerType: "Agency",
+        ownerId: req.teamMember.agencyId,
+      };
     }
 
     // Create new property manager
@@ -104,11 +117,19 @@ router.post("/register", authenticate, async (req, res) => {
       // Continue with response even if email fails
     }
 
+    const createdByEmail = req.superUser
+      ? req.superUser.email
+      : req.agency
+      ? req.agency.email
+      : req.teamMember
+      ? req.teamMember.email
+      : "unknown";
+
     console.log("Property Manager created successfully:", {
       propertyManagerId: propertyManager._id,
       fullName: propertyManager.fullName,
       email: propertyManager.email,
-      createdBy: req.superUser ? req.superUser.email : req.agency.email,
+      createdBy: createdByEmail,
       credentialsEmailSent: "Credentials email sent with login information",
       timestamp: new Date().toISOString(),
     });
