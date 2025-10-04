@@ -7,6 +7,66 @@ import Property from "../models/Property.js";
 import notificationService from "../services/notification.service.js";
 import emailService from "../services/email.service.js";
 
+const getAgencyDisplayName = (agency) => {
+  if (!agency) {
+    return "The agency";
+  }
+
+  if (typeof agency === "string") {
+    return agency;
+  }
+
+  return (
+    agency.companyName ||
+    agency.contactPerson ||
+    agency.email ||
+    agency.name ||
+    "The agency"
+  );
+};
+
+const getPropertyDisplayName = (property) => {
+  if (!property) {
+    return "the property";
+  }
+
+  if (typeof property === "string") {
+    return property;
+  }
+
+  if (property.address) {
+    if (typeof property.address === "string") {
+      return property.address;
+    }
+
+    if (property.address.fullAddress) {
+      return property.address.fullAddress;
+    }
+
+    const { street, suburb, state, postcode } = property.address;
+    const parts = [street, suburb, state, postcode].filter(Boolean);
+    if (parts.length) {
+      return parts.join(", ");
+    }
+  }
+
+  return property.title || property.name || "the property";
+};
+
+const addRecipient = (recipients, seen, recipientType, recipientId) => {
+  if (!recipientId) {
+    return;
+  }
+
+  const key = `${recipientType}:${recipientId.toString()}`;
+  if (seen.has(key)) {
+    return;
+  }
+
+  seen.add(key);
+  recipients.push({ recipientType, recipientId });
+};
+
 // Helper function to get user info based on request
 const getUserInfo = (req) => {
   if (req.superUser) {
@@ -465,25 +525,59 @@ export const sendQuotation = async (req, res) => {
     quotation.sentAt = new Date();
     await quotation.save();
 
-    // Send notification to agency
-    await notificationService.sendNotification(
-      [{
-        recipientType: "Agency",
-        recipientId: quotation.agency._id,
-      }],
-      {
-        type: "QUOTATION_RECEIVED",
-        title: "Quotation Received",
-        message: `You have received a quotation for ${quotation.jobType} at ${quotation.property.title}. Amount: $${quotation.amount}`,
-        data: {
-          quotationId: quotation._id,
-          amount: quotation.amount,
-          jobType: quotation.jobType,
-          propertyId: quotation.property._id,
-        },
-      },
-      ["notification", "email"]
+    const propertyManagersForProperty = await notificationService.getPropertyManagersForProperty(
+      quotation.property._id
     );
+
+    const recipients = [];
+    const seenRecipients = new Set();
+
+    addRecipient(
+      recipients,
+      seenRecipients,
+      "Agency",
+      quotation.agency._id
+    );
+
+    // Include assigned property manager (if any)
+    if (quotation.property.assignedPropertyManager) {
+      addRecipient(
+        recipients,
+        seenRecipients,
+        "PropertyManager",
+        quotation.property.assignedPropertyManager._id ||
+          quotation.property.assignedPropertyManager
+      );
+    }
+
+    // Include any other property managers actively assigned to this property
+    propertyManagersForProperty.forEach((propertyManager) => {
+      addRecipient(
+        recipients,
+        seenRecipients,
+        "PropertyManager",
+        propertyManager._id
+      );
+    });
+
+    if (recipients.length > 0) {
+      const propertyLabel = getPropertyDisplayName(quotation.property);
+      await notificationService.sendNotification(
+        recipients,
+        {
+          type: "QUOTATION_RECEIVED",
+          title: "Quotation Received",
+          message: `You have received a quotation for ${quotation.jobType} at ${propertyLabel}. Amount: $${quotation.amount}`,
+          data: {
+            quotationId: quotation._id,
+            amount: quotation.amount,
+            jobType: quotation.jobType,
+            propertyId: quotation.property._id,
+          },
+        },
+        ["notification", "email"]
+      );
+    }
 
     res.status(200).json({
       success: true,
@@ -643,18 +737,77 @@ export const respondToQuotation = async (req, res) => {
 
     // Send notification to SuperUsers
     const superUsers = await mongoose.model("SuperUser").find({});
-    const recipients = superUsers.map(user => ({
-      recipientType: "SuperUser",
-      recipientId: user._id,
-    }));
+    const recipients = [];
+    const seenRecipients = new Set();
+
+    superUsers.forEach((user) => {
+      addRecipient(recipients, seenRecipients, "SuperUser", user._id);
+    });
 
     if (recipients.length > 0) {
+      const propertyLabel = getPropertyDisplayName(quotation.property);
+      const agencyLabel = getAgencyDisplayName(quotation.agency);
       await notificationService.sendNotification(
         recipients,
         {
           type: action === "accept" ? "QUOTATION_ACCEPTED" : "QUOTATION_REJECTED",
           title: `Quotation ${action === "accept" ? "Accepted" : "Rejected"}`,
-          message: `${quotation.agency.name} has ${action}ed the quotation for ${quotation.jobType} at ${quotation.property.title}`,
+          message: `${agencyLabel} has ${action}ed the quotation for ${quotation.jobType} at ${propertyLabel}`,
+          data: {
+            quotationId: quotation._id,
+            agencyId: quotation.agency._id,
+            propertyId: quotation.property._id,
+            jobType: quotation.jobType,
+            action: action,
+            generatedJobId: quotation.generatedJob,
+            generatedInvoiceId: quotation.generatedInvoice,
+          },
+        },
+        ["notification", "email"]
+      );
+    }
+
+    // Notify property managers involved with this property about the response
+    const propertyManagerRecipients = [];
+    const propertyManagerSet = new Set();
+    const propertyManagersForProperty = await notificationService.getPropertyManagersForProperty(
+      quotation.property._id
+    );
+
+    const includePropertyManager = (manager) => {
+      if (!manager) {
+        return;
+      }
+
+      const id = manager._id || manager;
+      if (!id) {
+        return;
+      }
+
+      const key = id.toString();
+      if (propertyManagerSet.has(key)) {
+        return;
+      }
+
+      propertyManagerSet.add(key);
+      propertyManagerRecipients.push({
+        recipientType: "PropertyManager",
+        recipientId: id,
+      });
+    };
+
+    includePropertyManager(quotation.property.assignedPropertyManager);
+    propertyManagersForProperty.forEach(includePropertyManager);
+
+    if (propertyManagerRecipients.length > 0) {
+      const propertyLabel = getPropertyDisplayName(quotation.property);
+      const agencyLabel = getAgencyDisplayName(quotation.agency);
+      await notificationService.sendNotification(
+        propertyManagerRecipients,
+        {
+          type: action === "accept" ? "QUOTATION_ACCEPTED" : "QUOTATION_REJECTED",
+          title: `Quotation ${action === "accept" ? "Accepted" : "Rejected"}`,
+          message: `The quotation for ${quotation.jobType} at ${propertyLabel} has been ${action}ed by ${agencyLabel}.`,
           data: {
             quotationId: quotation._id,
             agencyId: quotation.agency._id,
