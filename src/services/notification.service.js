@@ -1,9 +1,11 @@
+import mongoose from "mongoose";
 import Notification from "../models/Notification.js";
 import Agency from "../models/Agency.js";
 import SuperUser from "../models/SuperUser.js";
 import Property from "../models/Property.js";
 import Technician from "../models/Technician.js";
 import PropertyManager from "../models/PropertyManager.js";
+import Job from "../models/Job.js";
 import emailService from "./email.service.js";
 
 class NotificationService {
@@ -14,6 +16,178 @@ class NotificationService {
       // Email notification handler
       email: this.sendEmailNotification.bind(this),
     };
+  }
+
+  toIdString(value) {
+    if (!value) {
+      return null;
+    }
+
+    if (typeof value === "string") {
+      return value;
+    }
+
+    if (typeof value === "number") {
+      return value.toString();
+    }
+
+    if (value instanceof mongoose.Types.ObjectId) {
+      return value.toString();
+    }
+
+    if (typeof value === "object") {
+      if (value._id) {
+        return value._id.toString();
+      }
+      if (value.id) {
+        return value.id.toString();
+      }
+      if (typeof value.toHexString === "function") {
+        return value.toHexString();
+      }
+    }
+
+    return null;
+  }
+
+  addRecipientIfNeeded(recipients, seenRecipients, recipientType, recipientId) {
+    const id = this.toIdString(recipientId);
+    if (!id) {
+      return;
+    }
+
+    const key = `${recipientType}:${id}`;
+    if (seenRecipients.has(key)) {
+      return;
+    }
+
+    seenRecipients.add(key);
+    recipients.push({ recipientType, recipientId: id });
+  }
+
+  async resolvePropertyIds(notificationData) {
+    const propertyIds = new Set();
+    const data = notificationData?.data || {};
+
+    const add = (value) => {
+      if (!value) {
+        return;
+      }
+
+      if (Array.isArray(value)) {
+        value.forEach(add);
+        return;
+      }
+
+      const id = this.toIdString(value);
+      if (id) {
+        propertyIds.add(id);
+      }
+    };
+
+    add(data.propertyId);
+    add(data.property);
+    add(data.propertyIds);
+    add(data.properties);
+
+    if (data.propertyDetails) {
+      add(data.propertyDetails);
+      add(data.propertyDetails?.id);
+      add(data.propertyDetails?._id);
+    }
+
+    if (propertyIds.size === 0 && data.jobId) {
+      const jobIds = Array.isArray(data.jobId) ? data.jobId : [data.jobId];
+
+      for (const jobIdRaw of jobIds) {
+        const jobId = this.toIdString(jobIdRaw);
+        if (!jobId) {
+          continue;
+        }
+
+        try {
+          const job = await Job.findById(jobId).select("property");
+          if (job?.property) {
+            propertyIds.add(this.toIdString(job.property));
+          }
+        } catch (error) {
+          console.error(
+            "Error resolving propertyId from jobId while sending notification:",
+            {
+              jobId,
+              error: error.message,
+            }
+          );
+        }
+      }
+    }
+
+    if (propertyIds.size === 0 && data.job) {
+      add(data.job?.property);
+      add(data.job?.propertyId);
+    }
+
+    return Array.from(propertyIds).filter(Boolean);
+  }
+
+  async extendRecipientsWithPropertyManagers(recipients, notificationData) {
+    if (!Array.isArray(recipients) || recipients.length === 0) {
+      return [];
+    }
+
+    const dedupedRecipients = [];
+    const seenRecipients = new Set();
+
+    recipients.forEach((recipient) => {
+      if (!recipient) {
+        return;
+      }
+      this.addRecipientIfNeeded(
+        dedupedRecipients,
+        seenRecipients,
+        recipient.recipientType,
+        recipient.recipientId
+      );
+    });
+
+    const hasAgencyRecipient = dedupedRecipients.some(
+      (recipient) => recipient.recipientType === "Agency"
+    );
+
+    if (!hasAgencyRecipient) {
+      return dedupedRecipients;
+    }
+
+    const propertyIds = await this.resolvePropertyIds(notificationData);
+
+    if (propertyIds.length === 0) {
+      return dedupedRecipients;
+    }
+
+    const propertyManagerCache = new Map();
+
+    for (const propertyId of propertyIds) {
+      if (!propertyId) {
+        continue;
+      }
+
+      let propertyManagers = propertyManagerCache.get(propertyId);
+      if (!propertyManagers) {
+        propertyManagers = await this.getPropertyManagersForProperty(propertyId);
+        propertyManagerCache.set(propertyId, propertyManagers || []);
+      }
+
+      propertyManagers.forEach((propertyManager) => {
+        this.addRecipientIfNeeded(
+          dedupedRecipients,
+          seenRecipients,
+          "PropertyManager",
+          propertyManager._id
+        );
+      });
+    }
+
+    return dedupedRecipients;
   }
 
   /**
@@ -48,9 +222,14 @@ class NotificationService {
     channels = ["notification"]
   ) {
     try {
+      const expandedRecipients = await this.extendRecipientsWithPropertyManagers(
+        recipients,
+        notificationData
+      );
+
       const results = [];
 
-      for (const recipient of recipients) {
+      for (const recipient of expandedRecipients) {
         for (const channel of channels) {
           if (this.notificationHandlers[channel]) {
             try {
