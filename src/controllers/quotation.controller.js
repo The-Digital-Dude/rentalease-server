@@ -665,6 +665,15 @@ export const respondToQuotation = async (req, res) => {
       }
     }
 
+    // Check if quotation has pricing available
+    if (!quotation.amount || quotation.amount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "This quotation does not yet have pricing information. Please contact support to update the quotation before responding.",
+      });
+    }
+
     // Check if quotation can be responded to
     if (!quotation.canRespond()) {
       return res.status(400).json({
@@ -743,6 +752,8 @@ export const respondToQuotation = async (req, res) => {
     superUsers.forEach((user) => {
       addRecipient(recipients, seenRecipients, "SuperUser", user._id);
     });
+
+    addRecipient(recipients, seenRecipients, "Agency", quotation.agency._id);
 
     if (recipients.length > 0) {
       const propertyLabel = getPropertyDisplayName(quotation.property);
