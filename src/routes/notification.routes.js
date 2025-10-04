@@ -22,6 +22,11 @@ const getUserInfo = (req) => {
       userType: "Technician",
       userId: req.technician.id,
     };
+  } else if (req.propertyManager) {
+    return {
+      userType: "PropertyManager",
+      userId: req.propertyManager.id,
+    };
   } else if (req.user) {
     // Fallback for direct user object
     // Normalize user type capitalization
@@ -34,6 +39,8 @@ const getUserInfo = (req) => {
       userType = "Agency";
     } else if (userType === "technician" || userType === "Technician") {
       userType = "Technician";
+    } else if (userType === "propertyManager" || userType === "PropertyManager") {
+      userType = "PropertyManager";
     }
 
     console.log(userType, "userType...");
