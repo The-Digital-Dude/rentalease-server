@@ -192,7 +192,6 @@ router.post("/register", authenticateUserTypes(['SuperUser', 'TeamMember']), asy
           agencyId: agency._id.toString(),
           subscriptionAmount: numericSubscriptionAmount.toString(),
         },
-        trial_period_days: 14, // 14-day free trial
       },
     });
 

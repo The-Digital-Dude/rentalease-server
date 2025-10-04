@@ -1004,7 +1004,7 @@ const agencyPaymentLinkTemplate = (data) => ({
 
         <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">
           Great news! Your agency account for <strong>${data.companyName}</strong> has been successfully created.
-          To activate your CRM access and start your 14-day free trial, please complete your subscription setup below.
+          To activate your CRM access, please complete your subscription setup below.
         </p>
 
         <div style="background-color: #e8f4f8; border: 2px solid #007bff; padding: 20px; border-radius: 8px; margin: 25px 0;">
@@ -1018,7 +1018,6 @@ const agencyPaymentLinkTemplate = (data) => ({
           <div style="background-color: white; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
             <p style="color: #333; margin: 0; font-size: 14px;"><strong>✨ Includes:</strong></p>
             <ul style="color: #333; margin: 10px 0 0 0; padding-left: 20px;">
-              <li>14-day free trial</li>
               <li>Full CRM access</li>
               <li>Property management tools</li>
               <li>Job tracking & compliance</li>
@@ -1028,7 +1027,7 @@ const agencyPaymentLinkTemplate = (data) => ({
 
           <div style="text-align: center;">
             <a href="${data.paymentLinkUrl}" style="display: inline-block; background-color: #007bff; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-size: 16px; font-weight: bold; margin: 10px 0;">
-              🚀 Start Your Free Trial
+              🚀 Complete Your Subscription
             </a>
           </div>
         </div>
@@ -1036,7 +1035,7 @@ const agencyPaymentLinkTemplate = (data) => ({
         <div style="background-color: #fff3cd; border: 2px solid #ffc107; padding: 20px; border-radius: 8px; margin: 25px 0;">
           <h3 style="color: #856404; margin: 0 0 15px 0; font-size: 18px;">🔐 Your Login Credentials</h3>
           <p style="color: #856404; margin: 0 0 15px 0; font-size: 14px;">
-            <strong>Note:</strong> You can log in to explore the system during your trial period, but full functionality will be available after subscription activation.
+            <strong>Note:</strong> You can log in straight away, and full functionality will be available once your subscription is activated.
           </p>
 
           <div style="background-color: white; padding: 15px; border-radius: 5px; margin-bottom: 15px;">
@@ -1059,9 +1058,9 @@ const agencyPaymentLinkTemplate = (data) => ({
         <div style="border-left: 4px solid #28a745; padding-left: 20px; margin: 25px 0;">
           <h4 style="color: #28a745; margin: 0 0 10px 0;">What happens next?</h4>
           <ol style="color: #333; line-height: 1.6; margin: 0; padding-left: 20px;">
-            <li>Click the "Start Your Free Trial" button above</li>
-            <li>Complete your payment setup with Stripe</li>
-            <li>Enjoy 14 days of free access</li>
+            <li>Click the "Complete Your Subscription" button above</li>
+            <li>Finish your payment setup with Stripe</li>
+            <li>Start using RentalEase CRM right away</li>
             <li>Your subscription will auto-renew monthly at $${data.subscriptionAmount} AUD</li>
           </ol>
         </div>
