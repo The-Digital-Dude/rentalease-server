@@ -30,7 +30,7 @@ const getUserInfo = (req) => {
 
 // @desc    Create quotation request
 // @route   POST /api/v1/quotations
-// @access  Agency
+// @access  Agency, Property Manager (assigned to property)
 export const createQuotationRequest = async (req, res) => {
   try {
     const { jobType, property, dueDate, description, status = "Sent" } = req.body;
@@ -508,11 +508,13 @@ export const respondToQuotation = async (req, res) => {
     const { id } = req.params;
     const { action, responseNotes } = req.body; // action: 'accept' or 'reject'
 
-    // Only agencies can respond to quotations
-    if (!req.agency) {
+    const isAgencyUser = Boolean(req.agency);
+    const isPropertyManagerUser = Boolean(req.propertyManager);
+
+    if (!isAgencyUser && !isPropertyManagerUser) {
       return res.status(403).json({
         success: false,
-        message: "Only agencies can respond to quotations",
+        message: "Access denied. Agency or Property Manager privileges required.",
       });
     }
 
@@ -543,15 +545,30 @@ export const respondToQuotation = async (req, res) => {
 
     // Check if agency owns this quotation
     const quotationAgencyId = quotation.agency._id ? quotation.agency._id.toString() : quotation.agency.toString();
-    console.log("Quotation agency ID:", quotationAgencyId);
-    console.log("Request agency ID:", req.agency.id);
-    console.log("Agency comparison:", quotationAgencyId, "===", req.agency.id);
+    if (isAgencyUser) {
+      const requestingAgencyId = req.agency.id?.toString();
+      if (quotationAgencyId !== requestingAgencyId) {
+        return res.status(403).json({
+          success: false,
+          message: "You can only respond to your own quotations",
+        });
+      }
+    }
 
-    if (quotationAgencyId !== req.agency.id) {
-      return res.status(403).json({
-        success: false,
-        message: "You can only respond to your own quotations",
-      });
+    if (isPropertyManagerUser) {
+      const assignedManager = quotation.property?.assignedPropertyManager;
+      const assignedManagerId = assignedManager
+        ? (assignedManager._id || assignedManager)?.toString()
+        : null;
+      const requestingManagerId = req.propertyManager.id?.toString();
+
+      if (!assignedManagerId || assignedManagerId !== requestingManagerId) {
+        return res.status(403).json({
+          success: false,
+          message:
+            "You can only respond to quotations for properties assigned to you",
+        });
+      }
     }
 
     // Check if quotation can be responded to
@@ -564,7 +581,10 @@ export const respondToQuotation = async (req, res) => {
 
     // Update quotation status
     quotation.status = action === "accept" ? "Accepted" : "Rejected";
-    quotation.agencyResponse.respondedBy = req.agency.id;
+    const responderAgencyId = req.agency?.id
+      ? req.agency.id
+      : quotationAgencyId;
+    quotation.agencyResponse.respondedBy = responderAgencyId;
     quotation.agencyResponse.responseDate = new Date();
     quotation.agencyResponse.responseNotes = responseNotes || "";
 

@@ -55,10 +55,9 @@ router.post(
   sendQuotation
 );
 
-// Routes accessible only by agencies
 router.post(
   "/:id/respond",
-  authenticateAgency,
+  authenticateUserTypes(["agency", "property_manager"]),
   respondToQuotation
 );
 
