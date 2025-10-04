@@ -35,6 +35,13 @@ const getUserInfo = (req) => {
       type: "Technician",
       id: req.technician.id,
     };
+  } else if (req.propertyManager) {
+    return {
+      name: req.propertyManager.fullName,
+      type: "PropertyManager",
+      id: req.propertyManager.id,
+      assignedProperties: req.propertyManager.assignedProperties,
+    };
   }
   return null;
 };
@@ -320,6 +327,11 @@ router.get("/job/:jobId", authenticateUserTypes(['SuperUser', 'TeamMember', 'Age
       invoice.technicianId.toString() === userInfo.id
     ) {
       hasAccess = true;
+    } else if (userInfo.type === "PropertyManager") {
+      // Check if Property Manager has access to the property associated with the job
+      const assignedPropertyIds = userInfo.assignedProperties.map(prop => prop.propertyId.toString());
+      const jobPropertyId = invoice.jobId.property.toString();
+      hasAccess = assignedPropertyIds.includes(jobPropertyId);
     }
 
     if (!hasAccess) {
@@ -482,6 +494,13 @@ router.get("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'Pro
       query.agencyId = userInfo.id;
     } else if (userInfo.type === "Technician") {
       query.technicianId = userInfo.id;
+    } else if (userInfo.type === "PropertyManager") {
+      // Property Managers can only see invoices for properties they manage
+      const assignedPropertyIds = userInfo.assignedProperties.map(prop => prop.propertyId);
+      // We need to find jobs that belong to the assigned properties, then get invoices for those jobs
+      const jobsForProperties = await Job.find({ property: { $in: assignedPropertyIds } }).select('_id');
+      const jobIds = jobsForProperties.map(job => job._id);
+      query.jobId = { $in: jobIds };
     }
     // Super users can see all invoices
 
@@ -593,6 +612,11 @@ router.get("/:id", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', '
       invoice.technicianId.toString() === userInfo.id
     ) {
       hasAccess = true;
+    } else if (userInfo.type === "PropertyManager") {
+      // Check if Property Manager has access to the property associated with the job
+      const assignedPropertyIds = userInfo.assignedProperties.map(prop => prop.propertyId.toString());
+      const jobPropertyId = invoice.jobId.property.toString();
+      hasAccess = assignedPropertyIds.includes(jobPropertyId);
     }
 
     if (!hasAccess) {
