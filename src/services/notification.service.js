@@ -1083,6 +1083,64 @@ class NotificationService {
     }
   }
 
+  async sendInspectionReportNotification(report, job, property, technician) {
+    try {
+      const recipients = [];
+
+      if (job.owner?.ownerType === "Agency") {
+        recipients.push({
+          recipientType: "Agency",
+          recipientId: job.owner.ownerId,
+        });
+      }
+
+      const superUsers = await SuperUser.find({});
+      superUsers.forEach((superUser) =>
+        recipients.push({
+          recipientType: "SuperUser",
+          recipientId: superUser._id,
+        })
+      );
+
+      const propertyManagers = await this.getPropertyManagersForProperty(
+        property._id
+      );
+      propertyManagers.forEach((manager) =>
+        recipients.push({
+          recipientType: "PropertyManager",
+          recipientId: manager._id,
+        })
+      );
+
+      recipients.push({
+        recipientType: "Technician",
+        recipientId: technician._id,
+      });
+
+      const notificationData = {
+        type: "INSPECTION_REPORT_SUBMITTED",
+        title: "Inspection report submitted",
+        message: `${technician.fullName} submitted a ${report.jobType} inspection for ${property.address.fullAddress}.`,
+        data: {
+          reportId: report._id,
+          jobId: job._id,
+          propertyId: property._id,
+          jobType: report.jobType,
+          submittedAt: report.submittedAt,
+          pdfUrl: report.pdf?.url,
+        },
+        priority: "Normal",
+      };
+
+      await this.sendNotification(recipients, notificationData, [
+        "notification",
+        "email",
+      ]);
+    } catch (error) {
+      console.error("Error sending inspection report notification:", error);
+    }
+  }
+
   /**
    * Send invoice created notification
    * @param {Object} invoice - Invoice object

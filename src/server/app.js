@@ -32,6 +32,7 @@ import quotationRoutes from "../routes/quotation.routes.js";
 import callRoutes from "../routes/call.routes.js";
 import propertyManagerReportsRoutes from "../routes/propertyManagerReports.routes.js";
 import emailService from "../services/email.service.js";
+import inspectionRoutes from "../routes/inspection.routes.js";
 
 // Create Express app
 const app = express();
@@ -77,6 +78,7 @@ app.use("/api/v1/regional", regionalRoutes);
 app.use("/api/v1/quotations", quotationRoutes);
 app.use("/api/v1/calls", callRoutes);
 app.use("/api/v1/reports/property-manager", propertyManagerReportsRoutes);
+app.use("/api/v1/inspections", inspectionRoutes);
 
 // Health check route
 app.get("/health", async (req, res) => {

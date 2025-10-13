@@ -7,6 +7,7 @@ import Property from "../models/Property.js";
 import Job from "../models/Job.js";
 import PropertyManager from "../models/PropertyManager.js";
 import TechnicianPayment from "../models/TechnicianPayment.js";
+import InspectionReport from "../models/InspectionReport.js";
 
 const router = express.Router();
 
@@ -150,26 +151,56 @@ router.get(
         }
       ]);
 
+      const recentInspections = await InspectionReport.find({
+        property: { $in: activePropertyIds },
+      })
+        .sort({ submittedAt: -1 })
+        .limit(5)
+        .populate({
+          path: "job",
+          select: "job_id jobType status",
+        })
+        .populate({
+          path: "technician",
+          select: "firstName lastName",
+        })
+        .lean();
+
       res.status(200).json({
         status: "success",
         data: {
           propertiesManaged: activePropertyIds.length,
           performanceMetrics: performanceMetrics[0] || {},
-          monthlyTrends: monthlyTrends.map(trend => ({
-            month: `${trend._id.year}-${String(trend._id.month).padStart(2, '0')}`,
+          monthlyTrends: monthlyTrends.map((trend) => ({
+            month: `${trend._id.year}-${String(trend._id.month).padStart(2, "0")}`,
             totalJobs: trend.totalJobs,
             completedJobs: trend.completedJobs,
-            completionRate: trend.totalJobs > 0 ? (trend.completedJobs / trend.totalJobs * 100).toFixed(1) : 0,
-            totalCost: trend.totalCost
+            completionRate:
+              trend.totalJobs > 0
+                ? ((trend.completedJobs / trend.totalJobs) * 100).toFixed(1)
+                : 0,
+            totalCost: trend.totalCost,
           })),
-          topPerformingProperties: topPerformingProperties.map(prop => ({
+          topPerformingProperties: topPerformingProperties.map((prop) => ({
             propertyId: prop._id,
             address: prop.property.address,
             totalJobs: prop.totalJobs,
             completedJobs: prop.completedJobs,
-            completionRate: prop.completionRate.toFixed(1)
-          }))
-        }
+            completionRate: prop.completionRate.toFixed(1),
+          })),
+          recentInspections: recentInspections.map((report) => ({
+            id: report._id.toString(),
+            jobId: report.job?.job_id || null,
+            jobType: report.jobType,
+            submittedAt: report.submittedAt,
+            technician: report.technician
+              ? `${report.technician.firstName || ""} ${
+                  report.technician.lastName || ""
+                }`.trim()
+              : null,
+            pdfUrl: report.pdf?.url || null,
+          })),
+        },
       });
 
     } catch (error) {

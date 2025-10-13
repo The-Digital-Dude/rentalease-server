@@ -124,6 +124,17 @@ const jobSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    latestInspectionReport: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "InspectionReport",
+      default: null,
+    },
+    inspectionReports: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "InspectionReport",
+      },
+    ],
     hasInvoice: {
       type: Boolean,
       default: false,
@@ -297,6 +308,7 @@ jobSchema.methods.getFullDetails = function () {
     assignedTechnician: this.assignedTechnician,
     status: this.status,
     reportFile: this.reportFile,
+    latestInspectionReport: this.latestInspectionReport,
     hasInvoice: this.hasInvoice,
     invoice: this.invoice,
     description: this.description,
@@ -312,6 +324,7 @@ jobSchema.methods.getFullDetails = function () {
     owner: this.owner,
     createdBy: this.createdBy,
     lastUpdatedBy: this.lastUpdatedBy,
+    inspectionReports: this.inspectionReports,
   };
 };
 
@@ -344,6 +357,7 @@ jobSchema.methods.getSummary = function () {
     assignedTechnician: transformedTechnician,
     status: this.status,
     reportFile: this.reportFile,
+    latestInspectionReport: this.latestInspectionReport,
     hasInvoice: this.hasInvoice,
     invoice: this.invoice,
     priority: this.priority,

@@ -240,6 +240,13 @@ const propertySchema = new mongoose.Schema(
   }
 );
 
+propertySchema.virtual("inspectionReports", {
+  ref: "InspectionReport",
+  localField: "_id",
+  foreignField: "property",
+  options: { sort: { submittedAt: -1 } },
+});
+
 // Virtual for full address
 propertySchema.virtual("fullAddressString").get(function () {
   return `${this.address.street}, ${this.address.suburb} ${this.address.state} ${this.address.postcode}`;

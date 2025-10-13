@@ -4,6 +4,7 @@ import connectDB from "../config/database.js";
 import { testCloudinaryConnection } from "../config/cloudinary.js";
 import ComplianceCronJob from "../services/complianceCronJob.js";
 import websocketService from "../services/websocket.service.js";
+import { ensureDefaultTemplates } from "../services/inspectionTemplate.service.js";
 
 const PORT = process.env.PORT || 4000;
 
@@ -15,6 +16,9 @@ const startServer = async () => {
 
     // Test Cloudinary connection
     await testCloudinaryConnection();
+
+    // Ensure inspection templates are seeded
+    await ensureDefaultTemplates();
 
     console.log(`🔑 PORT: ${PORT}`);
 

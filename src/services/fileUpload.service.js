@@ -160,6 +160,9 @@ export default {
   // Multiple files upload for different fields
   fields: (fields) => upload.fields(fields),
 
+  // Accept any file fields (used for dynamic inspection media uploads)
+  any: () => upload.any(),
+
   // Upload configuration for technician documents
   technicianDocuments: upload.fields([
     { name: "licensingDocuments", maxCount: 3 },

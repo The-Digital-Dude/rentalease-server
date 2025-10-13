@@ -6,6 +6,7 @@ import Agency from "../models/Agency.js";
 import Property from "../models/Property.js";
 import Invoice from "../models/Invoice.js";
 import TechnicianPayment from "../models/TechnicianPayment.js";
+import InspectionReport from "../models/InspectionReport.js";
 import {
   authenticateAdminLevel,
   authenticateAgency,
@@ -1165,6 +1166,10 @@ router.get(
           "assignedTechnician",
           "firstName lastName phone email availabilityStatus serviceRegions"
         )
+        .populate({
+          path: "latestInspectionReport",
+          select: "jobType submittedAt pdf",
+        })
         .populate(
           "createdBy.userId",
           "name email companyName contactPerson",
@@ -2006,9 +2011,56 @@ router.patch(
       try {
         let reportFileUrl = null;
         let invoiceId = null;
+        let inspectionReportId = req.body.inspectionReportId;
+        let inspectionReport = null;
+
+        if (inspectionReportId) {
+          if (!mongoose.Types.ObjectId.isValid(inspectionReportId)) {
+            return res.status(400).json({
+              status: "error",
+              message: "Invalid inspection report id",
+            });
+          }
+
+          inspectionReport = await InspectionReport.findById(
+            inspectionReportId
+          );
+          if (!inspectionReport) {
+            return res.status(404).json({
+              status: "error",
+              message: "Inspection report not found",
+            });
+          }
+
+          if (inspectionReport.job.toString() !== job._id.toString()) {
+            return res.status(400).json({
+              status: "error",
+              message: "Inspection report does not belong to this job",
+            });
+          }
+
+          if (
+            inspectionReport.technician.toString() !==
+            ownerInfo.ownerId.toString()
+          ) {
+            return res.status(403).json({
+              status: "error",
+              message: "Access denied to the inspection report",
+            });
+          }
+
+          if (!inspectionReport.pdf?.url) {
+            return res.status(400).json({
+              status: "error",
+              message: "Inspection report is missing generated PDF",
+            });
+          }
+
+          reportFileUrl = inspectionReport.pdf.url;
+        }
 
         // Handle report file upload if provided
-        if (req.file) {
+        if (!reportFileUrl && req.file) {
           try {
             const cloudinaryResult = await fileUploadService.uploadToCloudinary(
               req.file.buffer,
@@ -2260,6 +2312,8 @@ router.patch(
               completedBy: completedBy,
               dueDate: updatedJob.dueDate,
               reportFile: reportFileUrl,
+              inspectionReportId:
+                inspectionReport?.id || inspectionReportId || null,
               invoiceCreated: !!invoiceId,
               invoiceId: invoiceId,
             },
