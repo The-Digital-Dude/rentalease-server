@@ -1,94 +1,190 @@
 import PDFDocument from "pdfkit";
 import fetch from "node-fetch";
 
+const BRAND_PRIMARY = "#024974";
 const COLORS = {
-  primary: "#FF6B35", // Orange color from the demo
-  text: "#2D3748",
-  textSecondary: "#4A5568",
-  border: "#E2E8F0",
+  primary: BRAND_PRIMARY,
+  primaryAccent: "#0B5F86",
+  primarySoft: "#E4EFF5",
+  text: "#1F2933",
+  textSecondary: "#4B5563",
+  border: "#D1D9E0",
   success: "#10B981",
   error: "#EF4444",
   warning: "#F59E0B",
+  neutralBackground: "#F7FAFC",
+};
+
+const PAGE = {
+  margin: 60,
+};
+
+const ensurePageSpace = (doc, required = 80) => {
+  if (doc.y + required <= doc.page.height - PAGE.margin) {
+    return;
+  }
+
+  doc.addPage();
+  doc.y = PAGE.margin;
+  doc.fillColor(COLORS.text);
+};
+
+const formatDisplayDate = (value) => {
+  if (!value) {
+    return "N/A";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "N/A";
+  }
+
+  return date.toLocaleDateString(undefined, {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
 };
 
 const drawProfessionalHeader = (doc, { property, job, technician, report }) => {
-  // Orange geometric design header
-  doc
-    .rect(0, 0, doc.page.width, 150)
-    .fill(COLORS.primary)
-    .fillColor("white")
-    .fontSize(24)
-    .font("Helvetica-Bold")
-    .text("Safety and", 50, 40)
-    .text("Compliance", 50, 70)
-    .text("Report", 50, 100);
+  const headerHeight = 170;
 
-  // Company logo/name area (right side)
   doc
-    .fontSize(20)
-    .font("Helvetica-Bold")
-    .text("RentalEase", doc.page.width - 180, 60, { width: 130, align: "right" });
+    .rect(0, 0, doc.page.width, headerHeight)
+    .fill(COLORS.primary);
 
-  // Reset to white background for content
   doc
-    .rect(0, 150, doc.page.width, doc.page.height - 150)
-    .fill("white");
+    .rect(doc.page.width * 0.55, 0, doc.page.width * 0.45, headerHeight)
+    .fill(COLORS.primaryAccent);
 
-  // Report type badge
   doc
     .fillColor("white")
+    .fontSize(28)
+    .font("Helvetica-Bold")
+    .text("Inspection Report", PAGE.margin, 50, { characterSpacing: 0.5 });
+
+  doc
     .fontSize(12)
     .font("Helvetica")
-    .text(`${report.template?.title || 'Gas Safety Check Report'}`, 50, 165);
+    .text(`${report.template?.title || job?.jobType || "Safety Compliance"}`, PAGE.margin, 95);
 
-  doc.y = 200;
+  const propertyLabel = property?.address?.fullAddress || property?.address?.street || "Property";
+  doc
+    .fontSize(10)
+    .text(propertyLabel, PAGE.margin, 115, { width: doc.page.width * 0.5 });
+
+  doc
+    .fontSize(22)
+    .font("Helvetica-Bold")
+    .text("RentalEase", doc.page.width - PAGE.margin - 160, 60, {
+      width: 160,
+      align: "right",
+    })
+    .fontSize(11)
+    .font("Helvetica")
+    .text("Compliance & Safety Services", doc.page.width - PAGE.margin - 160, 95, {
+      width: 160,
+      align: "right",
+    });
+
+  doc
+    .rect(0, headerHeight, doc.page.width, doc.page.height - headerHeight)
+    .fill("white");
+
+  doc.fillColor(COLORS.text).y = headerHeight + 30;
 };
 
 const drawPropertyDetails = (doc, { property, job, technician, report }) => {
-  const startY = doc.y + 20;
-
-  // Property details section
+  ensurePageSpace(doc, 180);
   drawSectionHeader(doc, "Property Report Summary");
 
-  // Details table background
+  const cardX = PAGE.margin - 10;
+  const cardWidth = doc.page.width - (PAGE.margin - 10) * 2;
+  doc.font("Helvetica").fontSize(10);
+  const rows = [
+    {
+      label: "Property Address",
+      value:
+        property?.address?.fullAddress ||
+        property?.address?.street ||
+        property?.address ||
+        "N/A",
+    },
+    {
+      label: "Inspection Date",
+      value: formatDisplayDate(report?.submittedAt || job?.dueDate),
+    },
+    {
+      label: "Inspector",
+      value: `${technician?.firstName || ""} ${technician?.lastName || ""}`.trim() || "N/A",
+    },
+  ];
+
+  const valueWidth = cardWidth - 220;
+  let dynamicHeight = 40;
+
+  rows.forEach((row) => {
+    const valueHeight = doc.heightOfString(row.value || "—", {
+      width: valueWidth,
+      align: "left",
+    });
+    dynamicHeight += Math.max(28, valueHeight + 14);
+  });
+
+  const cardY = doc.y;
+
   doc
-    .rect(50, doc.y, doc.page.width - 100, 80)
-    .fill("#FFF5F5")
+    .roundedRect(cardX, cardY, cardWidth, dynamicHeight, 12)
+    .fill(COLORS.primarySoft)
     .stroke(COLORS.border);
 
-  doc
-    .fillColor(COLORS.text)
-    .fontSize(10)
-    .font("Helvetica-Bold")
-    .text("Property Address:", 60, doc.y + 15)
-    .font("Helvetica")
-    .text(property.address?.fullAddress || property.address?.street || "N/A", 160, doc.y);
+  let rowY = cardY + 20;
+  const labelX = PAGE.margin + 5;
+  const valueX = labelX + 140;
 
-  doc
-    .font("Helvetica-Bold")
-    .text("Date:", 60, doc.y + 15)
-    .font("Helvetica")
-    .text(new Date(report.submittedAt).toLocaleDateString(), 160, doc.y);
+  rows.forEach((row) => {
+    const currentHeight = Math.max(
+      24,
+      doc.heightOfString(row.value || "—", { width: valueWidth, align: "left" }) + 8
+    );
 
-  doc
-    .font("Helvetica-Bold")
-    .text("Inspector:", 60, doc.y + 15)
-    .font("Helvetica")
-    .text(`${technician?.firstName || ""} ${technician?.lastName || ""}`, 160, doc.y);
+    doc
+      .fillColor(COLORS.textSecondary)
+      .font("Helvetica-Bold")
+      .fontSize(10)
+      .text(`${row.label}:`, labelX, rowY);
 
-  doc.y += 40;
+    doc
+      .fillColor(COLORS.text)
+      .font("Helvetica")
+      .fontSize(10)
+      .text(row.value || "—", valueX, rowY, {
+        width: valueWidth,
+        align: "left",
+      });
+
+    rowY += currentHeight;
+  });
+
+  doc.y = cardY + dynamicHeight + 24;
 };
 
 const drawSectionHeader = (doc, title) => {
+  ensurePageSpace(doc, 60);
+
+  const headerWidth = doc.page.width - PAGE.margin * 2;
+  const headerY = doc.y;
+
   doc
-    .rect(50, doc.y, doc.page.width - 100, 25)
+    .roundedRect(PAGE.margin, headerY, headerWidth, 32, 10)
     .fill(COLORS.primary)
     .fillColor("white")
-    .fontSize(12)
+    .fontSize(13)
     .font("Helvetica-Bold")
-    .text(title, 60, doc.y + 8);
+    .text(title, PAGE.margin + 18, headerY + 10);
 
-  doc.y += 35;
+  doc.fillColor(COLORS.text).y = headerY + 48;
 };
 
 const formatValue = (value, fieldType) => {
@@ -143,20 +239,20 @@ const drawApplianceSection = (doc, section, responses = {}) => {
   if (checklistItems.length > 0) {
     // Draw table headers
     doc
-      .rect(50, tableY, 300, 20)
-      .fill("#F7FAFC")
+      .rect(PAGE.margin, tableY, 320, 24)
+      .fill(COLORS.neutralBackground)
       .stroke(COLORS.border);
 
     doc
       .fillColor(COLORS.text)
       .fontSize(10)
       .font("Helvetica-Bold")
-      .text("Check Item", 60, tableY + 6)
-      .text("Yes", 260, tableY + 6)
-      .text("No", 290, tableY + 6)
-      .text("N/A", 320, tableY + 6);
+      .text("Check Item", PAGE.margin + 10, tableY + 8)
+      .text("Yes", PAGE.margin + 230, tableY + 8)
+      .text("No", PAGE.margin + 270, tableY + 8)
+      .text("N/A", PAGE.margin + 310, tableY + 8);
 
-    doc.y = tableY + 25;
+    doc.y = tableY + 30;
 
     // Draw checklist items
     for (const field of checklistItems) {
@@ -178,17 +274,19 @@ const drawApplianceSection = (doc, section, responses = {}) => {
 };
 
 const drawChecklistItem = (doc, label, value, type) => {
-  const y = doc.y;
+  ensurePageSpace(doc, 45);
+  const baseY = doc.y;
+  const labelX = PAGE.margin + 10;
 
   doc
     .fillColor(COLORS.text)
     .fontSize(10)
     .font("Helvetica")
-    .text(label, 60, y, { width: 200 });
+    .text(label, labelX, baseY, { width: 200 });
 
   // Draw checkboxes
   const options = type === "yes-no-na" ? ["Yes", "No", "N/A"] : ["Pass", "Fail"];
-  let x = 280;
+  let x = PAGE.margin + 220;
 
   for (const option of options) {
     const isSelected = value === option || (value === "yes" && option === "Yes") ||
@@ -196,35 +294,36 @@ const drawChecklistItem = (doc, label, value, type) => {
                       (value === "pass" && option === "Pass") || (value === "fail" && option === "Fail");
 
     // Draw checkbox
-    doc
-      .rect(x, y + 2, 10, 10)
-      .stroke(COLORS.border);
+    doc.rect(x, baseY + 2, 12, 12).stroke(COLORS.border);
 
     if (isSelected) {
       doc
         .fillColor(type === "pass-fail" && option === "Pass" ? COLORS.success :
                   type === "pass-fail" && option === "Fail" ? COLORS.error : COLORS.primary)
-        .rect(x + 2, y + 4, 6, 6)
+        .rect(x + 3, baseY + 3, 8, 8)
         .fill();
     }
 
     doc
       .fillColor(COLORS.text)
       .fontSize(8)
-      .text(option, x + 15, y + 4);
+      .text(option, x + 18, baseY + 4);
 
-    x += 60;
+    x += 70;
   }
 
-  doc.y += 25;
+  doc.y = baseY + 28;
 };
 
 const drawApplianceCheckRow = (doc, label, value, type) => {
-  const y = doc.y;
+  ensurePageSpace(doc, 28);
+  const baseY = doc.y;
+  const tableX = PAGE.margin;
+  const columnStart = tableX + 10;
 
   // Row background
   doc
-    .rect(50, y, 300, 18)
+    .rect(tableX, baseY, 320, 20)
     .fill("white")
     .stroke(COLORS.border);
 
@@ -233,10 +332,10 @@ const drawApplianceCheckRow = (doc, label, value, type) => {
     .fillColor(COLORS.text)
     .fontSize(9)
     .font("Helvetica")
-    .text(label, 60, y + 5, { width: 190, ellipsis: true });
+    .text(label, columnStart, baseY + 5, { width: 200, ellipsis: true });
 
   // Checkboxes
-  const positions = [260, 290, 320];
+  const positions = [tableX + 230, tableX + 270, tableX + 310];
   const options = ["yes", "no", "na"];
 
   for (let index = 0; index < options.length; index++) {
@@ -249,33 +348,45 @@ const drawApplianceCheckRow = (doc, label, value, type) => {
     if (isSelected) {
       doc
         .fillColor(COLORS.primary)
-        .circle(x + 5, y + 9, 4)
+        .circle(x + 6, baseY + 10, 4)
         .fill()
         .fillColor("white")
-        .text("✓", x + 2, y + 5);
+        .text("✓", x + 3, baseY + 6);
     } else {
       doc
-        .circle(x + 5, y + 9, 4)
+        .circle(x + 6, baseY + 10, 4)
         .stroke(COLORS.border);
     }
   }
 
-  doc.y += 20;
+  doc.y = baseY + 24;
 };
 
 const drawTextField = (doc, label, value) => {
+  ensurePageSpace(doc, 40);
+
+  const contentX = PAGE.margin + 10;
+  const contentWidth = doc.page.width - (PAGE.margin + 10) * 2;
+  const baseY = doc.y;
+
   doc
     .fillColor(COLORS.text)
     .fontSize(10)
     .font("Helvetica-Bold")
-    .text(label, 60, doc.y);
+    .text(label, contentX, baseY);
 
   doc
     .font("Helvetica")
     .fillColor(COLORS.textSecondary)
-    .text(value || "—", 60, doc.y + 2);
+    .text(value || "—", contentX, baseY + 16, {
+      width: contentWidth,
+    });
 
-  doc.y += 25;
+  const valueHeight = doc.heightOfString(value || "—", {
+    width: contentWidth,
+  });
+
+  doc.y = baseY + Math.max(36, valueHeight + 22);
 };
 
 const drawFaultIdentificationSection = (doc, section, responses = {}) => {
@@ -293,13 +404,13 @@ const drawFaultIdentificationSection = (doc, section, responses = {}) => {
 
     // Draw table header
     doc
-      .rect(50, tableY, doc.page.width - 100, 20)
+      .rect(PAGE.margin, tableY, doc.page.width - PAGE.margin * 2, 24)
       .fill(COLORS.primary)
       .fillColor("white")
       .fontSize(9)
       .font("Helvetica-Bold");
 
-    let x = 60;
+    let x = PAGE.margin + 10;
     const columnWidths = [120, 150, 80, 80, 100];
     for (let index = 0; index < tableHeaders.length; index++) {
       const header = tableHeaders[index];
@@ -310,11 +421,11 @@ const drawFaultIdentificationSection = (doc, section, responses = {}) => {
     // Draw data row
     doc.y = tableY + 25;
     doc
-      .rect(50, doc.y, doc.page.width - 100, 40)
+      .rect(PAGE.margin, doc.y, doc.page.width - PAGE.margin * 2, 44)
       .fill("white")
       .stroke(COLORS.border);
 
-    x = 60;
+    x = PAGE.margin + 10;
     const rowData = [
       faultIdentified || "—",
       rectification || "—",
@@ -334,13 +445,15 @@ const drawFaultIdentificationSection = (doc, section, responses = {}) => {
       x += columnWidths[index];
     }
 
-    doc.y += 45;
+    doc.y += 50;
   } else {
     doc
       .fillColor(COLORS.textSecondary)
       .fontSize(10)
-      .text("No faults identified during this inspection.", 60, doc.y);
-    doc.y += 30;
+      .text("No faults identified during this inspection.", PAGE.margin + 10, doc.y, {
+        width: doc.page.width - (PAGE.margin + 10) * 2,
+      });
+    doc.y += 32;
   }
 };
 
@@ -364,12 +477,12 @@ const drawComplianceDeclaration = (doc, section, responses = {}, report) => {
 
   // Status badge
   doc
-    .rect(60, doc.y, 150, 30)
+    .roundedRect(PAGE.margin + 10, doc.y, 170, 32, 8)
     .fill(statusColor)
     .fillColor("white")
     .fontSize(12)
     .font("Helvetica-Bold")
-    .text(statusText, 70, doc.y + 10);
+    .text(statusText, PAGE.margin + 28, doc.y + 10);
 
   doc.y += 50;
 
@@ -378,7 +491,12 @@ const drawComplianceDeclaration = (doc, section, responses = {}, report) => {
     .fillColor(COLORS.text)
     .fontSize(9)
     .font("Helvetica")
-    .text("This gas safety report is prepared in accordance with the requirements contained in the Residential Tenancies Regulations 2021 and all other applicable standards and codes. It has been conducted by a gas fitter with Type A Servicing accreditation.", 60, doc.y, { width: 500 });
+    .text(
+      "This gas safety report is prepared in accordance with the requirements contained in the Residential Tenancies Regulations 2021 and all other applicable standards and codes. It has been conducted by a gas fitter with Type A Servicing accreditation.",
+      PAGE.margin + 10,
+      doc.y,
+      { width: doc.page.width - (PAGE.margin + 10) * 2 }
+    );
 
   doc.y += 40;
 
@@ -388,14 +506,14 @@ const drawComplianceDeclaration = (doc, section, responses = {}, report) => {
       .fillColor(COLORS.text)
       .fontSize(10)
       .font("Helvetica-Bold")
-      .text("Signed by gasfitter:", 60, doc.y);
+      .text("Signed by gasfitter:", PAGE.margin + 10, doc.y);
 
     doc
-      .rect(60, doc.y + 20, 200, 30)
+      .roundedRect(PAGE.margin + 10, doc.y + 20, 220, 34, 8)
       .stroke(COLORS.border)
       .fillColor(COLORS.success)
       .fontSize(10)
-      .text("✓ Digitally Signed", 70, doc.y + 30);
+      .text("✓ Digitally Signed", PAGE.margin + 26, doc.y + 32);
   }
 
   // Next check due
@@ -405,7 +523,14 @@ const drawComplianceDeclaration = (doc, section, responses = {}, report) => {
       .fillColor(COLORS.text)
       .fontSize(10)
       .font("Helvetica-Bold")
-      .text(`Next gas safety check is due within 24 months. Next gas safety check due: ${new Date(nextCheckDue).toLocaleDateString()}`, 60, doc.y + 60);
+      .text(
+        `Next gas safety check is due within 24 months. Next gas safety check due: ${formatDisplayDate(nextCheckDue)}`,
+        PAGE.margin + 10,
+        doc.y + 60,
+        {
+          width: doc.page.width - (PAGE.margin + 10) * 2,
+        }
+      );
   }
 };
 
@@ -466,7 +591,8 @@ export const buildInspectionReportPdf = async ({
       // Check if we need a new page
       if (doc.y > doc.page.height - 150) {
         doc.addPage();
-        doc.y = 50;
+        doc.y = PAGE.margin;
+        doc.fillColor(COLORS.text);
       }
 
       // Specialized section rendering based on section type
@@ -480,7 +606,11 @@ export const buildInspectionReportPdf = async ({
         drawComplianceDeclaration(doc, section, responses, report);
       } else {
         // Generic section rendering for other sections
-        drawSectionHeader(doc, section.title);
+        const genericTitle =
+          section.title === "Property Details"
+            ? "Inspector Details"
+            : section.title;
+        drawSectionHeader(doc, genericTitle);
 
         for (const field of section.fields) {
           const value = responses[field.id];
@@ -491,16 +621,24 @@ export const buildInspectionReportPdf = async ({
             const fieldMedia = report.media?.filter(item => item.fieldId === field.id) || [];
 
             if (fieldMedia.length > 0) {
+              const imageLabelX = PAGE.margin + 10;
               doc
                 .fillColor(COLORS.text)
                 .fontSize(10)
                 .font("Helvetica-Bold")
-                .text(field.label, 60, doc.y);
+                .text(field.label, imageLabelX, doc.y);
 
               doc.y += 15;
 
               for (const mediaItem of fieldMedia) {
-                const result = await processImageForPdf(mediaItem.url, doc, 60, doc.y, 200, 150);
+                const result = await processImageForPdf(
+                  mediaItem.url,
+                  doc,
+                  PAGE.margin + 10,
+                  doc.y,
+                  200,
+                  150
+                );
 
                 if (result.success) {
                   doc.y += result.height;
@@ -509,14 +647,15 @@ export const buildInspectionReportPdf = async ({
                     .fillColor(COLORS.textSecondary)
                     .fontSize(9)
                     .font("Helvetica")
-                    .text(result.message, 60, doc.y);
+                    .text(result.message, imageLabelX, doc.y);
                   doc.y += result.height;
                 }
 
                 // Check if we need a new page
                 if (doc.y > doc.page.height - 150) {
                   doc.addPage();
-                  doc.y = 50;
+                  doc.y = PAGE.margin;
+                  doc.fillColor(COLORS.text);
                 }
               }
 
@@ -527,12 +666,12 @@ export const buildInspectionReportPdf = async ({
                 .fillColor(COLORS.text)
                 .fontSize(10)
                 .font("Helvetica-Bold")
-                .text(field.label, 60, doc.y);
+                .text(field.label, PAGE.margin + 10, doc.y);
 
               doc
                 .font("Helvetica")
                 .fillColor(COLORS.textSecondary)
-                .text("No photos attached", 60, doc.y + 2);
+                .text("No photos attached", PAGE.margin + 10, doc.y + 2);
 
               doc.y += 25;
             }
@@ -552,7 +691,8 @@ export const buildInspectionReportPdf = async ({
   if (report.notes) {
     if (doc.y > doc.page.height - 100) {
       doc.addPage();
-      doc.y = 50;
+      doc.y = PAGE.margin;
+      doc.fillColor(COLORS.text);
     }
 
     drawSectionHeader(doc, "Technician Notes");
@@ -568,21 +708,30 @@ export const buildInspectionReportPdf = async ({
   // Photos section
   if (report.media?.length) {
     doc.addPage();
-    doc.y = 50;
+    doc.y = PAGE.margin;
+    doc.fillColor(COLORS.text);
 
     drawSectionHeader(doc, "Annex: Photos");
 
     for (const item of report.media) {
       // Add photo label
+      const labelX = PAGE.margin + 10;
       doc
         .fillColor(COLORS.text)
         .fontSize(12)
         .font("Helvetica-Bold")
-        .text(item.label || `Photo ${report.media.indexOf(item) + 1}`, 60, doc.y);
+        .text(item.label || `Photo ${report.media.indexOf(item) + 1}`, labelX, doc.y);
 
       doc.y += 20;
 
-      const result = await processImageForPdf(item.url, doc, 60, doc.y, 400, 300);
+      const result = await processImageForPdf(
+        item.url,
+        doc,
+        PAGE.margin + 10,
+        doc.y,
+        400,
+        300
+      );
 
       if (result.success) {
         doc.y += result.height;
@@ -591,14 +740,15 @@ export const buildInspectionReportPdf = async ({
           .fillColor(COLORS.textSecondary)
           .fontSize(10)
           .font("Helvetica")
-          .text(result.message, 60, doc.y);
+          .text(result.message, labelX, doc.y);
         doc.y += result.height;
       }
 
       // Add page break if needed
       if (doc.y > doc.page.height - 150) {
         doc.addPage();
-        doc.y = 50;
+        doc.y = PAGE.margin;
+        doc.fillColor(COLORS.text);
       }
     }
   }
