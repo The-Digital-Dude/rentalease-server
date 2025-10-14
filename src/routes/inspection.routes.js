@@ -9,6 +9,7 @@ import {
   listTemplates,
   getTemplateByJobType,
   serializeTemplate,
+  cleanupOldTemplateVersions,
 } from "../services/inspectionTemplate.service.js";
 import { submitInspectionReport } from "../services/inspectionReport.service.js";
 import InspectionReport from "../models/InspectionReport.js";
@@ -280,6 +281,27 @@ router.get(
       res.status(500).json({
         status: "error",
         message: error.message || "Failed to load inspection report",
+      });
+    }
+  }
+);
+
+// Cleanup old template versions (manual trigger)
+router.post(
+  "/templates/cleanup",
+  authenticateUserTypes(["SuperUser"]),
+  async (req, res) => {
+    try {
+      await cleanupOldTemplateVersions();
+      res.json({
+        status: "success",
+        message: "Old template versions cleaned up successfully",
+      });
+    } catch (error) {
+      console.error("Template cleanup error:", error);
+      res.status(500).json({
+        status: "error",
+        message: error.message || "Failed to cleanup old template versions",
       });
     }
   }

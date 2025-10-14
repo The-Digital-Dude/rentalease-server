@@ -9,6 +9,20 @@ export const ensureDefaultTemplates = async () => {
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
   }
+
+  // Clean up old template versions that are no longer needed
+  await cleanupOldTemplateVersions();
+};
+
+export const cleanupOldTemplateVersions = async () => {
+  // Deactivate Gas Safety Inspection Version 1 (keep only Version 2)
+  await InspectionTemplate.findOneAndUpdate(
+    { jobType: "Gas", version: 1 },
+    { isActive: false },
+    { new: true }
+  );
+
+  console.log("Cleaned up old Gas Safety Inspection template versions");
 };
 
 export const getTemplateByJobType = async (jobType) => {
