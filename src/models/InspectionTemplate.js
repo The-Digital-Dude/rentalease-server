@@ -43,6 +43,9 @@ const fieldSchema = new mongoose.Schema(
         "rating",
         "signature",
         "checkbox-group",
+        "yes-no",
+        "yes-no-na",
+        "pass-fail",
       ],
     },
     required: {
