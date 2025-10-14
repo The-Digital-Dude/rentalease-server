@@ -95,13 +95,76 @@ const drawProfessionalHeader = (doc, { property, job, technician, report }) => {
   doc.fillColor(COLORS.text).y = headerHeight + 30;
 };
 
-const drawPropertyDetails = (doc, { property, job, technician, report }) => {
-  ensurePageSpace(doc, 180);
-  drawSectionHeader(doc, "Property Report Summary");
+const drawKeyValueCard = (doc, title, rows = []) => {
+  if (!rows.length) {
+    return;
+  }
+
+  const estimatedHeight = 100 + rows.length * 20;
+  ensurePageSpace(doc, estimatedHeight);
+
+  if (title) {
+    drawSectionHeader(doc, title);
+  }
 
   const cardX = PAGE.margin - 10;
   const cardWidth = doc.page.width - (PAGE.margin - 10) * 2;
   doc.font("Helvetica").fontSize(10);
+
+  const labelWidth = 150;
+  const valueWidth = cardWidth - (labelWidth + 40);
+
+  let dynamicHeight = 32;
+  rows.forEach((row) => {
+    const textValue = row.value ?? "—";
+    const valueHeight = doc.heightOfString(String(textValue), {
+      width: valueWidth,
+      align: "left",
+    });
+    dynamicHeight += Math.max(24, valueHeight + 12);
+  });
+
+  const cardY = doc.y;
+
+  doc
+    .roundedRect(cardX, cardY, cardWidth, dynamicHeight, 12)
+    .fill(COLORS.primarySoft)
+    .stroke(COLORS.border);
+
+  let rowY = cardY + 18;
+  const labelX = PAGE.margin + 5;
+  const valueX = labelX + labelWidth;
+
+  rows.forEach((row) => {
+    const label = row.label || "";
+    const textValue = row.value ?? "—";
+    const currentHeight = Math.max(
+      22,
+      doc.heightOfString(String(textValue), { width: valueWidth, align: "left" }) + 10
+    );
+
+    doc
+      .fillColor(COLORS.textSecondary)
+      .font("Helvetica-Bold")
+      .fontSize(10)
+      .text(`${label}:`, labelX, rowY, { width: labelWidth });
+
+    doc
+      .fillColor(COLORS.text)
+      .font("Helvetica")
+      .fontSize(10)
+      .text(String(textValue), valueX, rowY, {
+        width: valueWidth,
+        align: "left",
+      });
+
+    rowY += currentHeight;
+  });
+
+  doc.y = cardY + dynamicHeight + 24;
+};
+
+const drawPropertyDetails = (doc, { property, job, technician, report }) => {
   const rows = [
     {
       label: "Property Address",
@@ -121,53 +184,609 @@ const drawPropertyDetails = (doc, { property, job, technician, report }) => {
     },
   ];
 
-  const valueWidth = cardWidth - 220;
-  let dynamicHeight = 40;
+  drawKeyValueCard(doc, "Property Report Summary", rows);
+};
 
-  rows.forEach((row) => {
-    const valueHeight = doc.heightOfString(row.value || "—", {
-      width: valueWidth,
-      align: "left",
-    });
-    dynamicHeight += Math.max(28, valueHeight + 14);
+const mapCoverageValue = (value) => {
+  const displayMap = {
+    "included": "Included",
+    "not-included": "Not included",
+    "not-inspected": "Not inspected",
+  };
+  return displayMap[value] || "Not specified";
+};
+
+const mapInspectionStatus = (value) => {
+  const displayMap = {
+    "satisfactory": "Satisfactory",
+    "unsatisfactory": "Unsatisfactory",
+    "not-inspected": "Not inspected",
+  };
+  return displayMap[value] || "Not specified";
+};
+
+const mapTestingStatus = (value) => {
+  const displayMap = {
+    "pass": "Pass",
+    "fail": "Fail",
+    "not-tested": "Not tested",
+  };
+  return displayMap[value] || "Not specified";
+};
+
+const mapYesNoValue = (value) => {
+  if (value === "yes" || value === true) return "Yes";
+  if (value === "no" || value === false) return "No";
+  return "Not specified";
+};
+
+const mapOutcomeValue = (value) => {
+  const displayMap = {
+    "no-faults": "No faults identified",
+    "faults-identified": "Faults identified",
+    "repairs-required": "Repairs required",
+  };
+  return displayMap[value] || "Pending";
+};
+
+const getOutcomeColor = (value) => {
+  switch (value) {
+    case "no-faults":
+      return COLORS.success;
+    case "faults-identified":
+      return COLORS.warning;
+    case "repairs-required":
+      return COLORS.error;
+    default:
+      return COLORS.textSecondary;
+  }
+};
+
+const drawOutcomeBadges = (doc, outcomes = []) => {
+  if (!outcomes.length) {
+    return;
+  }
+
+  const availableWidth = doc.page.width - PAGE.margin * 2;
+  const badgeWidth = (availableWidth - (outcomes.length - 1) * 16) / outcomes.length;
+  const y = doc.y;
+
+  outcomes.forEach((outcome, index) => {
+    const x = PAGE.margin + index * (badgeWidth + 16);
+    const color = getOutcomeColor(outcome.valueKey);
+
+    doc
+      .roundedRect(x, y, badgeWidth, 46, 10)
+      .fill(color)
+      .fillColor("white")
+      .fontSize(11)
+      .font("Helvetica-Bold")
+      .text(outcome.title, x + 16, y + 10, {
+        width: badgeWidth - 32,
+      })
+      .font("Helvetica")
+      .fontSize(10)
+      .text(mapOutcomeValue(outcome.valueKey), x + 16, y + 26, {
+        width: badgeWidth - 32,
+      });
   });
 
-  const cardY = doc.y;
+  doc.y = y + 62;
+};
 
-  doc
-    .roundedRect(cardX, cardY, cardWidth, dynamicHeight, 12)
-    .fill(COLORS.primarySoft)
-    .stroke(COLORS.border);
+const drawStatusList = (
+  doc,
+  title,
+  items = [],
+  valueMapper = (value) => value
+) => {
+  if (!items.length) {
+    return;
+  }
 
-  let rowY = cardY + 20;
-  const labelX = PAGE.margin + 5;
-  const valueX = labelX + 140;
+  const estimatedHeight = items.length * 20 + 80;
+  ensurePageSpace(doc, estimatedHeight);
+  drawSectionHeader(doc, title);
 
-  rows.forEach((row) => {
-    const currentHeight = Math.max(
-      24,
-      doc.heightOfString(row.value || "—", { width: valueWidth, align: "left" }) + 8
+  const labelWidth = 240;
+  const valueWidth = doc.page.width - PAGE.margin * 2 - labelWidth - 20;
+  let cursorY = doc.y;
+
+  items.forEach((item, index) => {
+    const label = item.label || "";
+    const mappedValue = valueMapper(item.value, item, index);
+    const textValue = mappedValue || "Not specified";
+    const rowHeight = Math.max(
+      20,
+      doc.heightOfString(String(textValue), { width: valueWidth, align: "left" }) + 6
     );
 
     doc
-      .fillColor(COLORS.textSecondary)
+      .fillColor(COLORS.text)
       .font("Helvetica-Bold")
       .fontSize(10)
-      .text(`${row.label}:`, labelX, rowY);
+      .text(label, PAGE.margin, cursorY, { width: labelWidth });
 
     doc
-      .fillColor(COLORS.text)
+      .fillColor(COLORS.textSecondary)
       .font("Helvetica")
       .fontSize(10)
-      .text(row.value || "—", valueX, rowY, {
+      .text(String(textValue), PAGE.margin + labelWidth + 10, cursorY, {
         width: valueWidth,
-        align: "left",
       });
 
-    rowY += currentHeight;
+    cursorY += rowHeight;
   });
 
-  doc.y = cardY + dynamicHeight + 24;
+  doc.y = cursorY + 16;
+};
+
+const drawSmokeAlarmTable = (doc, alarms = []) => {
+  if (!alarms.length) {
+    return;
+  }
+
+  const tableTopMargin = 30;
+  ensurePageSpace(doc, alarms.length * 30 + tableTopMargin + 80);
+  drawSectionHeader(doc, "Smoke Alarm Inventory");
+
+  const startX = PAGE.margin;
+  const startY = doc.y;
+  const columnDefinitions = [
+    { id: "voltage", label: "Voltage", width: 80 },
+    { id: "status", label: "Status", width: 140 },
+    { id: "location", label: "Location", width: 140 },
+    { id: "level", label: "Level", width: 80 },
+    { id: "expiration", label: "Expiration", width: 140 },
+  ];
+
+  const totalWidth = columnDefinitions.reduce((sum, col) => sum + col.width, 0);
+
+  // Header
+  doc
+    .rect(startX, startY, totalWidth, 24)
+    .fill(COLORS.primary)
+    .fillColor("white")
+    .font("Helvetica-Bold")
+    .fontSize(10);
+
+  let columnX = startX;
+  columnDefinitions.forEach((column) => {
+    doc.text(column.label, columnX + 8, startY + 7, { width: column.width - 12 });
+    columnX += column.width;
+  });
+
+  doc.font("Helvetica").fontSize(10);
+  let rowY = startY + 24;
+
+  alarms.forEach((row, index) => {
+    ensurePageSpace(doc, 60);
+
+    doc
+      .rect(startX, rowY, totalWidth, 24)
+      .fill(index % 2 === 0 ? COLORS.primarySoft : "white")
+      .stroke(COLORS.border);
+
+    columnX = startX;
+
+    columnDefinitions.forEach((column) => {
+      let value = row[column.id];
+      if (!value) {
+        value = "—";
+      }
+      if (column.id === "expiration") {
+        value = formatDisplayDate(value);
+      }
+
+      doc
+        .fillColor(COLORS.text)
+        .text(String(value), columnX + 8, rowY + 7, {
+          width: column.width - 12,
+        });
+
+      columnX += column.width;
+    });
+
+    rowY += 24;
+  });
+
+  doc.y = rowY + 16;
+};
+
+const drawCertificationBlock = (doc, certification = {}) => {
+  const rows = [
+    {
+      label: "Electrical safety check completed by",
+      value: certification["certification-electrician-name"] || certification["inspector-name"],
+    },
+    {
+      label: "Licence/registration number",
+      value: certification["certification-licence-number"] || certification["license-number"],
+    },
+    {
+      label: "Inspection date",
+      value: formatDisplayDate(certification["certification-inspection-date"]),
+    },
+    {
+      label: "Next inspection due",
+      value: formatDisplayDate(certification["certification-next-inspection-due"]),
+    },
+    {
+      label: "Signed at",
+      value: certification["certification-signed-at"] || "—",
+    },
+  ];
+
+  drawKeyValueCard(doc, "Electrical Safety Check Certification", rows);
+
+  if (certification["certification-notes"]) {
+    ensurePageSpace(doc, 80);
+    doc
+      .fillColor(COLORS.text)
+      .font("Helvetica-Bold")
+      .fontSize(11)
+      .text("Certification notes", PAGE.margin, doc.y);
+
+    doc
+      .fillColor(COLORS.textSecondary)
+      .font("Helvetica")
+      .fontSize(10)
+      .text(String(certification["certification-notes"]), PAGE.margin, doc.y + 14, {
+        width: doc.page.width - PAGE.margin * 2,
+      });
+
+    doc.y += 60;
+  }
+};
+
+const renderElectricalSmokeReport = (doc, { report, template, job, property }) => {
+  const getSection = (id) => report.formData?.[id] || {};
+
+  const summarySection = getSection("inspection-summary");
+  const extentSection = getSection("extent-of-installation");
+  const visualSection = getSection("visual-inspection");
+  const polaritySection = getSection("testing-polarity");
+  const earthSection = getSection("testing-earth");
+  const rcdSection = getSection("rcd-testing");
+  const smokeSection = getSection("smoke-alarms");
+  const certificationSection = {
+    ...summarySection,
+    ...getSection("certification"),
+  };
+
+  const propertyAddress =
+    property?.address?.fullAddress ||
+    property?.address?.street ||
+    property?.address ||
+    "N/A";
+
+  const summaryRows = [
+    {
+      label: "Property Address",
+      value: propertyAddress,
+    },
+    {
+      label: "Inspection Date",
+      value:
+        formatDisplayDate(summarySection["inspection-date"]) ||
+        formatDisplayDate(report.submittedAt),
+    },
+    {
+      label: "Inspector",
+      value: summarySection["inspector-name"] || "N/A",
+    },
+    {
+      label: "Licence/registration number",
+      value: summarySection["license-number"] || "N/A",
+    },
+    {
+      label: "Previous safety check",
+      value: formatDisplayDate(summarySection["previous-inspection-date"]) || "Not recorded",
+    },
+  ];
+
+  drawKeyValueCard(doc, "Property Report Summary", summaryRows);
+
+  drawOutcomeBadges(doc, [
+    {
+      title: "Electrical Safety Check",
+      valueKey: summarySection["electrical-outcome"],
+    },
+    {
+      title: "Smoke Alarm Check",
+      valueKey: summarySection["smoke-outcome"],
+    },
+  ]);
+
+  if (summarySection["summary-notes"]) {
+    ensurePageSpace(doc, 120);
+    doc
+      .fillColor(COLORS.text)
+      .font("Helvetica-Bold")
+      .fontSize(11)
+      .text("Next steps", PAGE.margin, doc.y);
+
+    doc
+      .fillColor(COLORS.textSecondary)
+      .font("Helvetica")
+      .fontSize(10)
+      .text(String(summarySection["summary-notes"]), PAGE.margin, doc.y + 14, {
+        width: doc.page.width - PAGE.margin * 2,
+      });
+
+    doc.y += 60;
+  }
+
+  if (summarySection["contact-email"] || summarySection["contact-phone"]) {
+    const contactRows = [
+      {
+        label: "Email",
+        value: summarySection["contact-email"] || "—",
+      },
+      {
+        label: "Phone",
+        value: summarySection["contact-phone"] || "—",
+      },
+    ];
+    drawKeyValueCard(doc, "Contact", contactRows);
+  }
+
+  const extentItemsList = extentItems.map((item) => ({
+    label: item.label,
+    value: extentSection[item.id],
+  }));
+  drawStatusList(doc, "Extent of installation covered", extentItemsList, mapCoverageValue);
+
+  const visualItemsList = visualInspectionItems.map((item) => ({
+    label: item.label,
+    value: visualSection[item.id],
+  }));
+  drawStatusList(doc, "Visual inspection", visualItemsList, mapInspectionStatus);
+
+  const polarityItemsList = polarityTestItems.map((item) => ({
+    label: item.label,
+    value: polaritySection[item.id],
+  }));
+  drawStatusList(doc, "Polarity & correct connection testing", polarityItemsList, mapTestingStatus);
+
+  const earthItemsList = earthContinuityItems.map((item) => ({
+    label: item.label,
+    value: earthSection[item.id],
+  }));
+  drawStatusList(doc, "Earth continuity testing", earthItemsList, mapTestingStatus);
+
+  if (rcdSection["rcd-test-result"] || rcdSection["rcd-notes"]) {
+    const rcdRows = [
+      {
+        label: "RCD push/time test outcome",
+        value: rcdSection["rcd-test-result"],
+      },
+    ];
+    drawStatusList(doc, "RCD testing", rcdRows, mapTestingStatus);
+
+    if (rcdSection["rcd-notes"]) {
+      ensurePageSpace(doc, 80);
+      doc
+        .fillColor(COLORS.textSecondary)
+        .font("Helvetica")
+        .fontSize(10)
+        .text(String(rcdSection["rcd-notes"]), PAGE.margin, doc.y, {
+          width: doc.page.width - PAGE.margin * 2,
+        });
+      doc.y += 40;
+    }
+  }
+
+  const smokeRows = [
+    {
+      label: "All smoke alarms operational",
+      value: smokeSection["smoke-alarms-operational"],
+    },
+    {
+      label: "Next smoke alarm check due",
+      value: formatDisplayDate(smokeSection["next-smoke-check-due"]),
+    },
+  ];
+  drawStatusList(doc, "Smoke alarm compliance", smokeRows, (value, _item, index) => {
+    if (index === 1) {
+      return value;
+    }
+    return mapYesNoValue(value);
+  });
+
+  const alarmRecords = Array.isArray(smokeSection["smoke-alarm-records"])
+    ? smokeSection["smoke-alarm-records"]
+    : [];
+  drawSmokeAlarmTable(doc, alarmRecords);
+
+  drawCertificationBlock(doc, certificationSection);
+};
+
+const renderGasReport = async (doc, { template, report, job, property, technician }) => {
+  drawPropertyDetails(doc, { property, job, technician, report });
+
+  if (!template?.sections?.length) {
+    return;
+  }
+
+  for (const section of template.sections) {
+    const responses = report.formData?.[section.id] || {};
+
+    if (doc.y > doc.page.height - 150) {
+      doc.addPage();
+      doc.y = PAGE.margin;
+      doc.fillColor(COLORS.text);
+    }
+
+    if (section.id === "gas-installation") {
+      drawGasInstallationSection(doc, section, responses);
+    } else if (section.id.startsWith("appliance-")) {
+      drawApplianceSection(doc, section, responses);
+    } else if (section.id === "fault-identification") {
+      drawFaultIdentificationSection(doc, section, responses);
+    } else if (section.id === "final-declaration") {
+      drawComplianceDeclaration(doc, section, responses, report);
+    } else {
+      const genericTitle =
+        section.title === "Property Details"
+          ? "Inspector Details"
+          : section.title;
+      drawSectionHeader(doc, genericTitle);
+
+      for (const field of section.fields) {
+        const value = responses[field.id];
+
+        if (field.type === "photo" || field.type === "photo-multi") {
+          const fieldMedia = report.media?.filter((item) => item.fieldId === field.id) || [];
+
+          if (fieldMedia.length > 0) {
+            const imageLabelX = PAGE.margin + 10;
+            doc
+              .fillColor(COLORS.text)
+              .fontSize(10)
+              .font("Helvetica-Bold")
+              .text(field.label, imageLabelX, doc.y);
+
+            doc.y += 15;
+
+            for (const mediaItem of fieldMedia) {
+              const result = await processImageForPdf(
+                mediaItem.url,
+                doc,
+                PAGE.margin + 10,
+                doc.y,
+                200,
+                150
+              );
+
+              if (result.success) {
+                doc.y += result.height;
+              } else {
+                doc
+                  .fillColor(COLORS.textSecondary)
+                  .fontSize(9)
+                  .font("Helvetica")
+                  .text(result.message, imageLabelX, doc.y);
+                doc.y += result.height;
+              }
+
+              if (doc.y > doc.page.height - 150) {
+                doc.addPage();
+                doc.y = PAGE.margin;
+                doc.fillColor(COLORS.text);
+              }
+            }
+
+            doc.y += 10;
+          } else {
+            doc
+              .fillColor(COLORS.text)
+              .fontSize(10)
+              .font("Helvetica-Bold")
+              .text(field.label, PAGE.margin + 10, doc.y);
+
+            doc
+              .font("Helvetica")
+              .fillColor(COLORS.textSecondary)
+              .text("No photos attached", PAGE.margin + 10, doc.y + 2);
+
+            doc.y += 25;
+          }
+        } else {
+          const formattedValue = formatValue(value, field.type);
+          drawTextField(doc, field.label, formattedValue);
+        }
+      }
+
+      doc.y += 20;
+    }
+  }
+};
+
+const renderGenericReport = async (doc, { template, report, job, property, technician }) => {
+  drawPropertyDetails(doc, { property, job, technician, report });
+
+  if (!template?.sections?.length) {
+    return;
+  }
+
+  for (const section of template.sections) {
+    const responses = report.formData?.[section.id] || {};
+
+    if (doc.y > doc.page.height - 150) {
+      doc.addPage();
+      doc.y = PAGE.margin;
+      doc.fillColor(COLORS.text);
+    }
+
+    drawSectionHeader(doc, section.title);
+
+    for (const field of section.fields) {
+      const value = responses[field.id];
+
+      if (field.type === "photo" || field.type === "photo-multi") {
+        const fieldMedia = report.media?.filter((item) => item.fieldId === field.id) || [];
+
+        if (fieldMedia.length > 0) {
+          doc
+            .fillColor(COLORS.text)
+            .fontSize(10)
+            .font("Helvetica-Bold")
+            .text(field.label, PAGE.margin + 10, doc.y);
+
+          doc.y += 15;
+
+          for (const mediaItem of fieldMedia) {
+            const result = await processImageForPdf(
+              mediaItem.url,
+              doc,
+              PAGE.margin + 10,
+              doc.y,
+              200,
+              150
+            );
+
+            if (result.success) {
+              doc.y += result.height;
+            } else {
+              doc
+                .fillColor(COLORS.textSecondary)
+                .fontSize(9)
+                .font("Helvetica")
+                .text(result.message, PAGE.margin + 10, doc.y);
+              doc.y += result.height;
+            }
+
+            if (doc.y > doc.page.height - 150) {
+              doc.addPage();
+              doc.y = PAGE.margin;
+              doc.fillColor(COLORS.text);
+            }
+          }
+
+          doc.y += 10;
+        } else {
+          doc
+            .fillColor(COLORS.text)
+            .fontSize(10)
+            .font("Helvetica-Bold")
+            .text(field.label, PAGE.margin + 10, doc.y);
+
+          doc
+            .font("Helvetica")
+            .fillColor(COLORS.textSecondary)
+            .text("No photos attached", PAGE.margin + 10, doc.y + 2);
+
+          doc.y += 25;
+        }
+      } else {
+        const formattedValue = formatValue(value, field.type);
+        drawTextField(doc, field.label, formattedValue);
+      }
+    }
+
+    doc.y += 20;
+  }
 };
 
 const drawSectionHeader = (doc, title) => {
@@ -580,111 +1199,12 @@ export const buildInspectionReportPdf = async ({
   // Professional header with company branding
   drawProfessionalHeader(doc, { property, job, technician, report });
 
-  // Property details summary
-  drawPropertyDetails(doc, { property, job, technician, report });
-
-  // Process template sections with specialized rendering
-  if (template?.sections?.length) {
-    for (const section of template.sections) {
-      const responses = report.formData?.[section.id] || {};
-
-      // Check if we need a new page
-      if (doc.y > doc.page.height - 150) {
-        doc.addPage();
-        doc.y = PAGE.margin;
-        doc.fillColor(COLORS.text);
-      }
-
-      // Specialized section rendering based on section type
-      if (section.id === "gas-installation") {
-        drawGasInstallationSection(doc, section, responses);
-      } else if (section.id.startsWith("appliance-")) {
-        drawApplianceSection(doc, section, responses);
-      } else if (section.id === "fault-identification") {
-        drawFaultIdentificationSection(doc, section, responses);
-      } else if (section.id === "final-declaration") {
-        drawComplianceDeclaration(doc, section, responses, report);
-      } else {
-        // Generic section rendering for other sections
-        const genericTitle =
-          section.title === "Property Details"
-            ? "Inspector Details"
-            : section.title;
-        drawSectionHeader(doc, genericTitle);
-
-        for (const field of section.fields) {
-          const value = responses[field.id];
-
-          // Handle photo fields specially
-          if (field.type === "photo" || field.type === "photo-multi") {
-            // Find media for this field
-            const fieldMedia = report.media?.filter(item => item.fieldId === field.id) || [];
-
-            if (fieldMedia.length > 0) {
-              const imageLabelX = PAGE.margin + 10;
-              doc
-                .fillColor(COLORS.text)
-                .fontSize(10)
-                .font("Helvetica-Bold")
-                .text(field.label, imageLabelX, doc.y);
-
-              doc.y += 15;
-
-              for (const mediaItem of fieldMedia) {
-                const result = await processImageForPdf(
-                  mediaItem.url,
-                  doc,
-                  PAGE.margin + 10,
-                  doc.y,
-                  200,
-                  150
-                );
-
-                if (result.success) {
-                  doc.y += result.height;
-                } else {
-                  doc
-                    .fillColor(COLORS.textSecondary)
-                    .fontSize(9)
-                    .font("Helvetica")
-                    .text(result.message, imageLabelX, doc.y);
-                  doc.y += result.height;
-                }
-
-                // Check if we need a new page
-                if (doc.y > doc.page.height - 150) {
-                  doc.addPage();
-                  doc.y = PAGE.margin;
-                  doc.fillColor(COLORS.text);
-                }
-              }
-
-              doc.y += 10;
-            } else {
-              // No photos for this field
-              doc
-                .fillColor(COLORS.text)
-                .fontSize(10)
-                .font("Helvetica-Bold")
-                .text(field.label, PAGE.margin + 10, doc.y);
-
-              doc
-                .font("Helvetica")
-                .fillColor(COLORS.textSecondary)
-                .text("No photos attached", PAGE.margin + 10, doc.y + 2);
-
-              doc.y += 25;
-            }
-          } else {
-            // Regular field rendering
-            const formattedValue = formatValue(value, field.type);
-            drawTextField(doc, field.label, formattedValue);
-          }
-        }
-
-        doc.y += 20;
-      }
-    }
+  if (template?.jobType === "Gas") {
+    await renderGasReport(doc, { template, report, job, property, technician });
+  } else if (template?.jobType === "Electrical" || template?.jobType === "Smoke") {
+    renderElectricalSmokeReport(doc, { template, report, job, property });
+  } else {
+    await renderGenericReport(doc, { template, report, job, property, technician });
   }
 
   // Technician notes
