@@ -85,7 +85,7 @@ router.get(
 router.post(
   "/jobs/:jobId",
   authenticateUserTypes(["Technician"]),
-  fileUploadService.any(),
+  fileUploadService.inspectionReports(),
   async (req, res) => {
     try {
       const { jobId } = req.params;

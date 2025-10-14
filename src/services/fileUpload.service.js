@@ -36,6 +36,16 @@ const upload = multer({
   },
 });
 
+// Configure multer specifically for inspection reports with higher file limits
+const inspectionUpload = multer({
+  storage: multer.memoryStorage(),
+  fileFilter: fileFilter,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB per file
+    files: 20, // Support up to 20 files for complex inspections
+  },
+});
+
 // Helper function to upload buffer to Cloudinary
 const uploadToCloudinary = (buffer, options = {}) => {
   return new Promise((resolve, reject) => {
@@ -168,6 +178,12 @@ export default {
     { name: "licensingDocuments", maxCount: 3 },
     { name: "insuranceDocuments", maxCount: 3 },
   ]),
+
+  // Inspection-specific upload configurations
+  inspectionReports: () => inspectionUpload.any(),
+  inspectionSingle: (fieldName) => inspectionUpload.single(fieldName),
+  inspectionArray: (fieldName, maxCount = 15) => inspectionUpload.array(fieldName, maxCount),
+  inspectionFields: (fields) => inspectionUpload.fields(fields),
 
   // Cloudinary helper functions
   uploadToCloudinary,

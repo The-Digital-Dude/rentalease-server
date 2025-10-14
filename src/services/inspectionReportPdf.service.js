@@ -1,4 +1,5 @@
 import PDFDocument from "pdfkit";
+import fetch from "node-fetch";
 
 const COLORS = {
   primary: "#FF6B35", // Orange color from the demo
@@ -117,7 +118,7 @@ const formatValue = (value, fieldType) => {
 const drawGasInstallationSection = (doc, section, responses = {}) => {
   drawSectionHeader(doc, section.title);
 
-  section.fields.forEach((field) => {
+  for (const field of section.fields) {
     const value = responses[field.id];
     const formattedValue = formatValue(value, field.type);
 
@@ -127,7 +128,7 @@ const drawGasInstallationSection = (doc, section, responses = {}) => {
     } else {
       drawTextField(doc, field.label, formattedValue);
     }
-  });
+  }
 
   doc.y += 20;
 };
@@ -158,10 +159,10 @@ const drawApplianceSection = (doc, section, responses = {}) => {
     doc.y = tableY + 25;
 
     // Draw checklist items
-    checklistItems.forEach((field) => {
+    for (const field of checklistItems) {
       const value = responses[field.id];
       drawApplianceCheckRow(doc, field.label, value, field.type);
-    });
+    }
 
     // Comments and photos
     const commentField = section.fields.find(f => f.id.includes("comments"));
@@ -189,7 +190,7 @@ const drawChecklistItem = (doc, label, value, type) => {
   const options = type === "yes-no-na" ? ["Yes", "No", "N/A"] : ["Pass", "Fail"];
   let x = 280;
 
-  options.forEach(option => {
+  for (const option of options) {
     const isSelected = value === option || (value === "yes" && option === "Yes") ||
                       (value === "no" && option === "No") || (value === "na" && option === "N/A") ||
                       (value === "pass" && option === "Pass") || (value === "fail" && option === "Fail");
@@ -213,7 +214,7 @@ const drawChecklistItem = (doc, label, value, type) => {
       .text(option, x + 15, y + 4);
 
     x += 60;
-  });
+  }
 
   doc.y += 25;
 };
@@ -238,8 +239,9 @@ const drawApplianceCheckRow = (doc, label, value, type) => {
   const positions = [260, 290, 320];
   const options = ["yes", "no", "na"];
 
-  options.forEach((option, index) => {
-    if (type === "yes-no" && option === "na") return; // Skip N/A for yes-no fields
+  for (let index = 0; index < options.length; index++) {
+    const option = options[index];
+    if (type === "yes-no" && option === "na") continue; // Skip N/A for yes-no fields
 
     const isSelected = value === option;
     const x = positions[index];
@@ -256,7 +258,7 @@ const drawApplianceCheckRow = (doc, label, value, type) => {
         .circle(x + 5, y + 9, 4)
         .stroke(COLORS.border);
     }
-  });
+  }
 
   doc.y += 20;
 };
@@ -299,10 +301,11 @@ const drawFaultIdentificationSection = (doc, section, responses = {}) => {
 
     let x = 60;
     const columnWidths = [120, 150, 80, 80, 100];
-    tableHeaders.forEach((header, index) => {
+    for (let index = 0; index < tableHeaders.length; index++) {
+      const header = tableHeaders[index];
       doc.text(header, x, tableY + 6, { width: columnWidths[index] - 10 });
       x += columnWidths[index];
-    });
+    }
 
     // Draw data row
     doc.y = tableY + 25;
@@ -321,14 +324,15 @@ const drawFaultIdentificationSection = (doc, section, responses = {}) => {
     ];
 
     doc.fillColor(COLORS.text).fontSize(8).font("Helvetica");
-    rowData.forEach((data, index) => {
+    for (let index = 0; index < rowData.length; index++) {
+      const data = rowData[index];
       doc.text(data, x, doc.y + 8, {
         width: columnWidths[index] - 10,
         height: 25,
         ellipsis: true
       });
       x += columnWidths[index];
-    });
+    }
 
     doc.y += 45;
   } else {
@@ -405,6 +409,32 @@ const drawComplianceDeclaration = (doc, section, responses = {}, report) => {
   }
 };
 
+const processImageForPdf = async (imageUrl, doc, x, y, maxWidth, maxHeight) => {
+  try {
+    if (!imageUrl) {
+      return { success: false, height: 30, message: "[No image URL provided]" };
+    }
+
+    const response = await fetch(imageUrl);
+    if (!response.ok) {
+      return { success: false, height: 30, message: "[Image could not be loaded]" };
+    }
+
+    const imageBuffer = await response.buffer();
+
+    // Add image to PDF
+    doc.image(imageBuffer, x, y, {
+      fit: [maxWidth, maxHeight],
+      align: 'left'
+    });
+
+    return { success: true, height: maxHeight + 20 };
+  } catch (error) {
+    console.error('Error loading image for PDF:', error);
+    return { success: false, height: 30, message: "[Error loading image]" };
+  }
+};
+
 export const buildInspectionReportPdf = async ({
   report,
   template,
@@ -412,106 +442,169 @@ export const buildInspectionReportPdf = async ({
   property,
   technician,
 }) => {
-  return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ margin: 0, size: "A4" }); // Remove margins for custom header
-    const chunks = [];
+  const doc = new PDFDocument({ margin: 0, size: "A4" });
+  const chunks = [];
 
+  // Set up promise to collect PDF data
+  const pdfPromise = new Promise((resolve, reject) => {
     doc.on("data", (chunk) => chunks.push(chunk));
     doc.on("end", () => resolve(Buffer.concat(chunks)));
     doc.on("error", (error) => reject(error));
+  });
 
-    // Professional header with company branding
-    drawProfessionalHeader(doc, { property, job, technician, report });
+  // Professional header with company branding
+  drawProfessionalHeader(doc, { property, job, technician, report });
 
-    // Property details summary
-    drawPropertyDetails(doc, { property, job, technician, report });
+  // Property details summary
+  drawPropertyDetails(doc, { property, job, technician, report });
 
-    // Process template sections with specialized rendering
-    if (template?.sections?.length) {
-      template.sections.forEach((section) => {
-        const responses = report.formData?.[section.id] || {};
+  // Process template sections with specialized rendering
+  if (template?.sections?.length) {
+    for (const section of template.sections) {
+      const responses = report.formData?.[section.id] || {};
 
-        // Check if we need a new page
-        if (doc.y > doc.page.height - 150) {
-          doc.addPage();
-          doc.y = 50;
-        }
-
-        // Specialized section rendering based on section type
-        if (section.id === "gas-installation") {
-          drawGasInstallationSection(doc, section, responses);
-        } else if (section.id.startsWith("appliance-")) {
-          drawApplianceSection(doc, section, responses);
-        } else if (section.id === "fault-identification") {
-          drawFaultIdentificationSection(doc, section, responses);
-        } else if (section.id === "final-declaration") {
-          drawComplianceDeclaration(doc, section, responses, report);
-        } else {
-          // Generic section rendering for other sections
-          drawSectionHeader(doc, section.title);
-
-          section.fields.forEach((field) => {
-            const value = responses[field.id];
-            const formattedValue = formatValue(value, field.type);
-            drawTextField(doc, field.label, formattedValue);
-          });
-
-          doc.y += 20;
-        }
-      });
-    }
-
-    // Technician notes
-    if (report.notes) {
-      if (doc.y > doc.page.height - 100) {
+      // Check if we need a new page
+      if (doc.y > doc.page.height - 150) {
         doc.addPage();
         doc.y = 50;
       }
 
-      drawSectionHeader(doc, "Technician Notes");
-      doc
-        .fillColor(COLORS.textSecondary)
-        .fontSize(10)
-        .font("Helvetica")
-        .text(report.notes, 60, doc.y, { width: 500 });
+      // Specialized section rendering based on section type
+      if (section.id === "gas-installation") {
+        drawGasInstallationSection(doc, section, responses);
+      } else if (section.id.startsWith("appliance-")) {
+        drawApplianceSection(doc, section, responses);
+      } else if (section.id === "fault-identification") {
+        drawFaultIdentificationSection(doc, section, responses);
+      } else if (section.id === "final-declaration") {
+        drawComplianceDeclaration(doc, section, responses, report);
+      } else {
+        // Generic section rendering for other sections
+        drawSectionHeader(doc, section.title);
 
-      doc.y += 40;
+        for (const field of section.fields) {
+          const value = responses[field.id];
+
+          // Handle photo fields specially
+          if (field.type === "photo" || field.type === "photo-multi") {
+            // Find media for this field
+            const fieldMedia = report.media?.filter(item => item.fieldId === field.id) || [];
+
+            if (fieldMedia.length > 0) {
+              doc
+                .fillColor(COLORS.text)
+                .fontSize(10)
+                .font("Helvetica-Bold")
+                .text(field.label, 60, doc.y);
+
+              doc.y += 15;
+
+              for (const mediaItem of fieldMedia) {
+                const result = await processImageForPdf(mediaItem.url, doc, 60, doc.y, 200, 150);
+
+                if (result.success) {
+                  doc.y += result.height;
+                } else {
+                  doc
+                    .fillColor(COLORS.textSecondary)
+                    .fontSize(9)
+                    .font("Helvetica")
+                    .text(result.message, 60, doc.y);
+                  doc.y += result.height;
+                }
+
+                // Check if we need a new page
+                if (doc.y > doc.page.height - 150) {
+                  doc.addPage();
+                  doc.y = 50;
+                }
+              }
+
+              doc.y += 10;
+            } else {
+              // No photos for this field
+              doc
+                .fillColor(COLORS.text)
+                .fontSize(10)
+                .font("Helvetica-Bold")
+                .text(field.label, 60, doc.y);
+
+              doc
+                .font("Helvetica")
+                .fillColor(COLORS.textSecondary)
+                .text("No photos attached", 60, doc.y + 2);
+
+              doc.y += 25;
+            }
+          } else {
+            // Regular field rendering
+            const formattedValue = formatValue(value, field.type);
+            drawTextField(doc, field.label, formattedValue);
+          }
+        }
+
+        doc.y += 20;
+      }
     }
+  }
 
-    // Photos section
-    if (report.media?.length) {
+  // Technician notes
+  if (report.notes) {
+    if (doc.y > doc.page.height - 100) {
       doc.addPage();
       doc.y = 50;
+    }
 
-      drawSectionHeader(doc, "Annex: Photos");
+    drawSectionHeader(doc, "Technician Notes");
+    doc
+      .fillColor(COLORS.textSecondary)
+      .fontSize(10)
+      .font("Helvetica")
+      .text(report.notes, 60, doc.y, { width: 500 });
 
-      report.media.forEach((item, idx) => {
-        doc
-          .fillColor(COLORS.text)
-          .fontSize(12)
-          .font("Helvetica-Bold")
-          .text(item.label || `Photo ${idx + 1}`, 60, doc.y);
+    doc.y += 40;
+  }
 
-        // In a production environment, you would embed actual images here
-        // For now, we just show the image URL
+  // Photos section
+  if (report.media?.length) {
+    doc.addPage();
+    doc.y = 50;
+
+    drawSectionHeader(doc, "Annex: Photos");
+
+    for (const item of report.media) {
+      // Add photo label
+      doc
+        .fillColor(COLORS.text)
+        .fontSize(12)
+        .font("Helvetica-Bold")
+        .text(item.label || `Photo ${report.media.indexOf(item) + 1}`, 60, doc.y);
+
+      doc.y += 20;
+
+      const result = await processImageForPdf(item.url, doc, 60, doc.y, 400, 300);
+
+      if (result.success) {
+        doc.y += result.height;
+      } else {
         doc
           .fillColor(COLORS.textSecondary)
           .fontSize(10)
           .font("Helvetica")
-          .text(`[Image: ${item.url || 'N/A'}]`, 60, doc.y + 5);
+          .text(result.message, 60, doc.y);
+        doc.y += result.height;
+      }
 
-        doc.y += 40;
-
-        // Add page break if needed
-        if (doc.y > doc.page.height - 100) {
-          doc.addPage();
-          doc.y = 50;
-        }
-      });
+      // Add page break if needed
+      if (doc.y > doc.page.height - 150) {
+        doc.addPage();
+        doc.y = 50;
+      }
     }
+  }
 
-    doc.end();
-  });
+  doc.end();
+  return pdfPromise;
 };
 
 export default buildInspectionReportPdf;
