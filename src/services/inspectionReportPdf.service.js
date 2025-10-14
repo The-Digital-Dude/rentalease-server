@@ -440,18 +440,13 @@ const drawCertificationBlock = (doc, certification = {}) => {
 };
 
 const renderElectricalSmokeReport = (doc, { report, template, job, property }) => {
-  const getSection = (id) => report.formData?.[id] || {};
+  const getSectionValues = (id) => report.formData?.[id] || {};
+  const findSectionDefinition = (id) => template.sections?.find((section) => section.id === id);
 
-  const summarySection = getSection("inspection-summary");
-  const extentSection = getSection("extent-of-installation");
-  const visualSection = getSection("visual-inspection");
-  const polaritySection = getSection("testing-polarity");
-  const earthSection = getSection("testing-earth");
-  const rcdSection = getSection("rcd-testing");
-  const smokeSection = getSection("smoke-alarms");
+  const summarySection = getSectionValues("inspection-summary");
   const certificationSection = {
     ...summarySection,
-    ...getSection("certification"),
+    ...getSectionValues("certification"),
   };
 
   const propertyAddress =
@@ -531,73 +526,129 @@ const renderElectricalSmokeReport = (doc, { report, template, job, property }) =
     drawKeyValueCard(doc, "Contact", contactRows);
   }
 
-  const extentItemsList = extentItems.map((item) => ({
-    label: item.label,
-    value: extentSection[item.id],
-  }));
-  drawStatusList(doc, "Extent of installation covered", extentItemsList, mapCoverageValue);
+  const renderStatusSection = (sectionId, mapper, noteFieldIds = []) => {
+    const sectionDefinition = findSectionDefinition(sectionId);
+    if (!sectionDefinition) {
+      return;
+    }
 
-  const visualItemsList = visualInspectionItems.map((item) => ({
-    label: item.label,
-    value: visualSection[item.id],
-  }));
-  drawStatusList(doc, "Visual inspection", visualItemsList, mapInspectionStatus);
+    const responses = getSectionValues(sectionId);
+    const statusFieldTypes = new Set([
+      "select",
+      "yes-no",
+      "yes-no-na",
+      "pass-fail",
+      "boolean",
+      "text",
+      "number",
+    ]);
 
-  const polarityItemsList = polarityTestItems.map((item) => ({
-    label: item.label,
-    value: polaritySection[item.id],
-  }));
-  drawStatusList(doc, "Polarity & correct connection testing", polarityItemsList, mapTestingStatus);
+    const items = (sectionDefinition.fields || [])
+      .filter(
+        (field) =>
+          !noteFieldIds.includes(field.id) &&
+          statusFieldTypes.has(field.type || "")
+      )
+      .map((field) => ({
+        label: field.label,
+        value: responses[field.id],
+      }));
 
-  const earthItemsList = earthContinuityItems.map((item) => ({
-    label: item.label,
-    value: earthSection[item.id],
-  }));
-  drawStatusList(doc, "Earth continuity testing", earthItemsList, mapTestingStatus);
+    if (items.length) {
+      drawStatusList(
+        doc,
+        sectionDefinition.title || sectionId,
+        items,
+        mapper || ((value) => value)
+      );
+    }
 
-  if (rcdSection["rcd-test-result"] || rcdSection["rcd-notes"]) {
-    const rcdRows = [
-      {
-        label: "RCD push/time test outcome",
-        value: rcdSection["rcd-test-result"],
-      },
-    ];
-    drawStatusList(doc, "RCD testing", rcdRows, mapTestingStatus);
+    noteFieldIds.forEach((noteId) => {
+      const noteValue = responses[noteId];
+      if (noteValue) {
+        ensurePageSpace(doc, 80);
+        doc
+          .fillColor(COLORS.textSecondary)
+          .font("Helvetica")
+          .fontSize(10)
+          .text(String(noteValue), PAGE.margin, doc.y, {
+            width: doc.page.width - PAGE.margin * 2,
+          });
+        doc.y += 40;
+      }
+    });
+  };
 
-    if (rcdSection["rcd-notes"]) {
+  renderStatusSection("extent-of-installation", mapCoverageValue, ["extent-notes"]);
+  renderStatusSection("visual-inspection", mapInspectionStatus, ["visual-notes"]);
+  renderStatusSection("testing-polarity", mapTestingStatus, ["polarity-notes"]);
+  renderStatusSection("testing-earth", mapTestingStatus, ["earth-continuity-notes"]);
+
+  const rcdValues = getSectionValues("rcd-testing");
+  const rcdDefinition = findSectionDefinition("rcd-testing");
+  if (rcdDefinition) {
+    const rcdStatusItems = (rcdDefinition.fields || [])
+      .filter((field) => field.id === "rcd-test-result")
+      .map((field) => ({ label: field.label, value: rcdValues[field.id] }));
+
+    if (rcdStatusItems.length) {
+      drawStatusList(doc, rcdDefinition.title || "RCD testing", rcdStatusItems, mapTestingStatus);
+    }
+
+    const rcdNotes = rcdValues["rcd-notes"];
+    if (rcdNotes) {
       ensurePageSpace(doc, 80);
       doc
         .fillColor(COLORS.textSecondary)
         .font("Helvetica")
         .fontSize(10)
-        .text(String(rcdSection["rcd-notes"]), PAGE.margin, doc.y, {
+        .text(String(rcdNotes), PAGE.margin, doc.y, {
           width: doc.page.width - PAGE.margin * 2,
         });
       doc.y += 40;
     }
   }
 
-  const smokeRows = [
-    {
-      label: "All smoke alarms operational",
-      value: smokeSection["smoke-alarms-operational"],
-    },
-    {
-      label: "Next smoke alarm check due",
-      value: formatDisplayDate(smokeSection["next-smoke-check-due"]),
-    },
-  ];
-  drawStatusList(doc, "Smoke alarm compliance", smokeRows, (value, _item, index) => {
-    if (index === 1) {
-      return value;
-    }
-    return mapYesNoValue(value);
-  });
+  const smokeDefinition = findSectionDefinition("smoke-alarms");
+  const smokeSection = getSectionValues("smoke-alarms");
+  if (smokeDefinition) {
+    const smokeComplianceItems = smokeDefinition.fields
+      .filter((field) =>
+        ["smoke-alarms-operational", "next-smoke-check-due"].includes(field.id)
+      )
+      .map((field) => ({ label: field.label, value: smokeSection[field.id] }));
 
-  const alarmRecords = Array.isArray(smokeSection["smoke-alarm-records"])
-    ? smokeSection["smoke-alarm-records"]
-    : [];
-  drawSmokeAlarmTable(doc, alarmRecords);
+    if (smokeComplianceItems.length) {
+      drawStatusList(
+        doc,
+        smokeDefinition.title || "Smoke alarm compliance",
+        smokeComplianceItems,
+        (value, _item, index) => {
+          if (index === 1) {
+            return formatDisplayDate(value);
+          }
+          return mapYesNoValue(value);
+        }
+      );
+    }
+
+    const alarmRecords = Array.isArray(smokeSection["smoke-alarm-records"])
+      ? smokeSection["smoke-alarm-records"]
+      : [];
+    drawSmokeAlarmTable(doc, alarmRecords);
+
+    if (smokeSection["smoke-notes"]) {
+      ensurePageSpace(doc, 80);
+      doc
+        .fillColor(COLORS.textSecondary)
+        .font("Helvetica")
+        .fontSize(10)
+        .text(String(smokeSection["smoke-notes"]), PAGE.margin, doc.y, {
+          width: doc.page.width - PAGE.margin * 2,
+        });
+      doc.y += 40;
+    }
+  }
 
   drawCertificationBlock(doc, certificationSection);
 };

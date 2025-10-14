@@ -14,6 +14,33 @@ const fieldOptionSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const tableColumnSchema = new mongoose.Schema(
+  {
+    id: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    label: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    type: {
+      type: String,
+      required: true,
+      enum: ["text", "textarea", "number", "select", "date"],
+    },
+    required: {
+      type: Boolean,
+      default: false,
+    },
+    placeholder: String,
+    options: [fieldOptionSchema],
+  },
+  { _id: false }
+);
+
 const fieldSchema = new mongoose.Schema(
   {
     id: {
@@ -46,6 +73,7 @@ const fieldSchema = new mongoose.Schema(
         "yes-no",
         "yes-no-na",
         "pass-fail",
+        "table",
       ],
     },
     required: {
@@ -62,6 +90,10 @@ const fieldSchema = new mongoose.Schema(
     metadata: {
       type: Map,
       of: mongoose.Schema.Types.Mixed,
+    },
+    columns: {
+      type: [tableColumnSchema],
+      default: undefined,
     },
   },
   { _id: false }
