@@ -51,7 +51,7 @@ const buildSectionsSummary = (template, formData = {}) => {
         summary.push({
           sectionId: section.id,
           fieldId: field.id,
-          label: field.label,
+          label: field.question || field.label,
           value: sectionResponses[field.id],
           flag:
             field.type === "boolean" && sectionResponses[field.id] === false,

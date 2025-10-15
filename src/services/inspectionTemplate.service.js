@@ -1,5 +1,5 @@
 import InspectionTemplate from "../models/InspectionTemplate.js";
-import defaultInspectionTemplates from "../config/inspectionTemplates.js";
+import defaultInspectionTemplates, { createMinimumSafetyStandardTemplate } from "../config/inspectionTemplates.js";
 
 export const ensureDefaultTemplates = async () => {
   for (const template of defaultInspectionTemplates) {
@@ -29,9 +29,15 @@ export const cleanupOldTemplateVersions = async () => {
   console.log("Cleaned up all Version 1 template versions for Gas, Electrical, and Smoke inspections");
 };
 
-export const getTemplateByJobType = async (jobType) => {
+export const getTemplateByJobType = async (jobType, options = {}) => {
   if (!jobType) {
     throw new Error("jobType is required");
+  }
+
+  // For MinimumSafetyStandard, generate dynamic template based on room counts
+  if (jobType === "MinimumSafetyStandard") {
+    const { bedroomCount = 1, bathroomCount = 1 } = options;
+    return createMinimumSafetyStandardTemplate(bedroomCount, bathroomCount);
   }
 
   const template = await InspectionTemplate.findOne({
@@ -63,12 +69,39 @@ export const serializeTemplate = (template) => {
     return null;
   }
 
-  const { _id, __v, createdAt, updatedAt, ...rest } = template;
+  const plainTemplate =
+    typeof template.toObject === "function"
+      ? template.toObject({ getters: true, virtuals: false })
+      : { ...template };
+
+  const {
+    _id,
+    __v,
+    createdAt,
+    updatedAt,
+    sections = [],
+    ...rest
+  } = plainTemplate;
+
+  const normalizedSections = sections.map((section = {}) => {
+    const { fields = [], ...sectionRest } = section;
+
+    const normalizedFields = fields.map((field = {}) => ({
+      ...field,
+      question: field.question || field.label || "",
+    }));
+
+    return {
+      ...sectionRest,
+      fields: normalizedFields,
+    };
+  });
+
   return {
     id: _id?.toString(),
     ...rest,
+    sections: normalizedSections,
     updatedAt,
     createdAt,
   };
 };
-

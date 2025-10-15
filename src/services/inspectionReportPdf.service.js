@@ -225,6 +225,246 @@ const drawKeyValueCard = (doc, title, rows = []) => {
   doc.y = cardY + dynamicHeight + 24;
 };
 
+const drawMinimumStandardStatusTable = (
+  doc,
+  title,
+  rows,
+  sectionData,
+  { commentsLabel = "Comments" } = {}
+) => {
+  if (!rows.length) {
+    return;
+  }
+
+  ensurePageSpace(doc, 120 + rows.length * 32);
+  drawSectionHeader(doc, title);
+
+  const tableX = PAGE.margin;
+  const tableWidth = doc.page.width - PAGE.margin * 2;
+  const labelWidth = Math.min(240, tableWidth * 0.4);
+  const statusWidth = 90;
+  const actionWidth = tableWidth - labelWidth - statusWidth * 2;
+  const headerHeight = 26;
+
+  // Header row
+  doc
+    .rect(tableX, doc.y, labelWidth, headerHeight)
+    .fill(COLORS.primary)
+    .stroke(COLORS.border)
+    .fillColor("white")
+    .font("Helvetica-Bold")
+    .fontSize(10)
+    .text("Area", tableX + 10, doc.y + 8, { width: labelWidth - 12 });
+
+  doc
+    .rect(tableX + labelWidth, doc.y, statusWidth, headerHeight)
+    .fill(COLORS.primary)
+    .stroke(COLORS.border)
+    .text("Meets", tableX + labelWidth + 10, doc.y + 8, {
+      width: statusWidth - 12,
+      align: "center",
+    });
+
+  doc
+    .rect(tableX + labelWidth + statusWidth, doc.y, statusWidth, headerHeight)
+    .fill(COLORS.primary)
+    .stroke(COLORS.border)
+    .text("Does Not", tableX + labelWidth + statusWidth + 10, doc.y + 8, {
+      width: statusWidth - 12,
+      align: "center",
+    });
+
+  doc
+    .rect(tableX + labelWidth + statusWidth * 2, doc.y, actionWidth, headerHeight)
+    .fill(COLORS.primary)
+    .stroke(COLORS.border)
+    .text(commentsLabel, tableX + labelWidth + statusWidth * 2 + 10, doc.y + 8, {
+      width: actionWidth - 12,
+    });
+
+  doc.fillColor(COLORS.text).font("Helvetica").fontSize(10);
+  doc.y += headerHeight;
+
+  rows.forEach((row) => {
+    ensurePageSpace(doc, 80);
+    const status = sectionData?.[row.id];
+    const comments =
+      sectionData?.[`${row.id}-comments`] ??
+      sectionData?.[`${row.id}-action`] ??
+      "";
+
+    const meetsText = status === "meets" ? "Yes" : status === "not_applicable" ? "N/A" : "";
+    const doesNotMeetText = status === "does_not_meet" ? "Yes" : "";
+    const commentText = status === "not_applicable" && !comments ? "N/A" : comments || "";
+
+    const commentHeight = doc.heightOfString(String(commentText || ""), {
+      width: actionWidth - 14,
+    });
+    const rowHeight = Math.max(28, commentHeight + 14);
+
+    doc
+      .rect(tableX, doc.y, labelWidth, rowHeight)
+      .fill("white")
+      .stroke(COLORS.border);
+    doc
+      .rect(tableX + labelWidth, doc.y, statusWidth, rowHeight)
+      .fill("white")
+      .stroke(COLORS.border);
+    doc
+      .rect(tableX + labelWidth + statusWidth, doc.y, statusWidth, rowHeight)
+      .fill("white")
+      .stroke(COLORS.border);
+    doc
+      .rect(tableX + labelWidth + statusWidth * 2, doc.y, actionWidth, rowHeight)
+      .fill("white")
+      .stroke(COLORS.border);
+
+    doc
+      .fillColor(COLORS.text)
+      .font("Helvetica-Bold")
+      .text(row.label, tableX + 10, doc.y + 8, {
+        width: labelWidth - 12,
+      });
+
+    doc
+      .font("Helvetica")
+      .text(meetsText, tableX + labelWidth, doc.y + 8, {
+        width: statusWidth,
+        align: "center",
+      });
+
+    doc.text(doesNotMeetText, tableX + labelWidth + statusWidth, doc.y + 8, {
+      width: statusWidth,
+      align: "center",
+    });
+
+    doc.text(String(commentText || ""), tableX + labelWidth + statusWidth * 2 + 10, doc.y + 8, {
+      width: actionWidth - 14,
+    });
+
+    doc.y += rowHeight;
+  });
+
+  doc.y += 16;
+};
+
+const drawPresenceTable = (
+  doc,
+  title,
+  rows,
+  sectionData,
+  { actionLabel = "Action" } = {}
+) => {
+  if (!rows.length) {
+    return;
+  }
+
+  ensurePageSpace(doc, 120 + rows.length * 32);
+  drawSectionHeader(doc, title);
+
+  const tableX = PAGE.margin;
+  const tableWidth = doc.page.width - PAGE.margin * 2;
+  const labelWidth = Math.min(240, tableWidth * 0.4);
+  const presenceWidth = 110;
+  const actionWidth = tableWidth - labelWidth - presenceWidth * 2;
+  const headerHeight = 26;
+
+  doc
+    .rect(tableX, doc.y, labelWidth, headerHeight)
+    .fill(COLORS.primary)
+    .stroke(COLORS.border)
+    .fillColor("white")
+    .font("Helvetica-Bold")
+    .fontSize(10)
+    .text("Fixture", tableX + 10, doc.y + 8, { width: labelWidth - 12 });
+
+  doc
+    .rect(tableX + labelWidth, doc.y, presenceWidth, headerHeight)
+    .fill(COLORS.primary)
+    .stroke(COLORS.border)
+    .text("Present", tableX + labelWidth + 10, doc.y + 8, {
+      width: presenceWidth - 12,
+      align: "center",
+    });
+
+  doc
+    .rect(tableX + labelWidth + presenceWidth, doc.y, presenceWidth, headerHeight)
+    .fill(COLORS.primary)
+    .stroke(COLORS.border)
+    .text("Not Present", tableX + labelWidth + presenceWidth + 10, doc.y + 8, {
+      width: presenceWidth - 12,
+      align: "center",
+    });
+
+  doc
+    .rect(tableX + labelWidth + presenceWidth * 2, doc.y, actionWidth, headerHeight)
+    .fill(COLORS.primary)
+    .stroke(COLORS.border)
+    .text(actionLabel, tableX + labelWidth + presenceWidth * 2 + 10, doc.y + 8, {
+      width: actionWidth - 12,
+    });
+
+  doc.fillColor(COLORS.text).font("Helvetica").fontSize(10);
+  doc.y += headerHeight;
+
+  rows.forEach((row) => {
+    ensurePageSpace(doc, 80);
+    const value = sectionData?.[row.id];
+    const action = sectionData?.[`${row.id}-action`] || "";
+
+    const presentText = value === "present" ? "Yes" : value === "not_applicable" ? "N/A" : "";
+    const notPresentText = value === "not_present" ? "Yes" : "";
+    const actionText = value === "not_applicable" && !action ? "N/A" : action;
+
+    const actionHeight = doc.heightOfString(String(actionText || ""), {
+      width: actionWidth - 14,
+    });
+    const rowHeight = Math.max(28, actionHeight + 14);
+
+    doc
+      .rect(tableX, doc.y, labelWidth, rowHeight)
+      .fill("white")
+      .stroke(COLORS.border);
+    doc
+      .rect(tableX + labelWidth, doc.y, presenceWidth, rowHeight)
+      .fill("white")
+      .stroke(COLORS.border);
+    doc
+      .rect(tableX + labelWidth + presenceWidth, doc.y, presenceWidth, rowHeight)
+      .fill("white")
+      .stroke(COLORS.border);
+    doc
+      .rect(tableX + labelWidth + presenceWidth * 2, doc.y, actionWidth, rowHeight)
+      .fill("white")
+      .stroke(COLORS.border);
+
+    doc
+      .fillColor(COLORS.text)
+      .font("Helvetica-Bold")
+      .text(row.label, tableX + 10, doc.y + 8, { width: labelWidth - 12 });
+
+    doc
+      .font("Helvetica")
+      .text(presentText, tableX + labelWidth, doc.y + 8, {
+        width: presenceWidth,
+        align: "center",
+      });
+
+    doc.text(notPresentText, tableX + labelWidth + presenceWidth, doc.y + 8, {
+      width: presenceWidth,
+      align: "center",
+    });
+
+    doc.text(String(actionText || ""), tableX + labelWidth + presenceWidth * 2 + 10, doc.y + 8, {
+      width: actionWidth - 14,
+    });
+
+    doc.y += rowHeight;
+  });
+
+  doc.y += 16;
+};
+
 const drawPropertyDetails = (doc, { property, job, technician, report }) => {
   const rows = [
     {
@@ -826,6 +1066,573 @@ const renderGasReport = async (doc, { template, report, job, property, technicia
   }
 };
 
+const renderMinimumSafetyStandardReport = async (
+  doc,
+  { report, template, job, property, technician }
+) => {
+  const getSectionValues = (id) => report.formData?.[id] || {};
+
+  const propertySetup = getSectionValues("property-setup");
+  const propertySummary = getSectionValues("property-summary");
+  const executiveSummary = getSectionValues("executive-summary");
+  const electricalSafety = getSectionValues("electrical-safety");
+  const binFacilities = getSectionValues("bin-facilities");
+  const frontEntrance = getSectionValues("front-entrance");
+  const overallSummaryData = getSectionValues("overall-summary");
+  const executiveFixtures = getSectionValues("executive-summary-fixtures");
+  const externalDoorData = getSectionValues("external-entry-doors");
+  const heatingData = getSectionValues("heating-summary");
+  const coldWaterData = getSectionValues("cold-water-supply");
+  const hotWaterData = getSectionValues("hot-water-supply");
+  const kitchenFacilitiesData = getSectionValues("kitchen-facilities");
+  const lightingSummaryData = getSectionValues("lighting-summary");
+  const mouldSummaryData = getSectionValues("mould-dampness-summary");
+  const ventilationSummaryData = getSectionValues("ventilation-summary");
+  const structuralBowingData = getSectionValues("structural-bowing-summary");
+  const structuralCrackingData = getSectionValues("structural-cracking-summary");
+  const structuralWarpingData = getSectionValues("structural-warping-summary");
+  const toiletSummaryData = getSectionValues("toilet-summary");
+  const windowCoverSummaryData = getSectionValues("window-coverings-summary");
+  const windowLatchSummaryData = getSectionValues("windows-latches-summary");
+
+  const bedroomsInspected = Number(propertySetup["bedroom-count"]) || template?.metadata?.bedroomCount || 0;
+  const bathroomsInspected = Number(propertySetup["bathroom-count"]) || template?.metadata?.bathroomCount || 0;
+
+  const formatYesNo = (value) =>
+    value === "yes" ? "Yes" : value === "no" ? "No" : value || "N/A";
+
+  const renderSectionPhotos = async (sectionId, heading) => {
+    const mediaItems = (report.media || []).filter(
+      (item) => item.metadata?.sectionId === sectionId
+    );
+
+    if (!mediaItems.length) {
+      return;
+    }
+
+    ensurePageSpace(doc, 180);
+    doc
+      .fillColor(COLORS.textSecondary)
+      .fontSize(11)
+      .font("Helvetica-Bold")
+      .text(`${heading} Photos`, PAGE.margin, doc.y);
+    doc.y += 14;
+
+    for (const mediaItem of mediaItems) {
+      const result = await processImageForPdf(
+        mediaItem.url,
+        doc,
+        PAGE.margin,
+        doc.y,
+        400,
+        220
+      );
+
+      doc.y += result.height + 12;
+
+      if (doc.y > doc.page.height - 160) {
+        doc.addPage();
+        doc.y = PAGE.margin;
+        doc.fillColor(COLORS.text);
+      }
+    }
+  };
+
+  // Overall Property Summary Section
+  const summaryRows = [
+    {
+      label: "Property Address",
+      value: propertySummary["property-address"] || property?.address?.fullAddress || property?.address?.street || "N/A",
+    },
+    {
+      label: "Inspection Date",
+      value: formatDisplayDate(propertySummary["inspection-date"] || report?.submittedAt),
+    },
+    {
+      label: "Inspector Name",
+      value: propertySummary["inspector-name"] || `${technician?.firstName || ""} ${technician?.lastName || ""}`.trim() || "N/A",
+    },
+    {
+      label: "Inspector License",
+      value: propertySummary["inspector-license"] || "N/A",
+    },
+    {
+      label: "Bedrooms Inspected",
+      value: bedroomsInspected || "N/A",
+    },
+    {
+      label: "Bathrooms Inspected",
+      value: bathroomsInspected || "N/A",
+    },
+    {
+      label: "Property Owner/Manager",
+      value: propertySummary["owner-name"] || "N/A",
+    },
+    {
+      label: "Overall Compliance Status",
+      value: propertySummary["overall-compliance"] || "N/A",
+    },
+    {
+      label: "Next Inspection Due",
+      value: formatDisplayDate(executiveSummary["next-inspection-date"]),
+    },
+  ];
+
+  drawKeyValueCard(doc, "Overall Property Summary", summaryRows);
+  await renderSectionPhotos("property-summary", "Property Exterior");
+
+  const overallRows = [
+    { id: "summary-recycle-general", label: "Recycle and General Waste" },
+    { id: "summary-kitchen", label: "Kitchen" },
+    { id: "summary-laundry", label: "Laundry" },
+    { id: "summary-living-room", label: "Living Room" },
+    { id: "summary-front-entrance", label: "Front Entrance" },
+    { id: "summary-electrical", label: "Electrical Safety" },
+  ];
+
+  for (let i = 1; i <= bathroomsInspected; i++) {
+    overallRows.push({ id: `summary-bathroom-${i}`, label: `Bathroom ${i}` });
+  }
+  for (let i = 1; i <= bedroomsInspected; i++) {
+    overallRows.push({ id: `summary-bedroom-${i}`, label: `Bedroom ${i}` });
+  }
+
+  drawMinimumStandardStatusTable(
+    doc,
+    "Overall Minimum Standards",
+    overallRows,
+    overallSummaryData
+  );
+
+  const presenceRows = [];
+  for (let i = 1; i <= bathroomsInspected; i++) {
+    presenceRows.push(
+      { id: `bathroom-${i}-bath`, label: `Bathroom ${i} – Bath` },
+      { id: `bathroom-${i}-shower`, label: `Bathroom ${i} – Shower` },
+      { id: `bathroom-${i}-washbasin`, label: `Bathroom ${i} – Washbasin` },
+    );
+  }
+  if (presenceRows.length) {
+    drawPresenceTable(
+      doc,
+      "Executive Summary – Bathroom Fixtures",
+      presenceRows,
+      executiveFixtures
+    );
+  }
+
+  const externalDoorRows = [
+    { id: "external-door-front-entrance", label: "Front Entrance" },
+    { id: "external-door-living-room", label: "Living Room" },
+    { id: "external-door-laundry", label: "Laundry" },
+  ];
+  drawMinimumStandardStatusTable(
+    doc,
+    "External Entry Doors",
+    externalDoorRows,
+    externalDoorData
+  );
+
+  drawMinimumStandardStatusTable(
+    doc,
+    "Heating",
+    [{ id: "heating-living-room", label: "Living Room" }],
+    heatingData
+  );
+
+  const coldWaterRows = [
+    { id: "cold-water-kitchen", label: "Kitchen" },
+    { id: "cold-water-laundry", label: "Laundry" },
+  ];
+  const hotWaterRows = [
+    { id: "hot-water-kitchen", label: "Kitchen" },
+    { id: "hot-water-laundry", label: "Laundry" },
+  ];
+  for (let i = 1; i <= bathroomsInspected; i++) {
+    coldWaterRows.push({ id: `cold-water-bathroom-${i}`, label: `Bathroom ${i}` });
+    hotWaterRows.push({ id: `hot-water-bathroom-${i}`, label: `Bathroom ${i}` });
+  }
+
+  drawMinimumStandardStatusTable(doc, "Cold Water Supply", coldWaterRows, coldWaterData);
+  drawMinimumStandardStatusTable(doc, "Hot Water Supply", hotWaterRows, hotWaterData);
+
+  const kitchenFacilityRows = [
+    { id: "kitchen-stovetop", label: "Stovetop" },
+    { id: "kitchen-food-prep", label: "Food Preparation Area" },
+    { id: "kitchen-oven", label: "Oven" },
+    { id: "kitchen-sink", label: "Sink" },
+  ];
+  drawMinimumStandardStatusTable(
+    doc,
+    "Kitchen Facilities",
+    kitchenFacilityRows,
+    kitchenFacilitiesData
+  );
+
+  const lightingRows = [
+    { id: "lighting-front-entrance", label: "Front Entrance" },
+    { id: "lighting-living-room", label: "Living Room" },
+    { id: "lighting-kitchen", label: "Kitchen" },
+    { id: "lighting-laundry", label: "Laundry" },
+  ];
+  const mouldRows = [
+    { id: "mould-front-entrance", label: "Front Entrance" },
+    { id: "mould-living-room", label: "Living Room" },
+    { id: "mould-kitchen", label: "Kitchen" },
+    { id: "mould-laundry", label: "Laundry" },
+  ];
+  const ventilationRows = [
+    { id: "ventilation-front-entrance", label: "Front Entrance" },
+    { id: "ventilation-living-room", label: "Living Room" },
+    { id: "ventilation-kitchen", label: "Kitchen" },
+    { id: "ventilation-laundry", label: "Laundry" },
+  ];
+  const structuralBowingRows = [
+    { id: "struct-bowing-front-entrance", label: "Front Entrance" },
+    { id: "struct-bowing-living-room", label: "Living Room" },
+    { id: "struct-bowing-kitchen", label: "Kitchen" },
+    { id: "struct-bowing-laundry", label: "Laundry" },
+  ];
+  const structuralCrackingRows = [
+    { id: "struct-cracking-front-entrance", label: "Front Entrance" },
+    { id: "struct-cracking-living-room", label: "Living Room" },
+    { id: "struct-cracking-kitchen", label: "Kitchen" },
+    { id: "struct-cracking-laundry", label: "Laundry" },
+  ];
+  const structuralWarpingRows = [
+    { id: "struct-warping-front-entrance", label: "Front Entrance" },
+    { id: "struct-warping-living-room", label: "Living Room" },
+    { id: "struct-warping-kitchen", label: "Kitchen" },
+    { id: "struct-warping-laundry", label: "Laundry" },
+  ];
+
+  for (let i = 1; i <= bedroomsInspected; i++) {
+    lightingRows.push({ id: `lighting-bedroom-${i}`, label: `Bedroom ${i}` });
+    mouldRows.push({ id: `mould-bedroom-${i}`, label: `Bedroom ${i}` });
+    ventilationRows.push({ id: `ventilation-bedroom-${i}`, label: `Bedroom ${i}` });
+    structuralBowingRows.push({ id: `struct-bowing-bedroom-${i}`, label: `Bedroom ${i}` });
+    structuralCrackingRows.push({ id: `struct-cracking-bedroom-${i}`, label: `Bedroom ${i}` });
+    structuralWarpingRows.push({ id: `struct-warping-bedroom-${i}`, label: `Bedroom ${i}` });
+  }
+  for (let i = 1; i <= bathroomsInspected; i++) {
+    lightingRows.push({ id: `lighting-bathroom-${i}`, label: `Bathroom ${i}` });
+    mouldRows.push({ id: `mould-bathroom-${i}`, label: `Bathroom ${i}` });
+    ventilationRows.push({ id: `ventilation-bathroom-${i}`, label: `Bathroom ${i}` });
+    structuralBowingRows.push({ id: `struct-bowing-bathroom-${i}`, label: `Bathroom ${i}` });
+    structuralCrackingRows.push({ id: `struct-cracking-bathroom-${i}`, label: `Bathroom ${i}` });
+    structuralWarpingRows.push({ id: `struct-warping-bathroom-${i}`, label: `Bathroom ${i}` });
+  }
+
+  drawMinimumStandardStatusTable(doc, "Lighting", lightingRows, lightingSummaryData);
+  drawMinimumStandardStatusTable(doc, "Mould and Dampness", mouldRows, mouldSummaryData);
+  drawMinimumStandardStatusTable(doc, "Ventilation", ventilationRows, ventilationSummaryData);
+  drawMinimumStandardStatusTable(
+    doc,
+    "Structural – Bowing and Leaning",
+    structuralBowingRows,
+    structuralBowingData
+  );
+  drawMinimumStandardStatusTable(
+    doc,
+    "Structural – Cracking",
+    structuralCrackingRows,
+    structuralCrackingData
+  );
+  drawMinimumStandardStatusTable(
+    doc,
+    "Structural – Warping",
+    structuralWarpingRows,
+    structuralWarpingData
+  );
+
+  if (bathroomsInspected > 0) {
+    const toiletRows = [];
+    for (let i = 1; i <= bathroomsInspected; i++) {
+      toiletRows.push({ id: `toilet-bathroom-${i}`, label: `Bathroom ${i}` });
+    }
+    drawMinimumStandardStatusTable(doc, "Toilet Facilities", toiletRows, toiletSummaryData);
+  }
+
+  const windowCoverRows = [
+    { id: "window-coverings-living-room", label: "Living Room" },
+  ];
+  for (let i = 1; i <= bedroomsInspected; i++) {
+    windowCoverRows.push({ id: `window-coverings-bedroom-${i}`, label: `Bedroom ${i}` });
+  }
+  drawMinimumStandardStatusTable(
+    doc,
+    "Window Coverings",
+    windowCoverRows,
+    windowCoverSummaryData
+  );
+
+  const windowLatchRows = [];
+  for (let i = 1; i <= bedroomsInspected; i++) {
+    windowLatchRows.push({ id: `windows-bedroom-${i}`, label: `Bedroom ${i}` });
+  }
+  for (let i = 1; i <= bathroomsInspected; i++) {
+    windowLatchRows.push({ id: `windows-bathroom-${i}`, label: `Bathroom ${i}` });
+  }
+  if (windowLatchRows.length) {
+    drawMinimumStandardStatusTable(
+      doc,
+      "Windows and Latches",
+      windowLatchRows,
+      windowLatchSummaryData
+    );
+  }
+
+  // Front Entrance Section
+  const frontEntranceRows = [
+    {
+      label: "Building Classification",
+      value: frontEntrance["front-entrance-building-classification"] || "N/A",
+    },
+    {
+      label: "Front Entrance Condition",
+      value: frontEntrance["front-entrance-condition"] || "N/A",
+    },
+    {
+      label: "External Door Present",
+      value: formatYesNo(frontEntrance["front-entrance-external-door-present"]),
+    },
+    {
+      label: "Public Lobby Door",
+      value: formatYesNo(frontEntrance["front-entrance-public-lobby"]),
+    },
+    {
+      label: "Entrance Door Secure",
+      value: formatYesNo(frontEntrance["front-entrance-security"]),
+    },
+    {
+      label: "Security/Screen Door Installed",
+      value: formatYesNo(frontEntrance["front-entrance-screen-door"]),
+    },
+    {
+      label: "Entrance Lighting Functional",
+      value: frontEntrance["front-entrance-lighting"] || "N/A",
+    },
+    {
+      label: "Weather Protection",
+      value: frontEntrance["front-entrance-weather-protection"] || "N/A",
+    },
+    {
+      label: "Deadlock/Deadlatch Present",
+      value: formatYesNo(frontEntrance["front-entrance-deadlock-present"]),
+    },
+    {
+      label: "Deadlock Functioning",
+      value: formatYesNo(frontEntrance["front-entrance-deadlock-functional"]),
+    },
+    {
+      label: "Deadlock Meets Standard",
+      value: formatYesNo(frontEntrance["front-entrance-deadlock-standard"]),
+    },
+  ];
+
+  if (frontEntrance["front-entrance-notes"]) {
+    frontEntranceRows.push({
+      label: "Comments",
+      value: frontEntrance["front-entrance-notes"],
+    });
+  }
+
+  drawKeyValueCard(doc, "Front Entrance", frontEntranceRows);
+  await renderSectionPhotos("front-entrance", "Front Entrance");
+
+  // Executive Summary Section
+  if (executiveSummary["inspection-summary"] || executiveSummary["key-findings"] || executiveSummary["recommendations"]) {
+    ensurePageSpace(doc, 150);
+    drawSectionHeader(doc, "Executive Summary");
+
+    if (executiveSummary["inspection-summary"]) {
+      doc
+        .fillColor(COLORS.textSecondary)
+        .fontSize(11)
+        .font("Helvetica-Bold")
+        .text("Summary:", PAGE.margin, doc.y);
+      doc.y += 15;
+      doc
+        .fillColor(COLORS.text)
+        .fontSize(10)
+        .font("Helvetica")
+        .text(executiveSummary["inspection-summary"], PAGE.margin, doc.y, { width: 500 });
+      doc.y += 20;
+    }
+
+    if (executiveSummary["key-findings"]) {
+      doc
+        .fillColor(COLORS.textSecondary)
+        .fontSize(11)
+        .font("Helvetica-Bold")
+        .text("Key Findings:", PAGE.margin, doc.y);
+      doc.y += 15;
+      doc
+        .fillColor(COLORS.text)
+        .fontSize(10)
+        .font("Helvetica")
+        .text(executiveSummary["key-findings"], PAGE.margin, doc.y, { width: 500 });
+      doc.y += 20;
+    }
+
+    if (executiveSummary["recommendations"]) {
+      doc
+        .fillColor(COLORS.textSecondary)
+        .fontSize(11)
+        .font("Helvetica-Bold")
+        .text("Recommendations:", PAGE.margin, doc.y);
+      doc.y += 15;
+      doc
+        .fillColor(COLORS.text)
+        .fontSize(10)
+        .font("Helvetica")
+        .text(executiveSummary["recommendations"], PAGE.margin, doc.y, { width: 500 });
+      doc.y += 30;
+    }
+  }
+
+  // Electrical Safety Section
+  const electricalRows = [
+    {
+      label: "Switchboard Location",
+      value: electricalSafety["switchboard-location"] || "N/A",
+    },
+    {
+      label: "Electrical System Compliance",
+      value: electricalSafety["electrical-compliance"] || "N/A",
+    },
+    {
+      label: "Switchboard Condition",
+      value: electricalSafety["switchboard-condition"] || "N/A",
+    },
+    {
+      label: "Circuit Breakers Connected",
+      value: formatYesNo(electricalSafety["switchboard-circuit-breaker"]),
+    },
+    {
+      label: "RCD Present and Working",
+      value: electricalSafety["rcd-present"] === "yes" ? "Yes" : electricalSafety["rcd-present"] === "no" ? "No" : "N/A",
+    },
+    {
+      label: "Switchboard Meets Standards",
+      value: formatYesNo(electricalSafety["switchboard-meets-standard"]),
+    },
+    {
+      label: "Power Outlets Condition",
+      value: electricalSafety["electrical-outlets"] || "N/A",
+    },
+  ];
+
+  if (electricalSafety["electrical-notes"]) {
+    electricalRows.push({
+      label: "Notes",
+      value: electricalSafety["electrical-notes"],
+    });
+  }
+
+  drawKeyValueCard(doc, "Electrical Safety", electricalRows);
+  await renderSectionPhotos("electrical-safety", "Electrical Safety");
+
+  // Bin Facilities Section
+  const binRows = [
+    {
+      label: "General Waste Bin Present",
+      value: formatYesNo(binFacilities["bin-general-present"]),
+    },
+    {
+      label: "General Waste Bin Condition",
+      value: formatYesNo(binFacilities["bin-general-condition"]),
+    },
+    {
+      label: "General Bin Meets Standards",
+      value: formatYesNo(binFacilities["bin-general-standard"]),
+    },
+    {
+      label: "Recycle Bin Present",
+      value: formatYesNo(binFacilities["bin-recycle-present"]),
+    },
+    {
+      label: "Recycle Bin Condition",
+      value: formatYesNo(binFacilities["bin-recycle-condition"]),
+    },
+    {
+      label: "Recycle Bin Meets Standards",
+      value: formatYesNo(binFacilities["bin-recycle-standard"]),
+    },
+  ];
+
+  if (binFacilities["bin-notes"]) {
+    binRows.push({
+      label: "Notes",
+      value: binFacilities["bin-notes"],
+    });
+  }
+
+  drawKeyValueCard(doc, "Bin Facilities", binRows);
+  await renderSectionPhotos("bin-facilities", "Bin Facilities");
+
+  // Dynamic Bedroom and Bathroom Sections
+  const additionalDetailSections = new Set([
+    "living-room",
+    "kitchen",
+    "laundry",
+  ]);
+
+  for (const section of template.sections || []) {
+    const isBedroom = section.id.startsWith("bedroom-");
+    const isBathroom = section.id.startsWith("bathroom-");
+    const isAdditional = additionalDetailSections.has(section.id);
+
+    if (!isBedroom && !isBathroom && !isAdditional) {
+      continue;
+    }
+
+    const sectionData = getSectionValues(section.id);
+    const roomNumber = section.id.split("-")[1];
+    const baseRoomLabel = isBedroom
+      ? "Bedroom"
+      : isBathroom
+      ? "Bathroom"
+      : section.title || section.id;
+    const roomTitle = isBedroom || isBathroom ? `${baseRoomLabel} ${roomNumber}` : baseRoomLabel;
+
+    const roomRows = [];
+    section.fields?.forEach((field) => {
+      if (
+        (field.type === "photo" || field.type === "photo-multi") ||
+        sectionData[field.id] === undefined ||
+        sectionData[field.id] === ""
+      ) {
+        return;
+      }
+
+      let value = sectionData[field.id];
+
+      if (field.type === "yes-no") {
+        value = formatYesNo(value);
+      } else if (field.options && field.options.length) {
+        const matched = field.options.find((opt) => opt.value === value);
+        if (matched) {
+          value = matched.label;
+        }
+      } else if (field.type === "number" && value !== null && value !== undefined) {
+        value = value === "" ? "—" : value;
+      }
+
+      roomRows.push({
+        label: field.question || field.label,
+        value,
+      });
+    });
+
+    if (roomRows.length > 0) {
+      drawKeyValueCard(doc, roomTitle, roomRows);
+    }
+
+    await renderSectionPhotos(section.id, roomTitle);
+  }
+};
+
 const renderGenericReport = async (doc, { template, report, job, property, technician }) => {
   drawPropertyDetails(doc, { property, job, technician, report });
 
@@ -1326,6 +2133,14 @@ export const buildInspectionReportPdf = async ({
     await renderGasReport(doc, { template, report, job, property, technician });
   } else if (template?.jobType === "Electrical" || template?.jobType === "Smoke") {
     renderElectricalSmokeReport(doc, { template, report, job, property });
+  } else if (template?.jobType === "MinimumSafetyStandard") {
+    await renderMinimumSafetyStandardReport(doc, {
+      template,
+      report,
+      job,
+      property,
+      technician,
+    });
   } else {
     await renderGenericReport(doc, { template, report, job, property, technician });
   }

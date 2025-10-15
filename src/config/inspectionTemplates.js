@@ -21,6 +21,42 @@ const yesNoOptions = [
   { value: "no", label: "No" },
 ];
 
+const passFailOptions = [
+  { value: "pass", label: "Pass" },
+  { value: "fail", label: "Fail" },
+];
+
+const complianceStatusOptions = [
+  { value: "compliant", label: "Compliant" },
+  { value: "non-compliant", label: "Non-Compliant" },
+  { value: "not-applicable", label: "Not Applicable" },
+];
+
+const meetsStandardOptions = [
+  { value: "meets", label: "Meets Minimum Standards" },
+  { value: "does_not_meet", label: "Does Not Meet Minimum Standards" },
+  { value: "not_applicable", label: "Not Applicable" },
+];
+
+const presentOptions = [
+  { value: "present", label: "Present in Room" },
+  { value: "not_present", label: "Not Present in Room" },
+  { value: "not_applicable", label: "Not Applicable" },
+];
+
+const lightingTypeOptions = [
+  { value: "natural", label: "Natural" },
+  { value: "artificial", label: "Artificial" },
+  { value: "combination", label: "Combination" },
+];
+
+const ventilationTypeOptions = [
+  { value: "natural", label: "Natural" },
+  { value: "mechanical", label: "Mechanical" },
+  { value: "borrowed", label: "Borrowed" },
+  { value: "none", label: "None" },
+];
+
 const smokeStatusOptions = [
   { value: "compliant", label: "Compliant" },
   { value: "requires-replacement", label: "Requires Replacement" },
@@ -58,7 +94,10 @@ const visualInspectionItems = [
   { id: "dishwasher-visual", label: "Dishwasher" },
   { id: "exhaust-fans", label: "Exhaust fans" },
   { id: "ceiling-fans", label: "Ceiling fans" },
-  { id: "circuit-protection", label: "Circuit protection (circuit breakers / fuses)" },
+  {
+    id: "circuit-protection",
+    label: "Circuit protection (circuit breakers / fuses)",
+  },
   { id: "washing-machine-dryer", label: "Washing machine/dryer" },
   { id: "socket-outlets", label: "Socket-outlets" },
   { id: "light-fittings", label: "Light fittings" },
@@ -73,7 +112,10 @@ const visualInspectionItems = [
 const polarityTestItems = [
   { id: "polarity-consumers-mains", label: "Consumers mains" },
   { id: "polarity-electric-water-heater", label: "Electric water heater" },
-  { id: "polarity-circuit-protection", label: "Circuit protection (circuit breakers / fuses)" },
+  {
+    id: "polarity-circuit-protection",
+    label: "Circuit protection (circuit breakers / fuses)",
+  },
   { id: "polarity-air-conditioners", label: "Air conditioners" },
   { id: "polarity-rcds", label: "RCDs (Safety switches)" },
   { id: "polarity-cooking-equipment", label: "Cooking equipment" },
@@ -127,7 +169,7 @@ const createElectricalSmokeSections = () => [
         label: "Inspection Date",
         type: "date",
         required: true,
-        defaultValue: new Date().toISOString().split('T')[0],
+        defaultValue: new Date().toISOString().split("T")[0],
       },
       {
         id: "previous-inspection-date",
@@ -184,7 +226,8 @@ const createElectricalSmokeSections = () => [
         label: "Next steps / notes",
         type: "textarea",
         placeholder: "Record recommended follow-up actions for the client",
-        defaultValue: "Next electrical safety check due in 2 years. Property is in good condition.",
+        defaultValue:
+          "Next electrical safety check due in 2 years. Property is in good condition.",
       },
       {
         id: "contact-email",
@@ -315,7 +358,8 @@ const createElectricalSmokeSections = () => [
     fields: [
       {
         id: "smoke-alarms-operational",
-        label: "All smoke alarms are correctly installed, operational, and tested",
+        label:
+          "All smoke alarms are correctly installed, operational, and tested",
         type: "select",
         options: yesNoOptions,
         required: true,
@@ -326,7 +370,9 @@ const createElectricalSmokeSections = () => [
         label: "Next smoke alarm check due",
         type: "date",
         required: true,
-        defaultValue: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 1 year from now
+        defaultValue: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
+          .toISOString()
+          .split("T")[0], // 1 year from now
       },
       {
         id: "smoke-alarm-records",
@@ -340,8 +386,10 @@ const createElectricalSmokeSections = () => [
             status: "compliant",
             location: "Hallway",
             level: "G",
-            expiration: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 1 year from now
-          }
+            expiration: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
+              .toISOString()
+              .split("T")[0], // 1 year from now
+          },
         ],
       },
       {
@@ -354,7 +402,8 @@ const createElectricalSmokeSections = () => [
   {
     id: "inspection-photos",
     title: "Inspection Photos",
-    description: "Upload photos taken during the electrical and smoke alarm inspection.",
+    description:
+      "Upload photos taken during the electrical and smoke alarm inspection.",
     fields: [
       {
         id: "switchboard-photos",
@@ -372,25 +421,29 @@ const createElectricalSmokeSections = () => [
         id: "aircon-photos",
         label: "Aircon",
         type: "photo-multi",
-        helpText: "Take photos of air conditioning units and electrical connections",
+        helpText:
+          "Take photos of air conditioning units and electrical connections",
       },
       {
         id: "gpo-tester-photos",
         label: "GPO with tester lit up",
         type: "photo-multi",
-        helpText: "Take photos of GPO outlets with electrical tester showing results",
+        helpText:
+          "Take photos of GPO outlets with electrical tester showing results",
       },
       {
         id: "oven-photos",
         label: "Oven",
         type: "photo-multi",
-        helpText: "Take photos of oven and cooking equipment electrical connections",
+        helpText:
+          "Take photos of oven and cooking equipment electrical connections",
       },
       {
         id: "rangehood-photos",
         label: "Rangehood",
         type: "photo-multi",
-        helpText: "Take photos of rangehood and exhaust fan electrical connections",
+        helpText:
+          "Take photos of rangehood and exhaust fan electrical connections",
       },
       {
         id: "additional-photos",
@@ -425,27 +478,29 @@ const createElectricalSmokeSections = () => [
         label: "Inspection date",
         type: "date",
         required: true,
-        defaultValue: new Date().toISOString().split('T')[0],
+        defaultValue: new Date().toISOString().split("T")[0],
       },
       {
         id: "certification-next-inspection-due",
         label: "Next inspection due by",
         type: "date",
         required: true,
-        defaultValue: new Date(Date.now() + 2 * 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 2 years from now
+        defaultValue: new Date(Date.now() + 2 * 365 * 24 * 60 * 60 * 1000)
+          .toISOString()
+          .split("T")[0], // 2 years from now
       },
       {
         id: "certification-signed-at",
         label: "Signed at (timestamp)",
         type: "text",
         placeholder: "e.g. Oct 7, 2024 11:11 am",
-        defaultValue: new Date().toLocaleDateString('en-AU', {
-          year: 'numeric',
-          month: 'short',
-          day: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: true
+        defaultValue: new Date().toLocaleDateString("en-AU", {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: true,
         }),
       },
       {
@@ -509,7 +564,8 @@ const gasTemplate = {
       fields: [
         {
           id: "lp-gas-cylinders",
-          label: "LP Gas cylinders and associated components (i.e. Regulators, pigtails) installed correctly",
+          label:
+            "LP Gas cylinders and associated components (i.e. Regulators, pigtails) installed correctly",
           type: "yes-no-na",
           required: true,
         },
@@ -564,7 +620,8 @@ const gasTemplate = {
         },
         {
           id: "app1-as4575-compliance",
-          label: "Completed service in accordance with AS 4575 (VBA online system report)",
+          label:
+            "Completed service in accordance with AS 4575 (VBA online system report)",
           type: "yes-no",
           required: true,
         },
@@ -619,7 +676,8 @@ const gasTemplate = {
         },
         {
           id: "app2-as4575-compliance",
-          label: "Completed service in accordance with AS 4575 (VBA online system report)",
+          label:
+            "Completed service in accordance with AS 4575 (VBA online system report)",
           type: "yes-no",
           required: true,
         },
@@ -674,7 +732,8 @@ const gasTemplate = {
         },
         {
           id: "app3-as4575-compliance",
-          label: "Completed service in accordance with AS 4575 (VBA online system report)",
+          label:
+            "Completed service in accordance with AS 4575 (VBA online system report)",
           type: "yes-no",
           required: true,
         },
@@ -752,7 +811,8 @@ const gasTemplate = {
         },
         {
           id: "created-vba-record",
-          label: "I have created a record (VBA online) under regulation 36(2) or 37(2) of the Gas Safety Regulations 2018 and provided a copy to the rental provider under regulation 30(1)(ab) of the Residential Tenancies Regulations 2021",
+          label:
+            "I have created a record (VBA online) under regulation 36(2) or 37(2) of the Gas Safety Regulations 2018 and provided a copy to the rental provider under regulation 30(1)(ab) of the Residential Tenancies Regulations 2021",
           type: "yes-no",
           required: true,
         },
@@ -769,9 +829,21 @@ const gasTemplate = {
           type: "select",
           required: true,
           options: [
-            { value: "compliant", label: "Compliant – gas appliance or gas installation complies with the criteria for a 'gas safety check'" },
-            { value: "non-compliant", label: "Non-Compliant – no immediate risk, however remedial work is required" },
-            { value: "unsafe", label: "Unsafe – gas appliance or its installation is unsafe and requires disconnection and urgent work" },
+            {
+              value: "compliant",
+              label:
+                "Compliant – gas appliance or gas installation complies with the criteria for a 'gas safety check'",
+            },
+            {
+              value: "non-compliant",
+              label:
+                "Non-Compliant – no immediate risk, however remedial work is required",
+            },
+            {
+              value: "unsafe",
+              label:
+                "Unsafe – gas appliance or its installation is unsafe and requires disconnection and urgent work",
+            },
           ],
         },
         {
@@ -814,10 +886,2078 @@ const createSmokeTemplate = () => ({
   sections: createElectricalSmokeSections(),
 });
 
+const formatStatusFieldSet = (id, label, { helpText } = {}) => [
+  {
+    id,
+    label,
+    type: "select",
+    required: true,
+    options: meetsStandardOptions,
+    defaultValue: "meets",
+    helpText,
+  },
+  {
+    id: `${id}-comments`,
+    label: `${label} Comments`,
+    type: "textarea",
+    placeholder: "Provide details when standards are not met",
+    defaultValue: "N/A",
+  },
+];
+
+const formatPresenceFieldSet = (id, label) => [
+  {
+    id,
+    label,
+    type: "select",
+    required: true,
+    options: presentOptions,
+    defaultValue: "present",
+  },
+  {
+    id: `${id}-action`,
+    label: `${label} Action`,
+    type: "textarea",
+    placeholder: "Describe action required when item is not present",
+    defaultValue: "No action required",
+  },
+];
+
+const buildStatusSection = (sectionId, title, rows, description) => ({
+  id: sectionId,
+  title,
+  description,
+  fields: rows.map((row) => formatStatusFieldSet(row.id, row.label, { helpText: row.helpText })).flat(),
+});
+
+const createRoomFieldId = (roomType, roomNumber, suffix) =>
+  `${roomType}-${roomNumber}-${suffix}`;
+
+const createBedroomSection = (bedroomNumber) => {
+  const roomId = `bedroom-${bedroomNumber}`;
+  const fieldId = (suffix) => createRoomFieldId("bedroom", bedroomNumber, suffix);
+
+  return {
+    id: roomId,
+    title: `Bedroom ${bedroomNumber}`,
+    description: `Safety assessment for Bedroom ${bedroomNumber}`,
+    fields: [
+      {
+        id: fieldId("general-condition"),
+        label: "General Condition",
+        type: "select",
+        required: true,
+        options: passFailOptions,
+        defaultValue: "pass",
+      },
+      {
+        id: fieldId("external-door-present"),
+        label: "Is there an external door present?",
+        type: "yes-no",
+        required: true,
+        defaultValue: "no",
+      },
+      {
+        id: fieldId("windows-present"),
+        label: "Are there windows in the room?",
+        type: "yes-no",
+        required: true,
+        defaultValue: "yes",
+      },
+      {
+        id: fieldId("windows-operable-count"),
+        label: "How many windows are designed to open and close?",
+        type: "number",
+        min: 0,
+        placeholder: "Enter number of operable windows",
+      },
+      {
+        id: fieldId("windows-operable"),
+        label: "Are any of the windows designed to open and close?",
+        type: "yes-no",
+        defaultValue: "yes",
+      },
+      {
+        id: fieldId("windows-can-open"),
+        label: "Can all openable windows be set to open and closed position?",
+        type: "yes-no",
+        defaultValue: "yes",
+      },
+      {
+        id: fieldId("windows-photo"),
+        label: "Photo of every openable window with latch visible/missing",
+        type: "photo-multi",
+        metadata: { max: 6 },
+        helpText: "Capture each openable window clearly showing latch hardware.",
+      },
+      {
+        id: fieldId("windows-locks"),
+        label: "Do all the openable windows have functioning latch or lock?",
+        type: "yes-no",
+        required: true,
+        defaultValue: "yes",
+      },
+      {
+        id: fieldId("windows-condition"),
+        label: "Window Condition",
+        type: "select",
+        required: true,
+        options: passFailOptions,
+        defaultValue: "pass",
+      },
+      {
+        id: fieldId("windows-standard"),
+        label: "MINIMUM STANDARDS: Do the windows meet the minimum standards?",
+        type: "yes-no",
+        required: true,
+        defaultValue: "yes",
+      },
+      {
+        id: fieldId("window-coverings-present"),
+        label: "Is there a window in the room?",
+        type: "yes-no",
+        defaultValue: "yes",
+      },
+      {
+        id: fieldId("window-coverings-photo"),
+        label: "Photo of the window area",
+        type: "photo",
+      },
+      {
+        id: fieldId("window-coverings-installed"),
+        label: "Do all the windows have window coverings?",
+        type: "yes-no",
+        defaultValue: "yes",
+      },
+      {
+        id: fieldId("window-coverings-light"),
+        label: "Do all the window coverings reasonably block out light?",
+        type: "yes-no",
+        defaultValue: "yes",
+      },
+      {
+        id: fieldId("window-coverings-standard"),
+        label: "MINIMUM STANDARDS: Do the window coverings meet the minimum standards?",
+        type: "yes-no",
+        required: true,
+        defaultValue: "yes",
+      },
+      {
+        id: fieldId("lighting-type"),
+        label: "What type of lighting is present?",
+        type: "select",
+        options: lightingTypeOptions,
+        required: true,
+        defaultValue: "natural",
+      },
+      {
+        id: fieldId("lighting-day"),
+        label: "Does the room have adequate lighting during daylight hours?",
+        type: "yes-no",
+        defaultValue: "yes",
+      },
+      {
+        id: fieldId("lighting-night"),
+        label: "Does the room have adequate lighting during nighttime hours?",
+        type: "yes-no",
+        defaultValue: "yes",
+      },
+      {
+        id: fieldId("lighting-standard"),
+        label: "MINIMUM STANDARDS: Does the lighting meet the minimum standards?",
+        type: "yes-no",
+        required: true,
+        defaultValue: "yes",
+      },
+      {
+        id: fieldId("moisture-photo"),
+        label: "Photo of moisture reading on a wall",
+        type: "photo",
+      },
+      {
+        id: fieldId("moisture-reading"),
+        label: "Moisture reading meter (Dry or Wet?)",
+        type: "text",
+        placeholder: "Enter reading e.g. 0 or Dry",
+        defaultValue: "0",
+      },
+      {
+        id: fieldId("mould-present"),
+        label: "Is there any mould present?",
+        type: "yes-no",
+        defaultValue: "no",
+      },
+      {
+        id: fieldId("mould-location"),
+        label: "Where is mould present?",
+        type: "text",
+        defaultValue: "None",
+      },
+      {
+        id: fieldId("mould-photo"),
+        label: "Photo of the full mould area",
+        type: "photo",
+      },
+      {
+        id: fieldId("mould-photo-close"),
+        label: "Close up photo of the mould",
+        type: "photo",
+      },
+      {
+        id: fieldId("water-staining"),
+        label: "Is there any water staining or dampness present?",
+        type: "yes-no",
+        defaultValue: "no",
+      },
+      {
+        id: fieldId("mould-standard"),
+        label: "MINIMUM STANDARDS: Does the mould and dampness meet the minimum standards?",
+        type: "yes-no",
+        required: true,
+        defaultValue: "yes",
+      },
+      {
+        id: fieldId("mould-comment"),
+        label: "Mould and dampness comments",
+        type: "textarea",
+        defaultValue: "N/A",
+      },
+      {
+        id: fieldId("ventilation-has"),
+        label: "Does the room have means of ventilation with outdoor air to maintain adequate air supply?",
+        type: "yes-no",
+        required: true,
+        defaultValue: "yes",
+      },
+      {
+        id: fieldId("ventilation-type"),
+        label: "Type of ventilation in the room",
+        type: "select",
+        options: ventilationTypeOptions,
+        required: true,
+        defaultValue: "natural",
+      },
+      {
+        id: fieldId("ventilation-standard"),
+        label: "MINIMUM STANDARDS: Does the area ventilation meet the minimum standards?",
+        type: "yes-no",
+        required: true,
+        defaultValue: "yes",
+      },
+      {
+        id: fieldId("ventilation-comment"),
+        label: "Ventilation comments",
+        type: "textarea",
+        defaultValue: "N/A",
+      },
+      {
+        id: fieldId("bowing"),
+        label: "Is there any severe bowing or leaning of walls in the property?",
+        type: "yes-no",
+        defaultValue: "no",
+      },
+      {
+        id: fieldId("bowing-standard"),
+        label: "MINIMUM STANDARDS: Does the room meet bowing and leaning standards?",
+        type: "yes-no",
+        required: true,
+        defaultValue: "yes",
+      },
+      {
+        id: fieldId("cracking"),
+        label: "Is there any cracking in the room?",
+        type: "yes-no",
+        defaultValue: "no",
+      },
+      {
+        id: fieldId("cracking-standard"),
+        label: "MINIMUM STANDARDS: Does the area cracking meet the minimum standards?",
+        type: "yes-no",
+        required: true,
+        defaultValue: "yes",
+      },
+      {
+        id: fieldId("warping"),
+        label: "Is there any warping or movement of floors in the property?",
+        type: "yes-no",
+        defaultValue: "no",
+      },
+      {
+        id: fieldId("warping-standard"),
+        label: "MINIMUM STANDARDS: Does the room meet warping or movement standards?",
+        type: "yes-no",
+        required: true,
+        defaultValue: "yes",
+      },
+      {
+        id: fieldId("overall-standard"),
+        label: "ROOM OVERALL: Does the area overall meet the minimum standards?",
+        type: "yes-no",
+        required: true,
+        defaultValue: "yes",
+      },
+      {
+        id: fieldId("overall-comment"),
+        label: "Mandatory additional comments if the room fails",
+        type: "textarea",
+        defaultValue: "N/A",
+      },
+      {
+        id: fieldId("room-photo"),
+        label: `Bedroom ${bedroomNumber} Photo`,
+        type: "photo",
+        required: true,
+      },
+    ],
+  };
+};
+
+const createBathroomSection = (bathroomNumber) => {
+  const roomId = `bathroom-${bathroomNumber}`;
+  const fieldId = (suffix) => createRoomFieldId("bathroom", bathroomNumber, suffix);
+
+  return {
+    id: roomId,
+    title: `Bathroom ${bathroomNumber}`,
+    description: `Safety assessment for Bathroom ${bathroomNumber}`,
+    fields: [
+      {
+        id: fieldId("general-condition"),
+        label: "General Condition",
+        type: "select",
+        required: true,
+        options: passFailOptions,
+        defaultValue: "pass",
+      },
+      {
+        id: fieldId("cold-water-adequate"),
+        label: "Is there an adequate supply/flow of cold water?",
+        type: "yes-no",
+        defaultValue: "yes",
+      },
+      {
+        id: fieldId("hot-water-adequate"),
+        label: "Is there an adequate supply/flow of hot water?",
+        type: "yes-no",
+        defaultValue: "yes",
+      },
+      {
+        id: fieldId("hot-water-seconds"),
+        label: "How many seconds for the water to run hot?",
+        type: "number",
+        min: 0,
+        placeholder: "Enter seconds",
+      },
+      {
+        id: fieldId("hot-water-issues"),
+        label: "Are there any issues with the hot water supply/flow?",
+        type: "yes-no",
+        defaultValue: "no",
+      },
+      {
+        id: fieldId("cold-water-standard"),
+        label: "Does the cold water supply/flow meet minimum standards?",
+        type: "yes-no",
+        required: true,
+        defaultValue: "yes",
+      },
+      {
+        id: fieldId("hot-water-standard"),
+        label: "Does the hot water supply/flow meet minimum standards?",
+        type: "yes-no",
+        required: true,
+        defaultValue: "yes",
+      },
+      {
+        id: fieldId("water-pressure"),
+        label: "Water Pressure",
+        type: "select",
+        required: true,
+        options: passFailOptions,
+        defaultValue: "pass",
+      },
+      {
+        id: fieldId("drainage"),
+        label: "Drainage",
+        type: "select",
+        required: true,
+        options: passFailOptions,
+        defaultValue: "pass",
+      },
+      {
+        id: fieldId("electrical-safety"),
+        label: "Electrical Safety (outlets, lighting)",
+        type: "select",
+        required: true,
+        options: passFailOptions,
+        defaultValue: "pass",
+      },
+      {
+        id: fieldId("ventilation-type"),
+        label: "Type of ventilation in the room",
+        type: "select",
+        options: ventilationTypeOptions,
+        required: true,
+        defaultValue: "mechanical",
+      },
+      {
+        id: fieldId("ventilation-standard"),
+        label: "MINIMUM STANDARDS: Does the area ventilation meet the minimum standards?",
+        type: "yes-no",
+        required: true,
+        defaultValue: "yes",
+      },
+      {
+        id: fieldId("borrowed-ventilation"),
+        label: "Is there borrowed ventilation?",
+        type: "yes-no",
+        defaultValue: "no",
+      },
+      {
+        id: fieldId("ventilation-comment"),
+        label: "Ventilation comments",
+        type: "textarea",
+      },
+      {
+        id: fieldId("waterproofing"),
+        label: "Waterproofing and Sealing",
+        type: "select",
+        required: true,
+        options: passFailOptions,
+        defaultValue: "pass",
+      },
+      {
+        id: fieldId("safety-features"),
+        label: "Safety Features (grab rails, non-slip)",
+        type: "select",
+        required: true,
+        options: passFailOptions,
+        defaultValue: "pass",
+      },
+      {
+        id: fieldId("shower-present"),
+        label: "Is there a shower in the bathroom?",
+        type: "yes-no",
+        required: true,
+        defaultValue: "yes",
+      },
+      {
+        id: fieldId("shower-photo"),
+        label: "Photo of shower in the bathroom",
+        type: "photo",
+      },
+      {
+        id: fieldId("bath-present"),
+        label: "Is there a bath in the bathroom?",
+        type: "yes-no",
+        defaultValue: "no",
+      },
+      {
+        id: fieldId("bath-photo"),
+        label: "Photo of bath in the bathroom",
+        type: "photo",
+      },
+      {
+        id: fieldId("showerhead-rating"),
+        label: "Is the energy rating of the shower head visible?",
+        type: "yes-no",
+        defaultValue: "no",
+      },
+      {
+        id: fieldId("washbasin-present"),
+        label: "Is there a washbasin in the bathroom?",
+        type: "yes-no",
+        defaultValue: "yes",
+      },
+      {
+        id: fieldId("washbasin-photo"),
+        label: "Photo of washbasin in the bathroom",
+        type: "photo",
+      },
+      {
+        id: fieldId("washbasin-comment"),
+        label: "Additional washbasin comments",
+        type: "textarea",
+        defaultValue: "N/A",
+      },
+      {
+        id: fieldId("toilet-present"),
+        label: "Is there a toilet in the room?",
+        type: "yes-no",
+        defaultValue: "yes",
+      },
+      {
+        id: fieldId("toilet-photo"),
+        label: "Toilet photo",
+        type: "photo",
+      },
+      {
+        id: fieldId("toilet-location"),
+        label: "Approved location of the toilet",
+        type: "yes-no",
+        helpText: "Confirm the toilet is located within an approved space.",
+        defaultValue: "yes",
+      },
+      {
+        id: fieldId("toilet-window"),
+        label: "Is there a window that opens in the toilet room?",
+        type: "yes-no",
+        defaultValue: "yes",
+      },
+      {
+        id: fieldId("toilet-working"),
+        label: "Is the toilet in good working order?",
+        type: "yes-no",
+        required: true,
+        defaultValue: "yes",
+      },
+      {
+        id: fieldId("toilet-connection"),
+        label: "Is the toilet connected to sewerage or waste treatment system?",
+        type: "yes-no",
+        required: true,
+        defaultValue: "yes",
+      },
+      {
+        id: fieldId("toilet-standard"),
+        label: "MINIMUM STANDARDS: Does the toilet meet minimum standards?",
+        type: "yes-no",
+        required: true,
+        defaultValue: "yes",
+      },
+      {
+        id: fieldId("mould-present"),
+        label: "Is there any mould present?",
+        type: "yes-no",
+        defaultValue: "no",
+      },
+      {
+        id: fieldId("mould-location"),
+        label: "Where is mould present?",
+        type: "text",
+        defaultValue: "None",
+      },
+      {
+        id: fieldId("mould-photo"),
+        label: "Photo of the full mould area",
+        type: "photo",
+      },
+      {
+        id: fieldId("mould-photo-close"),
+        label: "Close up photo of the mould",
+        type: "photo",
+      },
+      {
+        id: fieldId("water-staining"),
+        label: "Is there any water staining or dampness present?",
+        type: "yes-no",
+        defaultValue: "no",
+      },
+      {
+        id: fieldId("mould-standard"),
+        label: "MINIMUM STANDARDS: Does the mould and dampness meet the minimum standards?",
+        type: "yes-no",
+        required: true,
+        defaultValue: "yes",
+      },
+      {
+        id: fieldId("mould-comment"),
+        label: "Mould and dampness comments",
+        type: "textarea",
+        defaultValue: "N/A",
+      },
+      {
+        id: fieldId("bowing"),
+        label: "Is there any severe bowing or leaning of walls in the property?",
+        type: "yes-no",
+        defaultValue: "no",
+      },
+      {
+        id: fieldId("bowing-standard"),
+        label: "MINIMUM STANDARDS: Does the room meet bowing and leaning standards?",
+        type: "yes-no",
+        required: true,
+        defaultValue: "yes",
+      },
+      {
+        id: fieldId("cracking"),
+        label: "Is there any cracking in the room?",
+        type: "yes-no",
+        defaultValue: "no",
+      },
+      {
+        id: fieldId("cracking-standard"),
+        label: "MINIMUM STANDARDS: Does the area cracking meet the minimum standards?",
+        type: "yes-no",
+        required: true,
+        defaultValue: "yes",
+      },
+      {
+        id: fieldId("warping"),
+        label: "Is there any warping or movement of floors in the property?",
+        type: "yes-no",
+        defaultValue: "no",
+      },
+      {
+        id: fieldId("warping-standard"),
+        label: "MINIMUM STANDARDS: Does the room meet warping or movement standards?",
+        type: "yes-no",
+        required: true,
+        defaultValue: "yes",
+      },
+      {
+        id: fieldId("overall-standard"),
+        label: "ROOM OVERALL: Does the area overall meet the minimum standards?",
+        type: "yes-no",
+        required: true,
+        defaultValue: "yes",
+      },
+      {
+        id: fieldId("overall-comment"),
+        label: "Mandatory additional comments if the room fails",
+        type: "textarea",
+        defaultValue: "N/A",
+      },
+      {
+        id: fieldId("room-photo"),
+        label: `Bathroom ${bathroomNumber} Photo`,
+        type: "photo",
+        required: true,
+      },
+    ],
+  };
+};
+
+const createLivingRoomSection = () => ({
+  id: "living-room",
+  title: "Living Room",
+  description: "Assessment of the main living room, heating and compliance checks",
+  fields: [
+    { id: "living-room-photo", label: "Photo of room", type: "photo" },
+    {
+      id: "living-room-window-present",
+      label: "Is there a window in the room?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "living-room-window-photo",
+      label: "Photo of the window area",
+      type: "photo",
+    },
+    {
+      id: "living-room-window-coverings",
+      label: "Do all the windows have window coverings?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "living-room-window-coverings-light",
+      label: "Do the window coverings reasonably block out light?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "living-room-window-coverings-standard",
+      label: "MINIMUM STANDARDS: Do the window coverings meet the minimum standards?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "living-room-heater-fixed",
+      label: "Is there a fixed heater in the main living area?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "living-room-heater-photo",
+      label: "Photo of the heating unit in the main living area",
+      type: "photo",
+    },
+    {
+      id: "living-room-heater-type",
+      label: "Type of heating device",
+      type: "text",
+      placeholder: "e.g. Split system",
+      defaultValue: "Split system",
+    },
+    {
+      id: "living-room-heater-make-model",
+      label: "Make and model of the heating unit",
+      type: "text",
+      placeholder: "Enter make and model",
+      defaultValue: "Fujitsu Auto",
+    },
+    {
+      id: "living-room-heater-plugged",
+      label: "Is the heater plugged in?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "living-room-heater-tested",
+      label: "I confirm I have turned the heater on",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "living-room-heater-working",
+      label: "Is the heater turning on and in good working order?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "living-room-heater-control",
+      label: "Is the heater control accessible?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "living-room-heater-energy",
+      label: "Visible energy rating",
+      type: "yes-no",
+      defaultValue: "no",
+    },
+    {
+      id: "living-room-heater-standard",
+      label: "MINIMUM STANDARDS: Does the main living area heating meet the minimum standards?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "living-room-external-door-present",
+      label: "Is there an external door present?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "living-room-external-door-photo",
+      label: "Photo of external door (outside and inside)",
+      type: "photo-multi",
+      metadata: { max: 2 },
+    },
+    {
+      id: "living-room-external-door-deadlock",
+      label: "Does the external door have a deadlock/deadlatch function?",
+      type: "yes-no",
+      defaultValue: "no",
+    },
+    {
+      id: "living-room-external-door-installable",
+      label: "Is a deadlock/deadlatch able to be installed on this door?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "living-room-external-door-standard",
+      label: "Does the external door meet minimum standards?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "living-room-external-door-comment",
+      label: "External door comments",
+      type: "textarea",
+      placeholder: "Record reason if door does not meet the standard",
+      defaultValue: "N/A",
+    },
+    {
+      id: "living-room-lighting-type",
+      label: "What type of lighting is present?",
+      type: "select",
+      options: lightingTypeOptions,
+      defaultValue: "natural",
+    },
+    {
+      id: "living-room-lighting-day",
+      label: "Does the room have adequate lighting during daylight hours?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "living-room-lighting-night",
+      label: "Does the room have adequate lighting during nighttime hours?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "living-room-lighting-standard",
+      label: "MINIMUM STANDARDS: Does the lighting meet the minimum standards?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "living-room-moisture-photo",
+      label: "Photo of moisture reading on a wall",
+      type: "photo",
+    },
+    {
+      id: "living-room-moisture-reading",
+      label: "Moisture reading meter (Dry or Wet?)",
+      type: "text",
+      defaultValue: "0",
+    },
+    {
+      id: "living-room-mould-present",
+      label: "Is there any mould present?",
+      type: "yes-no",
+      defaultValue: "no",
+    },
+    {
+      id: "living-room-mould-comment",
+      label: "Mould comments",
+      type: "textarea",
+      defaultValue: "N/A",
+    },
+    {
+      id: "living-room-mould-standard",
+      label: "MINIMUM STANDARDS: Does the mould and dampness meet the minimum standards?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "living-room-ventilation-has",
+      label: "Does the room have means of ventilation with outdoor air to maintain adequate air supply?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "living-room-ventilation-type",
+      label: "Type of ventilation in the room",
+      type: "select",
+      options: ventilationTypeOptions,
+      defaultValue: "natural",
+    },
+    {
+      id: "living-room-ventilation-standard",
+      label: "MINIMUM STANDARDS: Does the area ventilation meet the minimum standards?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "living-room-bowing",
+      label: "Is there any severe bowing or leaning of walls in the property?",
+      type: "yes-no",
+      defaultValue: "no",
+    },
+    {
+      id: "living-room-cracking",
+      label: "Is there any cracking in the room?",
+      type: "yes-no",
+      defaultValue: "no",
+    },
+    {
+      id: "living-room-warping",
+      label: "Is there any warping or movement of floors in the property?",
+      type: "yes-no",
+      defaultValue: "no",
+    },
+    {
+      id: "living-room-overall-standard",
+      label: "ROOM OVERALL: Does the area overall meet the minimum standards?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "living-room-overall-comment",
+      label: "Mandatory additional comments if the room fails",
+      type: "textarea",
+      defaultValue: "N/A",
+    },
+  ],
+});
+
+const createKitchenSection = () => ({
+  id: "kitchen",
+  title: "Kitchen",
+  description: "Assessment of kitchen facilities and compliance",
+  fields: [
+    { id: "kitchen-photo", label: "Photo of room", type: "photo" },
+    {
+      id: "kitchen-food-prep",
+      label: "Is there a dedicated food preparation area?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "kitchen-food-prep-photo",
+      label: "Photo of dedicated food preparation area",
+      type: "photo",
+    },
+    {
+      id: "kitchen-food-prep-standard",
+      label: "MINIMUM STANDARDS: Does the food preparation area meet minimum standards?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "kitchen-oven-present",
+      label: "Is there an oven in the kitchen?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "kitchen-oven-photo",
+      label: "Photo of oven",
+      type: "photo",
+    },
+    {
+      id: "kitchen-oven-working",
+      label: "Is the oven in working order?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "kitchen-oven-standard",
+      label: "Does the oven meet minimum standards?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "kitchen-stovetop-present",
+      label: "Is there a stovetop?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "kitchen-stovetop-photo",
+      label: "Photo of stovetop",
+      type: "photo",
+    },
+    {
+      id: "kitchen-stovetop-type",
+      label: "Is the cooktop gas or electric?",
+      type: "text",
+      placeholder: "Gas or Electric",
+      defaultValue: "Gas",
+    },
+    {
+      id: "kitchen-stovetop-burners",
+      label: "Are there at least 2 burners on the cooktop?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "kitchen-stovetop-working",
+      label: "Are two or more burners in good working condition?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "kitchen-stovetop-standard",
+      label: "Does the cooktop meet minimum standards?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "kitchen-sink-present",
+      label: "Is there a sink in the kitchen?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "kitchen-sink-photo",
+      label: "Photo of sink",
+      type: "photo",
+    },
+    {
+      id: "kitchen-sink-working",
+      label: "Is the sink in working order?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "kitchen-sink-standard",
+      label: "Does the sink meet minimum standards?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "kitchen-cold-water-adequate",
+      label: "Is there an adequate supply/flow of cold water?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "kitchen-hot-water-adequate",
+      label: "Is there an adequate supply/flow of hot water?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "kitchen-hot-water-seconds",
+      label: "How many seconds for the water to run hot?",
+      type: "number",
+      min: 0,
+      placeholder: "Enter seconds",
+      defaultValue: 6,
+    },
+    {
+      id: "kitchen-hot-water-issues",
+      label: "Are there any issues with the hot water supply/flow?",
+      type: "yes-no",
+      defaultValue: "no",
+    },
+    {
+      id: "kitchen-cold-water-standard",
+      label: "Does the cold water supply/flow meet minimum standards?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "kitchen-hot-water-standard",
+      label: "Does the hot water supply/flow meet minimum standards?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "kitchen-external-door-present",
+      label: "Is there an external door present?",
+      type: "yes-no",
+      defaultValue: "no",
+    },
+    {
+      id: "kitchen-lighting-type",
+      label: "What type of lighting is present?",
+      type: "select",
+      options: lightingTypeOptions,
+      defaultValue: "natural",
+    },
+    {
+      id: "kitchen-lighting-day",
+      label: "Does the room have adequate lighting during daylight hours?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "kitchen-lighting-night",
+      label: "Does the room have adequate lighting during nighttime hours?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "kitchen-lighting-standard",
+      label: "MINIMUM STANDARDS: Does the lighting meet the minimum standards?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "kitchen-moisture-photo",
+      label: "Photo of moisture reading on a wall",
+      type: "photo",
+    },
+    {
+      id: "kitchen-moisture-reading",
+      label: "Moisture reading meter (Dry or Wet?)",
+      type: "text",
+      defaultValue: "0",
+    },
+    {
+      id: "kitchen-mould-present",
+      label: "Is there any mould present?",
+      type: "yes-no",
+      defaultValue: "no",
+    },
+    {
+      id: "kitchen-mould-comment",
+      label: "Mould comments",
+      type: "textarea",
+      defaultValue: "N/A",
+    },
+    {
+      id: "kitchen-mould-standard",
+      label: "MINIMUM STANDARDS: Does the mould and dampness meet the minimum standards?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "kitchen-ventilation-has",
+      label: "Does the room have means of ventilation with outdoor air to maintain adequate air supply?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "kitchen-ventilation-type",
+      label: "Type of ventilation in the room",
+      type: "select",
+      options: ventilationTypeOptions,
+      defaultValue: "natural",
+    },
+    {
+      id: "kitchen-ventilation-standard",
+      label: "MINIMUM STANDARDS: Does the area ventilation meet the minimum standards?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "kitchen-bowing",
+      label: "Is there any severe bowing or leaning of walls in the property?",
+      type: "yes-no",
+      defaultValue: "no",
+    },
+    {
+      id: "kitchen-cracking",
+      label: "Is there any cracking in the room?",
+      type: "yes-no",
+      defaultValue: "no",
+    },
+    {
+      id: "kitchen-warping",
+      label: "Is there any warping or movement of floors in the property?",
+      type: "yes-no",
+      defaultValue: "no",
+    },
+    {
+      id: "kitchen-overall-standard",
+      label: "ROOM OVERALL: Does the area overall meet the minimum standards?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "kitchen-overall-comment",
+      label: "Mandatory additional comments if the room fails",
+      type: "textarea",
+      defaultValue: "N/A",
+    },
+  ],
+});
+
+const createLaundrySection = () => ({
+  id: "laundry",
+  title: "Laundry",
+  description: "Assessment of laundry water supply and compliance",
+  fields: [
+    { id: "laundry-photo", label: "Photo of room", type: "photo" },
+    {
+      id: "laundry-cold-water-adequate",
+      label: "Is there an adequate supply/flow of cold water?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "laundry-hot-water-adequate",
+      label: "Is there an adequate supply/flow of hot water?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "laundry-hot-water-seconds",
+      label: "How many seconds for the water to run hot?",
+      type: "number",
+      min: 0,
+      placeholder: "Enter seconds",
+    },
+    {
+      id: "laundry-hot-water-issues",
+      label: "Are there any issues with the hot water supply/flow?",
+      type: "yes-no",
+      defaultValue: "no",
+    },
+    {
+      id: "laundry-cold-water-standard",
+      label: "Does the cold water supply/flow meet minimum standards?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "laundry-hot-water-standard",
+      label: "Does the hot water supply/flow meet minimum standards?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "laundry-external-door-present",
+      label: "Is there an external door present?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "laundry-external-door-photo",
+      label: "Photo of external door (outside and inside)",
+      type: "photo-multi",
+      metadata: { max: 2 },
+    },
+    {
+      id: "laundry-external-door-deadlock",
+      label: "Does the external door have a deadlock/deadlatch function?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "laundry-external-door-standard",
+      label: "Does the external door meet minimum standards?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "laundry-window-present",
+      label: "Are there windows in room?",
+      type: "yes-no",
+      defaultValue: "no",
+    },
+    {
+      id: "laundry-lighting-type",
+      label: "What type of lighting is present?",
+      type: "select",
+      options: lightingTypeOptions,
+      defaultValue: "natural",
+    },
+    {
+      id: "laundry-lighting-day",
+      label: "Does the room have adequate lighting during daylight hours?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "laundry-lighting-night",
+      label: "Does the room have adequate lighting during nighttime hours?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "laundry-lighting-standard",
+      label: "MINIMUM STANDARDS: Does the lighting meet the minimum standards?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "laundry-moisture-photo",
+      label: "Photo of moisture reading on a wall",
+      type: "photo",
+    },
+    {
+      id: "laundry-moisture-reading",
+      label: "Moisture reading meter (Dry or Wet?)",
+      type: "text",
+      defaultValue: "0",
+    },
+    {
+      id: "laundry-mould-present",
+      label: "Is there any mould present?",
+      type: "yes-no",
+      defaultValue: "no",
+    },
+    {
+      id: "laundry-mould-standard",
+      label: "MINIMUM STANDARDS: Does the mould and dampness meet the minimum standards?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "laundry-ventilation-has",
+      label: "Does the room have means of ventilation with outdoor air to maintain adequate air supply?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "laundry-ventilation-type",
+      label: "Type of ventilation in the room",
+      type: "select",
+      options: ventilationTypeOptions,
+      defaultValue: "natural",
+    },
+    {
+      id: "laundry-ventilation-standard",
+      label: "MINIMUM STANDARDS: Does the area ventilation meet the minimum standards?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "laundry-bowing",
+      label: "Is there any severe bowing or leaning of walls in the property?",
+      type: "yes-no",
+      defaultValue: "no",
+    },
+    {
+      id: "laundry-cracking",
+      label: "Is there any cracking in the room?",
+      type: "yes-no",
+      defaultValue: "no",
+    },
+    {
+      id: "laundry-warping",
+      label: "Is there any warping or movement of floors in the property?",
+      type: "yes-no",
+      defaultValue: "no",
+    },
+    {
+      id: "laundry-overall-standard",
+      label: "ROOM OVERALL: Does the area overall meet the minimum standards?",
+      type: "yes-no",
+      defaultValue: "yes",
+    },
+    {
+      id: "laundry-overall-comment",
+      label: "Mandatory additional comments if the room fails",
+      type: "textarea",
+      defaultValue: "N/A",
+    },
+  ],
+});
+
+const createMinimumSafetyStandardTemplate = (
+  bedroomCount = 1,
+  bathroomCount = 1
+) => {
+  const overallSummaryRows = [
+    { id: "summary-recycle-general", label: "Recycle and General Waste" },
+    { id: "summary-kitchen", label: "Kitchen" },
+    { id: "summary-laundry", label: "Laundry" },
+    { id: "summary-living-room", label: "Living Room" },
+    { id: "summary-front-entrance", label: "Front Entrance" },
+    { id: "summary-electrical", label: "Electrical Safety" },
+  ];
+
+  for (let i = 1; i <= bathroomCount; i++) {
+    overallSummaryRows.push({ id: `summary-bathroom-${i}`, label: `Bathroom ${i}` });
+  }
+
+  for (let i = 1; i <= bedroomCount; i++) {
+    overallSummaryRows.push({ id: `summary-bedroom-${i}`, label: `Bedroom ${i}` });
+  }
+
+  const lightingRows = [
+    { id: "lighting-front-entrance", label: "Front Entrance" },
+    { id: "lighting-living-room", label: "Living Room" },
+    { id: "lighting-kitchen", label: "Kitchen" },
+    { id: "lighting-laundry", label: "Laundry" },
+  ];
+
+  const mouldRows = [
+    { id: "mould-front-entrance", label: "Front Entrance" },
+    { id: "mould-living-room", label: "Living Room" },
+    { id: "mould-kitchen", label: "Kitchen" },
+    { id: "mould-laundry", label: "Laundry" },
+  ];
+
+  const ventilationRows = [
+    { id: "ventilation-front-entrance", label: "Front Entrance" },
+    { id: "ventilation-living-room", label: "Living Room" },
+    { id: "ventilation-kitchen", label: "Kitchen" },
+    { id: "ventilation-laundry", label: "Laundry" },
+  ];
+
+  const structuralBowingRows = [
+    { id: "struct-bowing-living-room", label: "Living Room" },
+    { id: "struct-bowing-laundry", label: "Laundry" },
+    { id: "struct-bowing-kitchen", label: "Kitchen" },
+    { id: "struct-bowing-front-entrance", label: "Front Entrance" },
+  ];
+
+  const structuralCrackingRows = [
+    { id: "struct-cracking-living-room", label: "Living Room" },
+    { id: "struct-cracking-laundry", label: "Laundry" },
+    { id: "struct-cracking-kitchen", label: "Kitchen" },
+    { id: "struct-cracking-front-entrance", label: "Front Entrance" },
+  ];
+
+  const structuralWarpingRows = [
+    { id: "struct-warping-living-room", label: "Living Room" },
+    { id: "struct-warping-laundry", label: "Laundry" },
+    { id: "struct-warping-kitchen", label: "Kitchen" },
+    { id: "struct-warping-front-entrance", label: "Front Entrance" },
+  ];
+
+  const windowCoveringRows = [
+    { id: "window-coverings-living-room", label: "Living Room" },
+  ];
+
+  const windowLatchRows = [];
+
+  const externalDoorRows = [
+    { id: "external-door-front-entrance", label: "Front Entrance" },
+    { id: "external-door-living-room", label: "Living Room" },
+    { id: "external-door-laundry", label: "Laundry" },
+  ];
+
+  const heatingRows = [
+    { id: "heating-living-room", label: "Living Room" },
+  ];
+
+  const coldWaterRows = [
+    { id: "cold-water-kitchen", label: "Kitchen" },
+    { id: "cold-water-laundry", label: "Laundry" },
+  ];
+
+  const hotWaterRows = [
+    { id: "hot-water-kitchen", label: "Kitchen" },
+    { id: "hot-water-laundry", label: "Laundry" },
+  ];
+
+  const kitchenFacilityRows = [
+    { id: "kitchen-stovetop", label: "Stovetop" },
+    { id: "kitchen-food-prep", label: "Food Preparation Area" },
+    { id: "kitchen-oven", label: "Oven" },
+    { id: "kitchen-sink", label: "Sink" },
+  ];
+
+  const toiletRows = [];
+
+  const executiveFixtureFields = [];
+  for (let i = 1; i <= bathroomCount; i++) {
+    executiveFixtureFields.push(
+      ...formatPresenceFieldSet(`bathroom-${i}-bath`, `Bathroom ${i} Bath`),
+      ...formatPresenceFieldSet(`bathroom-${i}-shower`, `Bathroom ${i} Shower`),
+      ...formatPresenceFieldSet(`bathroom-${i}-washbasin`, `Bathroom ${i} Washbasin`)
+    );
+  }
+
+  for (let i = 1; i <= bedroomCount; i++) {
+    lightingRows.push({ id: `lighting-bedroom-${i}`, label: `Bedroom ${i}` });
+    mouldRows.push({ id: `mould-bedroom-${i}`, label: `Bedroom ${i}` });
+    ventilationRows.push({ id: `ventilation-bedroom-${i}`, label: `Bedroom ${i}` });
+    structuralBowingRows.push({ id: `struct-bowing-bedroom-${i}`, label: `Bedroom ${i}` });
+    structuralCrackingRows.push({ id: `struct-cracking-bedroom-${i}`, label: `Bedroom ${i}` });
+    structuralWarpingRows.push({ id: `struct-warping-bedroom-${i}`, label: `Bedroom ${i}` });
+    windowCoveringRows.push({ id: `window-coverings-bedroom-${i}`, label: `Bedroom ${i}` });
+    windowLatchRows.push({ id: `windows-bedroom-${i}`, label: `Bedroom ${i}` });
+  }
+
+  for (let i = 1; i <= bathroomCount; i++) {
+    lightingRows.push({ id: `lighting-bathroom-${i}`, label: `Bathroom ${i}` });
+    mouldRows.push({ id: `mould-bathroom-${i}`, label: `Bathroom ${i}` });
+    ventilationRows.push({ id: `ventilation-bathroom-${i}`, label: `Bathroom ${i}` });
+    structuralBowingRows.push({ id: `struct-bowing-bathroom-${i}`, label: `Bathroom ${i}` });
+    structuralCrackingRows.push({ id: `struct-cracking-bathroom-${i}`, label: `Bathroom ${i}` });
+    structuralWarpingRows.push({ id: `struct-warping-bathroom-${i}`, label: `Bathroom ${i}` });
+    windowLatchRows.push({ id: `windows-bathroom-${i}`, label: `Bathroom ${i}` });
+    coldWaterRows.push({ id: `cold-water-bathroom-${i}`, label: `Bathroom ${i}` });
+    hotWaterRows.push({ id: `hot-water-bathroom-${i}`, label: `Bathroom ${i}` });
+    toiletRows.push({ id: `toilet-bathroom-${i}`, label: `Bathroom ${i}` });
+  }
+
+  const baseSections = [
+    {
+      id: "property-setup",
+      title: "Property Configuration",
+      description:
+        "Configure the number of bedrooms and bathrooms for this property",
+      fields: [
+        {
+          id: "bedroom-count",
+          label: "Number of Bedrooms",
+          type: "number",
+          required: true,
+          min: 1,
+          max: 20,
+          defaultValue: bedroomCount,
+          helpText: "Enter the total number of bedrooms in the property",
+        },
+        {
+          id: "bathroom-count",
+          label: "Number of Bathrooms",
+          type: "number",
+          required: true,
+          min: 1,
+          max: 10,
+          defaultValue: bathroomCount,
+          helpText: "Enter the total number of bathrooms in the property",
+        },
+      ],
+    },
+    buildStatusSection(
+      "overall-summary",
+      "Overall Property Summary (Minimum Standards)",
+      overallSummaryRows,
+      "Capture whether each key area meets the minimum standards and record any remedial actions required."
+    ),
+    {
+      id: "property-summary",
+      title: "Overall Property Summary",
+      description: "Complete the overall property assessment summary",
+      fields: [
+        {
+          id: "inspection-date",
+          label: "Inspection Date",
+          type: "date",
+          required: true,
+          defaultValue: new Date().toISOString().split("T")[0],
+        },
+        {
+          id: "inspector-name",
+          label: "Inspector Name",
+          type: "text",
+          required: true,
+          placeholder: "Enter inspector's full name",
+          defaultValue: "Auto Inspector",
+        },
+        {
+          id: "inspector-license",
+          label: "Inspector License Number",
+          type: "text",
+          required: true,
+          placeholder: "Enter license/certification number",
+          defaultValue: "LIC-0000",
+        },
+        {
+          id: "property-address",
+          label: "Property Address",
+          type: "textarea",
+          required: true,
+          placeholder: "Enter complete property address",
+          defaultValue: "123 Example Street, Exampleville",
+        },
+        {
+          id: "owner-name",
+          label: "Property Owner/Manager",
+          type: "text",
+          required: true,
+          placeholder: "Enter owner or property manager name",
+          defaultValue: "Auto Owner",
+        },
+        {
+          id: "overall-compliance",
+          label: "Overall Compliance Status",
+          type: "select",
+          required: true,
+          options: complianceStatusOptions,
+          defaultValue: "compliant",
+        },
+        {
+          id: "property-photo",
+          label: "Property Photo",
+          type: "photo",
+          required: true,
+          helpText: "Take a photo of the property exterior",
+        },
+      ],
+    },
+    {
+      id: "front-entrance",
+      title: "Front Entrance",
+      description: "Assess the primary entry including doors, hardware, and weather protection",
+      fields: [
+        {
+          id: "front-entrance-house-photo",
+          label: "Photo of house from street",
+          type: "photo",
+        },
+        {
+          id: "front-entrance-detail-photo",
+          label: "Detailed photo of front entrance",
+          type: "photo",
+        },
+        {
+          id: "front-entrance-building-classification",
+          label: "Building classification",
+          type: "text",
+          placeholder: "e.g. Class 1",
+          defaultValue: "Class 1",
+        },
+        {
+          id: "front-entrance-condition",
+          label: "Front Entrance Condition",
+          type: "select",
+          required: true,
+          options: passFailOptions,
+          defaultValue: "pass",
+        },
+        {
+          id: "front-entrance-security",
+          label: "Is the entrance door secure and lockable?",
+          type: "yes-no",
+          required: true,
+          defaultValue: "yes",
+        },
+        {
+          id: "front-entrance-screen-door",
+          label: "Security/Screen Door Installed",
+          type: "yes-no",
+          required: true,
+          defaultValue: "yes",
+        },
+        {
+          id: "front-entrance-lighting",
+          label: "Entrance Lighting Functional",
+          type: "select",
+          required: true,
+          options: passFailOptions,
+          defaultValue: "pass",
+        },
+        {
+          id: "front-entrance-weather-protection",
+          label: "Adequate Weather Protection",
+          type: "select",
+          required: true,
+          options: passFailOptions,
+          defaultValue: "pass",
+          helpText: "Assess awnings, verandas, or other protection from weather",
+        },
+        {
+          id: "front-entrance-external-door-present",
+          label: "Is there an external door present?",
+          type: "yes-no",
+          defaultValue: "yes",
+        },
+        {
+          id: "front-entrance-public-lobby",
+          label: "Is this a public lobby door that opens to common property?",
+          type: "yes-no",
+          defaultValue: "no",
+        },
+        {
+          id: "front-entrance-external-door-photo",
+          label: "Photo of external door (outside and inside)",
+          type: "photo-multi",
+          metadata: { max: 2 },
+        },
+        {
+          id: "front-entrance-deadlock-present",
+          label: "Does the external door have a deadlock/deadlatch function?",
+          type: "yes-no",
+          defaultValue: "yes",
+        },
+        {
+          id: "front-entrance-deadlock-photos",
+          label: "Close-up photos of deadlock/deadlatch",
+          type: "photo-multi",
+          metadata: { max: 3 },
+          helpText: "Capture outside, inside, and engaged positions of the lock",
+        },
+        {
+          id: "front-entrance-deadlock-functional",
+          label: "Is the deadlock/deadlatch feature functioning?",
+          type: "yes-no",
+          defaultValue: "yes",
+        },
+        {
+          id: "front-entrance-deadlock-standard",
+          label: "Does the external door meet minimum standards?",
+          type: "yes-no",
+          defaultValue: "yes",
+        },
+        {
+          id: "front-entrance-window-present",
+          label: "Are there windows in room?",
+          type: "yes-no",
+          defaultValue: "no",
+        },
+        {
+          id: "front-entrance-mould-standard",
+          label: "MINIMUM STANDARDS: Does the mould and dampness meet the minimum standards?",
+          type: "yes-no",
+          defaultValue: "yes",
+        },
+        {
+          id: "front-entrance-ventilation-standard",
+          label: "MINIMUM STANDARDS: Does the area ventilation meet the minimum standards?",
+          type: "yes-no",
+          defaultValue: "yes",
+        },
+        {
+          id: "front-entrance-overall-standard",
+          label: "ROOM OVERALL: Does the area overall meet the minimum standards?",
+          type: "yes-no",
+          defaultValue: "yes",
+        },
+        {
+          id: "front-entrance-notes",
+          label: "Front Entrance Notes",
+          type: "textarea",
+          placeholder: "Record observations or maintenance items relating to the entrance",
+          defaultValue: "N/A",
+        },
+        {
+          id: "front-entrance-photo",
+          label: "Front Entrance Photo",
+          type: "photo",
+          required: true,
+          helpText: "Capture the condition of the primary entrance",
+        },
+      ],
+    },
+    {
+      id: "executive-summary",
+      title: "Executive Summary",
+      description: "Provide a comprehensive summary of the inspection findings",
+      fields: [
+        {
+          id: "inspection-summary",
+          label: "Inspection Summary",
+          type: "textarea",
+          required: true,
+          placeholder:
+            "Provide a detailed summary of the inspection findings, any issues identified, and recommended actions",
+          helpText:
+            "This summary will appear in the executive summary section of the report",
+        },
+        {
+          id: "key-findings",
+          label: "Key Findings",
+          type: "textarea",
+          required: true,
+          placeholder: "List the main findings from the inspection",
+        },
+        {
+          id: "recommendations",
+          label: "Recommendations",
+          type: "textarea",
+          required: true,
+          placeholder:
+            "Provide specific recommendations for addressing any issues found",
+        },
+        {
+          id: "next-inspection-date",
+          label: "Next Inspection Due",
+          type: "date",
+          required: true,
+          helpText:
+            "When should the next minimum safety standard inspection be conducted",
+        },
+      ],
+    },
+    {
+      id: "electrical-safety",
+      title: "Electrical Safety",
+      description: "Assessment of electrical systems and safety",
+      fields: [
+        {
+          id: "switchboard-location",
+          label: "Location of switchboard",
+          type: "text",
+          required: true,
+          placeholder: "e.g. Front entrance of the home",
+          defaultValue: "Front entrance of the home",
+        },
+        {
+          id: "switchboard-photo",
+          label: "Photo of switchboard",
+          type: "photo",
+          required: true,
+        },
+        {
+          id: "electrical-compliance",
+          label: "Electrical System Compliance",
+          type: "select",
+          required: true,
+          options: complianceStatusOptions,
+          defaultValue: "compliant",
+        },
+        {
+          id: "switchboard-condition",
+          label: "Switchboard Condition",
+          type: "select",
+          required: true,
+          options: passFailOptions,
+          defaultValue: "pass",
+        },
+        {
+          id: "switchboard-circuit-breaker",
+          label: "Is it apparent there is a circuit breaker connected to all lighting and power circuits?",
+          type: "yes-no",
+          required: true,
+          defaultValue: "yes",
+        },
+        {
+          id: "rcd-present",
+          label: "RCD (Safety Switch) Present and Working",
+          type: "yes-no",
+          required: true,
+          defaultValue: "yes",
+        },
+        {
+          id: "switchboard-meets-standard",
+          label: "MINIMUM STANDARDS: Does the switchboard meet the minimum standards?",
+          type: "yes-no",
+          required: true,
+          defaultValue: "yes",
+        },
+        {
+          id: "electrical-outlets",
+          label: "Power Outlets Condition",
+          type: "select",
+          required: true,
+          options: passFailOptions,
+          defaultValue: "pass",
+        },
+        {
+          id: "electrical-notes",
+          label: "Electrical Safety Notes",
+          type: "textarea",
+          placeholder: "Record any specific electrical issues or observations",
+        },
+        {
+          id: "electrical-photo",
+          label: "Electrical System Photo",
+          type: "photo",
+          required: true,
+          helpText: "Take a photo of the main switchboard",
+        },
+      ],
+    },
+    {
+      id: "bin-facilities",
+      title: "Bin Facilities",
+      description: "Assessment of waste disposal facilities",
+      fields: [
+        {
+          id: "bin-general-present",
+          label: "Does the property have a council style GENERAL waste bin?",
+          type: "yes-no",
+          required: true,
+          defaultValue: "yes",
+        },
+        {
+          id: "bin-general-condition",
+          label: "Is the general waste bin in good working condition/vermin proof?",
+          type: "yes-no",
+          required: true,
+          defaultValue: "yes",
+        },
+        {
+          id: "bin-general-photo",
+          label: "Photo of council style GENERAL waste bin",
+          type: "photo",
+        },
+        {
+          id: "bin-general-standard",
+          label: "MINIMUM STANDARDS: Does the general waste bin meet the minimum standards?",
+          type: "yes-no",
+          required: true,
+          defaultValue: "yes",
+        },
+        {
+          id: "bin-recycle-present",
+          label: "Does the property have a recycle council style waste bin?",
+          type: "yes-no",
+          required: true,
+          defaultValue: "yes",
+        },
+        {
+          id: "bin-recycle-condition",
+          label: "Is the recycle bin in good working condition/vermin proof?",
+          type: "yes-no",
+          required: true,
+          defaultValue: "yes",
+        },
+        {
+          id: "bin-recycle-photo",
+          label: "Photo of recycle council style waste bin",
+          type: "photo",
+        },
+        {
+          id: "bin-recycle-standard",
+          label: "MINIMUM STANDARDS: Does the recycle bin meet the minimum standards?",
+          type: "yes-no",
+          required: true,
+          defaultValue: "yes",
+        },
+        {
+          id: "bin-notes",
+          label: "Bin Facilities Notes",
+          type: "textarea",
+          placeholder: "Record any issues with bin facilities",
+          defaultValue: "N/A",
+        },
+      ],
+    },
+  ];
+
+  if (executiveFixtureFields.length) {
+    baseSections.push({
+      id: "executive-summary-fixtures",
+      title: "Executive Summary – Fixtures",
+      description:
+        "Record the presence of key fixtures within each bathroom and note any required actions when items are absent.",
+      fields: executiveFixtureFields,
+    });
+  }
+
+  baseSections.push(
+    buildStatusSection(
+      "external-entry-doors",
+      "External Entry Doors",
+      externalDoorRows,
+      "Assess whether external entry doors across the property meet minimum standards."
+    )
+  );
+
+  baseSections.push(
+    buildStatusSection(
+      "heating-summary",
+      "Heating",
+      heatingRows,
+      "Confirm the main living area is provided with compliant fixed heating."
+    )
+  );
+
+  baseSections.push(
+    buildStatusSection(
+      "cold-water-supply",
+      "Cold Water Supply",
+      coldWaterRows,
+      "Confirm cold water supply meets minimum standards in all required areas."
+    )
+  );
+
+  baseSections.push(
+    buildStatusSection(
+      "hot-water-supply",
+      "Hot Water Supply",
+      hotWaterRows,
+      "Confirm hot water supply meets minimum standards in all required areas."
+    )
+  );
+
+  baseSections.push(
+    buildStatusSection(
+      "kitchen-facilities",
+      "Kitchen Facilities",
+      kitchenFacilityRows,
+      "Assess the essential kitchen facilities required under the minimum standards."
+    )
+  );
+
+  baseSections.push(
+    buildStatusSection(
+      "lighting-summary",
+      "Lighting",
+      lightingRows,
+      "Confirm each area has adequate lighting meeting minimum standards."
+    )
+  );
+
+  baseSections.push(
+    buildStatusSection(
+      "mould-dampness-summary",
+      "Mould and Dampness",
+      mouldRows,
+      "Record areas where mould or dampness impact compliance."
+    )
+  );
+
+  baseSections.push(
+    buildStatusSection(
+      "ventilation-summary",
+      "Ventilation",
+      ventilationRows,
+      "Confirm ventilation provisions meet minimum standards across the property."
+    )
+  );
+
+  baseSections.push(
+    buildStatusSection(
+      "structural-bowing-summary",
+      "Structural – Bowing and Leaning",
+      structuralBowingRows,
+      "Identify areas with structural bowing or leaning concerns."
+    )
+  );
+
+  baseSections.push(
+    buildStatusSection(
+      "structural-cracking-summary",
+      "Structural – Cracking",
+      structuralCrackingRows,
+      "Identify areas with cracking concerns."
+    )
+  );
+
+  baseSections.push(
+    buildStatusSection(
+      "structural-warping-summary",
+      "Structural – Warping",
+      structuralWarpingRows,
+      "Identify areas with floor warping or movement."
+    )
+  );
+
+  if (toiletRows.length) {
+    baseSections.push(
+      buildStatusSection(
+        "toilet-summary",
+        "Toilet Facilities",
+        toiletRows,
+        "Document whether each bathroom toilet meets minimum standards."
+      )
+    );
+  }
+
+  baseSections.push(
+    buildStatusSection(
+      "window-coverings-summary",
+      "Window Coverings",
+      windowCoveringRows,
+      "Confirm window coverings meet minimum standards in relevant rooms."
+    )
+  );
+
+  if (windowLatchRows.length) {
+    baseSections.push(
+      buildStatusSection(
+        "windows-latches-summary",
+        "Windows and Latches",
+        windowLatchRows,
+        "Document whether windows and associated latches meet minimum standards."
+      )
+    );
+  }
+
+  baseSections.push(createLivingRoomSection());
+  baseSections.push(createKitchenSection());
+  baseSections.push(createLaundrySection());
+
+  // Add dynamic bedroom sections
+  for (let i = 1; i <= bedroomCount; i++) {
+    baseSections.push(createBedroomSection(i));
+  }
+
+  // Add dynamic bathroom sections
+  for (let i = 1; i <= bathroomCount; i++) {
+    baseSections.push(createBathroomSection(i));
+  }
+
+  return {
+    jobType: "MinimumSafetyStandard",
+    title: "Minimum Safety Standard Inspection",
+    version: 2,
+    metadata: {
+      category: "compliance",
+      durationEstimateMins: 120,
+      requiresRoomCount: true,
+      bedroomCount,
+      bathroomCount,
+    },
+    sections: baseSections,
+  };
+};
+
+export { createMinimumSafetyStandardTemplate };
+
+// Create a basic MinimumSafetyStandard template for database seeding (will be dynamically generated in practice)
+const createBasicMinimumSafetyStandardTemplate = () => ({
+  jobType: "MinimumSafetyStandard",
+  title: "Minimum Safety Standard Inspection",
+  version: 2,
+  metadata: {
+    category: "compliance",
+    durationEstimateMins: 120,
+    requiresRoomCount: true,
+  },
+  sections: [
+    {
+      id: "property-setup",
+      title: "Property Configuration",
+      description:
+        "This template will be dynamically generated based on property room counts",
+      fields: [
+        {
+          id: "dynamic-notice",
+          label: "Dynamic Template Notice",
+          type: "text",
+          defaultValue:
+            "This template is dynamically generated based on bedroom and bathroom counts.",
+        },
+      ],
+    },
+  ],
+});
+
 export const defaultInspectionTemplates = [
   createElectricalTemplate(),
   gasTemplate,
   createSmokeTemplate(),
+  createBasicMinimumSafetyStandardTemplate(),
 ];
 
 export default defaultInspectionTemplates;

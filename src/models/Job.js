@@ -35,15 +35,29 @@ const jobSchema = new mongoose.Schema(
       required: [true, "Job type is required"],
       validate: {
         validator: function(jobType) {
-          const complianceTypes = [
+          if (!this.isNew && !this.isModified("jobType") && !this.isModified("jobCategory")) {
+            return true;
+          }
+          const complianceTypes = new Set([
             "Gas",
+            "Gas Safety",
+            "Gas Safety Check",
+            "Gas Safety Inspection",
             "Electrical",
+            "Electrical Safety",
+            "Electrical Safety Check",
+            "Electrical Safety Inspection",
             "Smoke",
+            "Smoke Alarm",
+            "Smoke Alarm Inspection",
+            "MinimumSafetyStandard",
+            "Minimum Safety Standard",
             "Repairs",
             "Pool Safety",
+            "Pool Safety Inspection",
             "Routine Inspection"
-          ];
-          const beyondComplianceTypes = [
+          ]);
+          const beyondComplianceTypes = new Set([
             "Vacant Property Cleaning",
             "Water Connection",
             "Gas Connection",
@@ -54,15 +68,15 @@ const jobSchema = new mongoose.Schema(
             "Removalists",
             "Handyman Services",
             "Painters"
-          ];
+          ]);
 
           // If compliance category, must be compliance type
           if (this.jobCategory === "compliance") {
-            return complianceTypes.includes(jobType);
+            return complianceTypes.has(jobType);
           }
           // If beyond-compliance category, must be beyond-compliance type
           if (this.jobCategory === "beyond-compliance") {
-            return beyondComplianceTypes.includes(jobType);
+            return beyondComplianceTypes.has(jobType);
           }
 
           return false;
@@ -75,6 +89,9 @@ const jobSchema = new mongoose.Schema(
       required: [true, "Due date is required"],
       validate: {
         validator: function (value) {
+          if (!this.isNew && !this.isModified("dueDate")) {
+            return true;
+          }
           // Allow past due dates for completed jobs
           if (this.status === "Completed") {
             return true;

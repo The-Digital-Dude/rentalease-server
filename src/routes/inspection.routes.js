@@ -62,7 +62,13 @@ router.get(
   async (req, res) => {
     try {
       const { jobType } = req.params;
-      const template = await getTemplateByJobType(jobType);
+      const { bedroomCount, bathroomCount } = req.query;
+
+      const options = {};
+      if (bedroomCount) options.bedroomCount = parseInt(bedroomCount);
+      if (bathroomCount) options.bathroomCount = parseInt(bathroomCount);
+
+      const template = await getTemplateByJobType(jobType, options);
       if (!template) {
         return res.status(404).json({
           status: "error",
