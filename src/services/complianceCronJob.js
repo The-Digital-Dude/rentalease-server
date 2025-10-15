@@ -10,9 +10,13 @@ class ComplianceCronJob {
     this.isRunning = false;
     this.cronJob = null;
     this.sentEmails = new Set(); // Track sent emails to prevent duplicates
+    this.debugLoggingEnabled = process.env.COMPLIANCE_CRON_DEBUG === "true";
   }
 
-  logMessage(message) {
+  logMessage(message, level = "info") {
+    if (level === "debug" && !this.debugLoggingEnabled) {
+      return;
+    }
     const timestamp = new Date().toISOString();
     console.log(`[${timestamp}] ${message}`);
   }
@@ -46,7 +50,8 @@ class ComplianceCronJob {
 
         if (timeDifference < twoMonthsInMs) {
           this.logMessage(
-            `⏭️ Email already sent for ${propertyId} - ${complianceType} within 2 months (${inspectionDate.toDateString()}) - Skipping duplicate email`
+            `⏭️ Email already sent for ${propertyId} - ${complianceType} within 2 months (${inspectionDate.toDateString()}) - Skipping duplicate email`,
+            "debug"
           );
           return true;
         }
@@ -425,7 +430,8 @@ class ComplianceCronJob {
             property.address.fullAddress
           } - ${this.getJobTypeFromComplianceType(
             complianceType
-          )} (${inspectionDate.toDateString()}) - Skipping duplicate`
+          )} (${inspectionDate.toDateString()}) - Skipping duplicate`,
+          "debug"
         );
 
         // Log the email history for debugging

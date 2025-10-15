@@ -15,14 +15,18 @@ export const ensureDefaultTemplates = async () => {
 };
 
 export const cleanupOldTemplateVersions = async () => {
-  // Deactivate Gas Safety Inspection Version 1 (keep only Version 2)
-  await InspectionTemplate.findOneAndUpdate(
-    { jobType: "Gas", version: 1 },
-    { isActive: false },
-    { new: true }
-  );
+  // Deactivate all Version 1 templates (keep only Version 2)
+  const jobTypes = ["Gas", "Electrical", "Smoke"];
 
-  console.log("Cleaned up old Gas Safety Inspection template versions");
+  for (const jobType of jobTypes) {
+    await InspectionTemplate.findOneAndUpdate(
+      { jobType, version: 1 },
+      { isActive: false },
+      { new: true }
+    );
+  }
+
+  console.log("Cleaned up all Version 1 template versions for Gas, Electrical, and Smoke inspections");
 };
 
 export const getTemplateByJobType = async (jobType) => {

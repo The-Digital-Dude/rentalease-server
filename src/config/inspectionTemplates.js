@@ -127,28 +127,33 @@ const createElectricalSmokeSections = () => [
         label: "Inspection Date",
         type: "date",
         required: true,
+        defaultValue: new Date().toISOString().split('T')[0],
       },
       {
         id: "previous-inspection-date",
         label: "Date of previous safety check (if any)",
         type: "date",
+        defaultValue: "2023-10-07",
       },
       {
         id: "inspector-name",
         label: "Inspector name",
         type: "text",
         required: true,
+        defaultValue: "Daniel Smith",
       },
       {
         id: "license-number",
         label: "Licence/registration number",
         type: "text",
         required: true,
+        defaultValue: "32399",
       },
       {
         id: "registration-number",
         label: "Additional registration number",
         type: "text",
+        defaultValue: "EW123456",
       },
       {
         id: "electrical-outcome",
@@ -160,6 +165,7 @@ const createElectricalSmokeSections = () => [
           { value: "repairs-required", label: "Repairs required" },
         ],
         required: true,
+        defaultValue: "no-faults",
       },
       {
         id: "smoke-outcome",
@@ -171,22 +177,26 @@ const createElectricalSmokeSections = () => [
           { value: "repairs-required", label: "Repairs required" },
         ],
         required: true,
+        defaultValue: "no-faults",
       },
       {
         id: "summary-notes",
         label: "Next steps / notes",
         type: "textarea",
         placeholder: "Record recommended follow-up actions for the client",
+        defaultValue: "Next electrical safety check due in 2 years. Property is in good condition.",
       },
       {
         id: "contact-email",
         label: "Contact email",
         type: "text",
+        defaultValue: "support@checkhero.com.au",
       },
       {
         id: "contact-phone",
         label: "Contact phone",
         type: "text",
+        defaultValue: "03 7067 8237",
       },
     ],
   },
@@ -202,6 +212,7 @@ const createElectricalSmokeSections = () => [
         type: "select",
         options: coverageOptions,
         required: true,
+        defaultValue: "included",
       })),
       {
         id: "extent-notes",
@@ -223,6 +234,7 @@ const createElectricalSmokeSections = () => [
         type: "select",
         options: inspectionStatusOptions,
         required: true,
+        defaultValue: "satisfactory",
       })),
       {
         id: "visual-notes",
@@ -243,6 +255,7 @@ const createElectricalSmokeSections = () => [
         type: "select",
         options: testingStatusOptions,
         required: true,
+        defaultValue: "pass",
       })),
       {
         id: "polarity-notes",
@@ -262,6 +275,7 @@ const createElectricalSmokeSections = () => [
         type: "select",
         options: testingStatusOptions,
         required: true,
+        defaultValue: "pass",
       })),
       {
         id: "earth-continuity-notes",
@@ -284,6 +298,7 @@ const createElectricalSmokeSections = () => [
           { value: "not-tested", label: "Not Tested" },
         ],
         required: true,
+        defaultValue: "pass",
       },
       {
         id: "rcd-notes",
@@ -304,12 +319,14 @@ const createElectricalSmokeSections = () => [
         type: "select",
         options: yesNoOptions,
         required: true,
+        defaultValue: "yes",
       },
       {
         id: "next-smoke-check-due",
         label: "Next smoke alarm check due",
         type: "date",
         required: true,
+        defaultValue: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 1 year from now
       },
       {
         id: "smoke-alarm-records",
@@ -317,11 +334,69 @@ const createElectricalSmokeSections = () => [
         type: "table",
         columns: createSmokeTableColumns(),
         required: true,
+        defaultValue: [
+          {
+            voltage: "9V",
+            status: "compliant",
+            location: "Hallway",
+            level: "G",
+            expiration: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 1 year from now
+          }
+        ],
       },
       {
         id: "smoke-notes",
         label: "Smoke alarm notes",
         type: "textarea",
+      },
+    ],
+  },
+  {
+    id: "inspection-photos",
+    title: "Inspection Photos",
+    description: "Upload photos taken during the electrical and smoke alarm inspection.",
+    fields: [
+      {
+        id: "switchboard-photos",
+        label: "Switchboard",
+        type: "photo-multi",
+        helpText: "Take photos of the electrical switchboard and components",
+      },
+      {
+        id: "smoke-alarm-photos",
+        label: "Smoke Alarm",
+        type: "photo-multi",
+        helpText: "Take photos of smoke alarms showing location and details",
+      },
+      {
+        id: "aircon-photos",
+        label: "Aircon",
+        type: "photo-multi",
+        helpText: "Take photos of air conditioning units and electrical connections",
+      },
+      {
+        id: "gpo-tester-photos",
+        label: "GPO with tester lit up",
+        type: "photo-multi",
+        helpText: "Take photos of GPO outlets with electrical tester showing results",
+      },
+      {
+        id: "oven-photos",
+        label: "Oven",
+        type: "photo-multi",
+        helpText: "Take photos of oven and cooking equipment electrical connections",
+      },
+      {
+        id: "rangehood-photos",
+        label: "Rangehood",
+        type: "photo-multi",
+        helpText: "Take photos of rangehood and exhaust fan electrical connections",
+      },
+      {
+        id: "additional-photos",
+        label: "Additional Photos",
+        type: "photo-multi",
+        helpText: "Upload any additional photos relevant to the inspection",
       },
     ],
   },
@@ -336,30 +411,42 @@ const createElectricalSmokeSections = () => [
         label: "Electrical safety check completed by",
         type: "text",
         required: true,
+        defaultValue: "Daniel Smith",
       },
       {
         id: "certification-licence-number",
         label: "Licence/registration number",
         type: "text",
         required: true,
+        defaultValue: "32399",
       },
       {
         id: "certification-inspection-date",
         label: "Inspection date",
         type: "date",
         required: true,
+        defaultValue: new Date().toISOString().split('T')[0],
       },
       {
         id: "certification-next-inspection-due",
         label: "Next inspection due by",
         type: "date",
         required: true,
+        defaultValue: new Date(Date.now() + 2 * 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 2 years from now
       },
       {
         id: "certification-signed-at",
         label: "Signed at (timestamp)",
         type: "text",
         placeholder: "e.g. Oct 7, 2024 11:11 am",
+        defaultValue: new Date().toLocaleDateString('en-AU', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true
+        }),
       },
       {
         id: "certification-signature",

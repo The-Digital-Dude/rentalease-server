@@ -1,5 +1,10 @@
 import PDFDocument from "pdfkit";
 import fetch from "node-fetch";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const BRAND_PRIMARY = "#024974";
 const COLORS = {
@@ -47,6 +52,23 @@ const formatDisplayDate = (value) => {
   });
 };
 
+const formatNumericDate = (value) => {
+  if (!value) {
+    return "N/A";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "N/A";
+  }
+
+  return date.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+};
+
 const drawProfessionalHeader = (doc, { property, job, technician, report }) => {
   const headerHeight = 170;
 
@@ -74,17 +96,56 @@ const drawProfessionalHeader = (doc, { property, job, technician, report }) => {
     .fontSize(10)
     .text(propertyLabel, PAGE.margin, 115, { width: doc.page.width * 0.5 });
 
+  // Add logo instead of text
+  try {
+    const logoPath = path.join(__dirname, "../../assets/rentalease-logo.png");
+    doc.image(logoPath, doc.page.width - PAGE.margin - 120, 50, {
+      width: 100,
+      height: 30
+    });
+  } catch (error) {
+    console.error('Logo not found, using text fallback:', error);
+    doc
+      .fontSize(22)
+      .font("Helvetica-Bold")
+      .text("RentalEase", doc.page.width - PAGE.margin - 160, 60, {
+        width: 160,
+        align: "right",
+      });
+  }
+
   doc
-    .fontSize(22)
-    .font("Helvetica-Bold")
-    .text("RentalEase", doc.page.width - PAGE.margin - 160, 60, {
-      width: 160,
-      align: "right",
-    })
     .fontSize(11)
     .font("Helvetica")
     .text("Compliance & Safety Services", doc.page.width - PAGE.margin - 160, 95, {
       width: 160,
+      align: "right",
+    });
+
+  // Modern contact information design - clean and minimal
+  const contactX = doc.page.width - PAGE.margin - 140;
+  const contactWidth = 140;
+
+  doc
+    .fontSize(9)
+    .font("Helvetica")
+    .fillColor("rgba(255, 255, 255, 0.95)")
+    .text("info@rentalease.com.au", contactX, 118, {
+      width: contactWidth,
+      align: "right",
+    })
+    .text("03 5906 7723", contactX, 132, {
+      width: contactWidth,
+      align: "right",
+    })
+    .fontSize(8)
+    .fillColor("rgba(255, 255, 255, 0.9)")
+    .text("3/581 Dohertys Road, Truganina", contactX, 146, {
+      width: contactWidth,
+      align: "right",
+    })
+    .text("VIC 3029", contactX, 157, {
+      width: contactWidth,
       align: "right",
     });
 
@@ -332,12 +393,15 @@ const drawSmokeAlarmTable = (doc, alarms = []) => {
 
   const startX = PAGE.margin;
   const startY = doc.y;
+
+  // Adjust column widths to fit page better and prevent overflow
+  const availableWidth = doc.page.width - (PAGE.margin * 2);
   const columnDefinitions = [
-    { id: "voltage", label: "Voltage", width: 80 },
-    { id: "status", label: "Status", width: 140 },
-    { id: "location", label: "Location", width: 140 },
-    { id: "level", label: "Level", width: 80 },
-    { id: "expiration", label: "Expiration", width: 140 },
+    { id: "voltage", label: "Voltage", width: Math.floor(availableWidth * 0.15) },
+    { id: "status", label: "Status", width: Math.floor(availableWidth * 0.25) },
+    { id: "location", label: "Location", width: Math.floor(availableWidth * 0.30) },
+    { id: "level", label: "Level", width: Math.floor(availableWidth * 0.15) },
+    { id: "expiration", label: "Expiration", width: Math.floor(availableWidth * 0.15) },
   ];
 
   const totalWidth = columnDefinitions.reduce((sum, col) => sum + col.width, 0);
@@ -375,13 +439,21 @@ const drawSmokeAlarmTable = (doc, alarms = []) => {
         value = "—";
       }
       if (column.id === "expiration") {
-        value = formatDisplayDate(value);
+        value = formatNumericDate(value);
+      }
+
+      // Truncate long text to prevent overflow
+      let displayValue = String(value);
+      if (displayValue.length > 15) {
+        displayValue = displayValue.substring(0, 12) + "...";
       }
 
       doc
         .fillColor(COLORS.text)
-        .text(String(value), columnX + 8, rowY + 7, {
-          width: column.width - 12,
+        .fontSize(9) // Reduce font size slightly for better fit
+        .text(displayValue, columnX + 4, rowY + 7, {
+          width: column.width - 8,
+          ellipsis: true,
         });
 
       columnX += column.width;
