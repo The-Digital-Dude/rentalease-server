@@ -52,8 +52,8 @@ const propertyManagerInvoiceSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: {
-        values: ["Pending", "Sent", "Paid"],
-        message: "Status must be one of: Pending, Sent, Paid",
+        values: ["Pending", "Accepted", "Rejected"],
+        message: "Status must be one of: Pending, Accepted, Rejected",
       },
       default: "Pending",
     },
@@ -63,11 +63,11 @@ const propertyManagerInvoiceSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
-    sentAt: {
+    acceptedAt: {
       type: Date,
       default: null,
     },
-    paidAt: {
+    rejectedAt: {
       type: Date,
       default: null,
     },
@@ -77,18 +77,6 @@ const propertyManagerInvoiceSchema = new mongoose.Schema(
       type: String,
       trim: true,
       maxlength: [2000, "Notes cannot exceed 2000 characters"],
-    },
-
-    // Payment Information
-    paymentMethod: {
-      type: String,
-      enum: ["Bank Transfer", "Credit Card", "Cash", "Check", "Other"],
-      default: null,
-    },
-    paymentReference: {
-      type: String,
-      trim: true,
-      maxlength: [100, "Payment reference cannot exceed 100 characters"],
     },
   },
   {
@@ -111,14 +99,14 @@ propertyManagerInvoiceSchema.index({ propertyId: 1, status: 1 });
 
 // Pre-save middleware to set timestamps
 propertyManagerInvoiceSchema.pre("save", function (next) {
-  // Set sentAt timestamp when status changes to "Sent"
-  if (this.status === "Sent" && !this.sentAt) {
-    this.sentAt = new Date();
+  // Set acceptedAt timestamp when status changes to "Accepted"
+  if (this.status === "Accepted" && !this.acceptedAt) {
+    this.acceptedAt = new Date();
   }
 
-  // Set paidAt timestamp when status changes to "Paid"
-  if (this.status === "Paid" && !this.paidAt) {
-    this.paidAt = new Date();
+  // Set rejectedAt timestamp when status changes to "Rejected"
+  if (this.status === "Rejected" && !this.rejectedAt) {
+    this.rejectedAt = new Date();
   }
 
   next();
@@ -137,12 +125,9 @@ propertyManagerInvoiceSchema.methods.getFullDetails = function () {
     dueDate: this.dueDate,
     status: this.status,
     notes: this.notes,
-    paymentMethod: this.paymentMethod,
-    paymentReference: this.paymentReference,
-
     createdAt: this.createdAt,
-    sentAt: this.sentAt,
-    paidAt: this.paidAt,
+    acceptedAt: this.acceptedAt,
+    rejectedAt: this.rejectedAt,
     updatedAt: this.updatedAt,
   };
 };
@@ -160,7 +145,8 @@ propertyManagerInvoiceSchema.methods.getSummary = function () {
     dueDate: this.dueDate,
     status: this.status,
     createdAt: this.createdAt,
-    sentAt: this.sentAt,
+    acceptedAt: this.acceptedAt,
+    rejectedAt: this.rejectedAt,
   };
 };
 
@@ -171,7 +157,7 @@ propertyManagerInvoiceSchema.statics.generateInvoiceNumber = function () {
 
 // Method to check if invoice is overdue
 propertyManagerInvoiceSchema.methods.isOverdue = function () {
-  return this.status !== "Paid" && new Date() > this.dueDate;
+  return this.status === "Pending" && new Date() > this.dueDate;
 };
 
 const PropertyManagerInvoice = mongoose.model(

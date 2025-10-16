@@ -49,7 +49,12 @@ const getUserInfo = (req) => {
 // POST - Create new PropertyManagerInvoice
 router.post(
   "/",
-  // authenticateUserTypes(["SuperUser", "TeamMember", "Agency"]),
+  authenticateUserTypes([
+    "SuperUser",
+    "TeamMember",
+    "Agency",
+    "PropertyManager",
+  ]),
   async (req, res) => {
     try {
       const { propertyId, description, amount, dueDate, notes } = req.body;
@@ -102,6 +107,23 @@ router.post(
           status: "error",
           message: "Property not found",
         });
+      }
+
+      // Check access permissions for Property Manager
+      if (req.propertyManager) {
+        const hasAccess = req.propertyManager.assignedProperties.some(
+          (assignment) =>
+            assignment.propertyId.toString() === propertyId &&
+            assignment.status === "Active"
+        );
+
+        if (!hasAccess) {
+          return res.status(403).json({
+            status: "error",
+            message:
+              "Access denied. You can only create invoices for properties you manage.",
+          });
+        }
       }
 
       // Ensure property has a property manager assigned
@@ -176,12 +198,12 @@ router.post(
 // GET - Get all PropertyManagerInvoices (with filtering and pagination)
 router.get(
   "/",
-  // authenticateUserTypes([
-  //   "SuperUser",
-  //   "TeamMember",
-  //   "Agency",
-  //   "PropertyManager",
-  // ]),
+  authenticateUserTypes([
+    "SuperUser",
+    "TeamMember",
+    "Agency",
+    "PropertyManager",
+  ]),
   async (req, res) => {
     try {
       // Query parameters
@@ -196,12 +218,104 @@ router.get(
         sortOrder = "desc",
       } = req.query;
 
-      // Build query from provided filters only (no user context)
+      // Build query with user context filtering
       let query = {};
+
+      // Add user-specific filters
+      if (req.propertyManager) {
+        // Property Manager can only see invoices for properties they manage
+        const managedPropertyIds = req.propertyManager.assignedProperties
+          .filter((assignment) => assignment.status === "Active")
+          .map((assignment) => assignment.propertyId);
+
+        if (managedPropertyIds.length === 0) {
+          // No properties assigned, return empty result
+          return res.status(200).json({
+            status: "success",
+            message: "Property Manager Invoices retrieved successfully",
+            data: {
+              invoices: [],
+              pagination: {
+                currentPage: parseInt(page),
+                totalPages: 0,
+                totalItems: 0,
+                itemsPerPage: parseInt(limit),
+                hasNextPage: false,
+                hasPrevPage: false,
+              },
+              statistics: {
+                statusCounts: {},
+                totalInvoices: 0,
+                totalAmount: 0,
+                paidAmount: 0,
+                pendingAmount: 0,
+              },
+            },
+          });
+        }
+
+        query.propertyId = { $in: managedPropertyIds };
+      } else if (req.agency) {
+        // Agency can see all invoices for properties under their agency
+        // We need to find all properties under this agency first
+        const agencyProperties = await Property.find({
+          agency: req.agency.id,
+          isActive: true,
+        }).select("_id");
+
+        const propertyIds = agencyProperties.map((prop) => prop._id);
+
+        if (propertyIds.length === 0) {
+          // No properties under this agency, return empty result
+          return res.status(200).json({
+            status: "success",
+            message: "Property Manager Invoices retrieved successfully",
+            data: {
+              invoices: [],
+              pagination: {
+                currentPage: parseInt(page),
+                totalPages: 0,
+                totalItems: 0,
+                itemsPerPage: parseInt(limit),
+                hasNextPage: false,
+                hasPrevPage: false,
+              },
+              statistics: {
+                statusCounts: {},
+                totalInvoices: 0,
+                totalAmount: 0,
+                acceptedAmount: 0,
+                pendingAmount: 0,
+                rejectedAmount: 0,
+              },
+            },
+          });
+        }
+
+        query.propertyId = { $in: propertyIds };
+      }
+      // SuperUser and TeamMember can see all invoices (no additional filter needed)
 
       // Add filters
       if (status) query.status = status;
-      if (propertyId) query.propertyId = propertyId;
+      if (propertyId) {
+        // If propertyId is provided, ensure user has access to it
+        if (req.propertyManager) {
+          const hasAccess = req.propertyManager.assignedProperties.some(
+            (assignment) =>
+              assignment.propertyId.toString() === propertyId &&
+              assignment.status === "Active"
+          );
+          if (!hasAccess) {
+            return res.status(403).json({
+              status: "error",
+              message:
+                "Access denied. You can only view invoices for properties you manage.",
+            });
+          }
+        }
+        query.propertyId = propertyId;
+      }
 
       // Add date range filter
       if (startDate || endDate) {
@@ -243,14 +357,19 @@ router.get(
           $group: {
             _id: null,
             totalAmount: { $sum: "$amount" },
-            paidAmount: {
+            acceptedAmount: {
               $sum: {
-                $cond: [{ $eq: ["$status", "Paid"] }, "$amount", 0],
+                $cond: [{ $eq: ["$status", "Accepted"] }, "$amount", 0],
               },
             },
             pendingAmount: {
               $sum: {
-                $cond: [{ $ne: ["$status", "Paid"] }, "$amount", 0],
+                $cond: [{ $eq: ["$status", "Pending"] }, "$amount", 0],
+              },
+            },
+            rejectedAmount: {
+              $sum: {
+                $cond: [{ $eq: ["$status", "Rejected"] }, "$amount", 0],
               },
             },
           },
@@ -277,8 +396,9 @@ router.get(
             }, {}),
             totalInvoices,
             totalAmount: amountStats[0]?.totalAmount || 0,
-            paidAmount: amountStats[0]?.paidAmount || 0,
+            acceptedAmount: amountStats[0]?.acceptedAmount || 0,
             pendingAmount: amountStats[0]?.pendingAmount || 0,
+            rejectedAmount: amountStats[0]?.rejectedAmount || 0,
           },
         },
       });
@@ -295,12 +415,12 @@ router.get(
 // GET - Get PropertyManagerInvoices by Property Manager ID
 router.get(
   "/property-manager/:propertyManagerId",
-  // authenticateUserTypes([
-  //   "SuperUser",
-  //   "TeamMember",
-  //   "Agency",
-  //   "PropertyManager",
-  // ]),
+  authenticateUserTypes([
+    "SuperUser",
+    "TeamMember",
+    "Agency",
+    "PropertyManager",
+  ]),
   async (req, res) => {
     try {
       const { propertyManagerId } = req.params;
@@ -316,14 +436,14 @@ router.get(
       // Check access permissions
       let hasAccess = false;
 
-      if (userInfo.type === "SuperUser" || userInfo.type === "TeamMember") {
+      if (req.superUser || req.teamMember) {
         hasAccess = true;
       } else if (
-        userInfo.type === "PropertyManager" &&
-        propertyManagerId === userInfo.id
+        req.propertyManager &&
+        propertyManagerId === req.propertyManager.id
       ) {
         hasAccess = true;
-      } else if (userInfo.type === "Agency") {
+      } else if (req.agency) {
         // Check if the property manager belongs to the agency
         const propertyManager = await PropertyManager.findById(
           propertyManagerId
@@ -331,7 +451,7 @@ router.get(
         if (
           propertyManager &&
           propertyManager.owner.ownerType === "Agency" &&
-          propertyManager.owner.ownerId.toString() === userInfo.id
+          propertyManager.owner.ownerId.toString() === req.agency.id
         ) {
           hasAccess = true;
         }
@@ -404,14 +524,19 @@ router.get(
           $group: {
             _id: null,
             totalAmount: { $sum: "$amount" },
-            paidAmount: {
+            acceptedAmount: {
               $sum: {
-                $cond: [{ $eq: ["$status", "Paid"] }, "$amount", 0],
+                $cond: [{ $eq: ["$status", "Accepted"] }, "$amount", 0],
               },
             },
             pendingAmount: {
               $sum: {
-                $cond: [{ $ne: ["$status", "Paid"] }, "$amount", 0],
+                $cond: [{ $eq: ["$status", "Pending"] }, "$amount", 0],
+              },
+            },
+            rejectedAmount: {
+              $sum: {
+                $cond: [{ $eq: ["$status", "Rejected"] }, "$amount", 0],
               },
             },
           },
@@ -439,8 +564,9 @@ router.get(
             }, {}),
             totalInvoices,
             totalAmount: amountStats[0]?.totalAmount || 0,
-            paidAmount: amountStats[0]?.paidAmount || 0,
+            acceptedAmount: amountStats[0]?.acceptedAmount || 0,
             pendingAmount: amountStats[0]?.pendingAmount || 0,
+            rejectedAmount: amountStats[0]?.rejectedAmount || 0,
           },
         },
       });
@@ -457,7 +583,7 @@ router.get(
 // GET - Get PropertyManagerInvoices by Agency ID
 router.get(
   "/agency/:agencyId",
-  // authenticateUserTypes(["SuperUser", "TeamMember", "Agency"]),
+  authenticateUserTypes(["SuperUser", "TeamMember", "Agency"]),
   async (req, res) => {
     try {
       const { agencyId } = req.params;
@@ -473,9 +599,9 @@ router.get(
       // Check access permissions
       let hasAccess = false;
 
-      if (userInfo.type === "SuperUser" || userInfo.type === "TeamMember") {
+      if (req.superUser || req.teamMember) {
         hasAccess = true;
-      } else if (userInfo.type === "Agency" && agencyId === userInfo.id) {
+      } else if (req.agency && agencyId === req.agency.id) {
         hasAccess = true;
       }
 
@@ -546,14 +672,19 @@ router.get(
           $group: {
             _id: null,
             totalAmount: { $sum: "$amount" },
-            paidAmount: {
+            acceptedAmount: {
               $sum: {
-                $cond: [{ $eq: ["$status", "Paid"] }, "$amount", 0],
+                $cond: [{ $eq: ["$status", "Accepted"] }, "$amount", 0],
               },
             },
             pendingAmount: {
               $sum: {
-                $cond: [{ $ne: ["$status", "Paid"] }, "$amount", 0],
+                $cond: [{ $eq: ["$status", "Pending"] }, "$amount", 0],
+              },
+            },
+            rejectedAmount: {
+              $sum: {
+                $cond: [{ $eq: ["$status", "Rejected"] }, "$amount", 0],
               },
             },
           },
@@ -580,8 +711,9 @@ router.get(
             }, {}),
             totalInvoices,
             totalAmount: amountStats[0]?.totalAmount || 0,
-            paidAmount: amountStats[0]?.paidAmount || 0,
+            acceptedAmount: amountStats[0]?.acceptedAmount || 0,
             pendingAmount: amountStats[0]?.pendingAmount || 0,
+            rejectedAmount: amountStats[0]?.rejectedAmount || 0,
           },
         },
       });
@@ -598,12 +730,12 @@ router.get(
 // GET - Get specific PropertyManagerInvoice by ID
 router.get(
   "/:id",
-  // authenticateUserTypes([
-  //   "SuperUser",
-  //   "TeamMember",
-  //   "Agency",
-  //   "PropertyManager",
-  // ]),
+  authenticateUserTypes([
+    "SuperUser",
+    "TeamMember",
+    "Agency",
+    "PropertyManager",
+  ]),
   async (req, res) => {
     try {
       const { id } = req.params;
@@ -629,7 +761,37 @@ router.get(
         });
       }
 
-      // Public access: no user checks
+      // Check access permissions
+      if (req.propertyManager) {
+        // Property Manager can only access invoices for properties they manage
+        const hasAccess = req.propertyManager.assignedProperties.some(
+          (assignment) =>
+            assignment.propertyId.toString() ===
+              invoice.propertyId.toString() && assignment.status === "Active"
+        );
+
+        if (!hasAccess) {
+          return res.status(403).json({
+            status: "error",
+            message:
+              "Access denied. You can only view invoices for properties you manage.",
+          });
+        }
+      } else if (req.agency) {
+        // Agency can access invoices for properties under their agency
+        // Check if the invoice's property belongs to this agency
+        const property = await Property.findById(invoice.propertyId).select(
+          "agency"
+        );
+        if (!property || property.agency.toString() !== req.agency.id) {
+          return res.status(403).json({
+            status: "error",
+            message:
+              "Access denied. You can only view invoices for properties under your agency.",
+          });
+        }
+      }
+      // SuperUser and TeamMember can access all invoices
 
       res.status(200).json({
         status: "success",
@@ -651,7 +813,12 @@ router.get(
 // PUT - Update PropertyManagerInvoice
 router.put(
   "/:id",
-  // authenticateUserTypes(["SuperUser", "TeamMember", "Agency"]),
+  authenticateUserTypes([
+    "SuperUser",
+    "TeamMember",
+    "Agency",
+    "PropertyManager",
+  ]),
   async (req, res) => {
     try {
       const { id } = req.params;
@@ -673,7 +840,36 @@ router.put(
         });
       }
 
-      // Public access: no user checks
+      // Check access permissions
+      if (req.propertyManager) {
+        // Property Manager can only update invoices for properties they manage
+        const hasAccess = req.propertyManager.assignedProperties.some(
+          (assignment) =>
+            assignment.propertyId.toString() ===
+              invoice.propertyId.toString() && assignment.status === "Active"
+        );
+
+        if (!hasAccess) {
+          return res.status(403).json({
+            status: "error",
+            message:
+              "Access denied. You can only update invoices for properties you manage.",
+          });
+        }
+      } else if (req.agency) {
+        // Agency can update invoices for properties under their agency
+        const property = await Property.findById(invoice.propertyId).select(
+          "agency"
+        );
+        if (!property || property.agency.toString() !== req.agency.id) {
+          return res.status(403).json({
+            status: "error",
+            message:
+              "Access denied. You can only update invoices for properties under your agency.",
+          });
+        }
+      }
+      // SuperUser and TeamMember can update all invoices
 
       // Prepare update data
       const updateData = {};
@@ -700,20 +896,20 @@ router.put(
       }
       if (notes !== undefined) updateData.notes = notes;
       if (status !== undefined) {
-        if (!["Pending", "Sent", "Paid"].includes(status)) {
+        if (!["Pending", "Accepted", "Rejected"].includes(status)) {
           return res.status(400).json({
             status: "error",
-            message: "Status must be one of: Pending, Sent, Paid",
+            message: "Status must be one of: Pending, Accepted, Rejected",
           });
         }
         updateData.status = status;
 
         // Update timestamps based on status
-        if (status === "Sent" && !invoice.sentAt) {
-          updateData.sentAt = new Date();
+        if (status === "Accepted" && !invoice.acceptedAt) {
+          updateData.acceptedAt = new Date();
         }
-        if (status === "Paid" && !invoice.paidAt) {
-          updateData.paidAt = new Date();
+        if (status === "Rejected" && !invoice.rejectedAt) {
+          updateData.rejectedAt = new Date();
         }
       }
 
@@ -763,11 +959,16 @@ router.put(
 // PATCH - Update PropertyManagerInvoice status
 router.patch(
   "/:id/status",
-  // authenticateUserTypes(["SuperUser", "TeamMember", "Agency"]),
+  authenticateUserTypes([
+    "SuperUser",
+    "TeamMember",
+    "Agency",
+    "PropertyManager",
+  ]),
   async (req, res) => {
     try {
       const { id } = req.params;
-      const { status, paymentMethod, paymentReference } = req.body;
+      const { status } = req.body;
 
       // Validate MongoDB ObjectId
       if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -777,10 +978,10 @@ router.patch(
         });
       }
 
-      if (!status || !["Pending", "Sent", "Paid"].includes(status)) {
+      if (!status || !["Pending", "Accepted", "Rejected"].includes(status)) {
         return res.status(400).json({
           status: "error",
-          message: "Valid status is required (Pending, Sent, Paid)",
+          message: "Valid status is required (Pending, Accepted, Rejected)",
         });
       }
 
@@ -792,19 +993,46 @@ router.patch(
         });
       }
 
-      // Public access: no user checks
+      // Check access permissions
+      if (req.propertyManager) {
+        // Property Manager can only update invoices for properties they manage
+        const hasAccess = req.propertyManager.assignedProperties.some(
+          (assignment) =>
+            assignment.propertyId.toString() ===
+              invoice.propertyId.toString() && assignment.status === "Active"
+        );
+
+        if (!hasAccess) {
+          return res.status(403).json({
+            status: "error",
+            message:
+              "Access denied. You can only update invoices for properties you manage.",
+          });
+        }
+      } else if (req.agency) {
+        // Agency can update invoices for properties under their agency
+        const property = await Property.findById(invoice.propertyId).select(
+          "agency"
+        );
+        if (!property || property.agency.toString() !== req.agency.id) {
+          return res.status(403).json({
+            status: "error",
+            message:
+              "Access denied. You can only update invoices for properties under your agency.",
+          });
+        }
+      }
+      // SuperUser and TeamMember can update all invoices
 
       // Update status
       invoice.status = status;
 
       // Update timestamps based on status
-      if (status === "Sent" && !invoice.sentAt) {
-        invoice.sentAt = new Date();
+      if (status === "Accepted" && !invoice.acceptedAt) {
+        invoice.acceptedAt = new Date();
       }
-      if (status === "Paid" && !invoice.paidAt) {
-        invoice.paidAt = new Date();
-        if (paymentMethod) invoice.paymentMethod = paymentMethod;
-        if (paymentReference) invoice.paymentReference = paymentReference;
+      if (status === "Rejected" && !invoice.rejectedAt) {
+        invoice.rejectedAt = new Date();
       }
 
       await invoice.save();
@@ -836,7 +1064,12 @@ router.patch(
 // DELETE - Delete PropertyManagerInvoice
 router.delete(
   "/:id",
-  // authenticateUserTypes(["SuperUser", "TeamMember", "Agency"]),
+  authenticateUserTypes([
+    "SuperUser",
+    "TeamMember",
+    "Agency",
+    "PropertyManager",
+  ]),
   async (req, res) => {
     try {
       const { id } = req.params;
@@ -857,13 +1090,39 @@ router.delete(
         });
       }
 
-      // Public access: no user checks
+      // Check access permissions
+      if (req.propertyManager) {
+        // Property Manager can only delete invoices for properties they manage
+        const hasAccess = req.propertyManager.assignedProperties.some(
+          (assignment) =>
+            assignment.propertyId.toString() ===
+              invoice.propertyId.toString() && assignment.status === "Active"
+        );
 
-      // Prevent deletion of paid invoices
-      if (invoice.status === "Paid") {
+        if (!hasAccess) {
+          return res.status(403).json({
+            status: "error",
+            message:
+              "Access denied. You can only delete invoices for properties you manage.",
+          });
+        }
+      } else if (req.agency) {
+        // Agency can only delete invoices for their properties
+        if (invoice.agencyId.toString() !== req.agency.id) {
+          return res.status(403).json({
+            status: "error",
+            message:
+              "Access denied. You can only delete invoices for your agency's properties.",
+          });
+        }
+      }
+      // SuperUser and TeamMember can delete all invoices
+
+      // Prevent deletion of accepted invoices
+      if (invoice.status === "Accepted") {
         return res.status(400).json({
           status: "error",
-          message: "Cannot delete paid invoices",
+          message: "Cannot delete accepted invoices",
         });
       }
 
