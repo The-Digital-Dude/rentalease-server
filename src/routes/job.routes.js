@@ -1997,13 +1997,29 @@ router.patch(
 
       const isDueDateOrAfter = dueDateStart <= todayStart;
 
-      if (!isDueDateOrAfter) {
+      // Add detailed logging for debugging
+      console.log("Job completion date validation:", {
+        jobId: job._id,
+        jobDueDate: jobDueDate.toISOString(),
+        today: today.toISOString(),
+        dueDateStart: dueDateStart.toISOString(),
+        todayStart: todayStart.toISOString(),
+        isDueDateOrAfter,
+        comparison: `${dueDateStart.getTime()} <= ${todayStart.getTime()}`
+      });
+
+      // Allow completion if it's on or after due date, OR if it's within 1 day before due date (for flexibility)
+      const oneDayBeforeDue = new Date(dueDateStart.getTime() - 24 * 60 * 60 * 1000);
+      const isWithinAllowedRange = todayStart >= oneDayBeforeDue;
+
+      if (!isWithinAllowedRange) {
         return res.status(400).json({
           status: "error",
-          message: "Job can only be completed on or after its due date",
+          message: "Job can only be completed within 1 day of its due date",
           details: {
             jobDueDate: jobDueDate.toDateString(),
             today: today.toDateString(),
+            earliestAllowedDate: oneDayBeforeDue.toDateString(),
           },
         });
       }
