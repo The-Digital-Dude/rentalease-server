@@ -1,3 +1,6 @@
+// Default placeholder image URL for testing
+const DEFAULT_PLACEHOLDER_IMAGE = "https://picsum.photos/400/300";
+
 const coverageOptions = [
   { value: "included", label: "Included" },
   { value: "not-included", label: "Not Included" },
@@ -1207,6 +1210,7 @@ const createBedroomSection = (bedroomNumber) => {
         label: `Bedroom ${bedroomNumber} Photo`,
         type: "photo",
         required: true,
+        defaultValue: DEFAULT_PLACEHOLDER_IMAGE,
       },
     ],
   };
@@ -1523,6 +1527,7 @@ const createBathroomSection = (bathroomNumber) => {
         label: `Bathroom ${bathroomNumber} Photo`,
         type: "photo",
         required: true,
+        defaultValue: DEFAULT_PLACEHOLDER_IMAGE,
       },
     ],
   };
@@ -1533,7 +1538,7 @@ const createLivingRoomSection = () => ({
   title: "Living Room",
   description: "Assessment of the main living room, heating and compliance checks",
   fields: [
-    { id: "living-room-photo", label: "Photo of room", type: "photo" },
+    { id: "living-room-photo", label: "Photo of room", type: "photo", defaultValue: DEFAULT_PLACEHOLDER_IMAGE },
     {
       id: "living-room-window-present",
       label: "Is there a window in the room?",
@@ -1772,7 +1777,7 @@ const createKitchenSection = () => ({
   title: "Kitchen",
   description: "Assessment of kitchen facilities and compliance",
   fields: [
-    { id: "kitchen-photo", label: "Photo of room", type: "photo" },
+    { id: "kitchen-photo", label: "Photo of room", type: "photo", defaultValue: DEFAULT_PLACEHOLDER_IMAGE },
     {
       id: "kitchen-food-prep",
       label: "Is there a dedicated food preparation area?",
@@ -2027,7 +2032,7 @@ const createLaundrySection = () => ({
   title: "Laundry",
   description: "Assessment of laundry water supply and compliance",
   fields: [
-    { id: "laundry-photo", label: "Photo of room", type: "photo" },
+    { id: "laundry-photo", label: "Photo of room", type: "photo", defaultValue: DEFAULT_PLACEHOLDER_IMAGE },
     {
       id: "laundry-cold-water-adequate",
       label: "Is there an adequate supply/flow of cold water?",
@@ -2419,6 +2424,7 @@ const createMinimumSafetyStandardTemplate = (
           type: "photo",
           required: true,
           helpText: "Take a photo of the property exterior",
+          defaultValue: DEFAULT_PLACEHOLDER_IMAGE,
         },
       ],
     },
@@ -2563,6 +2569,7 @@ const createMinimumSafetyStandardTemplate = (
           type: "photo",
           required: true,
           helpText: "Capture the condition of the primary entrance",
+          defaultValue: DEFAULT_PLACEHOLDER_IMAGE,
         },
       ],
     },
@@ -2603,6 +2610,9 @@ const createMinimumSafetyStandardTemplate = (
           required: true,
           helpText:
             "When should the next minimum safety standard inspection be conducted",
+          defaultValue: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
+            .toISOString()
+            .split("T")[0], // One year from now
         },
       ],
     },
@@ -2624,6 +2634,7 @@ const createMinimumSafetyStandardTemplate = (
           label: "Photo of switchboard",
           type: "photo",
           required: true,
+          defaultValue: DEFAULT_PLACEHOLDER_IMAGE,
         },
         {
           id: "electrical-compliance",
@@ -2682,6 +2693,7 @@ const createMinimumSafetyStandardTemplate = (
           type: "photo",
           required: true,
           helpText: "Take a photo of the main switchboard",
+          defaultValue: DEFAULT_PLACEHOLDER_IMAGE,
         },
       ],
     },
