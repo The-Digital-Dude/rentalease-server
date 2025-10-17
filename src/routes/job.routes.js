@@ -1979,50 +1979,12 @@ router.patch(
         });
       }
 
-      // Check if job due date is today or in the past (allows completion on due date and after)
-      const today = new Date();
-      const jobDueDate = new Date(job.dueDate);
-
-      // Set both dates to start of day for comparison
-      const todayStart = new Date(
-        today.getFullYear(),
-        today.getMonth(),
-        today.getDate()
-      );
-      const dueDateStart = new Date(
-        jobDueDate.getFullYear(),
-        jobDueDate.getMonth(),
-        jobDueDate.getDate()
-      );
-
-      const isDueDateOrAfter = dueDateStart <= todayStart;
-
-      // Add detailed logging for debugging
-      console.log("Job completion date validation:", {
+      // Jobs can be completed at any time - no date restrictions
+      console.log("Job completion allowed at any time:", {
         jobId: job._id,
-        jobDueDate: jobDueDate.toISOString(),
-        today: today.toISOString(),
-        dueDateStart: dueDateStart.toISOString(),
-        todayStart: todayStart.toISOString(),
-        isDueDateOrAfter,
-        comparison: `${dueDateStart.getTime()} <= ${todayStart.getTime()}`
+        jobDueDate: new Date(job.dueDate).toISOString(),
+        completionTime: new Date().toISOString()
       });
-
-      // Allow completion if it's on or after due date, OR if it's within 1 day before due date (for flexibility)
-      const oneDayBeforeDue = new Date(dueDateStart.getTime() - 24 * 60 * 60 * 1000);
-      const isWithinAllowedRange = todayStart >= oneDayBeforeDue;
-
-      if (!isWithinAllowedRange) {
-        return res.status(400).json({
-          status: "error",
-          message: "Job can only be completed within 1 day of its due date",
-          details: {
-            jobDueDate: jobDueDate.toDateString(),
-            today: today.toDateString(),
-            earliestAllowedDate: oneDayBeforeDue.toDateString(),
-          },
-        });
-      }
 
       try {
         let reportFileUrl = null;
