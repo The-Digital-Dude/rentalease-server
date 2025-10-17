@@ -662,44 +662,63 @@ const drawMinimumStandardStatusTable = (
   const actionWidth = tableWidth - labelWidth - statusWidth * 2;
   const headerHeight = 26;
 
-  // Header row
+  // Header row - Draw backgrounds first
+  const headerY = doc.y;
+
+  // Draw all header backgrounds
   doc
-    .rect(tableX, doc.y, labelWidth, headerHeight)
+    .rect(tableX, headerY, labelWidth, headerHeight)
     .fill(COLORS.primary)
-    .stroke(COLORS.border)
+    .stroke(COLORS.border);
+
+  doc
+    .rect(tableX + labelWidth, headerY, statusWidth, headerHeight)
+    .fill(COLORS.primary)
+    .stroke(COLORS.border);
+
+  doc
+    .rect(tableX + labelWidth + statusWidth, headerY, statusWidth, headerHeight)
+    .fill(COLORS.primary)
+    .stroke(COLORS.border);
+
+  doc
+    .rect(tableX + labelWidth + statusWidth * 2, headerY, actionWidth, headerHeight)
+    .fill(COLORS.primary)
+    .stroke(COLORS.border);
+
+  // Now draw text with white color
+  doc
     .fillColor("white")
     .font("Helvetica-Bold")
-    .fontSize(10)
-    .text("Area", tableX + 10, doc.y + 8, { width: labelWidth - 12 });
+    .fontSize(10);
 
-  doc
-    .rect(tableX + labelWidth, doc.y, statusWidth, headerHeight)
-    .fill(COLORS.primary)
-    .stroke(COLORS.border)
-    .text("Meets", tableX + labelWidth + 10, doc.y + 8, {
-      width: statusWidth - 12,
-      align: "center",
-    });
+  // Area column header
+  doc.text("Area", tableX + 10, headerY + 8, {
+    width: labelWidth - 20,
+    align: "left"
+  });
 
-  doc
-    .rect(tableX + labelWidth + statusWidth, doc.y, statusWidth, headerHeight)
-    .fill(COLORS.primary)
-    .stroke(COLORS.border)
-    .text("Does Not", tableX + labelWidth + statusWidth + 10, doc.y + 8, {
-      width: statusWidth - 12,
-      align: "center",
-    });
+  // Meets column header
+  doc.text("Meets", tableX + labelWidth + 10, headerY + 8, {
+    width: statusWidth - 20,
+    align: "center",
+  });
 
-  doc
-    .rect(tableX + labelWidth + statusWidth * 2, doc.y, actionWidth, headerHeight)
-    .fill(COLORS.primary)
-    .stroke(COLORS.border)
-    .text(commentsLabel, tableX + labelWidth + statusWidth * 2 + 10, doc.y + 8, {
-      width: actionWidth - 12,
-    });
+  // Does Not Meet column header
+  doc.text("Does Not Meet", tableX + labelWidth + statusWidth + 10, headerY + 8, {
+    width: statusWidth - 20,
+    align: "center",
+  });
 
+  // Comments column header
+  doc.text(commentsLabel, tableX + labelWidth + statusWidth * 2 + 10, headerY + 8, {
+    width: actionWidth - 20,
+    align: "left"
+  });
+
+  // Reset text formatting for data rows
   doc.fillColor(COLORS.text).font("Helvetica").fontSize(10);
-  doc.y += headerHeight;
+  doc.y = headerY + headerHeight;
 
   rows.forEach((row) => {
     ensurePageSpace(doc, 80);
@@ -785,43 +804,63 @@ const drawPresenceTable = (
   const actionWidth = tableWidth - labelWidth - presenceWidth * 2;
   const headerHeight = 26;
 
+  // Header row - Draw backgrounds first
+  const headerY = doc.y;
+
+  // Draw all header backgrounds
   doc
-    .rect(tableX, doc.y, labelWidth, headerHeight)
+    .rect(tableX, headerY, labelWidth, headerHeight)
     .fill(COLORS.primary)
-    .stroke(COLORS.border)
+    .stroke(COLORS.border);
+
+  doc
+    .rect(tableX + labelWidth, headerY, presenceWidth, headerHeight)
+    .fill(COLORS.primary)
+    .stroke(COLORS.border);
+
+  doc
+    .rect(tableX + labelWidth + presenceWidth, headerY, presenceWidth, headerHeight)
+    .fill(COLORS.primary)
+    .stroke(COLORS.border);
+
+  doc
+    .rect(tableX + labelWidth + presenceWidth * 2, headerY, actionWidth, headerHeight)
+    .fill(COLORS.primary)
+    .stroke(COLORS.border);
+
+  // Now draw text with white color
+  doc
     .fillColor("white")
     .font("Helvetica-Bold")
-    .fontSize(10)
-    .text("Fixture", tableX + 10, doc.y + 8, { width: labelWidth - 12 });
+    .fontSize(10);
 
-  doc
-    .rect(tableX + labelWidth, doc.y, presenceWidth, headerHeight)
-    .fill(COLORS.primary)
-    .stroke(COLORS.border)
-    .text("Present", tableX + labelWidth + 10, doc.y + 8, {
-      width: presenceWidth - 12,
-      align: "center",
-    });
+  // Fixture column header
+  doc.text("Fixture", tableX + 10, headerY + 8, {
+    width: labelWidth - 20,
+    align: "left"
+  });
 
-  doc
-    .rect(tableX + labelWidth + presenceWidth, doc.y, presenceWidth, headerHeight)
-    .fill(COLORS.primary)
-    .stroke(COLORS.border)
-    .text("Not Present", tableX + labelWidth + presenceWidth + 10, doc.y + 8, {
-      width: presenceWidth - 12,
-      align: "center",
-    });
+  // Present column header
+  doc.text("Present", tableX + labelWidth + 10, headerY + 8, {
+    width: presenceWidth - 20,
+    align: "center",
+  });
 
-  doc
-    .rect(tableX + labelWidth + presenceWidth * 2, doc.y, actionWidth, headerHeight)
-    .fill(COLORS.primary)
-    .stroke(COLORS.border)
-    .text(actionLabel, tableX + labelWidth + presenceWidth * 2 + 10, doc.y + 8, {
-      width: actionWidth - 12,
-    });
+  // Not Present column header
+  doc.text("Not Present", tableX + labelWidth + presenceWidth + 10, headerY + 8, {
+    width: presenceWidth - 20,
+    align: "center",
+  });
 
+  // Action column header
+  doc.text(actionLabel, tableX + labelWidth + presenceWidth * 2 + 10, headerY + 8, {
+    width: actionWidth - 20,
+    align: "left"
+  });
+
+  // Reset text formatting for data rows
   doc.fillColor(COLORS.text).font("Helvetica").fontSize(10);
-  doc.y += headerHeight;
+  doc.y = headerY + headerHeight;
 
   rows.forEach((row) => {
     ensurePageSpace(doc, 80);
@@ -1065,17 +1104,24 @@ const drawSmokeAlarmTable = (doc, alarms = []) => {
 
   const totalWidth = columnDefinitions.reduce((sum, col) => sum + col.width, 0);
 
-  // Header
+  // Header - Draw background first
   doc
     .rect(startX, startY, totalWidth, 24)
     .fill(COLORS.primary)
+    .stroke(COLORS.border);
+
+  // Draw header text with white color
+  doc
     .fillColor("white")
     .font("Helvetica-Bold")
     .fontSize(10);
 
   let columnX = startX;
   columnDefinitions.forEach((column) => {
-    doc.text(column.label, columnX + 8, startY + 7, { width: column.width - 12 });
+    doc.text(column.label, columnX + 8, startY + 7, {
+      width: column.width - 16,
+      align: "center"
+    });
     columnX += column.width;
   });
 
@@ -2445,10 +2491,14 @@ const drawFaultIdentificationSection = (doc, section, responses = {}) => {
     const tableHeaders = ["Identified Fault(s)", "Rectification", "Location", "Assessment", "Repair Completed?"];
     const tableY = doc.y;
 
-    // Draw table header
+    // Draw table header - background first
     doc
       .rect(PAGE.margin, tableY, doc.page.width - PAGE.margin * 2, 24)
       .fill(COLORS.primary)
+      .stroke(COLORS.border);
+
+    // Draw header text with white color
+    doc
       .fillColor("white")
       .fontSize(9)
       .font("Helvetica-Bold");
@@ -2457,7 +2507,10 @@ const drawFaultIdentificationSection = (doc, section, responses = {}) => {
     const columnWidths = [120, 150, 80, 80, 100];
     for (let index = 0; index < tableHeaders.length; index++) {
       const header = tableHeaders[index];
-      doc.text(header, x, tableY + 6, { width: columnWidths[index] - 10 });
+      doc.text(header, x, tableY + 6, {
+        width: columnWidths[index] - 20,
+        align: "left"
+      });
       x += columnWidths[index];
     }
 
