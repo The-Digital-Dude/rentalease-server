@@ -25,13 +25,176 @@ const PAGE = {
 };
 
 const ensurePageSpace = (doc, required = 80) => {
-  if (doc.y + required <= doc.page.height - PAGE.margin) {
+  const footerSpace = 60;
+  const currentY = doc.y;
+  const pageHeight = doc.page.height;
+  const availableSpace = pageHeight - currentY - PAGE.margin - footerSpace;
+
+  // If we have enough space, continue on current page
+  if (required <= availableSpace) {
+    return false; // No page break needed
+  }
+
+  // Only add new page if we're not already at the top
+  if (currentY > PAGE.margin + 20) {
+    doc.addPage();
+    doc.y = PAGE.margin;
+    doc.fillColor(COLORS.text);
+    return true; // Page break occurred
+  }
+
+  return false;
+};
+
+const drawRoomDetailTable = (doc, title, rows = []) => {
+  if (!rows.length) {
     return;
   }
 
-  doc.addPage();
-  doc.y = PAGE.margin;
-  doc.fillColor(COLORS.text);
+  // Calculate required space more accurately
+  const headerSpace = 50;
+  const minRowHeight = 24;
+  const estimatedRowSpace = rows.length * minRowHeight;
+  const totalRequired = headerSpace + estimatedRowSpace;
+
+  ensurePageSpace(doc, Math.min(totalRequired, 200));
+
+  if (title) {
+    drawSectionHeader(doc, title);
+  }
+
+  const tableX = PAGE.margin;
+  const tableWidth = doc.page.width - PAGE.margin * 2;
+  const questionWidth = Math.floor(tableWidth * 0.65); // 65% for questions
+  const answerWidth = tableWidth - questionWidth;
+  const headerHeight = 26;
+
+  // Draw table header
+  const headerY = doc.y;
+  doc
+    .rect(tableX, headerY, questionWidth, headerHeight)
+    .fill(COLORS.primary)
+    .stroke(COLORS.border);
+
+  doc
+    .rect(tableX + questionWidth, headerY, answerWidth, headerHeight)
+    .fill(COLORS.primary)
+    .stroke(COLORS.border);
+
+  // Header text
+  doc
+    .fillColor("white")
+    .font("Helvetica-Bold")
+    .fontSize(10)
+    .text("Inspection Item", tableX + 10, headerY + 8, {
+      width: questionWidth - 20,
+      align: "left"
+    });
+
+  doc
+    .text("Result", tableX + questionWidth + 10, headerY + 8, {
+      width: answerWidth - 20,
+      align: "left"
+    });
+
+  doc.y = headerY + headerHeight;
+
+  // Draw data rows
+  rows.forEach((row, index) => {
+    const question = row.label || row.question || "";
+    const answer = row.value ?? row.answer ?? "—";
+
+    // Calculate row height based on content
+    const questionHeight = doc.heightOfString(question, {
+      width: questionWidth - 20,
+      align: "left"
+    });
+    const answerHeight = doc.heightOfString(String(answer), {
+      width: answerWidth - 20,
+      align: "left"
+    });
+    const rowHeight = Math.max(28, Math.max(questionHeight, answerHeight) + 12);
+
+    // Check if we need a new page for this row
+    ensurePageSpace(doc, rowHeight + 10);
+
+    const rowY = doc.y;
+    const fillColor = index % 2 === 0 ? "white" : COLORS.primarySoft;
+
+    // Draw row background
+    doc
+      .rect(tableX, rowY, questionWidth, rowHeight)
+      .fill(fillColor)
+      .stroke(COLORS.border);
+
+    doc
+      .rect(tableX + questionWidth, rowY, answerWidth, rowHeight)
+      .fill(fillColor)
+      .stroke(COLORS.border);
+
+    // Add text content
+    doc
+      .fillColor(COLORS.text)
+      .font("Helvetica-Bold")
+      .fontSize(10)
+      .text(question, tableX + 10, rowY + 8, {
+        width: questionWidth - 20,
+        align: "left"
+      });
+
+    doc
+      .font("Helvetica")
+      .text(String(answer), tableX + questionWidth + 10, rowY + 8, {
+        width: answerWidth - 20,
+        align: "left"
+      });
+
+    doc.y = rowY + rowHeight;
+  });
+
+  doc.y += 20; // Space after table
+};
+
+const getReportTitle = (template, job) => {
+  const jobType = template?.jobType || job?.jobType;
+
+  const titleMap = {
+    "MinimumSafetyStandard": "Minimum Safety Standard Report",
+    "Electrical": "Electrical Compliance Report",
+    "Gas": "Gas Compliance Report",
+    "Smoke": "Smoke Compliance Report"
+  };
+
+  return titleMap[jobType] || "Inspection Report";
+};
+
+const getComplianceStandards = (template, job) => {
+  const jobType = template?.jobType || job?.jobType;
+
+  const standardsMap = {
+    "MinimumSafetyStandard": [
+      "Residential Tenancies Regulations 2021",
+      "Building Code of Australia",
+      "Australian Standards AS/NZS 3000"
+    ],
+    "Electrical": [
+      "AS/NZS 3000 Wiring Rules",
+      "AS/NZS 3017:2022 Electrical Installations",
+      "Residential Tenancies Regulations 2021"
+    ],
+    "Gas": [
+      "AS 4575 Gas installations",
+      "AS 3786:2014 Gas appliances",
+      "Residential Tenancies Regulations 2021"
+    ],
+    "Smoke": [
+      "AS/NZS 3017:2022 Smoke alarms",
+      "AS 3786:2014 Installation requirements",
+      "Residential Tenancies Regulations 2021"
+    ]
+  };
+
+  return standardsMap[jobType] || ["Residential Tenancies Regulations 2021"];
 };
 
 const formatDisplayDate = (value) => {
@@ -69,161 +232,414 @@ const formatNumericDate = (value) => {
   });
 };
 
-const drawProfessionalHeader = (doc, { property, job, technician, report }) => {
-  const headerHeight = 170;
+const drawProfessionalCoverPage = (doc, { property, job, technician, report, template }) => {
+  const reportTitle = getReportTitle(template, job);
+  const complianceStandards = getComplianceStandards(template, job);
 
+  // Full page gradient background
   doc
-    .rect(0, 0, doc.page.width, headerHeight)
+    .rect(0, 0, doc.page.width, doc.page.height)
     .fill(COLORS.primary);
 
+  // Add decorative accent
   doc
-    .rect(doc.page.width * 0.55, 0, doc.page.width * 0.45, headerHeight)
+    .rect(0, 0, doc.page.width, 180)
     .fill(COLORS.primaryAccent);
 
-  doc
-    .fillColor("white")
-    .fontSize(28)
-    .font("Helvetica-Bold")
-    .text("Inspection Report", PAGE.margin, 50, { characterSpacing: 0.5 });
-
-  doc
-    .fontSize(12)
-    .font("Helvetica")
-    .text(`${report.template?.title || job?.jobType || "Safety Compliance"}`, PAGE.margin, 95);
-
-  const propertyLabel = property?.address?.fullAddress || property?.address?.street || "Property";
-  doc
-    .fontSize(10)
-    .text(propertyLabel, PAGE.margin, 115, { width: doc.page.width * 0.5 });
-
-  // Add logo instead of text
+  // Company Logo Section
   try {
     const logoPath = path.join(__dirname, "../../assets/rentalease-logo.png");
-    doc.image(logoPath, doc.page.width - PAGE.margin - 120, 50, {
-      width: 100,
-      height: 30
+    doc.image(logoPath, doc.page.width - 180, 40, {
+      width: 140,
+      height: 42
     });
   } catch (error) {
     console.error('Logo not found, using text fallback:', error);
     doc
-      .fontSize(22)
+      .fontSize(24)
       .font("Helvetica-Bold")
-      .text("RentalEase", doc.page.width - PAGE.margin - 160, 60, {
-        width: 160,
-        align: "right",
+      .fillColor("white")
+      .text("RentalEase", doc.page.width - 180, 50, {
+        width: 140,
+        align: "center",
       });
   }
+
+  // Main Title Section
+  doc
+    .fillColor("white")
+    .fontSize(36)
+    .font("Helvetica-Bold")
+    .text(reportTitle, 60, 250, {
+      width: doc.page.width - 120,
+      align: "left",
+      lineGap: 10
+    });
+
+  // Property Information Card
+  const cardY = 350;
+  const cardHeight = 160;
+
+  doc
+    .roundedRect(60, cardY, doc.page.width - 120, cardHeight, 12)
+    .fill("white")
+    .stroke(COLORS.border);
+
+  const propertyAddress = property?.address?.fullAddress || property?.address?.street || "Property Address Not Available";
+  const inspectionDate = formatDisplayDate(report?.submittedAt || job?.dueDate);
+  const inspectorName = `${technician?.firstName || ""} ${technician?.lastName || ""}`.trim() || "Inspector Name Not Available";
+
+  doc
+    .fillColor(COLORS.text)
+    .fontSize(14)
+    .font("Helvetica-Bold")
+    .text("Property Details", 80, cardY + 20);
 
   doc
     .fontSize(11)
     .font("Helvetica")
-    .text("Compliance & Safety Services", doc.page.width - PAGE.margin - 160, 95, {
-      width: 160,
-      align: "right",
+    .text("Address:", 80, cardY + 45)
+    .text(propertyAddress, 140, cardY + 45, { width: doc.page.width - 180 });
+
+  doc
+    .text("Inspection Date:", 80, cardY + 70)
+    .text(inspectionDate, 180, cardY + 70);
+
+  doc
+    .text("Inspector:", 80, cardY + 95)
+    .text(inspectorName, 140, cardY + 95);
+
+  doc
+    .text("Report Generated:", 80, cardY + 120)
+    .text(formatDisplayDate(new Date()), 180, cardY + 120);
+
+  // Compliance Standards Section
+  const standardsY = cardY + cardHeight + 40;
+
+  doc
+    .fillColor("white")
+    .fontSize(14)
+    .font("Helvetica-Bold")
+    .text("Compliance Standards", 60, standardsY);
+
+  doc
+    .fontSize(10)
+    .font("Helvetica")
+    .fillColor("rgba(255, 255, 255, 0.9)");
+
+  let currentY = standardsY + 25;
+  complianceStandards.forEach((standard, index) => {
+    doc.text(`• ${standard}`, 60, currentY);
+    currentY += 18;
+  });
+
+  // Footer Section
+  const footerY = doc.page.height - 120;
+
+  doc
+    .fillColor("rgba(255, 255, 255, 0.8)")
+    .fontSize(10)
+    .font("Helvetica")
+    .text("Compliance & Safety Services", 60, footerY)
+    .text("info@rentalease.com.au", 60, footerY + 20)
+    .text("03 5906 7723", 60, footerY + 40)
+    .text("3/581 Dohertys Road, Truganina VIC 3029", 60, footerY + 60);
+
+  // Professional disclaimer
+  doc
+    .fontSize(8)
+    .fillColor("rgba(255, 255, 255, 0.7)")
+    .text("This report has been prepared in accordance with applicable Australian Standards and Regulations.",
+          doc.page.width - 300, footerY + 40, { width: 240, align: "right" });
+
+  // Start new page for content
+  doc.addPage();
+  doc.fillColor(COLORS.text);
+  doc.y = PAGE.margin;
+};
+
+const drawDeclarationSection = (doc, { template, job, technician, report }) => {
+  ensurePageSpace(doc, 200);
+  drawSectionHeader(doc, "Declaration & Certification");
+
+  const reportTitle = getReportTitle(template, job);
+  const complianceStandards = getComplianceStandards(template, job);
+  const inspectorName = `${technician?.firstName || ""} ${technician?.lastName || ""}`.trim() || "Inspector";
+
+  // Declaration text
+  const declarationText = `This ${reportTitle.toLowerCase()} has been prepared in accordance with the requirements contained in the following standards and regulations:`;
+
+  doc
+    .fillColor(COLORS.text)
+    .fontSize(10)
+    .font("Helvetica")
+    .text(declarationText, PAGE.margin, doc.y, {
+      width: doc.page.width - PAGE.margin * 2,
+      lineGap: 3
     });
 
-  // Modern contact information design - clean and minimal
-  const contactX = doc.page.width - PAGE.margin - 140;
-  const contactWidth = 140;
+  doc.y += 20;
+
+  // List compliance standards
+  complianceStandards.forEach((standard) => {
+    doc
+      .fontSize(10)
+      .text(`• ${standard}`, PAGE.margin + 20, doc.y);
+    doc.y += 16;
+  });
+
+  doc.y += 10;
+
+  // Professional certification statement
+  const certificationText = `I certify that this inspection has been conducted by a qualified inspector and the information contained in this report is true and accurate to the best of my knowledge.`;
+
+  doc
+    .fontSize(10)
+    .text(certificationText, PAGE.margin, doc.y, {
+      width: doc.page.width - PAGE.margin * 2,
+      lineGap: 3
+    });
+
+  doc.y += 30;
+
+  // Ensure space for the entire inspector certification section
+  const certificationSectionHeight = 120; // Header + box + margins
+  ensurePageSpace(doc, certificationSectionHeight);
+
+  // Signature area
+  doc
+    .fontSize(11)
+    .font("Helvetica-Bold")
+    .fillColor(COLORS.text)
+    .text("Inspector Certification:", PAGE.margin, doc.y);
+
+  doc.y += 20;
+
+  // Signature box
+  const boxY = doc.y;
+  doc
+    .roundedRect(PAGE.margin, boxY, 300, 60, 8)
+    .stroke(COLORS.border);
 
   doc
     .fontSize(9)
     .font("Helvetica")
-    .fillColor("rgba(255, 255, 255, 0.95)")
-    .text("info@rentalease.com.au", contactX, 118, {
-      width: contactWidth,
-      align: "right",
-    })
-    .text("03 5906 7723", contactX, 132, {
-      width: contactWidth,
-      align: "right",
-    })
-    .fontSize(8)
-    .fillColor("rgba(255, 255, 255, 0.9)")
-    .text("3/581 Dohertys Road, Truganina", contactX, 146, {
-      width: contactWidth,
-      align: "right",
-    })
-    .text("VIC 3029", contactX, 157, {
-      width: contactWidth,
-      align: "right",
-    });
+    .fillColor(COLORS.textSecondary)
+    .text("Inspector Name:", PAGE.margin + 10, boxY + 10)
+    .text(inspectorName, PAGE.margin + 10, boxY + 25)
+    .text("Date:", PAGE.margin + 10, boxY + 40)
+    .text(formatDisplayDate(report?.submittedAt || new Date()), PAGE.margin + 80, boxY + 40);
 
+  // Digital signature indicator
   doc
-    .rect(0, headerHeight, doc.page.width, doc.page.height - headerHeight)
-    .fill("white");
+    .fillColor(COLORS.success)
+    .fontSize(10)
+    .font("Helvetica-Bold")
+    .text("✓ Digitally Certified", PAGE.margin + 320, boxY + 25);
 
-  doc.fillColor(COLORS.text).y = headerHeight + 30;
+  doc.y = boxY + 80;
 };
 
-const drawKeyValueCard = (doc, title, rows = []) => {
-  if (!rows.length) {
-    return;
-  }
+const drawFaultSummarySection = (doc, { report, template, job }) => {
+  ensurePageSpace(doc, 120);
+  drawSectionHeader(doc, "Faults & Rectification Summary");
 
-  const estimatedHeight = 100 + rows.length * 20;
-  ensurePageSpace(doc, estimatedHeight);
+  // Analyze form data to find any reported faults or issues
+  const formData = report?.formData || {};
+  const faults = [];
 
-  if (title) {
-    drawSectionHeader(doc, title);
-  }
+  // Check for common fault indicators in form data
+  Object.keys(formData).forEach(sectionId => {
+    const sectionData = formData[sectionId] || {};
+    Object.keys(sectionData).forEach(fieldId => {
+      const value = sectionData[fieldId];
 
-  const cardX = PAGE.margin - 10;
-  const cardWidth = doc.page.width - (PAGE.margin - 10) * 2;
-  doc.font("Helvetica").fontSize(10);
+      // Look for negative responses, failures, or issues
+      if (value === "does_not_meet" || value === "fail" || value === "not_present" ||
+          value === "no" || value === "unsafe" || value === "non-compliant") {
 
-  const labelWidth = 150;
-  const valueWidth = cardWidth - (labelWidth + 40);
+        // Get comments or action notes for this field
+        const comments = sectionData[`${fieldId}-comments`] ||
+                        sectionData[`${fieldId}-action`] ||
+                        sectionData[`${fieldId}-notes`] ||
+                        "Requires attention";
 
-  let dynamicHeight = 32;
-  rows.forEach((row) => {
-    const textValue = row.value ?? "—";
-    const valueHeight = doc.heightOfString(String(textValue), {
-      width: valueWidth,
-      align: "left",
+        faults.push({
+          area: sectionId.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+          issue: fieldId.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+          status: value,
+          action: comments,
+          priority: value === "unsafe" ? "High" : value === "fail" ? "Medium" : "Low"
+        });
+      }
     });
-    dynamicHeight += Math.max(24, valueHeight + 12);
   });
 
-  const cardY = doc.y;
+  if (faults.length > 0) {
+    // Use improved table rendering with proper page management
+    const tableX = PAGE.margin;
+    const tableWidth = doc.page.width - PAGE.margin * 2;
+    const headerHeight = 26;
 
-  doc
-    .roundedRect(cardX, cardY, cardWidth, dynamicHeight, 12)
-    .fill(COLORS.primarySoft)
-    .stroke(COLORS.border);
+    // Column widths
+    const areaWidth = 120;
+    const issueWidth = 180;
+    const priorityWidth = 80;
+    const actionWidth = tableWidth - areaWidth - issueWidth - priorityWidth;
 
-  let rowY = cardY + 18;
-  const labelX = PAGE.margin + 5;
-  const valueX = labelX + labelWidth;
+    // Ensure space for header + at least 2 rows
+    ensurePageSpace(doc, headerHeight + 80);
 
-  rows.forEach((row) => {
-    const label = row.label || "";
-    const textValue = row.value ?? "—";
-    const currentHeight = Math.max(
-      22,
-      doc.heightOfString(String(textValue), { width: valueWidth, align: "left" }) + 10
-    );
+    // Header
+    const headerY = doc.y;
+    doc
+      .rect(tableX, headerY, areaWidth, headerHeight)
+      .fill(COLORS.primary)
+      .stroke(COLORS.border);
 
     doc
-      .fillColor(COLORS.textSecondary)
+      .rect(tableX + areaWidth, headerY, issueWidth, headerHeight)
+      .fill(COLORS.primary)
+      .stroke(COLORS.border);
+
+    doc
+      .rect(tableX + areaWidth + issueWidth, headerY, priorityWidth, headerHeight)
+      .fill(COLORS.primary)
+      .stroke(COLORS.border);
+
+    doc
+      .rect(tableX + areaWidth + issueWidth + priorityWidth, headerY, actionWidth, headerHeight)
+      .fill(COLORS.primary)
+      .stroke(COLORS.border);
+
+    // Header text
+    doc
+      .fillColor("white")
       .font("Helvetica-Bold")
       .fontSize(10)
-      .text(`${label}:`, labelX, rowY, { width: labelWidth });
+      .text("Area", tableX + 10, headerY + 8, { width: areaWidth - 20, align: "left" })
+      .text("Issue", tableX + areaWidth + 10, headerY + 8, { width: issueWidth - 20, align: "left" })
+      .text("Priority", tableX + areaWidth + issueWidth + 10, headerY + 8, { width: priorityWidth - 20, align: "center" })
+      .text("Required Action", tableX + areaWidth + issueWidth + priorityWidth + 10, headerY + 8, { width: actionWidth - 20, align: "left" });
+
+    doc.y = headerY + headerHeight;
+
+    // Fault rows with proper page break management
+    faults.forEach((fault, index) => {
+      // Calculate dynamic row height based on content
+      const actionHeight = doc.heightOfString(fault.action, {
+        width: actionWidth - 20,
+        align: "left"
+      });
+      const rowHeight = Math.max(28, actionHeight + 12);
+
+      // Ensure space for this row
+      ensurePageSpace(doc, rowHeight + 5);
+
+      const rowY = doc.y;
+      const fillColor = index % 2 === 0 ? "white" : COLORS.primarySoft;
+
+      // Draw row backgrounds
+      doc
+        .rect(tableX, rowY, areaWidth, rowHeight).fill(fillColor).stroke(COLORS.border)
+        .rect(tableX + areaWidth, rowY, issueWidth, rowHeight).fill(fillColor).stroke(COLORS.border)
+        .rect(tableX + areaWidth + issueWidth, rowY, priorityWidth, rowHeight).fill(fillColor).stroke(COLORS.border)
+        .rect(tableX + areaWidth + issueWidth + priorityWidth, rowY, actionWidth, rowHeight).fill(fillColor).stroke(COLORS.border);
+
+      // Priority color coding
+      const priorityColor = fault.priority === "High" ? COLORS.error :
+                           fault.priority === "Medium" ? COLORS.warning :
+                           COLORS.textSecondary;
+
+      // Add text content
+      doc
+        .fillColor(COLORS.text)
+        .font("Helvetica")
+        .fontSize(9)
+        .text(fault.area, tableX + 10, rowY + 8, { width: areaWidth - 20, align: "left" })
+        .text(fault.issue, tableX + areaWidth + 10, rowY + 8, { width: issueWidth - 20, align: "left" })
+        .fillColor(priorityColor)
+        .font("Helvetica-Bold")
+        .text(fault.priority, tableX + areaWidth + issueWidth + 10, rowY + 8, { width: priorityWidth - 20, align: "center" })
+        .fillColor(COLORS.text)
+        .font("Helvetica")
+        .text(fault.action, tableX + areaWidth + issueWidth + priorityWidth + 10, rowY + 8, { width: actionWidth - 20, align: "left" });
+
+      doc.y = rowY + rowHeight;
+    });
+
+    doc.y += 20;
+  } else {
+    // No faults found
+    ensurePageSpace(doc, 80);
 
     doc
-      .fillColor(COLORS.text)
-      .font("Helvetica")
-      .fontSize(10)
-      .text(String(textValue), valueX, rowY, {
-        width: valueWidth,
-        align: "left",
+      .roundedRect(PAGE.margin, doc.y, doc.page.width - PAGE.margin * 2, 60, 8)
+      .fill(COLORS.success)
+      .stroke(COLORS.border);
+
+    doc
+      .fillColor("white")
+      .fontSize(12)
+      .font("Helvetica-Bold")
+      .text("✓ No Faults Identified", PAGE.margin + 20, doc.y + 20, {
+        width: doc.page.width - PAGE.margin * 2 - 40,
+        align: "center"
       });
 
-    rowY += currentHeight;
-  });
-
-  doc.y = cardY + dynamicHeight + 24;
+    doc.y += 80;
+  }
 };
+
+const drawNextStepsSection = (doc, { template, job, report }) => {
+  ensurePageSpace(doc, 150);
+  drawSectionHeader(doc, "Next Steps & Compliance Schedule");
+
+  const jobType = template?.jobType || job?.jobType;
+
+  // Calculate next inspection dates based on job type
+  const getNextInspectionDate = (jobType) => {
+    const inspectionDate = new Date(report?.submittedAt || new Date());
+    const nextDate = new Date(inspectionDate);
+
+    switch (jobType) {
+      case "Gas":
+        nextDate.setFullYear(nextDate.getFullYear() + 2); // 24 months
+        break;
+      case "Electrical":
+        nextDate.setFullYear(nextDate.getFullYear() + 2); // 24 months
+        break;
+      case "Smoke":
+        nextDate.setFullYear(nextDate.getFullYear() + 1); // 12 months
+        break;
+      case "MinimumSafetyStandard":
+        nextDate.setFullYear(nextDate.getFullYear() + 1); // 12 months
+        break;
+      default:
+        nextDate.setFullYear(nextDate.getFullYear() + 1);
+    }
+
+    return formatDisplayDate(nextDate);
+  };
+
+  const nextInspectionDate = getNextInspectionDate(jobType);
+
+  // Next inspection information
+  doc
+    .fillColor(COLORS.text)
+    .fontSize(11)
+    .font("Helvetica-Bold")
+    .text("Next Inspection Due:", PAGE.margin, doc.y);
+
+  doc
+    .fontSize(10)
+    .font("Helvetica")
+    .fillColor(COLORS.textSecondary)
+    .text(nextInspectionDate, PAGE.margin + 150, doc.y - 14);
+
+  doc.y += 25;
+};
+
 
 const drawMinimumStandardStatusTable = (
   doc,
@@ -485,7 +901,10 @@ const drawPropertyDetails = (doc, { property, job, technician, report }) => {
     },
   ];
 
-  drawKeyValueCard(doc, "Property Report Summary", rows);
+  drawRoomDetailTable(doc, "Property Report Summary", rows.map(row => ({
+    question: row.label,
+    answer: row.value
+  })));
 };
 
 const mapCoverageValue = (value) => {
@@ -729,7 +1148,10 @@ const drawCertificationBlock = (doc, certification = {}) => {
     },
   ];
 
-  drawKeyValueCard(doc, "Electrical Safety Check Certification", rows);
+  drawRoomDetailTable(doc, "Electrical Safety Check Certification", rows.map(row => ({
+    question: row.label,
+    answer: row.value
+  })));
 
   if (certification["certification-notes"]) {
     ensurePageSpace(doc, 80);
@@ -792,7 +1214,10 @@ const renderElectricalSmokeReport = (doc, { report, template, job, property }) =
     },
   ];
 
-  drawKeyValueCard(doc, "Property Report Summary", summaryRows);
+  drawRoomDetailTable(doc, "Property Report Summary", summaryRows.map(row => ({
+    question: row.label,
+    answer: row.value
+  })));
 
   drawOutcomeBadges(doc, [
     {
@@ -835,7 +1260,10 @@ const renderElectricalSmokeReport = (doc, { report, template, job, property }) =
         value: summarySection["contact-phone"] || "—",
       },
     ];
-    drawKeyValueCard(doc, "Contact", contactRows);
+    drawRoomDetailTable(doc, "Contact", contactRows.map(row => ({
+      question: row.label,
+      answer: row.value
+    })));
   }
 
   const renderStatusSection = (sectionId, mapper, noteFieldIds = []) => {
@@ -1110,32 +1538,49 @@ const renderMinimumSafetyStandardReport = async (
       return;
     }
 
-    ensurePageSpace(doc, 180);
+    // Ensure space for photo section header and at least one photo
+    ensurePageSpace(doc, 250);
+
     doc
-      .fillColor(COLORS.textSecondary)
-      .fontSize(11)
+      .fillColor(COLORS.primary)
+      .fontSize(12)
       .font("Helvetica-Bold")
       .text(`${heading} Photos`, PAGE.margin, doc.y);
-    doc.y += 14;
+    doc.y += 18;
 
     for (const mediaItem of mediaItems) {
+      // Check if we need space for this photo (220px height + spacing)
+      const photoHeight = 220;
+      const totalPhotoSpace = photoHeight + 25;
+
+      ensurePageSpace(doc, totalPhotoSpace);
+
       const result = await processImageForPdf(
         mediaItem.url,
         doc,
         PAGE.margin,
         doc.y,
         400,
-        220
+        photoHeight
       );
 
-      doc.y += result.height + 12;
+      doc.y += result.height + 15;
 
-      if (doc.y > doc.page.height - 160) {
-        doc.addPage();
-        doc.y = PAGE.margin;
-        doc.fillColor(COLORS.text);
+      // Add photo caption if available
+      if (mediaItem.metadata?.caption) {
+        doc
+          .fillColor(COLORS.textSecondary)
+          .fontSize(9)
+          .font("Helvetica")
+          .text(mediaItem.metadata.caption, PAGE.margin, doc.y, {
+            width: 400,
+            align: 'left'
+          });
+        doc.y += 10;
       }
     }
+
+    doc.y += 5; // Extra spacing after photo section
   };
 
   // Overall Property Summary Section
@@ -1178,7 +1623,10 @@ const renderMinimumSafetyStandardReport = async (
     },
   ];
 
-  drawKeyValueCard(doc, "Overall Property Summary", summaryRows);
+  drawRoomDetailTable(doc, "Overall Property Summary", summaryRows.map(row => ({
+    label: row.label,
+    value: row.value
+  })));
   await renderSectionPhotos("property-summary", "Property Exterior");
 
   const overallRows = [
@@ -1197,11 +1645,57 @@ const renderMinimumSafetyStandardReport = async (
     overallRows.push({ id: `summary-bedroom-${i}`, label: `Bedroom ${i}` });
   }
 
+  // Build consolidated overall summary data from individual sections
+  console.log("Available section data for overall summary:");
+  console.log("binFacilities:", Object.keys(binFacilities));
+  console.log("kitchenFacilitiesData:", Object.keys(kitchenFacilitiesData));
+  console.log("electricalSafety:", Object.keys(electricalSafety));
+  console.log("frontEntrance:", Object.keys(frontEntrance));
+  console.log("overallSummaryData:", Object.keys(overallSummaryData));
+
+  const consolidatedOverallData = {
+    // Map from bin facilities data
+    "summary-recycle-general": binFacilities["recycle-general-overall"] || binFacilities["bin-facilities-overall"],
+    "summary-recycle-general-comments": binFacilities["recycle-general-comments"] || binFacilities["bin-facilities-comments"],
+
+    // Map from kitchen facilities data
+    "summary-kitchen": kitchenFacilitiesData["kitchen-overall"] || kitchenFacilitiesData["kitchen-facilities-overall"],
+    "summary-kitchen-comments": kitchenFacilitiesData["kitchen-comments"] || kitchenFacilitiesData["kitchen-facilities-comments"],
+
+    // Map from other individual section data
+    "summary-laundry": getSectionValues("laundry-summary")["laundry-overall"] || getSectionValues("laundry")["laundry-overall"],
+    "summary-laundry-comments": getSectionValues("laundry-summary")["laundry-comments"] || getSectionValues("laundry")["laundry-comments"],
+
+    "summary-living-room": getSectionValues("living-room-summary")["living-room-overall"] || getSectionValues("living-room")["living-room-overall"],
+    "summary-living-room-comments": getSectionValues("living-room-summary")["living-room-comments"] || getSectionValues("living-room")["living-room-comments"],
+
+    "summary-front-entrance": frontEntrance["front-entrance-overall"] || frontEntrance["entrance-overall"],
+    "summary-front-entrance-comments": frontEntrance["front-entrance-comments"] || frontEntrance["entrance-comments"],
+
+    "summary-electrical": electricalSafety["electrical-overall"] || electricalSafety["electrical-safety-overall"],
+    "summary-electrical-comments": electricalSafety["electrical-comments"] || electricalSafety["electrical-safety-comments"],
+
+    // Add data from overallSummaryData as fallback
+    ...overallSummaryData,
+  };
+
+  // Add bedroom and bathroom summary data
+  for (let i = 1; i <= bathroomsInspected; i++) {
+    const bathroomData = getSectionValues(`bathroom-${i}-summary`) || getSectionValues(`bathroom-${i}`);
+    consolidatedOverallData[`summary-bathroom-${i}`] = bathroomData[`bathroom-${i}-overall`] || bathroomData["bathroom-overall"];
+    consolidatedOverallData[`summary-bathroom-${i}-comments`] = bathroomData[`bathroom-${i}-comments`] || bathroomData["bathroom-comments"];
+  }
+  for (let i = 1; i <= bedroomsInspected; i++) {
+    const bedroomData = getSectionValues(`bedroom-${i}-summary`) || getSectionValues(`bedroom-${i}`);
+    consolidatedOverallData[`summary-bedroom-${i}`] = bedroomData[`bedroom-${i}-overall`] || bedroomData["bedroom-overall"];
+    consolidatedOverallData[`summary-bedroom-${i}-comments`] = bedroomData[`bedroom-${i}-comments`] || bedroomData["bedroom-comments"];
+  }
+
   drawMinimumStandardStatusTable(
     doc,
     "Overall Minimum Standards",
     overallRows,
-    overallSummaryData
+    consolidatedOverallData
   );
 
   const presenceRows = [];
@@ -1437,7 +1931,7 @@ const renderMinimumSafetyStandardReport = async (
     });
   }
 
-  drawKeyValueCard(doc, "Front Entrance", frontEntranceRows);
+  drawRoomDetailTable(doc, "Front Entrance", frontEntranceRows);
   await renderSectionPhotos("front-entrance", "Front Entrance");
 
   // Executive Summary Section
@@ -1530,7 +2024,7 @@ const renderMinimumSafetyStandardReport = async (
     });
   }
 
-  drawKeyValueCard(doc, "Electrical Safety", electricalRows);
+  drawRoomDetailTable(doc, "Electrical Safety", electricalRows);
   await renderSectionPhotos("electrical-safety", "Electrical Safety");
 
   // Bin Facilities Section
@@ -1568,7 +2062,7 @@ const renderMinimumSafetyStandardReport = async (
     });
   }
 
-  drawKeyValueCard(doc, "Bin Facilities", binRows);
+  drawRoomDetailTable(doc, "Bin Facilities", binRows);
   await renderSectionPhotos("bin-facilities", "Bin Facilities");
 
   // Dynamic Bedroom and Bathroom Sections
@@ -1626,7 +2120,7 @@ const renderMinimumSafetyStandardReport = async (
     });
 
     if (roomRows.length > 0) {
-      drawKeyValueCard(doc, roomTitle, roomRows);
+      drawRoomDetailTable(doc, roomTitle, roomRows);
     }
 
     await renderSectionPhotos(section.id, roomTitle);
@@ -2126,8 +2620,8 @@ export const buildInspectionReportPdf = async ({
     doc.on("error", (error) => reject(error));
   });
 
-  // Professional header with company branding
-  drawProfessionalHeader(doc, { property, job, technician, report });
+  // Professional cover page with company branding
+  drawProfessionalCoverPage(doc, { property, job, technician, report, template });
 
   if (template?.jobType === "Gas") {
     await renderGasReport(doc, { template, report, job, property, technician });
@@ -2145,23 +2639,30 @@ export const buildInspectionReportPdf = async ({
     await renderGenericReport(doc, { template, report, job, property, technician });
   }
 
+  // Enhanced Fault & Rectification Summary
+  drawFaultSummarySection(doc, { report, template, job });
+
   // Technician notes
   if (report.notes) {
-    if (doc.y > doc.page.height - 100) {
-      doc.addPage();
-      doc.y = PAGE.margin;
-      doc.fillColor(COLORS.text);
-    }
-
-    drawSectionHeader(doc, "Technician Notes");
+    ensurePageSpace(doc, 120);
+    drawSectionHeader(doc, "Inspector Observations");
     doc
       .fillColor(COLORS.textSecondary)
       .fontSize(10)
       .font("Helvetica")
-      .text(report.notes, 60, doc.y, { width: 500 });
+      .text(report.notes, PAGE.margin, doc.y, {
+        width: doc.page.width - PAGE.margin * 2,
+        lineGap: 3
+      });
 
     doc.y += 40;
   }
+
+  // Declaration and Certification
+  drawDeclarationSection(doc, { template, job, technician, report });
+
+  // Next Steps & Compliance Schedule
+  drawNextStepsSection(doc, { template, job, report });
 
   // Photos section
   if (report.media?.length) {
