@@ -28,7 +28,12 @@ const emailLogSchema = new mongoose.Schema(
     complianceType: {
       type: String,
       required: [true, "Compliance type is required"],
-      enum: ["gasCompliance", "electricalSafety", "smokeAlarms", "poolSafety"],
+      enum: [
+        "gasCompliance",
+        "electricalSafety",
+        "smokeAlarms",
+        "minimumSafetyStandard",
+      ],
     },
     jobType: {
       type: String,

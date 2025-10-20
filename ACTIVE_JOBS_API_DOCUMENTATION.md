@@ -14,7 +14,7 @@ This document provides concise information for AI prompts to retrieve active job
 **Query Parameters:**
 
 - `status` - Filter by status (Pending, Scheduled, Completed, Overdue)
-- `jobType` - Filter by type (Gas, Electrical, Smoke, Repairs, Pool Safety, Routine Inspection)
+- `jobType` - Filter by type (Gas, Electrical, Smoke, Repairs, Routine Inspection)
 - `priority` - Filter by priority (Low, Medium, High, Urgent)
 - `assignedTechnician` - Filter by assigned technician ID
 - `search` - Search in description and notes
@@ -125,7 +125,6 @@ This document provides concise information for AI prompts to retrieve active job
 - Electrical
 - Smoke
 - Repairs
-- Pool Safety
 - Routine Inspection
 
 ## Priority Levels

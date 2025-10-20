@@ -12,7 +12,6 @@ The Technician Payment System automatically creates payment records for technici
 | Electrical         | $80            |
 | Smoke              | $60            |
 | Repairs            | $70            |
-| Pool Safety        | $70            |
 | Routine Inspection | $70            |
 
 ## Database Schema

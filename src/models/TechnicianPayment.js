@@ -39,11 +39,10 @@ const technicianPaymentSchema = new mongoose.Schema(
           "Electrical",
           "Smoke",
           "Repairs",
-          "Pool Safety",
           "Routine Inspection",
         ],
         message:
-          "Job type must be one of: Gas, Electrical, Smoke, Repairs, Pool Safety, Routine Inspection",
+          "Job type must be one of: Gas, Electrical, Smoke, Repairs, Routine Inspection",
       },
     },
     amount: {
@@ -136,7 +135,6 @@ technicianPaymentSchema.statics.getPaymentAmountByJobType = function (jobType) {
     Electrical: 80,
     Smoke: 60,
     Repairs: 70, // Default rate for other job types
-    "Pool Safety": 70,
     "Routine Inspection": 70,
   };
 

@@ -381,22 +381,22 @@ router.get(
       const propertiesByStatus = [];
 
       properties.forEach(property => {
-        const compliance = property.complianceSchedule;
+        const compliance = normalizeComplianceSchedule(
+          property.complianceSchedule || {}
+        );
         const inspections = [
           { type: 'Gas Compliance', data: compliance.gasCompliance },
           { type: 'Electrical Safety', data: compliance.electricalSafety },
-          { type: 'Smoke Alarms', data: compliance.smokeAlarms }
+          { type: 'Smoke Alarms', data: compliance.smokeAlarms },
+          { type: 'Minimum Safety Standard', data: compliance.minimumSafetyStandard }
         ];
 
-        if (compliance.poolSafety && compliance.poolSafety.required) {
-          inspections.push({ type: 'Pool Safety', data: compliance.poolSafety });
-        }
 
         let propertyStatus = 'Compliant';
         let propertyIssues = [];
 
         inspections.forEach(inspection => {
-          if (inspection.data.nextInspection) {
+          if (inspection.data?.nextInspection) {
             const inspectionDate = new Date(inspection.data.nextInspection);
 
             if (inspectionDate < now) {

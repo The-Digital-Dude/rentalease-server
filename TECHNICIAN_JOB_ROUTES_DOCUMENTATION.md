@@ -12,7 +12,7 @@ This document describes the three new routes added to the technician routes for 
 
 **Query Parameters:**
 
-- `jobType` (optional): Filter by job type (Gas, Electrical, Smoke, Repairs, Pool Safety, Routine Inspection)
+- `jobType` (optional): Filter by job type (Gas, Electrical, Smoke, Repairs, Routine Inspection)
 - `status` (optional): Filter by status (Pending, Scheduled, Completed, Overdue)
 - `priority` (optional): Filter by priority (Low, Medium, High, Urgent)
 - `search` (optional): Search in description, notes, and job type

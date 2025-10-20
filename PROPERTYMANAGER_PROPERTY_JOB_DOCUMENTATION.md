@@ -156,11 +156,6 @@ Content-Type: application/json
           "required": true,
           "status": "Overdue"
         },
-        "poolSafety": {
-          "nextInspection": null,
-          "required": false,
-          "status": "Not Required"
-        }
       },
       "complianceSummary": {
         "total": 3,

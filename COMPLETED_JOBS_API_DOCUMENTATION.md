@@ -16,7 +16,7 @@ This document describes the completed-jobs endpoint for technicians to view thei
 
 | Parameter   | Type   | Required | Default     | Description                                                                           |
 | ----------- | ------ | -------- | ----------- | ------------------------------------------------------------------------------------- |
-| `jobType`   | string | No       | -           | Filter by job type (Gas, Electrical, Smoke, Repairs, Pool Safety, Routine Inspection) |
+| `jobType`   | string | No       | -           | Filter by job type (Gas, Electrical, Smoke, Repairs, Routine Inspection) |
 | `priority`  | string | No       | -           | Filter by priority (Low, Medium, High, Urgent)                                        |
 | `search`    | string | No       | -           | Search in description, notes, and job type                                            |
 | `startDate` | string | No       | -           | Filter jobs completed from this date (YYYY-MM-DD)                                     |

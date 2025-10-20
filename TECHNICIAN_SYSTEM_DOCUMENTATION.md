@@ -104,7 +104,6 @@ The Technician system provides a complete user management solution for technicia
 - Plumbing
 - HVAC
 - General Maintenance
-- Pool Safety
 - Smoke Alarms
 - Multi-Trade
 

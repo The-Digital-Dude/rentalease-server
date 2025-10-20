@@ -27,11 +27,11 @@ router.post("/send-booking-request", sanitizeInput(), async (req, res) => {
     }
 
     // Validate compliance type
-    const validComplianceTypes = ["Gas", "Electrical", "Smoke Alarm"];
+    const validComplianceTypes = ["Gas", "Electrical", "Smoke Alarm", "Minimum Safety Standard"];
     if (!validComplianceTypes.includes(complianceType)) {
       return res.status(400).json({
         status: "error",
-        message: "Invalid compliance type. Must be Gas, Electrical, or Smoke Alarm"
+        message: "Invalid compliance type. Must be Gas, Electrical, Smoke Alarm, or Minimum Safety Standard"
       });
     }
 
@@ -266,9 +266,17 @@ router.post("/book-appointment", async (req, res) => {
     const scheduledDateTime = new Date(`${selectedDate}T${selectedTime}:00`);
 
     // Find available technician (simplified - in production you'd have more complex logic)
+    const complianceTradeMap = {
+      Gas: "Gas",
+      Electrical: "Electrical",
+      "Smoke Alarm": "Smoke Alarm",
+      "Minimum Safety Standard": "Minimum Safety Standard",
+    };
+    const desiredTradeType = complianceTradeMap[complianceType] || complianceType;
+
     let availableTechnician = await Technician.findOne({ 
       isActive: true,
-      tradeType: complianceType === "Gas" ? "Gas" : complianceType === "Electrical" ? "Electrical" : "Smoke Alarm"
+      tradeType: desiredTradeType
     });
 
     if (!availableTechnician) {
@@ -280,7 +288,7 @@ router.post("/book-appointment", async (req, res) => {
         lastName: "Smith", 
         email: "john.smith@example.com",
         phone: "+61 400 123 456",
-        tradeType: complianceType,
+        tradeType: desiredTradeType,
         isActive: true
       };
     }

@@ -58,22 +58,79 @@ export const setDefaultInspectionDates = (propertyData) => {
     propertyData.complianceSchedule.smokeAlarms.status = 'Due Soon';
   }
   
-  // Pool Safety (Only set if pool safety inspection date was provided in the form)
-  if (!propertyData.complianceSchedule.poolSafety) {
-    propertyData.complianceSchedule.poolSafety = {};
+  // Minimum Safety Standard (set a default reminder if not provided)
+  if (!propertyData.complianceSchedule.minimumSafetyStandard) {
+    propertyData.complianceSchedule.minimumSafetyStandard = {};
   }
-  
-  // If pool safety inspection date was provided, mark as required
-  if (propertyData.complianceSchedule.poolSafety.nextInspection) {
-    propertyData.complianceSchedule.poolSafety.required = true;
-    propertyData.complianceSchedule.poolSafety.status = 'Due Soon';
-  } else {
-    // Default to not required if no inspection date provided
-    propertyData.complianceSchedule.poolSafety.required = false;
-    propertyData.complianceSchedule.poolSafety.status = 'Not Required';
+
+  if (!propertyData.complianceSchedule.minimumSafetyStandard.nextInspection) {
+    const minimumSafetyDate = new Date(currentDate);
+    minimumSafetyDate.setDate(currentDate.getDate() + 120); // Default to ~4 months ahead
+    propertyData.complianceSchedule.minimumSafetyStandard.nextInspection = minimumSafetyDate;
+    propertyData.complianceSchedule.minimumSafetyStandard.required = true;
+    propertyData.complianceSchedule.minimumSafetyStandard.status = 'Due Soon';
   }
   
   return propertyData;
+};
+
+const COMPLIANCE_KEYS = [
+  'gasCompliance',
+  'electricalSafety',
+  'smokeAlarms',
+  'minimumSafetyStandard',
+];
+
+const cloneEntry = (entry = {}) => ({ ...entry });
+
+const ensureEntryDefaults = (entry = {}) => {
+  const nextInspection = entry.nextInspection || null;
+
+  const normalizedEntry = {
+    required:
+      entry.required !== undefined
+        ? entry.required
+        : nextInspection !== null,
+    status: entry.status ?? 'Not Required',
+    nextInspection,
+  };
+
+  if (nextInspection) {
+    const date = new Date(nextInspection);
+    if (!Number.isNaN(date.getTime())) {
+      normalizedEntry.status =
+        normalizedEntry.status && normalizedEntry.status !== 'Not Required'
+          ? normalizedEntry.status
+          : determineComplianceStatus(date);
+      normalizedEntry.required = true;
+    }
+  }
+
+  return normalizedEntry;
+};
+
+export const normalizeComplianceSchedule = (complianceSchedule = {}) => {
+  const normalized = { ...complianceSchedule };
+
+  if (!normalized.minimumSafetyStandard) {
+    if (normalized.poolSafety) {
+      normalized.minimumSafetyStandard = cloneEntry(normalized.poolSafety);
+    } else {
+      normalized.minimumSafetyStandard = {
+        required: false,
+        status: 'Not Required',
+        nextInspection: null,
+      };
+    }
+  }
+
+  COMPLIANCE_KEYS.forEach((key) => {
+    normalized[key] = ensureEntryDefaults(cloneEntry(normalized[key]));
+  });
+
+  delete normalized.poolSafety;
+
+  return normalized;
 };
 
 /**
@@ -166,19 +223,22 @@ export const getUpcomingInspections = (property, daysAhead = 30) => {
       });
     }
   }
-  
-  // Check pool safety (if required)
-  if (complianceSchedule?.poolSafety?.required && complianceSchedule?.poolSafety?.nextInspection) {
-    const nextDate = new Date(complianceSchedule.poolSafety.nextInspection);
+
+  // Check minimum safety standard
+  if (complianceSchedule?.minimumSafetyStandard?.nextInspection) {
+    const nextDate = new Date(
+      complianceSchedule.minimumSafetyStandard.nextInspection
+    );
     if (nextDate >= currentDate && nextDate <= futureDate) {
       upcomingInspections.push({
-        type: 'Pool Safety',
+        type: 'Minimum Safety Standard',
         date: nextDate,
-        priority: 'Medium',
+        priority: 'High',
         status: determineComplianceStatus(nextDate)
       });
     }
   }
+  
   
   // Sort by date
   return upcomingInspections.sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -217,11 +277,13 @@ export const setStateSpecificCompliance = (propertyData, state) => {
     propertyData.complianceSchedule.smokeAlarms = {};
   }
   propertyData.complianceSchedule.smokeAlarms.required = true;
-  
-  // For Queensland, pool safety is more stringent
-  if (state === 'QLD' && propertyData.complianceSchedule.poolSafety?.nextInspection) {
-    propertyData.complianceSchedule.poolSafety.required = true;
+
+  // Minimum safety standard inspections are required for residential properties by default
+  if (!propertyData.complianceSchedule.minimumSafetyStandard) {
+    propertyData.complianceSchedule.minimumSafetyStandard = {};
   }
+  propertyData.complianceSchedule.minimumSafetyStandard.required = true;
+  
   
   return propertyData;
-}; 
+};

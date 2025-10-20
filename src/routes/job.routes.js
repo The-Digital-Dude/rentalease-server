@@ -1108,7 +1108,6 @@ router.get(
               "Electrical",
               "Smoke",
               "Repairs",
-              "Pool Safety",
               "Routine Inspection",
             ],
             availableStatuses: ["Pending", "Scheduled", "Completed", "Overdue"],

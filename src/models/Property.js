@@ -157,16 +157,16 @@ const propertySchema = new mongoose.Schema(
         },
       },
 
-      poolSafety: {
+      minimumSafetyStandard: {
         nextInspection: Date,
         required: {
           type: Boolean,
-          default: false,
+          default: true,
         },
         status: {
           type: String,
           enum: ["Compliant", "Due Soon", "Overdue", "Not Required"],
-          default: "Not Required",
+          default: "Due Soon",
         },
       },
     },
@@ -270,9 +270,8 @@ propertySchema.methods.hasOverdueCompliance = function () {
       compliance.electricalSafety.nextInspection < now) ||
     (compliance.smokeAlarms.nextInspection &&
       compliance.smokeAlarms.nextInspection < now) ||
-    (compliance.poolSafety.required &&
-      compliance.poolSafety.nextInspection &&
-      compliance.poolSafety.nextInspection < now)
+    (compliance.minimumSafetyStandard?.nextInspection &&
+      compliance.minimumSafetyStandard.nextInspection < now)
   );
 };
 
@@ -290,11 +289,8 @@ propertySchema.methods.getComplianceSummary = function () {
     this.complianceSchedule.gasCompliance,
     this.complianceSchedule.electricalSafety,
     this.complianceSchedule.smokeAlarms,
+    this.complianceSchedule.minimumSafetyStandard,
   ];
-
-  if (this.complianceSchedule.poolSafety.required) {
-    inspections.push(this.complianceSchedule.poolSafety);
-  }
 
   inspections.forEach((inspection) => {
     if (inspection.nextInspection) {
@@ -403,6 +399,9 @@ propertySchema.index({
   "complianceSchedule.electricalSafety.nextInspection": 1,
 });
 propertySchema.index({ "complianceSchedule.smokeAlarms.nextInspection": 1 });
+propertySchema.index({
+  "complianceSchedule.minimumSafetyStandard.nextInspection": 1,
+});
 propertySchema.index({ region: 1 });
 
 // Compound indexes for PropertyManager queries

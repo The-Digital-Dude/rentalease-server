@@ -53,8 +53,6 @@ const jobSchema = new mongoose.Schema(
             "MinimumSafetyStandard",
             "Minimum Safety Standard",
             "Repairs",
-            "Pool Safety",
-            "Pool Safety Inspection",
             "Routine Inspection"
           ]);
           const beyondComplianceTypes = new Set([

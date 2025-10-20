@@ -4,6 +4,7 @@ import Job from "../models/Job.js";
 import EmailLog from "../models/EmailLog.js";
 import notificationService from "./notification.service.js";
 import emailService from "./email.service.js";
+import { normalizeComplianceSchedule } from "../utils/propertyHelpers.js";
 
 class ComplianceCronJob {
   constructor() {
@@ -346,14 +347,20 @@ class ComplianceCronJob {
             $lte: endOfMonth,
           },
         },
+        {
+          "complianceSchedule.minimumSafetyStandard.nextInspection": {
+            $gte: startOfToday,
+            $lte: endOfMonth,
+          },
+        },
       ],
     };
   }
 
   checkComplianceType(compliance, type, startOfToday, endOfMonth) {
-    const inspection = compliance[type];
+    const inspection = compliance?.[type];
     if (
-      inspection.nextInspection &&
+      inspection?.nextInspection &&
       inspection.nextInspection >= startOfToday &&
       inspection.nextInspection <= endOfMonth
     ) {
@@ -363,7 +370,9 @@ class ComplianceCronJob {
   }
 
   getUpcomingInspections(property, startOfToday, endOfMonth) {
-    const compliance = property.complianceSchedule;
+    const compliance = normalizeComplianceSchedule(
+      property.complianceSchedule || {}
+    );
     const upcomingInspections = [];
 
     // Check each compliance type
@@ -391,16 +400,13 @@ class ComplianceCronJob {
     );
     if (smokeInspection) upcomingInspections.push(smokeInspection);
 
-    // Check pool safety only if required
-    if (compliance.poolSafety.required) {
-      const poolInspection = this.checkComplianceType(
-        compliance,
-        "poolSafety",
-        startOfToday,
-        endOfMonth
-      );
-      if (poolInspection) upcomingInspections.push(poolInspection);
-    }
+    const minimumSafetyInspection = this.checkComplianceType(
+      compliance,
+      "minimumSafetyStandard",
+      startOfToday,
+      endOfMonth
+    );
+    if (minimumSafetyInspection) upcomingInspections.push(minimumSafetyInspection);
 
     return upcomingInspections;
   }
@@ -410,7 +416,7 @@ class ComplianceCronJob {
       gasCompliance: "Gas Safety Inspection",
       electricalSafety: "Electrical Safety Inspection",
       smokeAlarms: "Smoke Alarm Inspection",
-      poolSafety: "Pool Safety Inspection",
+      minimumSafetyStandard: "Minimum Safety Standard Inspection",
     };
     return jobTypeMap[complianceType] || "Routine Inspection";
   }
@@ -519,7 +525,9 @@ class ComplianceCronJob {
 
   async processPropertyCompliance(property, startOfToday, endOfMonth) {
     try {
-      const compliance = property.complianceSchedule;
+      const compliance = normalizeComplianceSchedule(
+        property.complianceSchedule || {}
+      );
       let emailsSent = 0;
 
       // Check each compliance type and send emails
@@ -527,20 +535,16 @@ class ComplianceCronJob {
         { type: "gasCompliance", jobType: "Gas Safety Inspection" },
         { type: "electricalSafety", jobType: "Electrical Safety Inspection" },
         { type: "smokeAlarms", jobType: "Smoke Alarm Inspection" },
+        {
+          type: "minimumSafetyStandard",
+          jobType: "Minimum Safety Standard Inspection",
+        },
       ];
 
-      // Add pool safety only if required
-      if (compliance.poolSafety.required) {
-        complianceTypes.push({
-          type: "poolSafety",
-          jobType: "Pool Safety Inspection",
-        });
-      }
-
       for (const { type, jobType } of complianceTypes) {
-        const inspection = compliance[type];
+        const inspection = compliance?.[type];
         if (
-          inspection.nextInspection &&
+          inspection?.nextInspection &&
           inspection.nextInspection >= startOfToday &&
           inspection.nextInspection <= endOfMonth
         ) {

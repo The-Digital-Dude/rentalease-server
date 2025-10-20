@@ -15,6 +15,7 @@ import {
 import {
   setDefaultInspectionDates,
   setStateSpecificCompliance,
+  normalizeComplianceSchedule,
 } from "../utils/propertyHelpers.js";
 import bookingNotificationService from "../services/bookingNotification.service.js";
 import fileUploadService from "../services/fileUpload.service.js";
@@ -38,7 +39,9 @@ router.get("/compliance", async (req, res) => {
       .lean();
 
     const complianceList = properties.map((property) => {
-      const compliance = property.complianceSchedule;
+      const compliance = normalizeComplianceSchedule(
+        property.complianceSchedule || {}
+      );
       const now = new Date();
       const thirtyDaysFromNow = new Date(
         now.getTime() + 30 * 24 * 60 * 60 * 1000
@@ -80,9 +83,7 @@ router.get("/compliance", async (req, res) => {
           compliance.gasCompliance.nextInspection ||
           compliance.electricalSafety.nextInspection ||
           compliance.smokeAlarms.nextInspection ||
-          (compliance.poolSafety.required
-            ? compliance.poolSafety.nextInspection
-            : null),
+          compliance.minimumSafetyStandard.nextInspection,
       };
     });
 
@@ -144,52 +145,54 @@ router.get("/compliance/:propertyId", async (req, res) => {
       });
     }
 
+    const {
+      gasCompliance = {},
+      electricalSafety = {},
+      smokeAlarms = {},
+      minimumSafetyStandard = {},
+    } = normalizeComplianceSchedule(property.complianceSchedule || {});
+
     // Format compliance schedule for public display
     const complianceSchedule = {
       propertyAddress: property.address.fullAddress,
       isActive: property.isActive,
       compliance: {
         gasCompliance: {
-          required: property.complianceSchedule.gasCompliance.required,
-          status: property.complianceSchedule.gasCompliance.status,
-          nextInspection:
-            property.complianceSchedule.gasCompliance.nextInspection,
-          dueDate: property.complianceSchedule.gasCompliance.nextInspection
-            ? new Date(property.complianceSchedule.gasCompliance.nextInspection)
+          required: gasCompliance.required ?? false,
+          status: gasCompliance.status ?? "Not Required",
+          nextInspection: gasCompliance.nextInspection || null,
+          dueDate: gasCompliance.nextInspection
+            ? new Date(gasCompliance.nextInspection)
                 .toISOString()
                 .split("T")[0]
             : null,
         },
         electricalSafety: {
-          required: property.complianceSchedule.electricalSafety.required,
-          status: property.complianceSchedule.electricalSafety.status,
-          nextInspection:
-            property.complianceSchedule.electricalSafety.nextInspection,
-          dueDate: property.complianceSchedule.electricalSafety.nextInspection
-            ? new Date(
-                property.complianceSchedule.electricalSafety.nextInspection
-              )
+          required: electricalSafety.required ?? false,
+          status: electricalSafety.status ?? "Not Required",
+          nextInspection: electricalSafety.nextInspection || null,
+          dueDate: electricalSafety.nextInspection
+            ? new Date(electricalSafety.nextInspection)
                 .toISOString()
                 .split("T")[0]
             : null,
         },
         smokeAlarms: {
-          required: property.complianceSchedule.smokeAlarms.required,
-          status: property.complianceSchedule.smokeAlarms.status,
-          nextInspection:
-            property.complianceSchedule.smokeAlarms.nextInspection,
-          dueDate: property.complianceSchedule.smokeAlarms.nextInspection
-            ? new Date(property.complianceSchedule.smokeAlarms.nextInspection)
+          required: smokeAlarms.required ?? false,
+          status: smokeAlarms.status ?? "Not Required",
+          nextInspection: smokeAlarms.nextInspection || null,
+          dueDate: smokeAlarms.nextInspection
+            ? new Date(smokeAlarms.nextInspection)
                 .toISOString()
                 .split("T")[0]
             : null,
         },
-        poolSafety: {
-          required: property.complianceSchedule.poolSafety.required,
-          status: property.complianceSchedule.poolSafety.status,
-          nextInspection: property.complianceSchedule.poolSafety.nextInspection,
-          dueDate: property.complianceSchedule.poolSafety.nextInspection
-            ? new Date(property.complianceSchedule.poolSafety.nextInspection)
+        minimumSafetyStandard: {
+          required: minimumSafetyStandard.required ?? false,
+          status: minimumSafetyStandard.status ?? "Not Required",
+          nextInspection: minimumSafetyStandard.nextInspection || null,
+          dueDate: minimumSafetyStandard.nextInspection
+            ? new Date(minimumSafetyStandard.nextInspection)
                 .toISOString()
                 .split("T")[0]
             : null,
@@ -284,7 +287,7 @@ router.post("/book-inspection", sanitizeInput(), async (req, res) => {
       "gasCompliance",
       "electricalSafety",
       "smokeAlarms",
-      "poolSafety",
+      "minimumSafetyStandard",
     ];
     if (!validComplianceTypes.includes(complianceType)) {
       return res.status(400).json({
@@ -416,7 +419,7 @@ router.post("/book-inspection", sanitizeInput(), async (req, res) => {
       gasCompliance: "Gas",
       electricalSafety: "Electrical",
       smokeAlarms: "Smoke",
-      poolSafety: "Pool Safety",
+      minimumSafetyStandard: "MinimumSafetyStandard",
     };
 
     const jobType = complianceToJobType[complianceType] || "Routine Inspection";
@@ -853,6 +856,11 @@ router.post("/", sanitizePropertyInput(), authenticateUserTypes(['SuperUser', 'T
     // Set state-specific compliance requirements
     propertyData = setStateSpecificCompliance(propertyData, address.state);
 
+    // Normalize compliance schedule
+    propertyData.complianceSchedule = normalizeComplianceSchedule(
+      propertyData.complianceSchedule || {}
+    );
+
     // Create the property
     const property = new Property(propertyData);
     await property.save();
@@ -893,7 +901,9 @@ router.post("/", sanitizePropertyInput(), authenticateUserTypes(['SuperUser', 'T
           agency: property.agency,
           assignedPropertyManager: property.assignedPropertyManager,
           currentTenant: property.currentTenant,
-          complianceSchedule: property.complianceSchedule,
+          complianceSchedule: normalizeComplianceSchedule(
+            property.complianceSchedule || {}
+          ),
           notes: property.notes,
           hasOverdueCompliance: property.hasOverdueCompliance(),
           complianceSummary: property.getComplianceSummary(),
@@ -1158,24 +1168,30 @@ router.get("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'Pro
     res.status(200).json({
       status: "success",
       data: {
-        properties: properties.map((property) => ({
-          id: property._id,
-          address: property.address,
-          fullAddress: property.fullAddressString,
-          propertyType: property.propertyType,
-          region: property.region,
-          status: property.status,
-          agency: property.agency,
-          assignedPropertyManager: property.assignedPropertyManager,
-          currentTenant: property.currentTenant,
-          currentLandlord: property.currentLandlord,
-          complianceSchedule: property.complianceSchedule,
-          notes: property.notes,
-          hasOverdueCompliance: property.hasOverdueCompliance(),
-          complianceSummary: property.getComplianceSummary(),
-          createdAt: property.createdAt,
-          updatedAt: property.updatedAt,
-        })),
+        properties: properties.map((property) => {
+          const complianceSchedule = normalizeComplianceSchedule(
+            property.complianceSchedule || {}
+          );
+
+          return {
+            id: property._id,
+            address: property.address,
+            fullAddress: property.fullAddressString,
+            propertyType: property.propertyType,
+            region: property.region,
+            status: property.status,
+            agency: property.agency,
+            assignedPropertyManager: property.assignedPropertyManager,
+            currentTenant: property.currentTenant,
+            currentLandlord: property.currentLandlord,
+            complianceSchedule,
+            notes: property.notes,
+            hasOverdueCompliance: property.hasOverdueCompliance(),
+            complianceSummary: property.getComplianceSummary(),
+            createdAt: property.createdAt,
+            updatedAt: property.updatedAt,
+          };
+        }),
         pagination: {
           currentPage: parseInt(page),
           totalPages: Math.ceil(totalCount / limit),
@@ -1237,6 +1253,10 @@ router.get("/:id", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', '
       });
     }
 
+    property.complianceSchedule = normalizeComplianceSchedule(
+      property.complianceSchedule || {}
+    );
+
     res.status(200).json({
       status: "success",
       data: {
@@ -1250,7 +1270,9 @@ router.get("/:id", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', '
           assignedPropertyManager: property.assignedPropertyManager,
           currentTenant: property.currentTenant,
           currentLandlord: property.currentLandlord,
-          complianceSchedule: property.complianceSchedule,
+          complianceSchedule: normalizeComplianceSchedule(
+            property.complianceSchedule || {}
+          ),
           notes: property.notes,
           documents: property.documents?.map((document) => ({
             id: document._id,
@@ -1370,11 +1392,17 @@ router.put("/:id", sanitizePropertyInput(), authenticateUserTypes(['SuperUser', 
       );
     }
     if (currentTenant) property.currentTenant = currentTenant;
-    if (complianceSchedule)
+    if (complianceSchedule) {
       property.complianceSchedule = {
         ...property.complianceSchedule,
         ...complianceSchedule,
       };
+    }
+
+    property.complianceSchedule = normalizeComplianceSchedule(
+      property.complianceSchedule || {}
+    );
+
     if (notes !== undefined) property.notes = notes;
 
     await property.save();

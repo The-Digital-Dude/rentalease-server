@@ -1,6 +1,7 @@
 import express from "express";
 import mongoose from "mongoose";
 import { authenticateUserTypes } from "../middleware/auth.middleware.js";
+import { normalizeComplianceSchedule } from "../utils/propertyHelpers.js";
 
 // Import models
 import Agency from "../models/Agency.js";
@@ -1249,19 +1250,19 @@ router.get(
       const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
       properties.forEach(property => {
-        const compliance = property.complianceSchedule;
+        const compliance = normalizeComplianceSchedule(
+          property.complianceSchedule || {}
+        );
         const inspections = [
           compliance.gasCompliance,
           compliance.electricalSafety,
-          compliance.smokeAlarms
+          compliance.smokeAlarms,
+          compliance.minimumSafetyStandard
         ];
 
-        if (compliance.poolSafety && compliance.poolSafety.required) {
-          inspections.push(compliance.poolSafety);
-        }
 
         inspections.forEach(inspection => {
-          if (inspection.nextInspection) {
+          if (inspection?.nextInspection) {
             complianceOverview.total++;
             const inspectionDate = new Date(inspection.nextInspection);
 
