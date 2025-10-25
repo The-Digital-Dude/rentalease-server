@@ -6,6 +6,7 @@ import Agency from "../models/Agency.js";
 import Property from "../models/Property.js";
 import notificationService from "../services/notification.service.js";
 import emailService from "../services/email.service.js";
+import fileUploadService from "../services/fileUpload.service.js";
 
 const getAgencyDisplayName = (agency) => {
   if (!agency) {
@@ -84,16 +85,21 @@ const getUserInfo = (req) => {
       userType: "PropertyManager",
       userId: req.propertyManager.id,
     };
+  } else if (req.teamMember) {
+    return {
+      userType: "TeamMember",
+      userId: req.teamMember.id,
+    };
   }
   return null;
 };
 
 // @desc    Create quotation request
 // @route   POST /api/v1/quotations
-// @access  Agency, Property Manager (assigned to property)
+// @access  Agency, Property Manager (assigned to property), SuperUser, TeamMember
 export const createQuotationRequest = async (req, res) => {
   try {
-    const { jobType, property, dueDate, description, status = "Sent" } = req.body;
+    const { jobType, property, dueDate, description, status = "Sent", agencyId } = req.body;
 
     // Validate required fields
     if (!jobType || !property || !dueDate || !description) {
@@ -101,6 +107,37 @@ export const createQuotationRequest = async (req, res) => {
         success: false,
         message: "All fields are required: jobType, property, dueDate, description",
       });
+    }
+
+    // Handle file uploads to Cloudinary
+    const uploadedAttachments = [];
+    if (req.files && req.files.length > 0) {
+      const userInfo = getUserInfo(req);
+
+      for (const file of req.files) {
+        try {
+          const cloudinaryResult = await fileUploadService.uploadToCloudinary(
+            file.buffer,
+            {
+              folder: "quotation-attachments",
+              resource_type: "auto",
+              public_id: `quotation-${Date.now()}-${file.originalname.replace(/\.[^/.]+$/, "")}`,
+              tags: ["quotation", userInfo?.userType || "unknown"],
+            }
+          );
+
+          uploadedAttachments.push({
+            fileName: file.originalname,
+            fileUrl: cloudinaryResult.secure_url,
+            fileSize: file.size,
+            mimeType: file.mimetype,
+            cloudinaryId: cloudinaryResult.public_id,
+          });
+        } catch (uploadError) {
+          console.error(`Error uploading file ${file.originalname}:`, uploadError);
+          // Continue with other files, don't fail the entire request
+        }
+      }
     }
 
     // Validate status
@@ -121,19 +158,19 @@ export const createQuotationRequest = async (req, res) => {
     }
 
     // For agencies, use their own ID. For super users, require agencyId in body. For property managers, use their agency
-    let agencyId;
+    let agencyIdToUse;
     if (userInfo.userType === "Agency") {
-      agencyId = userInfo.userId;
-    } else if (userInfo.userType === "SuperUser") {
-      agencyId = req.body.agencyId;
+      agencyIdToUse = userInfo.userId;
+    } else if (userInfo.userType === "SuperUser" || userInfo.userType === "TeamMember") {
+      agencyIdToUse = agencyId;
       if (!agencyId) {
         return res.status(400).json({
           success: false,
-          message: "Agency ID is required when creating quotation as SuperUser",
+          message: "Agency ID is required when creating quotation as SuperUser or TeamMember",
         });
       }
     } else if (userInfo.userType === "PropertyManager") {
-      agencyId = req.propertyManager.owner.ownerId;
+      agencyIdToUse = req.propertyManager.owner.ownerId;
 
       // Verify property is assigned to this property manager
       const activePropertyIds = req.propertyManager.assignedProperties
@@ -163,7 +200,7 @@ export const createQuotationRequest = async (req, res) => {
     }
 
     // Verify agency exists
-    const agencyDoc = await Agency.findById(agencyId);
+    const agencyDoc = await Agency.findById(agencyIdToUse);
     if (!agencyDoc) {
       return res.status(404).json({
         success: false,
@@ -176,7 +213,7 @@ export const createQuotationRequest = async (req, res) => {
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
     const existingQuotation = await Quotation.findOne({
-      agency: agencyId,
+      agency: agencyIdToUse,
       property: property,
       jobType: jobType,
       status: { $in: ["Draft", "Sent"] },
@@ -192,13 +229,14 @@ export const createQuotationRequest = async (req, res) => {
 
     // Create quotation
     const quotation = new Quotation({
-      agency: agencyId,
+      agency: agencyIdToUse,
       property: property,
       jobType: jobType,
       dueDate: new Date(dueDate),
       description: description,
       createdBy: userInfo,
       status: status,
+      attachments: uploadedAttachments,
     });
 
     await quotation.save();
@@ -231,7 +269,7 @@ export const createQuotationRequest = async (req, res) => {
           message: `${agencyDoc.companyName} has requested a quotation for ${jobType} at ${propertyDoc.title}`,
           data: {
             quotationId: quotation._id,
-            agencyId: agencyId,
+            agencyId: agencyIdToUse,
             propertyId: property,
             jobType: jobType,
           },
@@ -257,7 +295,7 @@ export const createQuotationRequest = async (req, res) => {
 
 // @desc    Get quotations (filtered by user role)
 // @route   GET /api/v1/quotations
-// @access  SuperUser, Agency
+// @access  SuperUser, TeamMember, Agency, PropertyManager
 export const getQuotations = async (req, res) => {
   try {
     const userInfo = getUserInfo(req);
@@ -281,7 +319,7 @@ export const getQuotations = async (req, res) => {
         .map(assignment => assignment.propertyId);
       filter.property = { $in: activePropertyIds };
     }
-    // SuperUsers can see all quotations
+    // SuperUsers and TeamMembers can see all quotations
 
     // Apply status filter if provided
     if (status) {
@@ -331,7 +369,7 @@ export const getQuotations = async (req, res) => {
 
 // @desc    Get single quotation
 // @route   GET /api/v1/quotations/:id
-// @access  SuperUser, Agency (own quotations only)
+// @access  SuperUser, TeamMember, Agency (own quotations only), PropertyManager (assigned properties only)
 export const getQuotation = async (req, res) => {
   try {
     const { id } = req.params;
@@ -850,7 +888,7 @@ export const respondToQuotation = async (req, res) => {
 
 // @desc    Delete quotation
 // @route   DELETE /api/v1/quotations/:id
-// @access  SuperUser, Agency (own quotations only, draft status only)
+// @access  SuperUser, TeamMember (can delete any), Agency (own quotations only, draft status only), PropertyManager (assigned properties, draft only)
 export const deleteQuotation = async (req, res) => {
   try {
     const { id } = req.params;
@@ -974,6 +1012,77 @@ export const getQuotationStats = async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching quotation stats:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
+};
+
+// @desc    Upload attachments for quotation
+// @route   POST /api/v1/quotations/upload-attachments
+// @access  Agency, Property Manager, SuperUser
+export const uploadQuotationAttachments = async (req, res) => {
+  try {
+    // Check if files were uploaded
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "No files uploaded",
+      });
+    }
+
+    // Get user info for folder organization
+    const userInfo = getUserInfo(req);
+    if (!userInfo) {
+      return res.status(401).json({
+        success: false,
+        message: "User authentication required",
+      });
+    }
+
+    const uploadedFiles = [];
+
+    // Upload each file to Cloudinary
+    for (const file of req.files) {
+      try {
+        const cloudinaryResult = await fileUploadService.uploadToCloudinary(
+          file.buffer,
+          {
+            folder: "quotation-attachments",
+            resource_type: "auto",
+            public_id: `quotation-${Date.now()}-${file.originalname.replace(/\.[^/.]+$/, "")}`,
+            tags: ["quotation", userInfo.userType],
+          }
+        );
+
+        uploadedFiles.push({
+          fileName: file.originalname,
+          fileUrl: cloudinaryResult.secure_url,
+          fileSize: file.size,
+          mimeType: file.mimetype,
+          cloudinaryId: cloudinaryResult.public_id,
+        });
+      } catch (uploadError) {
+        console.error(`Error uploading file ${file.originalname}:`, uploadError);
+        return res.status(500).json({
+          success: false,
+          message: `Failed to upload ${file.originalname}`,
+          error: uploadError.message,
+        });
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Files uploaded successfully",
+      data: {
+        attachments: uploadedFiles,
+      },
+    });
+  } catch (error) {
+    console.error("Error uploading quotation attachments:", error);
     res.status(500).json({
       success: false,
       message: "Internal server error",

@@ -14,19 +14,21 @@ import {
   authenticateAgency,
   authenticateUserTypes,
 } from "../middleware/auth.middleware.js";
+import fileUploadService from "../services/fileUpload.service.js";
 
 const router = express.Router();
 
 // Routes accessible by agencies and super users
 router.post(
   "/",
-  authenticateUserTypes(["agency", "super_user", "property_manager"]),
+  authenticateUserTypes(["agency", "super_user", "property_manager", "team_member"]),
+  fileUploadService.array("attachments", 10), // Allow up to 10 files
   createQuotationRequest
 );
 
 router.get(
   "/",
-  authenticateUserTypes(["agency", "super_user", "property_manager"]),
+  authenticateUserTypes(["agency", "super_user", "property_manager", "team_member"]),
   getQuotations
 );
 
@@ -38,7 +40,7 @@ router.get(
 
 router.get(
   "/:id",
-  authenticateUserTypes(["agency", "super_user", "property_manager"]),
+  authenticateUserTypes(["agency", "super_user", "property_manager", "team_member"]),
   getQuotation
 );
 
@@ -64,7 +66,7 @@ router.post(
 // Delete route - agencies can delete draft quotations, super users can delete any
 router.delete(
   "/:id",
-  authenticateUserTypes(["agency", "super_user", "property_manager"]),
+  authenticateUserTypes(["agency", "super_user", "property_manager", "team_member"]),
   deleteQuotation
 );
 

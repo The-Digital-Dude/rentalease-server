@@ -2,6 +2,7 @@ import Contact from "../models/Contact.js";
 import Agency from "../models/Agency.js";
 import SuperUser from "../models/SuperUser.js";
 import PropertyManager from "../models/PropertyManager.js";
+import TeamMember from "../models/TeamMember.js";
 import Property from "../models/Property.js";
 import mongoose from "mongoose";
 import emailService from "../services/email.service.js";
@@ -11,7 +12,7 @@ const isValidEmail = (email) =>
   /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/.test(email);
 const isValidPhone = (phone) => /^\+?[\d\s\-\(\)]+$/.test(phone);
 
-// List all contacts for current user (superuser: all, agency: own, propertyManager: related to assigned properties)
+// List all contacts for current user (superuser: all, agency: own, propertyManager: related to assigned properties, teamMember: all)
 export const getContacts = async (req, res) => {
   try {
     let query = {};
@@ -22,6 +23,9 @@ export const getContacts = async (req, res) => {
       query = { "owner.ownerType": "Agency", "owner.ownerId": req.agency.id };
     } else if (req.propertyManager) {
       // PropertyManager: can see all contacts (no filtering)
+      // No query filter needed - will return all contacts
+    } else if (req.teamMember) {
+      // TeamMember: can see all contacts (no filtering)
       // No query filter needed - will return all contacts
     } else {
       return res.status(403).json({ status: "error", message: "Unauthorized" });
@@ -66,6 +70,9 @@ export const getContactById = async (req, res) => {
       return res.json({ status: "success", data: { contact } });
     } else if (req.propertyManager) {
       // PropertyManager: can access all contacts (no filtering)
+      return res.json({ status: "success", data: { contact } });
+    } else if (req.teamMember) {
+      // TeamMember: can access all contacts (no filtering)
       return res.json({ status: "success", data: { contact } });
     } else {
       return res.status(403).json({ status: "error", message: "Unauthorized" });
@@ -112,6 +119,8 @@ export const createContact = async (req, res) => {
       owner = { ownerType: "SuperUser", ownerId: req.superUser.id };
     } else if (req.agency) {
       owner = { ownerType: "Agency", ownerId: req.agency.id };
+    } else if (req.teamMember) {
+      owner = { ownerType: "TeamMember", ownerId: req.teamMember.id };
     } else {
       return res.status(403).json({ status: "error", message: "Unauthorized" });
     }
@@ -193,6 +202,8 @@ export const updateContact = async (req, res) => {
           .status(403)
           .json({ status: "error", message: "Access denied" });
       }
+    } else if (req.teamMember) {
+      // TeamMember: can update any contact (no filtering)
     } else {
       return res.status(403).json({ status: "error", message: "Unauthorized" });
     }
@@ -295,6 +306,8 @@ export const deleteContact = async (req, res) => {
           .status(403)
           .json({ status: "error", message: "Access denied" });
       }
+    } else if (req.teamMember) {
+      // TeamMember: can delete any contact (no filtering)
     } else {
       return res.status(403).json({ status: "error", message: "Unauthorized" });
     }
@@ -338,6 +351,9 @@ export const sendEmailToContact = async (req, res) => {
       }
     } else if (req.propertyManager) {
       // PropertyManager: can email any contact (no filtering)
+      // No additional checks needed - can email any contact
+    } else if (req.teamMember) {
+      // TeamMember: can email any contact (no filtering)
       // No additional checks needed - can email any contact
     } else {
       return res.status(403).json({ status: "error", message: "Unauthorized" });

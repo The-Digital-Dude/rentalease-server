@@ -76,6 +76,30 @@ const quotationSchema = new mongoose.Schema(
       trim: true,
       maxlength: [1000, "Description cannot exceed 1000 characters"],
     },
+    attachments: [
+      {
+        fileName: {
+          type: String,
+          required: true,
+        },
+        fileUrl: {
+          type: String,
+          required: true,
+        },
+        fileSize: {
+          type: Number,
+          required: true,
+        },
+        mimeType: {
+          type: String,
+          required: true,
+        },
+        uploadedAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
 
     // Quotation Details
     amount: {
