@@ -236,48 +236,76 @@ const drawProfessionalCoverPage = (doc, { property, job, technician, report, tem
   const reportTitle = getReportTitle(template, job);
   const complianceStandards = getComplianceStandards(template, job);
 
-  // Full page gradient background
-  doc
-    .rect(0, 0, doc.page.width, doc.page.height)
-    .fill(COLORS.primary);
+  // Check if this is an electrical safety report
+  const isElectricalSafety = template?.jobType === "Electrical" || reportTitle.toLowerCase().includes("electrical");
 
-  // Add decorative accent
-  doc
-    .rect(0, 0, doc.page.width, 180)
-    .fill(COLORS.primaryAccent);
+  if (isElectricalSafety) {
+    // Use the cover photo for electrical safety reports
+    try {
+      const coverImagePath = path.join(__dirname, "../../assets/electrical-safety-cover.jpg");
+      doc.image(coverImagePath, 0, 0, {
+        width: doc.page.width,
+        height: doc.page.height
+      });
+    } catch (error) {
+      console.error('Electrical safety cover image not found, using fallback:', error);
+      // Fallback to gradient background
+      doc
+        .rect(0, 0, doc.page.width, doc.page.height)
+        .fill(COLORS.primary);
 
-  // Company Logo Section
-  try {
-    const logoPath = path.join(__dirname, "../../assets/rentalease-logo.png");
-    doc.image(logoPath, doc.page.width - 180, 40, {
-      width: 140,
-      height: 42
-    });
-  } catch (error) {
-    console.error('Logo not found, using text fallback:', error);
+      // Add decorative accent
+      doc
+        .rect(0, 0, doc.page.width, 180)
+        .fill(COLORS.primaryAccent);
+    }
+  } else {
+    // Full page gradient background for other report types
     doc
-      .fontSize(24)
-      .font("Helvetica-Bold")
-      .fillColor("white")
-      .text("RentalEase", doc.page.width - 180, 50, {
+      .rect(0, 0, doc.page.width, doc.page.height)
+      .fill(COLORS.primary);
+
+    // Add decorative accent
+    doc
+      .rect(0, 0, doc.page.width, 180)
+      .fill(COLORS.primaryAccent);
+  }
+
+  // Company Logo Section (skip for electrical safety as it's in the cover image)
+  if (!isElectricalSafety) {
+    try {
+      const logoPath = path.join(__dirname, "../../assets/rentalease-logo.png");
+      doc.image(logoPath, doc.page.width - 180, 40, {
         width: 140,
-        align: "center",
+        height: 42
+      });
+    } catch (error) {
+      console.error('Logo not found, using text fallback:', error);
+      doc
+        .fontSize(24)
+        .font("Helvetica-Bold")
+        .fillColor("white")
+        .text("RentalEase", doc.page.width - 180, 50, {
+          width: 140,
+          align: "center",
+        });
+    }
+
+    // Main Title Section
+    doc
+      .fillColor("white")
+      .fontSize(36)
+      .font("Helvetica-Bold")
+      .text(reportTitle, 60, 250, {
+        width: doc.page.width - 120,
+        align: "left",
+        lineGap: 10
       });
   }
 
-  // Main Title Section
-  doc
-    .fillColor("white")
-    .fontSize(36)
-    .font("Helvetica-Bold")
-    .text(reportTitle, 60, 250, {
-      width: doc.page.width - 120,
-      align: "left",
-      lineGap: 10
-    });
-
   // Property Information Card
-  const cardY = 350;
+  // Adjust positioning for electrical safety cover vs standard layout
+  const cardY = isElectricalSafety ? 400 : 350;
   const cardHeight = 160;
 
   doc
@@ -333,24 +361,26 @@ const drawProfessionalCoverPage = (doc, { property, job, technician, report, tem
     currentY += 18;
   });
 
-  // Footer Section
-  const footerY = doc.page.height - 120;
+  // Footer Section (skip for electrical safety as contact info is in cover image)
+  if (!isElectricalSafety) {
+    const footerY = doc.page.height - 120;
 
-  doc
-    .fillColor("rgba(255, 255, 255, 0.8)")
-    .fontSize(10)
-    .font("Helvetica")
-    .text("Compliance & Safety Services", 60, footerY)
-    .text("info@rentalease.com.au", 60, footerY + 20)
-    .text("03 5906 7723", 60, footerY + 40)
-    .text("3/581 Dohertys Road, Truganina VIC 3029", 60, footerY + 60);
+    doc
+      .fillColor("rgba(255, 255, 255, 0.8)")
+      .fontSize(10)
+      .font("Helvetica")
+      .text("Compliance & Safety Services", 60, footerY)
+      .text("info@rentalease.com.au", 60, footerY + 20)
+      .text("03 5906 7723", 60, footerY + 40)
+      .text("3/581 Dohertys Road, Truganina VIC 3029", 60, footerY + 60);
 
-  // Professional disclaimer
-  doc
-    .fontSize(8)
-    .fillColor("rgba(255, 255, 255, 0.7)")
-    .text("This report has been prepared in accordance with applicable Australian Standards and Regulations.",
-          doc.page.width - 300, footerY + 40, { width: 240, align: "right" });
+    // Professional disclaimer
+    doc
+      .fontSize(8)
+      .fillColor("rgba(255, 255, 255, 0.7)")
+      .text("This report has been prepared in accordance with applicable Australian Standards and Regulations.",
+            doc.page.width - 300, footerY + 40, { width: 240, align: "right" });
+  }
 
   // Start new page for content
   doc.addPage();
