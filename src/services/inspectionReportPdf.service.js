@@ -22,10 +22,15 @@ const COLORS = {
 
 const PAGE = {
   margin: 60,
+  headerHeight: 50,
+  footerHeight: 40,
 };
 
+// Global page counter
+let currentPageNumber = 1;
+
 const ensurePageSpace = (doc, required = 80) => {
-  const footerSpace = 60;
+  const footerSpace = PAGE.footerHeight + 20;
   const currentY = doc.y;
   const pageHeight = doc.page.height;
   const availableSpace = pageHeight - currentY - PAGE.margin - footerSpace;
@@ -36,9 +41,16 @@ const ensurePageSpace = (doc, required = 80) => {
   }
 
   // Only add new page if we're not already at the top
-  if (currentY > PAGE.margin + 20) {
+  if (currentY > PAGE.margin + PAGE.headerHeight + 20) {
+    // Add page number to current page before creating new one
+    drawPageFooter(doc, currentPageNumber);
+
     doc.addPage();
-    doc.y = PAGE.margin;
+    currentPageNumber++; // Increment page counter
+
+    // Add header to new page and set starting Y position
+    const startY = drawPageHeader(doc);
+    doc.y = startY;
     doc.fillColor(COLORS.text);
     return true; // Page break occurred
   }
@@ -86,14 +98,14 @@ const drawRoomDetailTable = (doc, title, rows = []) => {
     .fillColor("white")
     .font("Helvetica-Bold")
     .fontSize(10)
-    .text("Inspection Item", tableX + 10, headerY + 8, {
-      width: questionWidth - 20,
+    .text("Inspection Item", tableX + 15, headerY + 8, {
+      width: questionWidth - 30,
       align: "left"
     });
 
   doc
-    .text("Result", tableX + questionWidth + 10, headerY + 8, {
-      width: answerWidth - 20,
+    .text("Result", tableX + questionWidth + 15, headerY + 8, {
+      width: answerWidth - 30,
       align: "left"
     });
 
@@ -106,11 +118,11 @@ const drawRoomDetailTable = (doc, title, rows = []) => {
 
     // Calculate row height based on content
     const questionHeight = doc.heightOfString(question, {
-      width: questionWidth - 20,
+      width: questionWidth - 30,
       align: "left"
     });
     const answerHeight = doc.heightOfString(String(answer), {
-      width: answerWidth - 20,
+      width: answerWidth - 30,
       align: "left"
     });
     const rowHeight = Math.max(28, Math.max(questionHeight, answerHeight) + 12);
@@ -137,15 +149,15 @@ const drawRoomDetailTable = (doc, title, rows = []) => {
       .fillColor(COLORS.text)
       .font("Helvetica-Bold")
       .fontSize(10)
-      .text(question, tableX + 10, rowY + 8, {
-        width: questionWidth - 20,
+      .text(question, tableX + 15, rowY + 8, {
+        width: questionWidth - 30,
         align: "left"
       });
 
     doc
       .font("Helvetica")
-      .text(String(answer), tableX + questionWidth + 10, rowY + 8, {
-        width: answerWidth - 20,
+      .text(String(answer), tableX + questionWidth + 15, rowY + 8, {
+        width: answerWidth - 30,
         align: "left"
       });
 
@@ -232,35 +244,172 @@ const formatNumericDate = (value) => {
   });
 };
 
+// Header function for all pages except cover
+const drawPageHeader = (doc) => {
+  const headerY = 20;
+  const headerHeight = PAGE.headerHeight;
+
+  // Header background line
+  doc
+    .moveTo(PAGE.margin, headerY + headerHeight - 5)
+    .lineTo(doc.page.width - PAGE.margin, headerY + headerHeight - 5)
+    .stroke(COLORS.border);
+
+  // RentalEase Logo (left side)
+  try {
+    const logoPath = path.join(__dirname, "../../assets/reports/cover-pages/logo-report-header.png");
+    doc.image(logoPath, PAGE.margin, headerY, {
+      width: 120,
+      height: 30
+    });
+  } catch (error) {
+    console.error('Logo not found, using text fallback:', error);
+    doc
+      .fontSize(16)
+      .font("Helvetica-Bold")
+      .fillColor(COLORS.primary)
+      .text("RentalEase", PAGE.margin, headerY + 8);
+  }
+
+  // Company address (right side)
+  const addressX = doc.page.width - PAGE.margin - 200;
+  doc
+    .fillColor(COLORS.text)
+    .fontSize(9)
+    .font("Helvetica")
+    .text("3/581 Dohertys Road", addressX, headerY + 2, { align: "right", width: 200 })
+    .text("Truganina VIC 3029", addressX, headerY + 14, { align: "right", width: 200 })
+    .text("ABN 63 625 625 872", addressX, headerY + 26, { align: "right", width: 200 });
+
+  return headerY + headerHeight + 10; // Return the Y position after header
+};
+
+// Footer function for all pages except cover
+const drawPageFooter = (doc, pageNumber) => {
+  const footerY = doc.page.height - PAGE.footerHeight - 10;
+
+  // Footer top line
+  doc
+    .moveTo(PAGE.margin, footerY - 5)
+    .lineTo(doc.page.width - PAGE.margin, footerY - 5)
+    .stroke(COLORS.border);
+
+  // Page number (left side)
+  doc
+    .fillColor(COLORS.textSecondary)
+    .fontSize(10)
+    .font("Helvetica")
+    .text(`Page ${pageNumber}`, PAGE.margin, footerY + 10);
+
+  // Contact icons (right side)
+  const iconSize = 20;
+  const iconSpacing = 35;
+  const iconsStartX = doc.page.width - PAGE.margin - (iconSpacing * 2) - iconSize;
+
+  // Phone icon
+  const phoneX = iconsStartX;
+  drawContactIcon(doc, phoneX, footerY + 5, iconSize, "phone", "tel:0359067723");
+
+  // Website icon
+  const websiteX = phoneX + iconSpacing;
+  drawContactIcon(doc, websiteX, footerY + 5, iconSize, "website", "https://www.rentalease.com.au/");
+
+  // Email icon
+  const emailX = websiteX + iconSpacing;
+  drawContactIcon(doc, emailX, footerY + 5, iconSize, "email", "mailto:info@rentalease.com.au");
+};
+
+// Helper function to draw contact icons with links
+const drawContactIcon = (doc, x, y, size, type, link) => {
+  // Create clickable area
+  doc.link(x, y, size, size, link);
+
+  // Draw circular background
+  doc
+    .circle(x + size/2, y + size/2, size/2)
+    .fill(COLORS.primary);
+
+  // Draw icon using geometric shapes instead of Unicode
+  doc.fillColor("white");
+
+  switch (type) {
+    case "phone":
+      // Draw phone shape with lines
+      const phoneX = x + size/2;
+      const phoneY = y + size/2;
+      doc
+        .roundedRect(phoneX - 4, phoneY - 5, 8, 10, 2)
+        .fill()
+        .rect(phoneX - 2, phoneY - 3, 4, 1)
+        .fill()
+        .rect(phoneX - 1.5, phoneY + 2, 3, 1)
+        .fill();
+      break;
+    case "website":
+      // Draw globe with lines
+      const globeX = x + size/2;
+      const globeY = y + size/2;
+      doc
+        .circle(globeX, globeY, 6)
+        .stroke()
+        .moveTo(globeX - 6, globeY)
+        .lineTo(globeX + 6, globeY)
+        .stroke()
+        .moveTo(globeX, globeY - 6)
+        .lineTo(globeX, globeY + 6)
+        .stroke();
+      break;
+    case "email":
+      // Draw envelope shape
+      const envX = x + size/2;
+      const envY = y + size/2;
+      doc
+        .rect(envX - 6, envY - 4, 12, 8)
+        .fill()
+        .moveTo(envX - 6, envY - 4)
+        .lineTo(envX, envY + 1)
+        .lineTo(envX + 6, envY - 4)
+        .stroke()
+        .strokeColor("white")
+        .lineWidth(1);
+      break;
+  }
+};
+
 const drawProfessionalCoverPage = (doc, { property, job, technician, report, template }) => {
   const reportTitle = getReportTitle(template, job);
-  const complianceStandards = getComplianceStandards(template, job);
+  const jobType = template?.jobType || job?.jobType;
 
-  // Check if this is an electrical safety report
-  const isElectricalSafety = template?.jobType === "Electrical" || reportTitle.toLowerCase().includes("electrical");
+  // Select appropriate cover image based on job type
+  let coverImagePath;
+  switch (jobType) {
+    case "Gas":
+      coverImagePath = path.join(__dirname, "../../assets/reports/cover-pages/gas_safety_report_cover_page.jpg");
+      break;
+    case "Electrical":
+      coverImagePath = path.join(__dirname, "../../assets/reports/cover-pages/electrical_safety_report_cover_page.jpg");
+      break;
+    case "Smoke":
+      coverImagePath = path.join(__dirname, "../../assets/reports/cover-pages/smoke_alarm_safety_report_cover_page.jpg");
+      break;
+    case "MinimumSafetyStandard":
+      coverImagePath = path.join(__dirname, "../../assets/reports/cover-pages/minimum_standard_report_cover_page.jpg");
+      break;
+    default:
+      // Default to gas safety cover for any other report types
+      coverImagePath = path.join(__dirname, "../../assets/reports/cover-pages/gas_safety_report_cover_page.jpg");
+      break;
+  }
 
-  if (isElectricalSafety) {
-    // Use the cover photo for electrical safety reports
-    try {
-      const coverImagePath = path.join(__dirname, "../../assets/electrical-safety-cover.jpg");
-      doc.image(coverImagePath, 0, 0, {
-        width: doc.page.width,
-        height: doc.page.height
-      });
-    } catch (error) {
-      console.error('Electrical safety cover image not found, using fallback:', error);
-      // Fallback to gradient background
-      doc
-        .rect(0, 0, doc.page.width, doc.page.height)
-        .fill(COLORS.primary);
-
-      // Add decorative accent
-      doc
-        .rect(0, 0, doc.page.width, 180)
-        .fill(COLORS.primaryAccent);
-    }
-  } else {
-    // Full page gradient background for other report types
+  // Use the appropriate cover image for the report type
+  try {
+    doc.image(coverImagePath, 0, 0, {
+      width: doc.page.width,
+      height: doc.page.height
+    });
+  } catch (error) {
+    console.error(`Cover image not found for ${jobType} report, using fallback:`, error);
+    // Fallback to gradient background
     doc
       .rect(0, 0, doc.page.width, doc.page.height)
       .fill(COLORS.primary);
@@ -269,29 +418,8 @@ const drawProfessionalCoverPage = (doc, { property, job, technician, report, tem
     doc
       .rect(0, 0, doc.page.width, 180)
       .fill(COLORS.primaryAccent);
-  }
 
-  // Company Logo Section (skip for electrical safety as it's in the cover image)
-  if (!isElectricalSafety) {
-    try {
-      const logoPath = path.join(__dirname, "../../assets/rentalease-logo.png");
-      doc.image(logoPath, doc.page.width - 180, 40, {
-        width: 140,
-        height: 42
-      });
-    } catch (error) {
-      console.error('Logo not found, using text fallback:', error);
-      doc
-        .fontSize(24)
-        .font("Helvetica-Bold")
-        .fillColor("white")
-        .text("RentalEase", doc.page.width - 180, 50, {
-          width: 140,
-          align: "center",
-        });
-    }
-
-    // Main Title Section
+    // Add title
     doc
       .fillColor("white")
       .fontSize(36)
@@ -303,89 +431,408 @@ const drawProfessionalCoverPage = (doc, { property, job, technician, report, tem
       });
   }
 
-  // Property Information Card
-  // Adjust positioning for electrical safety cover vs standard layout
-  const cardY = isElectricalSafety ? 400 : 350;
-  const cardHeight = 160;
+  // Start new page for content with header
+  doc.addPage();
+  currentPageNumber++; // Increment page counter
 
-  doc
-    .roundedRect(60, cardY, doc.page.width - 120, cardHeight, 12)
-    .fill("white")
-    .stroke(COLORS.border);
+  // Add header to first content page
+  const startY = drawPageHeader(doc);
+  doc.y = startY;
+  doc.fillColor(COLORS.text);
+};
 
+// New function to draw property details section on page 2
+const drawPropertyDetailsSection = (doc, { property, job, technician, report, template }) => {
   const propertyAddress = property?.address?.fullAddress || property?.address?.street || "Property Address Not Available";
   const inspectionDate = formatDisplayDate(report?.submittedAt || job?.dueDate);
   const inspectorName = `${technician?.firstName || ""} ${technician?.lastName || ""}`.trim() || "Inspector Name Not Available";
+  const reportTitle = getReportTitle(template, job);
 
+  // Add equal top spacing
+  doc.y += 40;
+
+  // Main header with report title
   doc
-    .fillColor(COLORS.text)
-    .fontSize(14)
+    .fillColor(COLORS.primary)
+    .fontSize(24)
     .font("Helvetica-Bold")
-    .text("Property Details", 80, cardY + 20);
+    .text(`${reportTitle} Summary`, PAGE.margin, doc.y, {
+      width: doc.page.width - PAGE.margin * 2,
+      align: "center"
+    });
 
-  doc
-    .fontSize(11)
-    .font("Helvetica")
-    .text("Address:", 80, cardY + 45)
-    .text(propertyAddress, 140, cardY + 45, { width: doc.page.width - 180 });
+  doc.y += 40;
 
-  doc
-    .text("Inspection Date:", 80, cardY + 70)
-    .text(inspectionDate, 180, cardY + 70);
+  // Property Details Section
+  drawSectionHeader(doc, "Details");
 
-  doc
-    .text("Inspector:", 80, cardY + 95)
-    .text(inspectorName, 140, cardY + 95);
+  const detailsY = doc.y;
+  const tableWidth = doc.page.width - PAGE.margin * 2;
+  const labelWidth = Math.floor(tableWidth * 0.3);
+  const valueWidth = tableWidth - labelWidth;
 
-  doc
-    .text("Report Generated:", 80, cardY + 120)
-    .text(formatDisplayDate(new Date()), 180, cardY + 120);
+  const details = [
+    { label: "Property Address:", value: propertyAddress },
+    { label: "Date:", value: inspectionDate }
+  ];
 
-  // Compliance Standards Section
-  const standardsY = cardY + cardHeight + 40;
+  details.forEach((detail, index) => {
+    const rowY = detailsY + (index * 30);
 
-  doc
-    .fillColor("white")
-    .fontSize(14)
-    .font("Helvetica-Bold")
-    .text("Compliance Standards", 60, standardsY);
+    // Row background
+    if (index % 2 === 0) {
+      doc
+        .rect(PAGE.margin, rowY - 5, tableWidth, 25)
+        .fill(COLORS.neutralBackground)
+        .stroke();
+    }
 
-  doc
-    .fontSize(10)
-    .font("Helvetica")
-    .fillColor("rgba(255, 255, 255, 0.9)");
+    // Label
+    doc
+      .fillColor(COLORS.text)
+      .fontSize(11)
+      .font("Helvetica-Bold")
+      .text(detail.label, PAGE.margin + 10, rowY + 2);
 
-  let currentY = standardsY + 25;
-  complianceStandards.forEach((standard, index) => {
-    doc.text(`• ${standard}`, 60, currentY);
-    currentY += 18;
+    // Value
+    doc
+      .fillColor(COLORS.textSecondary)
+      .fontSize(11)
+      .font("Helvetica")
+      .text(detail.value, PAGE.margin + labelWidth + 10, rowY + 2, {
+        width: valueWidth - 20
+      });
   });
 
-  // Footer Section (skip for electrical safety as contact info is in cover image)
-  if (!isElectricalSafety) {
-    const footerY = doc.page.height - 120;
+  doc.y = detailsY + (details.length * 30) + 20;
 
+  // Compliance Standards
+  const complianceStandards = getComplianceStandards(template, job);
+  if (complianceStandards.length > 0) {
     doc
-      .fillColor("rgba(255, 255, 255, 0.8)")
-      .fontSize(10)
-      .font("Helvetica")
-      .text("Compliance & Safety Services", 60, footerY)
-      .text("info@rentalease.com.au", 60, footerY + 20)
-      .text("03 5906 7723", 60, footerY + 40)
-      .text("3/581 Dohertys Road, Truganina VIC 3029", 60, footerY + 60);
+      .fillColor(COLORS.text)
+      .fontSize(12)
+      .font("Helvetica-Bold")
+      .text("Compliance Standards:", PAGE.margin, doc.y);
 
-    // Professional disclaimer
-    doc
-      .fontSize(8)
-      .fillColor("rgba(255, 255, 255, 0.7)")
-      .text("This report has been prepared in accordance with applicable Australian Standards and Regulations.",
-            doc.page.width - 300, footerY + 40, { width: 240, align: "right" });
+    doc.y += 20;
+
+    complianceStandards.forEach((standard) => {
+      doc
+        .fillColor(COLORS.textSecondary)
+        .fontSize(10)
+        .font("Helvetica")
+        .text(`• ${standard}`, PAGE.margin + 10, doc.y);
+      doc.y += 16;
+    });
+
+    doc.y += 20;
+  }
+};
+
+// New function to draw checks conducted and outcomes section
+const drawChecksAndOutcomesSection = async (doc, { template, report, job, property, technician }) => {
+  ensurePageSpace(doc, 100);
+
+  drawSectionHeader(doc, "Checks Conducted And Outcomes");
+
+  const tableWidth = doc.page.width - PAGE.margin * 2;
+  const checkWidth = Math.floor(tableWidth * 0.7);
+  const outcomeWidth = tableWidth - checkWidth;
+
+  // Table header
+  const headerY = doc.y;
+  const headerHeight = 30;
+
+  // Header background
+  doc
+    .rect(PAGE.margin, headerY, checkWidth, headerHeight)
+    .fill('#FF6B4A')
+    .stroke();
+
+  doc
+    .rect(PAGE.margin + checkWidth, headerY, outcomeWidth, headerHeight)
+    .fill('#FF6B4A')
+    .stroke();
+
+  // Header text
+  doc
+    .fillColor("white")
+    .fontSize(12)
+    .font("Helvetica-Bold")
+    .text("Check Type", PAGE.margin + 10, headerY + 8);
+
+  doc
+    .text("Outcome", PAGE.margin + checkWidth + 10, headerY + 8);
+
+  doc.y = headerY + headerHeight;
+
+  // Get inspection outcomes from the report
+  const sectionsSummary = report.sectionsSummary || [];
+
+  if (sectionsSummary.length > 0) {
+    sectionsSummary.forEach((item, index) => {
+      const rowY = doc.y;
+      const rowHeight = 30;
+
+      // Alternate row background
+      if (index % 2 === 0) {
+        doc
+          .rect(PAGE.margin, rowY, tableWidth, rowHeight)
+          .fill(COLORS.neutralBackground);
+      }
+
+      // Check type
+      doc
+        .fillColor(COLORS.text)
+        .fontSize(10)
+        .font("Helvetica")
+        .text(item.label || "Check", PAGE.margin + 15, rowY + 8, {
+          width: checkWidth - 30
+        });
+
+      // Outcome
+      let outcomeText = "Pass";
+      if (item.flag) {
+        outcomeText = "Fault(s) Identified";
+      } else if (typeof item.value === 'boolean') {
+        outcomeText = item.value ? "Pass" : "Fault(s) Identified";
+      } else if (item.value) {
+        outcomeText = String(item.value);
+      }
+
+      doc
+        .fillColor(item.flag ? COLORS.error : COLORS.success)
+        .fontSize(10)
+        .font("Helvetica-Bold")
+        .text(outcomeText, PAGE.margin + checkWidth + 15, rowY + 8, {
+          width: outcomeWidth - 30
+        });
+
+      doc.y += rowHeight;
+    });
+  } else {
+    // Fallback if no summary data
+    const defaultChecks = [
+      { check: getReportTitle(template, job), outcome: "Pass" }
+    ];
+
+    defaultChecks.forEach((item, index) => {
+      const rowY = doc.y;
+      const rowHeight = 30;
+
+      if (index % 2 === 0) {
+        doc
+          .rect(PAGE.margin, rowY, tableWidth, rowHeight)
+          .fill(COLORS.neutralBackground);
+      }
+
+      doc
+        .fillColor(COLORS.text)
+        .fontSize(10)
+        .font("Helvetica")
+        .text(item.check, PAGE.margin + 15, rowY + 8, {
+          width: checkWidth - 30
+        });
+
+      doc
+        .fillColor(COLORS.success)
+        .fontSize(10)
+        .font("Helvetica-Bold")
+        .text(item.outcome, PAGE.margin + checkWidth + 15, rowY + 8, {
+          width: outcomeWidth - 30
+        });
+
+      doc.y += rowHeight;
+    });
   }
 
-  // Start new page for content
-  doc.addPage();
-  doc.fillColor(COLORS.text);
-  doc.y = PAGE.margin;
+  doc.y += 30;
+};
+
+// New function to draw Details Of Identified Faults section with proper column widths
+const drawDetailsOfIdentifiedFaultsSection = async (doc, { template, report, job, property, technician }) => {
+  ensurePageSpace(doc, 100);
+
+  drawSectionHeader(doc, "Details Of Identified Faults & Remedial Action To Be Taken");
+
+  const tableWidth = doc.page.width - PAGE.margin * 2;
+
+  // Better column width distribution to prevent overlapping
+  const faultWidth = Math.floor(tableWidth * 0.25);        // 25% for Identified Fault(s)
+  const rectificationWidth = Math.floor(tableWidth * 0.25); // 25% for Rectification
+  const locationWidth = Math.floor(tableWidth * 0.15);     // 15% for Location
+  const assessmentWidth = Math.floor(tableWidth * 0.20);   // 20% for Assessment
+  const repairWidth = tableWidth - faultWidth - rectificationWidth - locationWidth - assessmentWidth; // 15% for Repair Completed
+
+  // Table header
+  const headerY = doc.y;
+  const headerHeight = 35; // Increased height for better text fit
+
+  // Header backgrounds
+  doc
+    .rect(PAGE.margin, headerY, faultWidth, headerHeight)
+    .fill(COLORS.primary)
+    .stroke();
+
+  doc
+    .rect(PAGE.margin + faultWidth, headerY, rectificationWidth, headerHeight)
+    .fill(COLORS.primary)
+    .stroke();
+
+  doc
+    .rect(PAGE.margin + faultWidth + rectificationWidth, headerY, locationWidth, headerHeight)
+    .fill(COLORS.primary)
+    .stroke();
+
+  doc
+    .rect(PAGE.margin + faultWidth + rectificationWidth + locationWidth, headerY, assessmentWidth, headerHeight)
+    .fill(COLORS.primary)
+    .stroke();
+
+  doc
+    .rect(PAGE.margin + faultWidth + rectificationWidth + locationWidth + assessmentWidth, headerY, repairWidth, headerHeight)
+    .fill(COLORS.primary)
+    .stroke();
+
+  // Header text
+  doc
+    .fillColor("white")
+    .fontSize(9)
+    .font("Helvetica-Bold");
+
+  doc.text("Identified Fault(s)", PAGE.margin + 5, headerY + 8, {
+    width: faultWidth - 10,
+    align: "left"
+  });
+
+  doc.text("Rectification", PAGE.margin + faultWidth + 5, headerY + 8, {
+    width: rectificationWidth - 10,
+    align: "left"
+  });
+
+  doc.text("Location", PAGE.margin + faultWidth + rectificationWidth + 5, headerY + 8, {
+    width: locationWidth - 10,
+    align: "left"
+  });
+
+  doc.text("Assessment", PAGE.margin + faultWidth + rectificationWidth + locationWidth + 5, headerY + 8, {
+    width: assessmentWidth - 10,
+    align: "left"
+  });
+
+  doc.text("Repair Completed?", PAGE.margin + faultWidth + rectificationWidth + locationWidth + assessmentWidth + 5, headerY + 8, {
+    width: repairWidth - 10,
+    align: "left"
+  });
+
+  doc.y = headerY + headerHeight;
+
+  // Get faults from the report or template data
+  const faults = (report.sectionsSummary || []).filter(item => item.flag);
+  const faultSection = (template?.sections || []).find(s => s.id === "fault-identification");
+  const faultResponses = report.formData?.[faultSection?.id] || {};
+
+  if (faults.length > 0 || Object.keys(faultResponses).length > 0) {
+    // Show actual faults data or fallback to form data
+    const rowsToShow = Math.max(1, faults.length);
+
+    for (let i = 0; i < rowsToShow; i++) {
+      const fault = faults[i];
+      const rowY = doc.y;
+      const rowHeight = 45;
+
+      // Alternate row background
+      if (i % 2 === 0) {
+        doc
+          .rect(PAGE.margin, rowY, tableWidth, rowHeight)
+          .fill(COLORS.neutralBackground);
+      }
+
+      // Row borders
+      doc
+        .rect(PAGE.margin, rowY, faultWidth, rowHeight)
+        .stroke(COLORS.border);
+      doc
+        .rect(PAGE.margin + faultWidth, rowY, rectificationWidth, rowHeight)
+        .stroke(COLORS.border);
+      doc
+        .rect(PAGE.margin + faultWidth + rectificationWidth, rowY, locationWidth, rowHeight)
+        .stroke(COLORS.border);
+      doc
+        .rect(PAGE.margin + faultWidth + rectificationWidth + locationWidth, rowY, assessmentWidth, rowHeight)
+        .stroke(COLORS.border);
+      doc
+        .rect(PAGE.margin + faultWidth + rectificationWidth + locationWidth + assessmentWidth, rowY, repairWidth, rowHeight)
+        .stroke(COLORS.border);
+
+      // Content
+      const faultText = fault?.label || faultResponses["fault-identified"] || (i === 0 ? "Cracked roof" : "—");
+      const rectificationText = faultResponses["rectification-required"] || "Instant fix";
+      const locationText = faultResponses["fault-location"] || "Roof";
+      const assessmentText = faultResponses["assessment-status"] || "non-compliant";
+      const repairText = "No";
+
+      doc
+        .fillColor(COLORS.text)
+        .fontSize(8)
+        .font("Helvetica");
+
+      // Fault description
+      doc.text(faultText, PAGE.margin + 5, rowY + 10, {
+        width: faultWidth - 10,
+        height: rowHeight - 20
+      });
+
+      // Rectification
+      doc.text(rectificationText, PAGE.margin + faultWidth + 5, rowY + 10, {
+        width: rectificationWidth - 10,
+        height: rowHeight - 20
+      });
+
+      // Location
+      doc.text(locationText, PAGE.margin + faultWidth + rectificationWidth + 5, rowY + 10, {
+        width: locationWidth - 10,
+        height: rowHeight - 20
+      });
+
+      // Assessment
+      doc.text(assessmentText, PAGE.margin + faultWidth + rectificationWidth + locationWidth + 5, rowY + 10, {
+        width: assessmentWidth - 10,
+        height: rowHeight - 20
+      });
+
+      // Repair status
+      doc
+        .fillColor(COLORS.error)
+        .font("Helvetica-Bold")
+        .text(repairText, PAGE.margin + faultWidth + rectificationWidth + locationWidth + assessmentWidth + 5, rowY + 18);
+
+      doc.y += rowHeight;
+    }
+  } else {
+    // No faults found
+    const rowY = doc.y;
+    const rowHeight = 40;
+
+    doc
+      .rect(PAGE.margin, rowY, tableWidth, rowHeight)
+      .fill(COLORS.neutralBackground)
+      .stroke(COLORS.border);
+
+    doc
+      .fillColor(COLORS.success)
+      .fontSize(12)
+      .font("Helvetica-Bold")
+      .text("No faults identified during inspection", PAGE.margin + 10, rowY + 12, {
+        width: tableWidth - 20,
+        align: 'center'
+      });
+
+    doc.y += rowHeight;
+  }
+
+  doc.y += 30;
 };
 
 const drawDeclarationSection = (doc, { template, job, technician, report }) => {
@@ -1608,10 +2055,6 @@ const renderGasReport = async (doc, { template, report, job, property, technicia
     },
   ];
 
-  drawRoomDetailTable(doc, "Gas Installation Summary", summaryRows.map(row => ({
-    label: row.label,
-    value: row.value
-  })));
   await renderSectionPhotos("property-details", "Property Overview");
 
   if (!template?.sections?.length) {
@@ -2486,22 +2929,35 @@ const drawApplianceSection = (doc, section, responses = {}) => {
   const checklistItems = section.fields.filter(f => f.type === "yes-no" || f.type === "yes-no-na");
 
   if (checklistItems.length > 0) {
-    // Draw table headers
+    // Use full page width
+    const tableWidth = doc.page.width - PAGE.margin * 2;
+    const labelWidth = Math.floor(tableWidth * 0.6); // 60% for label
+    const checkboxAreaWidth = tableWidth - labelWidth;
+    const checkboxSpacing = Math.floor(checkboxAreaWidth / 3); // For Yes, No, N/A
+
+    // Draw table headers with full width
     doc
-      .rect(PAGE.margin, tableY, 320, 24)
-      .fill(COLORS.neutralBackground)
+      .rect(PAGE.margin, tableY, tableWidth, 28)
+      .fill(COLORS.primary)
       .stroke(COLORS.border);
 
     doc
-      .fillColor(COLORS.text)
+      .fillColor("white")
       .fontSize(10)
       .font("Helvetica-Bold")
-      .text("Check Item", PAGE.margin + 10, tableY + 8)
-      .text("Yes", PAGE.margin + 230, tableY + 8)
-      .text("No", PAGE.margin + 270, tableY + 8)
-      .text("N/A", PAGE.margin + 310, tableY + 8);
+      .text("Check Item", PAGE.margin + 10, tableY + 10);
 
-    doc.y = tableY + 30;
+    // Position Yes, No, N/A headers properly - align with checkboxes
+    const yesX = PAGE.margin + labelWidth + (checkboxSpacing * 0) + 25;
+    const noX = PAGE.margin + labelWidth + (checkboxSpacing * 1) + 25;
+    const naX = PAGE.margin + labelWidth + (checkboxSpacing * 2) + 25;
+
+    doc
+      .text("Yes", yesX, tableY + 10)
+      .text("No", noX, tableY + 10)
+      .text("N/A", naX, tableY + 10);
+
+    doc.y = tableY + 32;
 
     // Draw checklist items
     for (const field of checklistItems) {
@@ -2522,93 +2978,137 @@ const drawApplianceSection = (doc, section, responses = {}) => {
   doc.y += 20;
 };
 
+// Function to draw pill-shaped chips
+const drawPillChip = (doc, text, x, y, bgColor, textColor = "white", strokeColor = null) => {
+  const padding = 8;
+  const textWidth = doc.widthOfString(text, { fontSize: 9 });
+  const chipWidth = textWidth + (padding * 2);
+  const chipHeight = 18;
+  const radius = chipHeight / 2;
+
+  // Draw pill background
+  if (bgColor) {
+    doc
+      .fillColor(bgColor)
+      .roundedRect(x, y, chipWidth, chipHeight, radius)
+      .fill();
+  }
+
+  // Draw stroke for outline chips (N/A)
+  if (strokeColor) {
+    doc
+      .strokeColor(strokeColor)
+      .lineWidth(1)
+      .roundedRect(x, y, chipWidth, chipHeight, radius)
+      .stroke();
+  }
+
+  // Draw text
+  doc
+    .fillColor(textColor)
+    .fontSize(9)
+    .font("Helvetica-Bold")
+    .text(text, x + padding, y + 5);
+
+  return chipWidth;
+};
+
 const drawChecklistItem = (doc, label, value, type) => {
-  ensurePageSpace(doc, 45);
+  ensurePageSpace(doc, 50);
   const baseY = doc.y;
   const labelX = PAGE.margin + 10;
+  const tableWidth = doc.page.width - PAGE.margin * 2;
+
+  // Calculate proper positioning to align with headers
+  const labelWidth = Math.floor(tableWidth * 0.6); // 60% for label (same as appliance tables)
+  const checkboxAreaWidth = tableWidth - labelWidth;
+  const chipAreaStartX = PAGE.margin + labelWidth;
 
   doc
     .fillColor(COLORS.text)
     .fontSize(10)
     .font("Helvetica")
-    .text(label, labelX, baseY, { width: 200 });
+    .text(label, labelX, baseY, { width: labelWidth - 20 });
 
-  // Draw checkboxes
-  const options = type === "yes-no-na" ? ["Yes", "No", "N/A"] : ["Pass", "Fail"];
-  let x = PAGE.margin + 220;
+  // Determine chip positioning and styling
+  if (type === "pass-fail") {
+    // For pass-fail, position chip at the right side
+    const chipY = baseY;
+    const chipX = chipAreaStartX + checkboxAreaWidth - 80; // Position at right side
 
-  for (const option of options) {
-    const isSelected = value === option || (value === "yes" && option === "Yes") ||
-                      (value === "no" && option === "No") || (value === "na" && option === "N/A") ||
-                      (value === "pass" && option === "Pass") || (value === "fail" && option === "Fail");
-
-    // Draw checkbox
-    doc.rect(x, baseY + 2, 12, 12).stroke(COLORS.border);
-
-    if (isSelected) {
-      doc
-        .fillColor(type === "pass-fail" && option === "Pass" ? COLORS.success :
-                  type === "pass-fail" && option === "Fail" ? COLORS.error : COLORS.primary)
-        .rect(x + 3, baseY + 3, 8, 8)
-        .fill();
+    if (value === "Pass" || value === "pass") {
+      drawPillChip(doc, "Pass", chipX, chipY, COLORS.success, "white");
+    } else if (value === "Fail" || value === "fail") {
+      drawPillChip(doc, "Fail", chipX, chipY, COLORS.error, "white");
     }
+  } else {
+    // For yes-no-na, position chip at the right side
+    const chipY = baseY;
+    const chipX = chipAreaStartX + checkboxAreaWidth - 80; // Position at right side
 
-    doc
-      .fillColor(COLORS.text)
-      .fontSize(8)
-      .text(option, x + 18, baseY + 4);
-
-    x += 70;
+    if (value === "Yes" || value === "yes") {
+      drawPillChip(doc, "Yes", chipX, chipY, COLORS.success, "white");
+    } else if (value === "No" || value === "no") {
+      drawPillChip(doc, "No", chipX, chipY, COLORS.error, "white");
+    } else if (value === "N/A" || value === "na") {
+      drawPillChip(doc, "N/A", chipX, chipY, null, COLORS.primary, COLORS.primary);
+    }
   }
 
-  doc.y = baseY + 28;
+  doc.y = baseY + 35;
 };
 
 const drawApplianceCheckRow = (doc, label, value, type) => {
-  ensurePageSpace(doc, 28);
+  ensurePageSpace(doc, 32);
   const baseY = doc.y;
   const tableX = PAGE.margin;
+  const tableWidth = doc.page.width - PAGE.margin * 2;
   const columnStart = tableX + 10;
 
-  // Row background
+  // Row background - use full width
   doc
-    .rect(tableX, baseY, 320, 20)
+    .rect(tableX, baseY, tableWidth, 25)
     .fill("white")
     .stroke(COLORS.border);
 
-  // Label
+  // Label - use about 60% of width
+  const labelWidth = Math.floor(tableWidth * 0.6);
   doc
     .fillColor(COLORS.text)
     .fontSize(9)
     .font("Helvetica")
-    .text(label, columnStart, baseY + 5, { width: 200, ellipsis: true });
+    .text(label, columnStart, baseY + 8, { width: labelWidth - 20 });
 
-  // Checkboxes
-  const positions = [tableX + 230, tableX + 270, tableX + 310];
+  // Checkboxes - use remaining 40% of width
+  const checkboxAreaStart = tableX + labelWidth;
+  const checkboxAreaWidth = tableWidth - labelWidth;
+  // Always show 3 options for consistent design
   const options = ["yes", "no", "na"];
+  const checkboxSpacing = Math.floor(checkboxAreaWidth / 3);
 
   for (let index = 0; index < options.length; index++) {
     const option = options[index];
-    if (type === "yes-no" && option === "na") continue; // Skip N/A for yes-no fields
-
     const isSelected = value === option;
-    const x = positions[index];
+    const x = checkboxAreaStart + (index * checkboxSpacing) + 25; // Match gas installation alignment
 
     if (isSelected) {
       doc
         .fillColor(COLORS.primary)
-        .circle(x + 6, baseY + 10, 4)
+        .circle(x + 6, baseY + 12, 4)
         .fill()
         .fillColor("white")
-        .text("✓", x + 3, baseY + 6);
+        .text("✓", x + 3, baseY + 8);
     } else {
+      // Draw empty circle for unselected options (including N/A placeholder)
       doc
-        .circle(x + 6, baseY + 10, 4)
-        .stroke(COLORS.border);
+        .circle(x + 6, baseY + 12, 4)
+        .stroke(COLORS.border)
+        .fillColor("white")
+        .fill();
     }
   }
 
-  doc.y = baseY + 24;
+  doc.y = baseY + 28;
 };
 
 const drawTextField = (doc, label, value) => {
@@ -2780,7 +3280,7 @@ const drawComplianceDeclaration = (doc, section, responses = {}, report) => {
       .fontSize(10)
       .font("Helvetica-Bold")
       .text(
-        `Next gas safety check is due within 24 months. Next gas safety check due: ${formatDisplayDate(nextCheckDue)}`,
+        `Next gas safety check due: ${formatDisplayDate(nextCheckDue)}`,
         PAGE.margin + 10,
         doc.y + 60,
         {
@@ -2826,6 +3326,9 @@ export const buildInspectionReportPdf = async ({
   const doc = new PDFDocument({ margin: 0, size: "A4" });
   const chunks = [];
 
+  // Reset page counter for each new PDF
+  currentPageNumber = 1;
+
   // Set up promise to collect PDF data
   const pdfPromise = new Promise((resolve, reject) => {
     doc.on("data", (chunk) => chunks.push(chunk));
@@ -2835,6 +3338,12 @@ export const buildInspectionReportPdf = async ({
 
   // Professional cover page with company branding
   drawProfessionalCoverPage(doc, { property, job, technician, report, template });
+
+  // Draw property details section on page 2
+  drawPropertyDetailsSection(doc, { property, job, technician, report, template });
+
+  // Draw Details Of Identified Faults section
+  await drawDetailsOfIdentifiedFaultsSection(doc, { template, report, job, property, technician });
 
   if (template?.jobType === "Gas") {
     await renderGasReport(doc, { template, report, job, property, technician });
@@ -2918,12 +3427,22 @@ export const buildInspectionReportPdf = async ({
 
       // Add page break if needed
       if (doc.y > doc.page.height - 150) {
+        // Add footer to current page before creating new one
+        drawPageFooter(doc, currentPageNumber);
+
         doc.addPage();
-        doc.y = PAGE.margin;
+        currentPageNumber++; // Increment page counter
+
+        // Add header to new page
+        const startY = drawPageHeader(doc);
+        doc.y = startY;
         doc.fillColor(COLORS.text);
       }
     }
   }
+
+  // Add footer to final page
+  drawPageFooter(doc, currentPageNumber);
 
   doc.end();
   return pdfPromise;
