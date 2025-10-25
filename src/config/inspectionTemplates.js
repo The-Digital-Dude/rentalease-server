@@ -930,7 +930,11 @@ const buildStatusSection = (sectionId, title, rows, description) => ({
   id: sectionId,
   title,
   description,
-  fields: rows.map((row) => formatStatusFieldSet(row.id, row.label, { helpText: row.helpText })).flat(),
+  fields: rows
+    .map((row) =>
+      formatStatusFieldSet(row.id, row.label, { helpText: row.helpText })
+    )
+    .flat(),
 });
 
 const createRoomFieldId = (roomType, roomNumber, suffix) =>
@@ -938,7 +942,8 @@ const createRoomFieldId = (roomType, roomNumber, suffix) =>
 
 const createBedroomSection = (bedroomNumber) => {
   const roomId = `bedroom-${bedroomNumber}`;
-  const fieldId = (suffix) => createRoomFieldId("bedroom", bedroomNumber, suffix);
+  const fieldId = (suffix) =>
+    createRoomFieldId("bedroom", bedroomNumber, suffix);
 
   return {
     id: roomId,
@@ -991,7 +996,8 @@ const createBedroomSection = (bedroomNumber) => {
         label: "Photo of every openable window with latch visible/missing",
         type: "photo-multi",
         metadata: { max: 6 },
-        helpText: "Capture each openable window clearly showing latch hardware.",
+        helpText:
+          "Capture each openable window clearly showing latch hardware.",
       },
       {
         id: fieldId("windows-locks"),
@@ -1040,7 +1046,8 @@ const createBedroomSection = (bedroomNumber) => {
       },
       {
         id: fieldId("window-coverings-standard"),
-        label: "MINIMUM STANDARDS: Do the window coverings meet the minimum standards?",
+        label:
+          "MINIMUM STANDARDS: Do the window coverings meet the minimum standards?",
         type: "yes-no",
         required: true,
         defaultValue: "yes",
@@ -1067,7 +1074,8 @@ const createBedroomSection = (bedroomNumber) => {
       },
       {
         id: fieldId("lighting-standard"),
-        label: "MINIMUM STANDARDS: Does the lighting meet the minimum standards?",
+        label:
+          "MINIMUM STANDARDS: Does the lighting meet the minimum standards?",
         type: "yes-no",
         required: true,
         defaultValue: "yes",
@@ -1114,7 +1122,8 @@ const createBedroomSection = (bedroomNumber) => {
       },
       {
         id: fieldId("mould-standard"),
-        label: "MINIMUM STANDARDS: Does the mould and dampness meet the minimum standards?",
+        label:
+          "MINIMUM STANDARDS: Does the mould and dampness meet the minimum standards?",
         type: "yes-no",
         required: true,
         defaultValue: "yes",
@@ -1127,7 +1136,8 @@ const createBedroomSection = (bedroomNumber) => {
       },
       {
         id: fieldId("ventilation-has"),
-        label: "Does the room have means of ventilation with outdoor air to maintain adequate air supply?",
+        label:
+          "Does the room have means of ventilation with outdoor air to maintain adequate air supply?",
         type: "yes-no",
         required: true,
         defaultValue: "yes",
@@ -1142,7 +1152,8 @@ const createBedroomSection = (bedroomNumber) => {
       },
       {
         id: fieldId("ventilation-standard"),
-        label: "MINIMUM STANDARDS: Does the area ventilation meet the minimum standards?",
+        label:
+          "MINIMUM STANDARDS: Does the area ventilation meet the minimum standards?",
         type: "yes-no",
         required: true,
         defaultValue: "yes",
@@ -1155,13 +1166,15 @@ const createBedroomSection = (bedroomNumber) => {
       },
       {
         id: fieldId("bowing"),
-        label: "Is there any severe bowing or leaning of walls in the property?",
+        label:
+          "Is there any severe bowing or leaning of walls in the property?",
         type: "yes-no",
         defaultValue: "no",
       },
       {
         id: fieldId("bowing-standard"),
-        label: "MINIMUM STANDARDS: Does the room meet bowing and leaning standards?",
+        label:
+          "MINIMUM STANDARDS: Does the room meet bowing and leaning standards?",
         type: "yes-no",
         required: true,
         defaultValue: "yes",
@@ -1174,7 +1187,8 @@ const createBedroomSection = (bedroomNumber) => {
       },
       {
         id: fieldId("cracking-standard"),
-        label: "MINIMUM STANDARDS: Does the area cracking meet the minimum standards?",
+        label:
+          "MINIMUM STANDARDS: Does the area cracking meet the minimum standards?",
         type: "yes-no",
         required: true,
         defaultValue: "yes",
@@ -1187,14 +1201,16 @@ const createBedroomSection = (bedroomNumber) => {
       },
       {
         id: fieldId("warping-standard"),
-        label: "MINIMUM STANDARDS: Does the room meet warping or movement standards?",
+        label:
+          "MINIMUM STANDARDS: Does the room meet warping or movement standards?",
         type: "yes-no",
         required: true,
         defaultValue: "yes",
       },
       {
         id: fieldId("overall-standard"),
-        label: "ROOM OVERALL: Does the area overall meet the minimum standards?",
+        label:
+          "ROOM OVERALL: Does the area overall meet the minimum standards?",
         type: "yes-no",
         required: true,
         defaultValue: "yes",
@@ -1218,7 +1234,8 @@ const createBedroomSection = (bedroomNumber) => {
 
 const createBathroomSection = (bathroomNumber) => {
   const roomId = `bathroom-${bathroomNumber}`;
-  const fieldId = (suffix) => createRoomFieldId("bathroom", bathroomNumber, suffix);
+  const fieldId = (suffix) =>
+    createRoomFieldId("bathroom", bathroomNumber, suffix);
 
   return {
     id: roomId,
@@ -1306,7 +1323,8 @@ const createBathroomSection = (bathroomNumber) => {
       },
       {
         id: fieldId("ventilation-standard"),
-        label: "MINIMUM STANDARDS: Does the area ventilation meet the minimum standards?",
+        label:
+          "MINIMUM STANDARDS: Does the area ventilation meet the minimum standards?",
         type: "yes-no",
         required: true,
         defaultValue: "yes",
@@ -1459,7 +1477,8 @@ const createBathroomSection = (bathroomNumber) => {
       },
       {
         id: fieldId("mould-standard"),
-        label: "MINIMUM STANDARDS: Does the mould and dampness meet the minimum standards?",
+        label:
+          "MINIMUM STANDARDS: Does the mould and dampness meet the minimum standards?",
         type: "yes-no",
         required: true,
         defaultValue: "yes",
@@ -1472,13 +1491,15 @@ const createBathroomSection = (bathroomNumber) => {
       },
       {
         id: fieldId("bowing"),
-        label: "Is there any severe bowing or leaning of walls in the property?",
+        label:
+          "Is there any severe bowing or leaning of walls in the property?",
         type: "yes-no",
         defaultValue: "no",
       },
       {
         id: fieldId("bowing-standard"),
-        label: "MINIMUM STANDARDS: Does the room meet bowing and leaning standards?",
+        label:
+          "MINIMUM STANDARDS: Does the room meet bowing and leaning standards?",
         type: "yes-no",
         required: true,
         defaultValue: "yes",
@@ -1491,7 +1512,8 @@ const createBathroomSection = (bathroomNumber) => {
       },
       {
         id: fieldId("cracking-standard"),
-        label: "MINIMUM STANDARDS: Does the area cracking meet the minimum standards?",
+        label:
+          "MINIMUM STANDARDS: Does the area cracking meet the minimum standards?",
         type: "yes-no",
         required: true,
         defaultValue: "yes",
@@ -1504,14 +1526,16 @@ const createBathroomSection = (bathroomNumber) => {
       },
       {
         id: fieldId("warping-standard"),
-        label: "MINIMUM STANDARDS: Does the room meet warping or movement standards?",
+        label:
+          "MINIMUM STANDARDS: Does the room meet warping or movement standards?",
         type: "yes-no",
         required: true,
         defaultValue: "yes",
       },
       {
         id: fieldId("overall-standard"),
-        label: "ROOM OVERALL: Does the area overall meet the minimum standards?",
+        label:
+          "ROOM OVERALL: Does the area overall meet the minimum standards?",
         type: "yes-no",
         required: true,
         defaultValue: "yes",
@@ -1536,9 +1560,15 @@ const createBathroomSection = (bathroomNumber) => {
 const createLivingRoomSection = () => ({
   id: "living-room",
   title: "Living Room",
-  description: "Assessment of the main living room, heating and compliance checks",
+  description:
+    "Assessment of the main living room, heating and compliance checks",
   fields: [
-    { id: "living-room-photo", label: "Photo of room", type: "photo", defaultValue: DEFAULT_PLACEHOLDER_IMAGE },
+    {
+      id: "living-room-photo",
+      label: "Photo of room",
+      type: "photo",
+      defaultValue: DEFAULT_PLACEHOLDER_IMAGE,
+    },
     {
       id: "living-room-window-present",
       label: "Is there a window in the room?",
@@ -1564,7 +1594,8 @@ const createLivingRoomSection = () => ({
     },
     {
       id: "living-room-window-coverings-standard",
-      label: "MINIMUM STANDARDS: Do the window coverings meet the minimum standards?",
+      label:
+        "MINIMUM STANDARDS: Do the window coverings meet the minimum standards?",
       type: "yes-no",
       defaultValue: "yes",
     },
@@ -1625,7 +1656,8 @@ const createLivingRoomSection = () => ({
     },
     {
       id: "living-room-heater-standard",
-      label: "MINIMUM STANDARDS: Does the main living area heating meet the minimum standards?",
+      label:
+        "MINIMUM STANDARDS: Does the main living area heating meet the minimum standards?",
       type: "yes-no",
       defaultValue: "yes",
     },
@@ -1716,13 +1748,15 @@ const createLivingRoomSection = () => ({
     },
     {
       id: "living-room-mould-standard",
-      label: "MINIMUM STANDARDS: Does the mould and dampness meet the minimum standards?",
+      label:
+        "MINIMUM STANDARDS: Does the mould and dampness meet the minimum standards?",
       type: "yes-no",
       defaultValue: "yes",
     },
     {
       id: "living-room-ventilation-has",
-      label: "Does the room have means of ventilation with outdoor air to maintain adequate air supply?",
+      label:
+        "Does the room have means of ventilation with outdoor air to maintain adequate air supply?",
       type: "yes-no",
       defaultValue: "yes",
     },
@@ -1735,7 +1769,8 @@ const createLivingRoomSection = () => ({
     },
     {
       id: "living-room-ventilation-standard",
-      label: "MINIMUM STANDARDS: Does the area ventilation meet the minimum standards?",
+      label:
+        "MINIMUM STANDARDS: Does the area ventilation meet the minimum standards?",
       type: "yes-no",
       defaultValue: "yes",
     },
@@ -1777,7 +1812,12 @@ const createKitchenSection = () => ({
   title: "Kitchen",
   description: "Assessment of kitchen facilities and compliance",
   fields: [
-    { id: "kitchen-photo", label: "Photo of room", type: "photo", defaultValue: DEFAULT_PLACEHOLDER_IMAGE },
+    {
+      id: "kitchen-photo",
+      label: "Photo of room",
+      type: "photo",
+      defaultValue: DEFAULT_PLACEHOLDER_IMAGE,
+    },
     {
       id: "kitchen-food-prep",
       label: "Is there a dedicated food preparation area?",
@@ -1791,7 +1831,8 @@ const createKitchenSection = () => ({
     },
     {
       id: "kitchen-food-prep-standard",
-      label: "MINIMUM STANDARDS: Does the food preparation area meet minimum standards?",
+      label:
+        "MINIMUM STANDARDS: Does the food preparation area meet minimum standards?",
       type: "yes-no",
       defaultValue: "yes",
     },
@@ -1971,13 +2012,15 @@ const createKitchenSection = () => ({
     },
     {
       id: "kitchen-mould-standard",
-      label: "MINIMUM STANDARDS: Does the mould and dampness meet the minimum standards?",
+      label:
+        "MINIMUM STANDARDS: Does the mould and dampness meet the minimum standards?",
       type: "yes-no",
       defaultValue: "yes",
     },
     {
       id: "kitchen-ventilation-has",
-      label: "Does the room have means of ventilation with outdoor air to maintain adequate air supply?",
+      label:
+        "Does the room have means of ventilation with outdoor air to maintain adequate air supply?",
       type: "yes-no",
       defaultValue: "yes",
     },
@@ -1990,7 +2033,8 @@ const createKitchenSection = () => ({
     },
     {
       id: "kitchen-ventilation-standard",
-      label: "MINIMUM STANDARDS: Does the area ventilation meet the minimum standards?",
+      label:
+        "MINIMUM STANDARDS: Does the area ventilation meet the minimum standards?",
       type: "yes-no",
       defaultValue: "yes",
     },
@@ -2032,7 +2076,12 @@ const createLaundrySection = () => ({
   title: "Laundry",
   description: "Assessment of laundry water supply and compliance",
   fields: [
-    { id: "laundry-photo", label: "Photo of room", type: "photo", defaultValue: DEFAULT_PLACEHOLDER_IMAGE },
+    {
+      id: "laundry-photo",
+      label: "Photo of room",
+      type: "photo",
+      defaultValue: DEFAULT_PLACEHOLDER_IMAGE,
+    },
     {
       id: "laundry-cold-water-adequate",
       label: "Is there an adequate supply/flow of cold water?",
@@ -2144,13 +2193,15 @@ const createLaundrySection = () => ({
     },
     {
       id: "laundry-mould-standard",
-      label: "MINIMUM STANDARDS: Does the mould and dampness meet the minimum standards?",
+      label:
+        "MINIMUM STANDARDS: Does the mould and dampness meet the minimum standards?",
       type: "yes-no",
       defaultValue: "yes",
     },
     {
       id: "laundry-ventilation-has",
-      label: "Does the room have means of ventilation with outdoor air to maintain adequate air supply?",
+      label:
+        "Does the room have means of ventilation with outdoor air to maintain adequate air supply?",
       type: "yes-no",
       defaultValue: "yes",
     },
@@ -2163,7 +2214,8 @@ const createLaundrySection = () => ({
     },
     {
       id: "laundry-ventilation-standard",
-      label: "MINIMUM STANDARDS: Does the area ventilation meet the minimum standards?",
+      label:
+        "MINIMUM STANDARDS: Does the area ventilation meet the minimum standards?",
       type: "yes-no",
       defaultValue: "yes",
     },
@@ -2214,11 +2266,17 @@ const createMinimumSafetyStandardTemplate = (
   ];
 
   for (let i = 1; i <= bathroomCount; i++) {
-    overallSummaryRows.push({ id: `summary-bathroom-${i}`, label: `Bathroom ${i}` });
+    overallSummaryRows.push({
+      id: `summary-bathroom-${i}`,
+      label: `Bathroom ${i}`,
+    });
   }
 
   for (let i = 1; i <= bedroomCount; i++) {
-    overallSummaryRows.push({ id: `summary-bedroom-${i}`, label: `Bedroom ${i}` });
+    overallSummaryRows.push({
+      id: `summary-bedroom-${i}`,
+      label: `Bedroom ${i}`,
+    });
   }
 
   const lightingRows = [
@@ -2275,9 +2333,7 @@ const createMinimumSafetyStandardTemplate = (
     { id: "external-door-laundry", label: "Laundry" },
   ];
 
-  const heatingRows = [
-    { id: "heating-living-room", label: "Living Room" },
-  ];
+  const heatingRows = [{ id: "heating-living-room", label: "Living Room" }];
 
   const coldWaterRows = [
     { id: "cold-water-kitchen", label: "Kitchen" },
@@ -2303,31 +2359,70 @@ const createMinimumSafetyStandardTemplate = (
     executiveFixtureFields.push(
       ...formatPresenceFieldSet(`bathroom-${i}-bath`, `Bathroom ${i} Bath`),
       ...formatPresenceFieldSet(`bathroom-${i}-shower`, `Bathroom ${i} Shower`),
-      ...formatPresenceFieldSet(`bathroom-${i}-washbasin`, `Bathroom ${i} Washbasin`)
+      ...formatPresenceFieldSet(
+        `bathroom-${i}-washbasin`,
+        `Bathroom ${i} Washbasin`
+      )
     );
   }
 
   for (let i = 1; i <= bedroomCount; i++) {
     lightingRows.push({ id: `lighting-bedroom-${i}`, label: `Bedroom ${i}` });
     mouldRows.push({ id: `mould-bedroom-${i}`, label: `Bedroom ${i}` });
-    ventilationRows.push({ id: `ventilation-bedroom-${i}`, label: `Bedroom ${i}` });
-    structuralBowingRows.push({ id: `struct-bowing-bedroom-${i}`, label: `Bedroom ${i}` });
-    structuralCrackingRows.push({ id: `struct-cracking-bedroom-${i}`, label: `Bedroom ${i}` });
-    structuralWarpingRows.push({ id: `struct-warping-bedroom-${i}`, label: `Bedroom ${i}` });
-    windowCoveringRows.push({ id: `window-coverings-bedroom-${i}`, label: `Bedroom ${i}` });
+    ventilationRows.push({
+      id: `ventilation-bedroom-${i}`,
+      label: `Bedroom ${i}`,
+    });
+    structuralBowingRows.push({
+      id: `struct-bowing-bedroom-${i}`,
+      label: `Bedroom ${i}`,
+    });
+    structuralCrackingRows.push({
+      id: `struct-cracking-bedroom-${i}`,
+      label: `Bedroom ${i}`,
+    });
+    structuralWarpingRows.push({
+      id: `struct-warping-bedroom-${i}`,
+      label: `Bedroom ${i}`,
+    });
+    windowCoveringRows.push({
+      id: `window-coverings-bedroom-${i}`,
+      label: `Bedroom ${i}`,
+    });
     windowLatchRows.push({ id: `windows-bedroom-${i}`, label: `Bedroom ${i}` });
   }
 
   for (let i = 1; i <= bathroomCount; i++) {
     lightingRows.push({ id: `lighting-bathroom-${i}`, label: `Bathroom ${i}` });
     mouldRows.push({ id: `mould-bathroom-${i}`, label: `Bathroom ${i}` });
-    ventilationRows.push({ id: `ventilation-bathroom-${i}`, label: `Bathroom ${i}` });
-    structuralBowingRows.push({ id: `struct-bowing-bathroom-${i}`, label: `Bathroom ${i}` });
-    structuralCrackingRows.push({ id: `struct-cracking-bathroom-${i}`, label: `Bathroom ${i}` });
-    structuralWarpingRows.push({ id: `struct-warping-bathroom-${i}`, label: `Bathroom ${i}` });
-    windowLatchRows.push({ id: `windows-bathroom-${i}`, label: `Bathroom ${i}` });
-    coldWaterRows.push({ id: `cold-water-bathroom-${i}`, label: `Bathroom ${i}` });
-    hotWaterRows.push({ id: `hot-water-bathroom-${i}`, label: `Bathroom ${i}` });
+    ventilationRows.push({
+      id: `ventilation-bathroom-${i}`,
+      label: `Bathroom ${i}`,
+    });
+    structuralBowingRows.push({
+      id: `struct-bowing-bathroom-${i}`,
+      label: `Bathroom ${i}`,
+    });
+    structuralCrackingRows.push({
+      id: `struct-cracking-bathroom-${i}`,
+      label: `Bathroom ${i}`,
+    });
+    structuralWarpingRows.push({
+      id: `struct-warping-bathroom-${i}`,
+      label: `Bathroom ${i}`,
+    });
+    windowLatchRows.push({
+      id: `windows-bathroom-${i}`,
+      label: `Bathroom ${i}`,
+    });
+    coldWaterRows.push({
+      id: `cold-water-bathroom-${i}`,
+      label: `Bathroom ${i}`,
+    });
+    hotWaterRows.push({
+      id: `hot-water-bathroom-${i}`,
+      label: `Bathroom ${i}`,
+    });
     toiletRows.push({ id: `toilet-bathroom-${i}`, label: `Bathroom ${i}` });
   }
 
@@ -2431,7 +2526,8 @@ const createMinimumSafetyStandardTemplate = (
     {
       id: "front-entrance",
       title: "Front Entrance",
-      description: "Assess the primary entry including doors, hardware, and weather protection",
+      description:
+        "Assess the primary entry including doors, hardware, and weather protection",
       fields: [
         {
           id: "front-entrance-house-photo",
@@ -2487,7 +2583,8 @@ const createMinimumSafetyStandardTemplate = (
           required: true,
           options: passFailOptions,
           defaultValue: "pass",
-          helpText: "Assess awnings, verandas, or other protection from weather",
+          helpText:
+            "Assess awnings, verandas, or other protection from weather",
         },
         {
           id: "front-entrance-external-door-present",
@@ -2518,7 +2615,8 @@ const createMinimumSafetyStandardTemplate = (
           label: "Close-up photos of deadlock/deadlatch",
           type: "photo-multi",
           metadata: { max: 3 },
-          helpText: "Capture outside, inside, and engaged positions of the lock",
+          helpText:
+            "Capture outside, inside, and engaged positions of the lock",
         },
         {
           id: "front-entrance-deadlock-functional",
@@ -2540,19 +2638,22 @@ const createMinimumSafetyStandardTemplate = (
         },
         {
           id: "front-entrance-mould-standard",
-          label: "MINIMUM STANDARDS: Does the mould and dampness meet the minimum standards?",
+          label:
+            "MINIMUM STANDARDS: Does the mould and dampness meet the minimum standards?",
           type: "yes-no",
           defaultValue: "yes",
         },
         {
           id: "front-entrance-ventilation-standard",
-          label: "MINIMUM STANDARDS: Does the area ventilation meet the minimum standards?",
+          label:
+            "MINIMUM STANDARDS: Does the area ventilation meet the minimum standards?",
           type: "yes-no",
           defaultValue: "yes",
         },
         {
           id: "front-entrance-overall-standard",
-          label: "ROOM OVERALL: Does the area overall meet the minimum standards?",
+          label:
+            "ROOM OVERALL: Does the area overall meet the minimum standards?",
           type: "yes-no",
           defaultValue: "yes",
         },
@@ -2560,7 +2661,8 @@ const createMinimumSafetyStandardTemplate = (
           id: "front-entrance-notes",
           label: "Front Entrance Notes",
           type: "textarea",
-          placeholder: "Record observations or maintenance items relating to the entrance",
+          placeholder:
+            "Record observations or maintenance items relating to the entrance",
           defaultValue: "N/A",
         },
         {
@@ -2654,7 +2756,8 @@ const createMinimumSafetyStandardTemplate = (
         },
         {
           id: "switchboard-circuit-breaker",
-          label: "Is it apparent there is a circuit breaker connected to all lighting and power circuits?",
+          label:
+            "Is it apparent there is a circuit breaker connected to all lighting and power circuits?",
           type: "yes-no",
           required: true,
           defaultValue: "yes",
@@ -2668,7 +2771,8 @@ const createMinimumSafetyStandardTemplate = (
         },
         {
           id: "switchboard-meets-standard",
-          label: "MINIMUM STANDARDS: Does the switchboard meet the minimum standards?",
+          label:
+            "MINIMUM STANDARDS: Does the switchboard meet the minimum standards?",
           type: "yes-no",
           required: true,
           defaultValue: "yes",
@@ -2711,7 +2815,8 @@ const createMinimumSafetyStandardTemplate = (
         },
         {
           id: "bin-general-condition",
-          label: "Is the general waste bin in good working condition/vermin proof?",
+          label:
+            "Is the general waste bin in good working condition/vermin proof?",
           type: "yes-no",
           required: true,
           defaultValue: "yes",
@@ -2723,7 +2828,8 @@ const createMinimumSafetyStandardTemplate = (
         },
         {
           id: "bin-general-standard",
-          label: "MINIMUM STANDARDS: Does the general waste bin meet the minimum standards?",
+          label:
+            "MINIMUM STANDARDS: Does the general waste bin meet the minimum standards?",
           type: "yes-no",
           required: true,
           defaultValue: "yes",
@@ -2749,7 +2855,8 @@ const createMinimumSafetyStandardTemplate = (
         },
         {
           id: "bin-recycle-standard",
-          label: "MINIMUM STANDARDS: Does the recycle bin meet the minimum standards?",
+          label:
+            "MINIMUM STANDARDS: Does the recycle bin meet the minimum standards?",
           type: "yes-no",
           required: true,
           defaultValue: "yes",

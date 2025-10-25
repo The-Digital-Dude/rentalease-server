@@ -1219,7 +1219,7 @@ const drawCertificationBlock = (doc, certification = {}) => {
   }
 };
 
-const renderElectricalSmokeReport = (doc, { report, template, job, property }) => {
+const renderElectricalSmokeReport = async (doc, { report, template, job, property, technician }) => {
   const getSectionValues = (id) => report.formData?.[id] || {};
   const findSectionDefinition = (id) => template.sections?.find((section) => section.id === id);
 
@@ -1235,6 +1235,60 @@ const renderElectricalSmokeReport = (doc, { report, template, job, property }) =
     property?.address ||
     "N/A";
 
+  const renderSectionPhotos = async (sectionId, heading) => {
+    const mediaItems = (report.media || []).filter(
+      (item) => item.metadata?.sectionId === sectionId
+    );
+
+    if (!mediaItems.length) {
+      return;
+    }
+
+    // Ensure space for photo section header and at least one photo
+    ensurePageSpace(doc, 250);
+
+    doc
+      .fillColor(COLORS.primary)
+      .fontSize(12)
+      .font("Helvetica-Bold")
+      .text(`${heading} Photos`, PAGE.margin, doc.y);
+    doc.y += 18;
+
+    for (const mediaItem of mediaItems) {
+      // Check if we need space for this photo (220px height + spacing)
+      const photoHeight = 220;
+      const totalPhotoSpace = photoHeight + 25;
+
+      ensurePageSpace(doc, totalPhotoSpace);
+
+      const result = await processImageForPdf(
+        mediaItem.url,
+        doc,
+        PAGE.margin,
+        doc.y,
+        400,
+        photoHeight
+      );
+
+      doc.y += result.height + 15;
+
+      // Add photo caption if available
+      if (mediaItem.metadata?.caption) {
+        doc
+          .fillColor(COLORS.textSecondary)
+          .fontSize(9)
+          .font("Helvetica")
+          .text(mediaItem.metadata.caption, PAGE.margin, doc.y, {
+            width: 400,
+            align: 'left'
+          });
+        doc.y += 10;
+      }
+    }
+
+    doc.y += 5; // Extra spacing after photo section
+  };
+
   const summaryRows = [
     {
       label: "Property Address",
@@ -1248,7 +1302,7 @@ const renderElectricalSmokeReport = (doc, { report, template, job, property }) =
     },
     {
       label: "Inspector",
-      value: summarySection["inspector-name"] || "N/A",
+      value: summarySection["inspector-name"] || `${technician?.firstName || ""} ${technician?.lastName || ""}`.trim() || "N/A",
     },
     {
       label: "Licence/registration number",
@@ -1261,9 +1315,10 @@ const renderElectricalSmokeReport = (doc, { report, template, job, property }) =
   ];
 
   drawRoomDetailTable(doc, "Property Report Summary", summaryRows.map(row => ({
-    question: row.label,
-    answer: row.value
+    label: row.label,
+    value: row.value
   })));
+  await renderSectionPhotos("inspection-summary", "Property Overview");
 
   drawOutcomeBadges(doc, [
     {
@@ -1278,21 +1333,18 @@ const renderElectricalSmokeReport = (doc, { report, template, job, property }) =
 
   if (summarySection["summary-notes"]) {
     ensurePageSpace(doc, 120);
-    doc
-      .fillColor(COLORS.text)
-      .font("Helvetica-Bold")
-      .fontSize(11)
-      .text("Next steps", PAGE.margin, doc.y);
+    drawSectionHeader(doc, "Next Steps");
 
     doc
       .fillColor(COLORS.textSecondary)
       .font("Helvetica")
       .fontSize(10)
-      .text(String(summarySection["summary-notes"]), PAGE.margin, doc.y + 14, {
+      .text(String(summarySection["summary-notes"]), PAGE.margin, doc.y, {
         width: doc.page.width - PAGE.margin * 2,
+        lineGap: 3
       });
 
-    doc.y += 60;
+    doc.y += 40;
   }
 
   if (summarySection["contact-email"] || summarySection["contact-phone"]) {
@@ -1306,10 +1358,11 @@ const renderElectricalSmokeReport = (doc, { report, template, job, property }) =
         value: summarySection["contact-phone"] || "—",
       },
     ];
-    drawRoomDetailTable(doc, "Contact", contactRows.map(row => ({
-      question: row.label,
-      answer: row.value
+    drawRoomDetailTable(doc, "Contact Information", contactRows.map(row => ({
+      label: row.label,
+      value: row.value
     })));
+    await renderSectionPhotos("contact", "Contact Details");
   }
 
   const renderStatusSection = (sectionId, mapper, noteFieldIds = []) => {
@@ -1440,7 +1493,96 @@ const renderElectricalSmokeReport = (doc, { report, template, job, property }) =
 };
 
 const renderGasReport = async (doc, { template, report, job, property, technician }) => {
-  drawPropertyDetails(doc, { property, job, technician, report });
+  const getSectionValues = (id) => report.formData?.[id] || {};
+
+  const renderSectionPhotos = async (sectionId, heading) => {
+    const mediaItems = (report.media || []).filter(
+      (item) => item.metadata?.sectionId === sectionId || item.fieldId?.includes(sectionId)
+    );
+
+    if (!mediaItems.length) {
+      return;
+    }
+
+    // Ensure space for photo section header and at least one photo
+    ensurePageSpace(doc, 250);
+
+    doc
+      .fillColor(COLORS.primary)
+      .fontSize(12)
+      .font("Helvetica-Bold")
+      .text(`${heading} Photos`, PAGE.margin, doc.y);
+    doc.y += 18;
+
+    for (const mediaItem of mediaItems) {
+      // Check if we need space for this photo (220px height + spacing)
+      const photoHeight = 220;
+      const totalPhotoSpace = photoHeight + 25;
+
+      ensurePageSpace(doc, totalPhotoSpace);
+
+      const result = await processImageForPdf(
+        mediaItem.url,
+        doc,
+        PAGE.margin,
+        doc.y,
+        400,
+        photoHeight
+      );
+
+      doc.y += result.height + 15;
+
+      // Add photo caption if available
+      if (mediaItem.metadata?.caption || mediaItem.label) {
+        doc
+          .fillColor(COLORS.textSecondary)
+          .fontSize(9)
+          .font("Helvetica")
+          .text(mediaItem.metadata?.caption || mediaItem.label || '', PAGE.margin, doc.y, {
+            width: 400,
+            align: 'left'
+          });
+        doc.y += 10;
+      }
+    }
+
+    doc.y += 5; // Extra spacing after photo section
+  };
+
+  // Property Details Summary
+  const propertyDetails = getSectionValues("property-details") || {};
+  const propertyAddress = property?.address?.fullAddress || property?.address?.street || "N/A";
+  const inspectionDate = formatDisplayDate(report?.submittedAt || job?.dueDate);
+  const inspectorName = `${technician?.firstName || ""} ${technician?.lastName || ""}`.trim() || "Inspector Name Not Available";
+
+  const summaryRows = [
+    {
+      label: "Property Address",
+      value: propertyAddress,
+    },
+    {
+      label: "Inspection Date",
+      value: inspectionDate,
+    },
+    {
+      label: "Inspector",
+      value: inspectorName,
+    },
+    {
+      label: "Inspector License",
+      value: propertyDetails["license-number"] || "N/A",
+    },
+    {
+      label: "Gas Installation Type",
+      value: propertyDetails["installation-type"] || "N/A",
+    },
+  ];
+
+  drawRoomDetailTable(doc, "Gas Installation Summary", summaryRows.map(row => ({
+    label: row.label,
+    value: row.value
+  })));
+  await renderSectionPhotos("property-details", "Property Overview");
 
   if (!template?.sections?.length) {
     return;
@@ -1449,18 +1591,17 @@ const renderGasReport = async (doc, { template, report, job, property, technicia
   for (const section of template.sections) {
     const responses = report.formData?.[section.id] || {};
 
-    if (doc.y > doc.page.height - 150) {
-      doc.addPage();
-      doc.y = PAGE.margin;
-      doc.fillColor(COLORS.text);
-    }
+    ensurePageSpace(doc, 120);
 
     if (section.id === "gas-installation") {
       drawGasInstallationSection(doc, section, responses);
+      await renderSectionPhotos(section.id, "Gas Installation");
     } else if (section.id.startsWith("appliance-")) {
       drawApplianceSection(doc, section, responses);
+      await renderSectionPhotos(section.id, section.title || "Appliance");
     } else if (section.id === "fault-identification") {
       drawFaultIdentificationSection(doc, section, responses);
+      await renderSectionPhotos(section.id, "Fault Identification");
     } else if (section.id === "final-declaration") {
       drawComplianceDeclaration(doc, section, responses, report);
     } else {
@@ -1470,72 +1611,24 @@ const renderGasReport = async (doc, { template, report, job, property, technicia
           : section.title;
       drawSectionHeader(doc, genericTitle);
 
+      // Create table rows for section fields
+      const sectionRows = [];
       for (const field of section.fields) {
         const value = responses[field.id];
-
-        if (field.type === "photo" || field.type === "photo-multi") {
-          const fieldMedia = report.media?.filter((item) => item.fieldId === field.id) || [];
-
-          if (fieldMedia.length > 0) {
-            const imageLabelX = PAGE.margin + 10;
-            doc
-              .fillColor(COLORS.text)
-              .fontSize(10)
-              .font("Helvetica-Bold")
-              .text(field.label, imageLabelX, doc.y);
-
-            doc.y += 15;
-
-            for (const mediaItem of fieldMedia) {
-              const result = await processImageForPdf(
-                mediaItem.url,
-                doc,
-                PAGE.margin + 10,
-                doc.y,
-                200,
-                150
-              );
-
-              if (result.success) {
-                doc.y += result.height;
-              } else {
-                doc
-                  .fillColor(COLORS.textSecondary)
-                  .fontSize(9)
-                  .font("Helvetica")
-                  .text(result.message, imageLabelX, doc.y);
-                doc.y += result.height;
-              }
-
-              if (doc.y > doc.page.height - 150) {
-                doc.addPage();
-                doc.y = PAGE.margin;
-                doc.fillColor(COLORS.text);
-              }
-            }
-
-            doc.y += 10;
-          } else {
-            doc
-              .fillColor(COLORS.text)
-              .fontSize(10)
-              .font("Helvetica-Bold")
-              .text(field.label, PAGE.margin + 10, doc.y);
-
-            doc
-              .font("Helvetica")
-              .fillColor(COLORS.textSecondary)
-              .text("No photos attached", PAGE.margin + 10, doc.y + 2);
-
-            doc.y += 25;
-          }
-        } else {
+        if (field.type !== "photo" && field.type !== "photo-multi") {
           const formattedValue = formatValue(value, field.type);
-          drawTextField(doc, field.label, formattedValue);
+          sectionRows.push({
+            label: field.label,
+            value: formattedValue || "N/A"
+          });
         }
       }
 
-      doc.y += 20;
+      if (sectionRows.length > 0) {
+        drawRoomDetailTable(doc, null, sectionRows);
+      }
+
+      await renderSectionPhotos(section.id, section.title || "Section");
     }
   }
 };
@@ -2174,7 +2267,96 @@ const renderMinimumSafetyStandardReport = async (
 };
 
 const renderGenericReport = async (doc, { template, report, job, property, technician }) => {
-  drawPropertyDetails(doc, { property, job, technician, report });
+  const getSectionValues = (id) => report.formData?.[id] || {};
+
+  const renderSectionPhotos = async (sectionId, heading) => {
+    const mediaItems = (report.media || []).filter(
+      (item) => item.metadata?.sectionId === sectionId || item.fieldId?.includes(sectionId)
+    );
+
+    if (!mediaItems.length) {
+      return;
+    }
+
+    // Ensure space for photo section header and at least one photo
+    ensurePageSpace(doc, 250);
+
+    doc
+      .fillColor(COLORS.primary)
+      .fontSize(12)
+      .font("Helvetica-Bold")
+      .text(`${heading} Photos`, PAGE.margin, doc.y);
+    doc.y += 18;
+
+    for (const mediaItem of mediaItems) {
+      // Check if we need space for this photo (220px height + spacing)
+      const photoHeight = 220;
+      const totalPhotoSpace = photoHeight + 25;
+
+      ensurePageSpace(doc, totalPhotoSpace);
+
+      const result = await processImageForPdf(
+        mediaItem.url,
+        doc,
+        PAGE.margin,
+        doc.y,
+        400,
+        photoHeight
+      );
+
+      doc.y += result.height + 15;
+
+      // Add photo caption if available
+      if (mediaItem.metadata?.caption || mediaItem.label) {
+        doc
+          .fillColor(COLORS.textSecondary)
+          .fontSize(9)
+          .font("Helvetica")
+          .text(mediaItem.metadata?.caption || mediaItem.label || '', PAGE.margin, doc.y, {
+            width: 400,
+            align: 'left'
+          });
+        doc.y += 10;
+      }
+    }
+
+    doc.y += 5; // Extra spacing after photo section
+  };
+
+  // Property Details Summary
+  const propertyDetails = getSectionValues("property-details") || {};
+  const propertyAddress = property?.address?.fullAddress || property?.address?.street || "N/A";
+  const inspectionDate = formatDisplayDate(report?.submittedAt || job?.dueDate);
+  const inspectorName = `${technician?.firstName || ""} ${technician?.lastName || ""}`.trim() || "Inspector Name Not Available";
+
+  const summaryRows = [
+    {
+      label: "Property Address",
+      value: propertyAddress,
+    },
+    {
+      label: "Inspection Date",
+      value: inspectionDate,
+    },
+    {
+      label: "Inspector",
+      value: inspectorName,
+    },
+    {
+      label: "Inspector License",
+      value: propertyDetails["license-number"] || technician?.licenseNumber || "N/A",
+    },
+    {
+      label: "Report Generated",
+      value: formatDisplayDate(new Date()),
+    },
+  ];
+
+  drawRoomDetailTable(doc, "Inspection Summary", summaryRows.map(row => ({
+    label: row.label,
+    value: row.value
+  })));
+  await renderSectionPhotos("property-details", "Property Overview");
 
   if (!template?.sections?.length) {
     return;
@@ -2183,79 +2365,27 @@ const renderGenericReport = async (doc, { template, report, job, property, techn
   for (const section of template.sections) {
     const responses = report.formData?.[section.id] || {};
 
-    if (doc.y > doc.page.height - 150) {
-      doc.addPage();
-      doc.y = PAGE.margin;
-      doc.fillColor(COLORS.text);
-    }
-
+    ensurePageSpace(doc, 120);
     drawSectionHeader(doc, section.title);
 
+    // Create table rows for section fields
+    const sectionRows = [];
     for (const field of section.fields) {
       const value = responses[field.id];
-
-      if (field.type === "photo" || field.type === "photo-multi") {
-        const fieldMedia = report.media?.filter((item) => item.fieldId === field.id) || [];
-
-        if (fieldMedia.length > 0) {
-          doc
-            .fillColor(COLORS.text)
-            .fontSize(10)
-            .font("Helvetica-Bold")
-            .text(field.label, PAGE.margin + 10, doc.y);
-
-          doc.y += 15;
-
-          for (const mediaItem of fieldMedia) {
-            const result = await processImageForPdf(
-              mediaItem.url,
-              doc,
-              PAGE.margin + 10,
-              doc.y,
-              200,
-              150
-            );
-
-            if (result.success) {
-              doc.y += result.height;
-            } else {
-              doc
-                .fillColor(COLORS.textSecondary)
-                .fontSize(9)
-                .font("Helvetica")
-                .text(result.message, PAGE.margin + 10, doc.y);
-              doc.y += result.height;
-            }
-
-            if (doc.y > doc.page.height - 150) {
-              doc.addPage();
-              doc.y = PAGE.margin;
-              doc.fillColor(COLORS.text);
-            }
-          }
-
-          doc.y += 10;
-        } else {
-          doc
-            .fillColor(COLORS.text)
-            .fontSize(10)
-            .font("Helvetica-Bold")
-            .text(field.label, PAGE.margin + 10, doc.y);
-
-          doc
-            .font("Helvetica")
-            .fillColor(COLORS.textSecondary)
-            .text("No photos attached", PAGE.margin + 10, doc.y + 2);
-
-          doc.y += 25;
-        }
-      } else {
+      if (field.type !== "photo" && field.type !== "photo-multi") {
         const formattedValue = formatValue(value, field.type);
-        drawTextField(doc, field.label, formattedValue);
+        sectionRows.push({
+          label: field.label,
+          value: formattedValue || "N/A"
+        });
       }
     }
 
-    doc.y += 20;
+    if (sectionRows.length > 0) {
+      drawRoomDetailTable(doc, null, sectionRows);
+    }
+
+    await renderSectionPhotos(section.id, section.title || "Section");
   }
 };
 
@@ -2679,7 +2809,7 @@ export const buildInspectionReportPdf = async ({
   if (template?.jobType === "Gas") {
     await renderGasReport(doc, { template, report, job, property, technician });
   } else if (template?.jobType === "Electrical" || template?.jobType === "Smoke") {
-    renderElectricalSmokeReport(doc, { template, report, job, property });
+    await renderElectricalSmokeReport(doc, { template, report, job, property, technician });
   } else if (template?.jobType === "MinimumSafetyStandard") {
     await renderMinimumSafetyStandardReport(doc, {
       template,
