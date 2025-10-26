@@ -2073,8 +2073,8 @@ const renderGasReport = async (doc, { template, report, job, property, technicia
       drawApplianceSection(doc, section, responses);
       await renderSectionPhotos(section.id, section.title || "Appliance");
     } else if (section.id === "fault-identification") {
-      drawFaultIdentificationSection(doc, section, responses);
-      await renderSectionPhotos(section.id, "Fault Identification");
+      // Skip fault identification section for gas reports as it's already covered by the main Details Of Identified Faults section
+      // await renderSectionPhotos(section.id, "Fault Identification"); // Also skip photos for this section
     } else if (section.id === "final-declaration") {
       drawComplianceDeclaration(doc, section, responses, report);
     } else {
@@ -3316,6 +3316,284 @@ const processImageForPdf = async (imageUrl, doc, x, y, maxWidth, maxHeight) => {
   }
 };
 
+/**
+ * Render smoke-only inspection report matching the demo format
+ */
+const renderSmokeOnlyReport = async (doc, { report, template, job, property, technician }) => {
+  const getSectionValues = (id) => report.formData?.[id] || {};
+
+  // Import compliance service for automatic calculations
+  const { assessOverallCompliance, generateComplianceReportText } = await import('./smokeAlarmCompliance.service.js');
+
+  // Get all section data - supports both old and new template structures
+  const inspectionSummary = getSectionValues("inspection-summary");
+  const jobDetails = getSectionValues("job-property-details") || inspectionSummary;
+  const propertyDetails = getSectionValues("property-coverage") || getSectionValues("property-coverage-check");
+  const alarmInventory = getSectionValues("smoke-alarm-inventory") || getSectionValues("alarm-inventory");
+  const complianceAssessment = getSectionValues("compliance-assessment") || getSectionValues("property-level-findings");
+  const compliance = getSectionValues("compliance-next-steps");
+  const signoff = getSectionValues("certification-declaration") || getSectionValues("technician-signoff");
+
+  // Get alarm records from the alarm inventory section
+  const alarmRecords = alarmInventory["alarm-records"] || [];
+
+  // Perform compliance assessment
+  const complianceResult = assessOverallCompliance({
+    ...propertyDetails,
+    "alarm-records": alarmRecords,
+  });
+
+  // Draw report header section
+  ensurePageSpace(doc, 100);
+  drawSectionHeader(doc, "Smoke Alarm Inspection Summary");
+
+  doc
+    .fillColor(COLORS.textSecondary)
+    .fontSize(11)
+    .font("Helvetica")
+    .text("Our inspection identified compliance status of smoke alarms at this property.", PAGE.margin, doc.y, {
+      width: doc.page.width - PAGE.margin * 2,
+      align: "left",
+    });
+
+  doc.y += 10;
+  doc
+    .text("Please review the information below for findings and recommendations.", PAGE.margin, doc.y, {
+      width: doc.page.width - PAGE.margin * 2,
+      align: "left",
+    });
+
+  doc.y += 20;
+
+  // Report Details section
+  ensurePageSpace(doc, 120);
+  drawSectionHeader(doc, "Report Details");
+
+  const technicianName = [technician?.firstName, technician?.lastName]
+    .filter(Boolean)
+    .join(" ") || "Technician Name Not Available";
+  const technicianLicense = technician?.licenseNumber || "Licence Not Recorded";
+
+  const reportDetailsData = [
+    {
+      label: "Service Report Ref #",
+      value:
+        jobDetails["service-report-ref"] ||
+        report._id?.toString().slice(-8) ||
+        "N/A",
+    },
+    {
+      label: "Report Date",
+      value: new Date().toLocaleDateString("en-AU", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      }),
+    },
+    {
+      label: "Customer / Client",
+      value:
+        jobDetails["customer-client"] ||
+        property?.landlord?.name ||
+        property?.agency?.companyName ||
+        "N/A",
+    },
+    {
+      label: "Inspection Address",
+      value:
+        jobDetails["inspection-address"] ||
+        property?.fullAddress ||
+        property?.address?.street ||
+        "N/A",
+    },
+    {
+      label: "Date of Inspection",
+      value: new Date(
+        jobDetails["inspection-date"] || report.submittedAt
+      ).toLocaleDateString("en-AU", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      }),
+    },
+    { label: "Technician Name", value: technicianName },
+    { label: "Technician Licence #", value: technicianLicense },
+    { label: "Business / Vendor", value: "RentalEase Property Services Pty Ltd" },
+    { label: "Inspection Type", value: "Smoke Alarm Safety Inspection" },
+    {
+      label: "Overall Status",
+      value: complianceResult.isOverallCompliant
+        ? "✅ Compliant"
+        : "❌ Non-Compliant",
+    },
+  ];
+
+  drawRoomDetailTable(doc, null, reportDetailsData);
+
+  // Smoke Alarm Inspection Details section
+  ensurePageSpace(doc, 150);
+  drawSectionHeader(doc, "Smoke Alarm Inspection Details");
+
+  if (alarmRecords.length > 0) {
+    // Create individual "Report Details" style tables for each smoke alarm
+    alarmRecords.forEach((alarm, index) => {
+      ensurePageSpace(doc, 200); // Ensure space for each individual table
+
+      // Add some spacing between alarm tables
+      if (index > 0) {
+        doc.y += 25;
+      } else {
+        doc.y += 15;
+      }
+
+      // Create alarm title header
+      const alarmTitle = `Smoke Alarm #${index + 1}`;
+      doc
+        .fillColor(COLORS.primary)
+        .fontSize(12)
+        .font("Helvetica-Bold")
+        .text(alarmTitle, PAGE.margin, doc.y, {
+          width: doc.page.width - PAGE.margin * 2,
+          align: "left",
+        });
+
+      doc.y += 20;
+
+      // Determine alarm type description
+      let alarmTypeDesc = "Photoelectric (Mains 240V)";
+      if (alarm["power-source"] === "battery-9v") {
+        alarmTypeDesc = "Photoelectric (9V Battery)";
+      } else if (alarm["power-source"] === "lithium-10yr") {
+        alarmTypeDesc = "Photoelectric (10-Year Lithium)";
+      }
+
+      // Create the data for this alarm in "Report Details" style
+      const alarmDetailsData = [
+        {
+          label: "Alarm Type",
+          value: alarmTypeDesc
+        },
+        {
+          label: "Location",
+          value: alarm.location === "hallway-bedrooms" ? "Hallway Near Bedrooms" :
+                 (alarm["location-other"] || alarm.location || "Not Specified")
+        },
+        {
+          label: "Brand & Model",
+          value: `${alarm.brand || "Not Specified"} ${alarm.model ? `- ${alarm.model}` : ""}`
+        },
+        {
+          label: "Sound Level Test",
+          value: alarm["sound-level-db"] ? `${alarm["sound-level-db"]} dB (${alarm["push-test-result"] || "Not Tested"})` : "Not Tested"
+        },
+        {
+          label: "Manufacture Date",
+          value: alarm["manufacture-date"] ?
+                 new Date(alarm["manufacture-date"]).toLocaleDateString('en-AU', {
+                   day: 'numeric',
+                   month: 'long',
+                   year: 'numeric'
+                 }) : "Not Readable"
+        },
+        {
+          label: "Expiry Date",
+          value: alarm["expiry-date"] ?
+                 new Date(alarm["expiry-date"]).toLocaleDateString('en-AU', {
+                   day: 'numeric',
+                   month: 'long',
+                   year: 'numeric'
+                 }) : "Not Stated"
+        },
+        {
+          label: "Age (Years)",
+          value: alarm["age-years"] ? `${alarm["age-years"]} years` : "Unknown"
+        },
+        {
+          label: "Battery Status",
+          value: alarm["battery-replaced-today"] === "yes" ?
+                 "✅ Battery Replaced Today" :
+                 (alarm["battery-present"] === "yes" ? "Battery Present" : "No Battery")
+        },
+        {
+          label: "Physical Condition",
+          value: Array.isArray(alarm["physical-condition"]) ?
+                 alarm["physical-condition"].join(", ") :
+                 (alarm["physical-condition"] || "Not Assessed")
+        },
+        {
+          label: "Compliance Status",
+          value: alarm["compliance-status"] === "compliant" ?
+                 "✅ COMPLIANT" :
+                 "❌ NON-COMPLIANT"
+        }
+      ];
+
+      // Add comments if available
+      if (alarm["alarm-comments"]) {
+        alarmDetailsData.push({
+          label: "Inspector Comments",
+          value: alarm["alarm-comments"]
+        });
+      }
+
+      // Draw the table using the same style as Report Details
+      drawRoomDetailTable(doc, null, alarmDetailsData);
+
+      doc.y += 10; // Add spacing after each alarm table
+    });
+  }
+
+  // General Comments section
+  ensurePageSpace(doc, 80);
+  drawSectionHeader(doc, "General Comments");
+
+  const generalComments = complianceAssessment["general-comments"] || generateComplianceReportText(complianceResult);
+
+  doc
+    .fillColor(COLORS.text)
+    .fontSize(11)
+    .font("Helvetica")
+    .text(generalComments, PAGE.margin, doc.y, {
+      width: doc.page.width - PAGE.margin * 2,
+      align: "left",
+    });
+
+  doc.y += 20;
+
+  // Technician Declaration section
+  ensurePageSpace(doc, 100);
+  drawSectionHeader(doc, "Technician Declaration");
+
+  const declarationText =
+    signoff["declaration-text"] ||
+    `I, ${technicianName} (Lic. ${technicianLicense}), conducted the above inspection in accordance with the Residential Tenancies Regulations 2021 and AS 3786 – Smoke Alarms.`;
+
+  doc
+    .fillColor(COLORS.text)
+    .fontSize(11)
+    .font("Helvetica")
+    .text(declarationText, PAGE.margin, doc.y, {
+      width: doc.page.width - PAGE.margin * 2,
+      align: "left",
+    });
+
+  doc.y += 20;
+
+  // Signature area
+  doc
+    .fillColor(COLORS.text)
+    .fontSize(11)
+    .font("Helvetica")
+    .text(`Date: ${new Date().toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' })}`, PAGE.margin, doc.y);
+
+  doc.y += 15;
+  doc.text("Signature: _______________________", PAGE.margin, doc.y);
+
+  doc.y += 30;
+
+  // Footer removed as requested
+};
+
 export const buildInspectionReportPdf = async ({
   report,
   template,
@@ -3347,8 +3625,15 @@ export const buildInspectionReportPdf = async ({
 
   if (template?.jobType === "Gas") {
     await renderGasReport(doc, { template, report, job, property, technician });
-  } else if (template?.jobType === "Electrical" || template?.jobType === "Smoke") {
+  } else if (template?.jobType === "Electrical") {
     await renderElectricalSmokeReport(doc, { template, report, job, property, technician });
+  } else if (template?.jobType === "Smoke") {
+    // Check if it's the new smoke-only template (version 3+) or legacy
+    if (template.version >= 3) {
+      await renderSmokeOnlyReport(doc, { template, report, job, property, technician });
+    } else {
+      await renderElectricalSmokeReport(doc, { template, report, job, property, technician });
+    }
   } else if (template?.jobType === "MinimumSafetyStandard") {
     await renderMinimumSafetyStandardReport(doc, {
       template,

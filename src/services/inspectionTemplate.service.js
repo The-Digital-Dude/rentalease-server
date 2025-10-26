@@ -15,18 +15,27 @@ export const ensureDefaultTemplates = async () => {
 };
 
 export const cleanupOldTemplateVersions = async () => {
-  // Deactivate all Version 1 templates (keep only Version 2)
+  // Deactivate legacy template versions that should no longer be selectable
   const jobTypes = ["Gas", "Electrical", "Smoke"];
 
   for (const jobType of jobTypes) {
-    await InspectionTemplate.findOneAndUpdate(
+    await InspectionTemplate.updateMany(
       { jobType, version: 1 },
-      { isActive: false },
-      { new: true }
+      { isActive: false }
     );
   }
 
-  console.log("Cleaned up all Version 1 template versions for Gas, Electrical, and Smoke inspections");
+  // The smoke inspection now has a dedicated smoke-only template at version 3.
+  // Ensure any older smoke templates remain in the database for historical
+  // reports but are hidden from technicians completing new jobs.
+  await InspectionTemplate.updateMany(
+    { jobType: "Smoke", version: { $lt: 3 } },
+    { isActive: false }
+  );
+
+  console.log(
+    "Deactivated legacy inspection templates: version 1 for Gas/Electrical/Smoke and versions <3 for Smoke"
+  );
 };
 
 export const getTemplateByJobType = async (jobType, options = {}) => {
