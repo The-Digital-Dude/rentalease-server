@@ -616,7 +616,12 @@ const authenticateUserTypes = (allowedUserTypes) => {
         userType = "team_member";
       } else if (userType === "agency" || userType === "Agency") {
         userType = "agency";
-      } else if (userType === "propertyManager" || userType === "PropertyManager") {
+      } else if (userType === "Technician" || userType === "technician") {
+        userType = "technician";
+      } else if (
+        userType === "propertyManager" ||
+        userType === "PropertyManager"
+      ) {
         userType = "property_manager";
       }
 
