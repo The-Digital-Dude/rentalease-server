@@ -33,8 +33,15 @@ export const cleanupOldTemplateVersions = async () => {
     { isActive: false }
   );
 
+  // Electrical inspections have moved to a dedicated electrical-only template
+  // at version 3. Keep older templates for historical reports only.
+  await InspectionTemplate.updateMany(
+    { jobType: "Electrical", version: { $lt: 3 } },
+    { isActive: false }
+  );
+
   console.log(
-    "Deactivated legacy inspection templates: version 1 for Gas/Electrical/Smoke and versions <3 for Smoke"
+    "Deactivated legacy inspection templates: version 1 for Gas/Electrical/Smoke, versions <3 for Smoke, versions <3 for Electrical"
   );
 };
 

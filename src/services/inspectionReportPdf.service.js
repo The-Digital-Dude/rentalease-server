@@ -1651,19 +1651,31 @@ const drawCertificationBlock = (doc, certification = {}) => {
   const rows = [
     {
       label: "Electrical safety check completed by",
-      value: certification["certification-electrician-name"] || certification["inspector-name"],
+      value:
+        certification["certification-electrician-name"] ||
+        certification["inspector-name"] ||
+        certification.technicianName ||
+        "—",
     },
     {
       label: "Licence/registration number",
-      value: certification["certification-licence-number"] || certification["license-number"],
+      value:
+        certification["certification-licence-number"] ||
+        certification["license-number"] ||
+        certification.technicianLicense ||
+        "—",
     },
     {
       label: "Inspection date",
-      value: formatDisplayDate(certification["certification-inspection-date"]),
+      value:
+        formatDisplayDate(certification["certification-inspection-date"]) ||
+        formatDisplayDate(certification["inspection-date"]),
     },
     {
       label: "Next inspection due",
-      value: formatDisplayDate(certification["certification-next-inspection-due"]),
+      value:
+        formatDisplayDate(certification["certification-next-inspection-due"]) ||
+        "—",
     },
     {
       label: "Signed at",
@@ -1701,9 +1713,15 @@ const renderElectricalSmokeReport = async (doc, { report, template, job, propert
   const findSectionDefinition = (id) => template.sections?.find((section) => section.id === id);
 
   const summarySection = getSectionValues("inspection-summary");
+  const technicianFullName = `${technician?.firstName || ""} ${technician?.lastName || ""}`.trim() || "Technician";
+  const technicianLicense = technician?.licenseNumber || summarySection["license-number"];
+
   const certificationSection = {
+    technicianName: technicianFullName,
+    technicianLicense,
     ...summarySection,
     ...getSectionValues("certification"),
+    ...getSectionValues("technician-signoff"),
   };
 
   const propertyAddress =
@@ -1779,11 +1797,11 @@ const renderElectricalSmokeReport = async (doc, { report, template, job, propert
     },
     {
       label: "Inspector",
-      value: summarySection["inspector-name"] || `${technician?.firstName || ""} ${technician?.lastName || ""}`.trim() || "N/A",
+      value: summarySection["inspector-name"] || technicianFullName || "N/A",
     },
     {
       label: "Licence/registration number",
-      value: summarySection["license-number"] || "N/A",
+      value: summarySection["license-number"] || technicianLicense || "N/A",
     },
     {
       label: "Previous safety check",
@@ -1797,16 +1815,22 @@ const renderElectricalSmokeReport = async (doc, { report, template, job, propert
   })));
   await renderSectionPhotos("inspection-summary", "Property Overview");
 
-  drawOutcomeBadges(doc, [
-    {
+  const outcomeBadges = [];
+  if (summarySection["electrical-outcome"]) {
+    outcomeBadges.push({
       title: "Electrical Safety Check",
       valueKey: summarySection["electrical-outcome"],
-    },
-    {
+    });
+  }
+  if (summarySection["smoke-outcome"]) {
+    outcomeBadges.push({
       title: "Smoke Alarm Check",
       valueKey: summarySection["smoke-outcome"],
-    },
-  ]);
+    });
+  }
+  if (outcomeBadges.length) {
+    drawOutcomeBadges(doc, outcomeBadges);
+  }
 
   if (summarySection["summary-notes"]) {
     ensurePageSpace(doc, 120);

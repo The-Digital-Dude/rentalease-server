@@ -867,15 +867,334 @@ const gasTemplate = {
   ],
 };
 
+const createElectricalSections = () => [
+  {
+    id: "inspection-summary",
+    title: "Inspection Summary",
+    description: "Record key inspection details and outcomes.",
+    fields: [
+      {
+        id: "inspection-date",
+        label: "Inspection Date",
+        type: "date",
+        required: true,
+        defaultValue: new Date().toISOString().split("T")[0],
+      },
+      {
+        id: "previous-inspection-date",
+        label: "Date of previous safety check (if any)",
+        type: "date",
+      },
+      {
+        id: "inspector-name",
+        label: "Inspector name",
+        type: "text",
+        required: true,
+        defaultValue: "Jordan Smith",
+      },
+      {
+        id: "license-number",
+        label: "Licence/registration number",
+        type: "text",
+        required: true,
+        defaultValue: "A334455",
+      },
+      {
+        id: "registration-number",
+        label: "Additional registration number",
+        type: "text",
+        defaultValue: "REC002918",
+      },
+      {
+        id: "electrical-outcome",
+        label: "Electrical safety check outcome",
+        type: "select",
+        options: [
+          { value: "no-faults", label: "No faults identified" },
+          { value: "faults-identified", label: "Faults identified" },
+          { value: "repairs-required", label: "Repairs required" },
+        ],
+        required: true,
+        defaultValue: "no-faults",
+      },
+      {
+        id: "summary-notes",
+        label: "Next steps / notes",
+        type: "textarea",
+        placeholder: "Record recommended follow-up actions for the client",
+        defaultValue:
+          "Electrical safety compliance confirmed. No remedial work required.",
+      },
+    ],
+  },
+  {
+    id: "extent-of-installation",
+    title: "Extent of Installation Checked",
+    description:
+      "Tick those parts of the installation included in the safety check. Mark NI if not inspected and add additional notes if required.",
+    fields: [
+      ...extentItems.map((item) => ({
+        id: item.id,
+        label: item.label,
+        type: "select",
+        options: coverageOptions,
+        required: true,
+        defaultValue: "included",
+      })),
+      {
+        id: "extent-notes",
+        label: "Extent notes",
+        type: "textarea",
+        placeholder: "Document any limitations encountered",
+      },
+    ],
+  },
+  {
+    id: "visual-inspection",
+    title: "Visual Inspection",
+    description:
+      "Record the outcome of visual inspection per AS/NZS 3019 requirements.",
+    fields: [
+      ...visualInspectionItems.map((item) => ({
+        id: item.id,
+        label: item.label,
+        type: "select",
+        options: inspectionStatusOptions,
+        required: true,
+        defaultValue: "satisfactory",
+      })),
+      {
+        id: "visual-notes",
+        label: "Visual inspection notes",
+        type: "textarea",
+        placeholder: "Add any additional context for the visual assessment",
+      },
+    ],
+  },
+  {
+    id: "testing-polarity",
+    title: "Polarity & Correct Connections Testing",
+    description:
+      "Capture the outcome of polarity and correct connection testing.",
+    fields: [
+      ...polarityTestItems.map((item) => ({
+        id: item.id,
+        label: item.label,
+        type: "select",
+        options: testingStatusOptions,
+        required: true,
+        defaultValue: "pass",
+      })),
+      {
+        id: "polarity-notes",
+        label: "Testing notes",
+        type: "textarea",
+        placeholder: "Add any additional notes captured during testing",
+      },
+    ],
+  },
+  {
+    id: "testing-earth",
+    title: "Earth Continuity Testing",
+    description: "Capture the outcome of earth continuity testing.",
+    fields: [
+      ...earthContinuityItems.map((item) => ({
+        id: item.id,
+        label: item.label,
+        type: "select",
+        options: testingStatusOptions,
+        required: true,
+        defaultValue: "pass",
+      })),
+      {
+        id: "earth-continuity-notes",
+        label: "Earth continuity notes",
+        type: "textarea",
+      },
+    ],
+  },
+  {
+    id: "rcd-testing",
+    title: "RCD Testing",
+    fields: [
+      {
+        id: "rcd-test-result",
+        label: "All RCDs have passed push and time tests",
+        type: "select",
+        options: [
+          { value: "pass", label: "Pass" },
+          { value: "fail", label: "Fail" },
+          { value: "not-tested", label: "Not Tested" },
+        ],
+        required: true,
+        defaultValue: "pass",
+      },
+      {
+        id: "rcd-notes",
+        label: "RCD notes",
+        type: "textarea",
+      },
+    ],
+  },
+  {
+    id: "fault-identification",
+    title: "Identified Faults & Remedial Actions",
+    description: "Document any faults found and required remedial actions.",
+    fields: [
+      {
+        id: "fault-identified",
+        label: "Identified Fault(s)",
+        type: "textarea",
+        placeholder: "Describe any faults identified during the inspection",
+      },
+      {
+        id: "rectification-required",
+        label: "Rectification Required",
+        type: "textarea",
+        placeholder: "Detail the rectification work required",
+      },
+      {
+        id: "fault-location",
+        label: "Location",
+        type: "text",
+        placeholder: "Specify the location of the fault",
+      },
+      {
+        id: "assessment-status",
+        label: "Assessment",
+        type: "select",
+        options: [
+          { value: "compliant", label: "Compliant" },
+          { value: "non-compliant", label: "Non Compliant" },
+          { value: "unsafe", label: "Unsafe" },
+        ],
+        defaultValue: "compliant",
+      },
+      {
+        id: "fault-image",
+        label: "Assessment Image",
+        type: "photo",
+        helpText: "Take a photo of the identified fault",
+      },
+    ],
+  },
+  {
+    id: "inspection-photos",
+    title: "Inspection Photos",
+    description: "Upload photos taken during the electrical safety inspection.",
+    fields: [
+      {
+        id: "switchboard-photos",
+        label: "Switchboard",
+        type: "photo-multi",
+        helpText: "Capture the main switchboard and safety devices",
+      },
+      {
+        id: "gpo-tester-photos",
+        label: "GPO Test Evidence",
+        type: "photo-multi",
+        helpText:
+          "Take photos of GPO outlets with electrical tester showing results",
+      },
+      {
+        id: "meter-photos",
+        label: "Supply Meter",
+        type: "photo-multi",
+        helpText: "Document the supply meter and service fuse",
+      },
+      {
+        id: "additional-photos",
+        label: "Additional Photos",
+        type: "photo-multi",
+        helpText: "Upload any additional photos relevant to the inspection",
+      },
+    ],
+  },
+  {
+    id: "certification",
+    title: "Technician Sign-Off",
+    description: "Confirm completion of the electrical safety check.",
+    fields: [
+      {
+        id: "certification-electrician-name",
+        label: "Electrical safety check completed by",
+        type: "text",
+        required: true,
+        defaultValue: "Jordan Smith",
+      },
+      {
+        id: "certification-licence-number",
+        label: "Licence/registration number",
+        type: "text",
+        required: true,
+        defaultValue: "A334455",
+      },
+      {
+        id: "certification-inspection-date",
+        label: "Inspection date",
+        type: "date",
+        required: true,
+        defaultValue: new Date().toISOString().split("T")[0],
+      },
+      {
+        id: "certification-next-inspection-due",
+        label: "Next inspection due by",
+        type: "date",
+        required: true,
+        defaultValue: new Date(Date.now() + 2 * 365 * 24 * 60 * 60 * 1000)
+          .toISOString()
+          .split("T")[0],
+      },
+      {
+        id: "certification-declaration",
+        label:
+          "I conducted this inspection in accordance with the Residential Tenancies Regulations 2021 and AS/NZS 3019 – Electrical Installations.",
+        type: "checkbox",
+        required: true,
+        defaultValue: true,
+      },
+      {
+        id: "certification-signature",
+        label: "Technician signature",
+        type: "signature",
+        required: true,
+      },
+      {
+        id: "certification-signed-at",
+        label: "Signed at (timestamp)",
+        type: "text",
+        placeholder: "e.g. Oct 7, 2024 11:11 am",
+        defaultValue: new Date().toLocaleDateString("en-AU", {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: true,
+        }),
+      },
+      {
+        id: "certification-notes",
+        label: "Certification notes",
+        type: "textarea",
+        placeholder: "Add any final remarks",
+      },
+    ],
+  },
+];
+
 const createElectricalTemplate = () => ({
   jobType: "Electrical",
-  title: "Electrical & Smoke Safety Inspection",
-  version: 2,
+  title: "Electrical Safety Inspection",
+  version: 3,
   metadata: {
     category: "compliance",
     durationEstimateMins: 60,
+    requiresSignature: true,
+    requiresPhotos: true,
+    summary: "Electrical installation safety inspection",
   },
-  sections: createElectricalSmokeSections(),
+  sections: createElectricalSections(),
 });
 
 const createSmokeTemplate = () => ({
