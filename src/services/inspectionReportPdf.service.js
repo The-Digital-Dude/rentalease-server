@@ -386,8 +386,11 @@ const drawProfessionalCoverPage = (doc, { property, job, technician, report, tem
     case "Gas":
       coverImagePath = path.join(__dirname, "../../assets/reports/cover-pages/gas_safety_report_cover_page.jpg");
       break;
+    case "GasSmoke":
+      coverImagePath = path.join(__dirname, "../../assets/reports/cover-pages/gas_and_smoke_report_cover.jpg");
+      break;
     case "Electrical":
-      coverImagePath = path.join(__dirname, "../../assets/reports/cover-pages/electrical_safety_report_cover_page.jpg");
+      coverImagePath = path.join(__dirname, "../../assets/reports/cover-pages/smoke_alarm_and_electrical_cover_page.jpg");
       break;
     case "Smoke":
       coverImagePath = path.join(__dirname, "../../assets/reports/cover-pages/smoke_alarm_safety_report_cover_page.jpg");
@@ -3594,6 +3597,446 @@ const renderSmokeOnlyReport = async (doc, { report, template, job, property, tec
   // Footer removed as requested
 };
 
+/**
+ * Render Gas + Smoke combined inspection report
+ */
+const renderGasSmokeReport = async (doc, { report, template, job, property, technician }) => {
+  const getSectionValues = (id) => report.formData?.[id] || {};
+
+  // Get all section data
+  const inspectionOverview = getSectionValues("inspection-overview");
+  const gasInstallation = getSectionValues("gas-installation");
+  const gasAppliances = getSectionValues("gas-appliances");
+  const smokeCoverage = getSectionValues("smoke-coverage");
+  const smokeInventory = getSectionValues("smoke-alarm-inventory");
+  const combinedCompliance = getSectionValues("combined-compliance");
+  const evidenceDoc = getSectionValues("evidence-documentation");
+
+  // Get alarm records
+  const alarmRecords = smokeInventory["alarm-records"] || [];
+
+  // Draw executive summary
+  ensurePageSpace(doc, 100);
+  drawSectionHeader(doc, "Gas Safety & Smoke Alarm Inspection Summary");
+
+  doc
+    .fillColor(COLORS.textSecondary)
+    .fontSize(11)
+    .font("Helvetica")
+    .text("This comprehensive inspection covers both gas safety and smoke alarm compliance for the property.", PAGE.margin, doc.y, {
+      width: doc.page.width - PAGE.margin * 2,
+      align: "left",
+    });
+
+  doc.y += 10;
+  doc
+    .text("Please review the detailed findings below for both gas and smoke alarm systems.", PAGE.margin, doc.y, {
+      width: doc.page.width - PAGE.margin * 2,
+      align: "left",
+    });
+
+  doc.y += 20;
+
+  // Combined Report Details section
+  ensurePageSpace(doc, 120);
+  drawSectionHeader(doc, "Report Details");
+
+  const technicianName = [technician?.firstName, technician?.lastName]
+    .filter(Boolean)
+    .join(" ") || "Technician Name Not Available";
+  const technicianLicense = technician?.licenseNumber || "Licence Not Recorded";
+
+  const reportDetailsData = [
+    {
+      label: "Service Report Ref #",
+      value: report._id?.toString().slice(-8) || "N/A",
+    },
+    {
+      label: "Report Date",
+      value: new Date().toLocaleDateString("en-AU", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      }),
+    },
+    {
+      label: "Customer / Client",
+      value: property?.landlord?.name || property?.agency?.companyName || "N/A",
+    },
+    {
+      label: "Inspection Address",
+      value: property?.fullAddress || property?.address?.street || "N/A",
+    },
+    {
+      label: "Date of Inspection",
+      value: new Date(
+        inspectionOverview["inspection-date"] || report.submittedAt
+      ).toLocaleDateString("en-AU", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      }),
+    },
+    { label: "Technician Name", value: technicianName },
+    { label: "Technician Licence #", value: technicianLicense },
+    { label: "Business / Vendor", value: "RentalEase Property Services Pty Ltd" },
+    { label: "Inspection Type", value: "Gas Safety & Smoke Alarm Inspection" },
+    {
+      label: "Overall Property Safety Status",
+      value: combinedCompliance["overall-property-compliance"] === "fully-compliant"
+        ? "✅ Fully Compliant"
+        : "⚠️ Requires Attention",
+    },
+  ];
+
+  drawRoomDetailTable(doc, null, reportDetailsData);
+
+  // Gas Installation Section
+  ensurePageSpace(doc, 120);
+  drawSectionHeader(doc, "Gas Installation & Components");
+
+  const gasInstallationData = [
+    {
+      label: "LP Gas Cylinders & Components",
+      value: gasInstallation["lp-gas-cylinders"] === "yes" ? "✅ Correctly Installed" :
+             gasInstallation["lp-gas-cylinders"] === "no" ? "❌ Issues Identified" : "N/A",
+    },
+    {
+      label: "Gas Leakage Test",
+      value: gasInstallation["gas-leakage-test"] === "pass" ? "✅ Pass" :
+             gasInstallation["gas-leakage-test"] === "fail" ? "❌ Fail" : "Not Tested",
+    },
+    {
+      label: "Overall Installation Condition",
+      value: gasInstallation["gas-installation-condition"] || "Not Assessed",
+    },
+    {
+      label: "Gas Installation Comments",
+      value: gasInstallation["gas-installation-comments"] || "No specific comments recorded",
+    },
+  ];
+
+  drawRoomDetailTable(doc, null, gasInstallationData);
+
+  // Gas Appliances Section
+  ensurePageSpace(doc, 120);
+  drawSectionHeader(doc, "Gas Appliances Inspection");
+
+  const gasAppliancesData = [
+    {
+      label: "Gas Cooker Present",
+      value: gasAppliances["cooker-present"] === "yes" ? "Yes" : "No",
+    },
+    {
+      label: "Cooker Safety Checks",
+      value: gasAppliances["cooker-present"] === "yes" ?
+        `Isolation Valve: ${gasAppliances["cooker-isolation-valve"] || "N/A"}, ` +
+        `Electrical Safety: ${gasAppliances["cooker-electrically-safe"] || "N/A"}, ` +
+        `Ventilation: ${gasAppliances["cooker-adequate-ventilation"] || "N/A"}` : "N/A",
+    },
+    {
+      label: "Gas Heater Present",
+      value: gasAppliances["heater-present"] === "yes" ? "Yes" : "No",
+    },
+    {
+      label: "Heater Safety Checks",
+      value: gasAppliances["heater-present"] === "yes" ?
+        `Isolation Valve: ${gasAppliances["heater-isolation-valve"] || "N/A"}, ` +
+        `Ventilation: ${gasAppliances["heater-adequate-ventilation"] || "N/A"}, ` +
+        `Flue Condition: ${gasAppliances["heater-flue-condition"] || "N/A"}` : "N/A",
+    },
+    {
+      label: "Gas Hot Water Present",
+      value: gasAppliances["hotwater-present"] === "yes" ? "Yes" : "No",
+    },
+    {
+      label: "Hot Water Safety Checks",
+      value: gasAppliances["hotwater-present"] === "yes" ?
+        `Isolation Valve: ${gasAppliances["hotwater-isolation-valve"] || "N/A"}, ` +
+        `Ventilation: ${gasAppliances["hotwater-adequate-ventilation"] || "N/A"}` : "N/A",
+    },
+    {
+      label: "Appliances Comments",
+      value: gasAppliances["appliances-comments"] || "No specific comments recorded",
+    },
+  ];
+
+  drawRoomDetailTable(doc, null, gasAppliancesData);
+
+  // Smoke Alarm Coverage Section
+  ensurePageSpace(doc, 120);
+  drawSectionHeader(doc, "Smoke Alarm Coverage Assessment");
+
+  const smokeCoverageData = [
+    {
+      label: "Storeys with Coverage",
+      value: smokeCoverage["storeys-covered"] || "1",
+    },
+    {
+      label: "Hallway Coverage",
+      value: smokeCoverage["hallway-coverage"] === "yes" ? "✅ Adequate" : "❌ Inadequate",
+    },
+    {
+      label: "Bedroom Proximity Coverage",
+      value: smokeCoverage["bedroom-proximity-coverage"] === "yes" ? "✅ Adequate" : "❌ Inadequate",
+    },
+    {
+      label: "Stairway Coverage",
+      value: smokeCoverage["stairway-coverage"] === "yes" ? "✅ Adequate" :
+             smokeCoverage["stairway-coverage"] === "no" ? "❌ Inadequate" : "N/A",
+    },
+    {
+      label: "Interconnection Required",
+      value: smokeCoverage["interconnection-required"] === "yes" ? "Yes" : "No",
+    },
+    {
+      label: "Coverage Compliance Status",
+      value: smokeCoverage["coverage-compliance-status"] === "fully-compliant" ? "✅ Fully Compliant" :
+             smokeCoverage["coverage-compliance-status"] === "compliant-minor-gaps" ? "⚠️ Minor Gaps" :
+             "❌ Non-Compliant",
+    },
+    {
+      label: "Coverage Comments",
+      value: smokeCoverage["coverage-comments"] || "No specific comments recorded",
+    },
+  ];
+
+  drawRoomDetailTable(doc, null, smokeCoverageData);
+
+  // Individual Smoke Alarms Section
+  ensurePageSpace(doc, 150);
+  drawSectionHeader(doc, "Smoke Alarm Inspection Details");
+
+  if (alarmRecords.length > 0) {
+    // Create individual "Report Details" style tables for each smoke alarm
+    alarmRecords.forEach((alarm, index) => {
+      ensurePageSpace(doc, 200); // Ensure space for each individual table
+
+      // Add some spacing between alarm tables
+      if (index > 0) {
+        doc.y += 25;
+      } else {
+        doc.y += 15;
+      }
+
+      // Create alarm title header
+      const alarmTitle = `Smoke Alarm #${index + 1}`;
+      doc
+        .fillColor(COLORS.primary)
+        .fontSize(12)
+        .font("Helvetica-Bold")
+        .text(alarmTitle, PAGE.margin, doc.y, {
+          width: doc.page.width - PAGE.margin * 2,
+          align: "left",
+        });
+
+      doc.y += 20;
+
+      // Determine alarm type description
+      let alarmTypeDesc = "Photoelectric (Mains 240V)";
+      if (alarm["power-source"] === "battery-9v") {
+        alarmTypeDesc = "Photoelectric (9V Battery)";
+      } else if (alarm["power-source"] === "lithium-10yr") {
+        alarmTypeDesc = "Photoelectric (10-Year Lithium)";
+      }
+
+      // Create the data for this alarm in "Report Details" style
+      const alarmDetailsData = [
+        {
+          label: "Alarm ID/Reference",
+          value: alarm["alarm-id"] || `ALM-${String(index + 1).padStart(2, '0')}`
+        },
+        {
+          label: "Alarm Type",
+          value: alarmTypeDesc
+        },
+        {
+          label: "Location",
+          value: alarm.location === "hallway-bedrooms" ? "Hallway Near Bedrooms" :
+                 (alarm["location-other"] || alarm.location || "Not Specified")
+        },
+        {
+          label: "Brand & Model",
+          value: alarm.brand || "Not Specified"
+        },
+        {
+          label: "Test Result",
+          value: alarm["push-test-result"] === "pass" ? "✅ Pass" :
+                 alarm["push-test-result"] === "fail" ? "❌ Fail" :
+                 alarm["push-test-result"] === "weak-sound" ? "⚠️ Weak Sound" : "Not Tested"
+        },
+        {
+          label: "Sound Level",
+          value: alarm["sound-level-db"] ? `${alarm["sound-level-db"]} dB` : "Not Measured"
+        },
+        {
+          label: "Manufacture Date",
+          value: alarm["manufacture-date"] ?
+                 new Date(alarm["manufacture-date"]).toLocaleDateString('en-AU', {
+                   day: 'numeric',
+                   month: 'long',
+                   year: 'numeric'
+                 }) : "Not Readable"
+        },
+        {
+          label: "Expiry Date",
+          value: alarm["expiry-date"] ?
+                 new Date(alarm["expiry-date"]).toLocaleDateString('en-AU', {
+                   day: 'numeric',
+                   month: 'long',
+                   year: 'numeric'
+                 }) : "Not Stated"
+        },
+        {
+          label: "Age",
+          value: alarm["age-years"] ? `${alarm["age-years"]} years` : "Unknown"
+        },
+        {
+          label: "Battery Status",
+          value: alarm["battery-replaced-today"] === "yes" ?
+                 "✅ Battery Replaced Today" : "Battery Not Replaced"
+        },
+        {
+          label: "Physical Condition",
+          value: Array.isArray(alarm["physical-condition"]) ?
+                 alarm["physical-condition"].join(", ") :
+                 (alarm["physical-condition"] || "Not Assessed")
+        },
+        {
+          label: "Compliance Status",
+          value: alarm["compliance-status"] === "compliant" ?
+                 "✅ COMPLIANT" :
+                 "❌ NON-COMPLIANT"
+        }
+      ];
+
+      // Add comments if available
+      if (alarm["alarm-comments"]) {
+        alarmDetailsData.push({
+          label: "Inspector Comments",
+          value: alarm["alarm-comments"]
+        });
+      }
+
+      // Draw the table using the same style as Report Details
+      drawRoomDetailTable(doc, null, alarmDetailsData);
+
+      doc.y += 10; // Add spacing after each alarm table
+    });
+  } else {
+    doc
+      .fillColor(COLORS.textSecondary)
+      .fontSize(11)
+      .font("Helvetica")
+      .text("No smoke alarm records found in this report.", PAGE.margin, doc.y, {
+        width: doc.page.width - PAGE.margin * 2,
+        align: "left",
+      });
+  }
+
+  // Combined Compliance Summary
+  ensurePageSpace(doc, 120);
+  drawSectionHeader(doc, "Combined Compliance Summary");
+
+  const complianceSummaryData = [
+    {
+      label: "Gas Safety Compliance",
+      value: combinedCompliance["gas-compliance-status"] === "fully-compliant" ? "✅ Fully Compliant" :
+             combinedCompliance["gas-compliance-status"] === "compliant-minor-issues" ? "⚠️ Minor Issues" :
+             "❌ Non-Compliant",
+    },
+    {
+      label: "Smoke Alarm Compliance",
+      value: combinedCompliance["smoke-compliance-status"] === "fully-compliant" ? "✅ Fully Compliant" :
+             combinedCompliance["smoke-compliance-status"] === "compliant-minor-issues" ? "⚠️ Minor Issues" :
+             "❌ Non-Compliant",
+    },
+    {
+      label: "Overall Property Compliance",
+      value: combinedCompliance["overall-property-compliance"] === "fully-compliant" ? "✅ Fully Compliant" :
+             combinedCompliance["overall-property-compliance"] === "compliant-maintenance" ? "⚠️ Maintenance Required" :
+             "❌ Non-Compliant",
+    },
+    {
+      label: "Next Gas Service Due",
+      value: combinedCompliance["next-gas-service-due"] ?
+             new Date(combinedCompliance["next-gas-service-due"]).toLocaleDateString('en-AU', {
+               day: 'numeric',
+               month: 'long',
+               year: 'numeric'
+             }) : "Not Specified",
+    },
+    {
+      label: "Next Smoke Service Due",
+      value: combinedCompliance["next-smoke-service-due"] ?
+             new Date(combinedCompliance["next-smoke-service-due"]).toLocaleDateString('en-AU', {
+               day: 'numeric',
+               month: 'long',
+               year: 'numeric'
+             }) : "Not Specified",
+    },
+    {
+      label: "Immediate Actions Required",
+      value: Array.isArray(combinedCompliance["immediate-actions-required"]) ?
+             combinedCompliance["immediate-actions-required"].join(", ") :
+             (combinedCompliance["immediate-actions-required"] || "None"),
+    },
+    {
+      label: "Recommendations",
+      value: combinedCompliance["recommendations"] || "No specific recommendations",
+    },
+  ];
+
+  drawRoomDetailTable(doc, null, complianceSummaryData);
+
+  // General Comments section
+  ensurePageSpace(doc, 80);
+  drawSectionHeader(doc, "General Comments");
+
+  const generalComments = combinedCompliance["general-comments"] ||
+    "Combined gas safety and smoke alarm inspection completed. Both systems assessed for compliance with relevant Australian Standards and Victorian legislation.";
+
+  doc
+    .fillColor(COLORS.text)
+    .fontSize(11)
+    .font("Helvetica")
+    .text(generalComments, PAGE.margin, doc.y, {
+      width: doc.page.width - PAGE.margin * 2,
+      align: "left",
+    });
+
+  doc.y += 20;
+
+  // Technician Declaration section
+  ensurePageSpace(doc, 100);
+  drawSectionHeader(doc, "Technician Declaration");
+
+  const declarationText = `I, ${technicianName} (Lic. ${technicianLicense}), conducted the above gas safety and smoke alarm inspection in accordance with the Gas Safety (Victoria) Regulations, AS 3786 – Smoke Alarms, and Residential Tenancies Regulations 2021.`;
+
+  doc
+    .fillColor(COLORS.text)
+    .fontSize(11)
+    .font("Helvetica")
+    .text(declarationText, PAGE.margin, doc.y, {
+      width: doc.page.width - PAGE.margin * 2,
+      align: "left",
+    });
+
+  doc.y += 20;
+
+  doc
+    .text(`Date: ${new Date().toLocaleDateString("en-AU", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    })}`, PAGE.margin, doc.y);
+
+  doc.y += 15;
+  doc.text("Signature: _______________________", PAGE.margin, doc.y);
+
+  doc.y += 30;
+};
+
 export const buildInspectionReportPdf = async ({
   report,
   template,
@@ -3625,6 +4068,8 @@ export const buildInspectionReportPdf = async ({
 
   if (template?.jobType === "Gas") {
     await renderGasReport(doc, { template, report, job, property, technician });
+  } else if (template?.jobType === "GasSmoke") {
+    await renderGasSmokeReport(doc, { template, report, job, property, technician });
   } else if (template?.jobType === "Electrical") {
     await renderElectricalSmokeReport(doc, { template, report, job, property, technician });
   } else if (template?.jobType === "Smoke") {
