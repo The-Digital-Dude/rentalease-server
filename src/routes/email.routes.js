@@ -75,6 +75,18 @@ router.post(
 );
 
 /**
+ * POST /api/v1/emails/send-general
+ * Simple general-purpose send email (no attachments, no threading)
+ * Body: to (string or array), subject (string), html (string)
+ * Can be reused across multiple frontend modules
+ */
+router.post(
+  "/send-general",
+  authenticate,
+  emailController.sendGeneralEmail
+);
+
+/**
  * POST /api/v1/emails/draft
  * Save email as draft
  * Body: to[], cc[], bcc[], subject, bodyHtml, bodyText

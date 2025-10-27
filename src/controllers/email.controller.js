@@ -1062,6 +1062,89 @@ class EmailController {
     if (!html) return '';
     return html.replace(/<[^>]*>/g, '').trim();
   }
+
+  /**
+   * Simple general-purpose send email function
+   * Can be reused across multiple frontend modules
+   * Takes email recipient(s) as part of the request body
+   */
+  async sendGeneralEmail(req, res) {
+    try {
+      const { to, subject, html } = req.body;
+
+      // Validation
+      const errors = {};
+
+      if (!subject || subject.trim().length === 0) {
+        errors.subject = "Subject is required";
+      }
+
+      if (!html || html.trim().length === 0) {
+        errors.html = "Email body (html) is required";
+      }
+
+      if (!to) {
+        errors.to = "Recipient email(s) required";
+      } else {
+        // Handle both single email string and array of emails
+        const emails = Array.isArray(to) ? to : [to];
+
+        if (emails.length === 0) {
+          errors.to = "At least one recipient email is required";
+        } else {
+          // Validate email format
+          const emailRegex = /^\w+([-.]?\w+)*@\w+([-.]?\w+)*(\.\w{2,3})+$/;
+          const invalidEmails = emails.filter(email => !emailRegex.test(email));
+          if (invalidEmails.length > 0) {
+            errors.to = `Invalid email format: ${invalidEmails.join(", ")}`;
+          }
+        }
+      }
+
+      if (Object.keys(errors).length > 0) {
+        return res.status(400).json({
+          status: "error",
+          message: "Validation failed",
+          details: errors,
+        });
+      }
+
+      // Authorization check - ensure user is authenticated
+      if (!req.superUser && !req.agency && !req.propertyManager && !req.teamMember) {
+        return res.status(403).json({
+          status: "error",
+          message: "Unauthorized - authentication required",
+        });
+      }
+
+      // Normalize to array for consistent handling
+      const recipients = Array.isArray(to) ? to : [to];
+
+      // Send email using Resend
+      await emailService.resend.emails.send({
+        from: emailService.defaultFrom,
+        to: recipients,
+        subject: subject.trim(),
+        html: html.trim(),
+      });
+
+      res.json({
+        status: "success",
+        message: "Email sent successfully",
+        data: {
+          recipients: recipients,
+          subject: subject.trim(),
+        },
+      });
+    } catch (error) {
+      console.error("Send general email error:", error);
+      res.status(500).json({
+        status: "error",
+        message: "Failed to send email",
+        details: error.message,
+      });
+    }
+  }
 }
 
 export default new EmailController();
