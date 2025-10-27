@@ -135,7 +135,8 @@ const drawRoomDetailTable = (doc, title, rows = []) => {
     const questionHeight = doc.heightOfString(question, questionTextOptions);
     doc.font("Helvetica").fontSize(10);
     const answerHeight = doc.heightOfString(String(answer), answerTextOptions);
-    const rowHeight = Math.max(32, Math.max(questionHeight, answerHeight) + 14);
+    const contentHeight = Math.max(questionHeight, answerHeight);
+    const rowHeight = Math.max(26, contentHeight + 12);
 
     // Check if we need a new page for this row
     ensurePageSpace(doc, rowHeight + 10);
@@ -155,21 +156,24 @@ const drawRoomDetailTable = (doc, title, rows = []) => {
       .stroke(COLORS.border);
 
     // Add text content
+    const questionTop = rowY + Math.max(6, (rowHeight - questionHeight) / 2);
+    const answerTop = rowY + Math.max(6, (rowHeight - answerHeight) / 2);
+
     doc
       .fillColor(COLORS.text)
       .font("Helvetica-Bold")
       .fontSize(10)
-      .text(question, tableX + 15, rowY + 8, questionTextOptions);
+      .text(question, tableX + 15, questionTop, questionTextOptions);
 
     doc
       .font("Helvetica")
       .fontSize(10)
-      .text(String(answer), tableX + questionWidth + 15, rowY + 8, answerTextOptions);
+      .text(String(answer), tableX + questionWidth + 15, answerTop, answerTextOptions);
 
     doc.y = rowY + rowHeight;
   });
 
-  doc.y += 20; // Space after table
+  doc.y += 12; // Space after table
 };
 
 const getReportTitle = (template, job) => {
