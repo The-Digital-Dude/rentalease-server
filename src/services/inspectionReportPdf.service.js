@@ -24,6 +24,9 @@ const PAGE = {
   margin: 60,
   headerHeight: 50,
   footerHeight: 40,
+  content: {
+    width: 595.28 - (60 * 2), // A4 width (595.28) minus left and right margins
+  },
 };
 
 // Global page counter
@@ -111,21 +114,28 @@ const drawRoomDetailTable = (doc, title, rows = []) => {
 
   doc.y = headerY + headerHeight;
 
+  const questionTextOptions = {
+    width: questionWidth - 30,
+    align: "left",
+    lineGap: 2,
+  };
+  const answerTextOptions = {
+    width: answerWidth - 30,
+    align: "left",
+    lineGap: 2,
+  };
+
   // Draw data rows
   rows.forEach((row, index) => {
     const question = row.label || row.question || "";
     const answer = row.value ?? row.answer ?? "—";
 
     // Calculate row height based on content
-    const questionHeight = doc.heightOfString(question, {
-      width: questionWidth - 30,
-      align: "left"
-    });
-    const answerHeight = doc.heightOfString(String(answer), {
-      width: answerWidth - 30,
-      align: "left"
-    });
-    const rowHeight = Math.max(28, Math.max(questionHeight, answerHeight) + 12);
+    doc.font("Helvetica-Bold").fontSize(10);
+    const questionHeight = doc.heightOfString(question, questionTextOptions);
+    doc.font("Helvetica").fontSize(10);
+    const answerHeight = doc.heightOfString(String(answer), answerTextOptions);
+    const rowHeight = Math.max(32, Math.max(questionHeight, answerHeight) + 14);
 
     // Check if we need a new page for this row
     ensurePageSpace(doc, rowHeight + 10);
@@ -149,17 +159,12 @@ const drawRoomDetailTable = (doc, title, rows = []) => {
       .fillColor(COLORS.text)
       .font("Helvetica-Bold")
       .fontSize(10)
-      .text(question, tableX + 15, rowY + 8, {
-        width: questionWidth - 30,
-        align: "left"
-      });
+      .text(question, tableX + 15, rowY + 8, questionTextOptions);
 
     doc
       .font("Helvetica")
-      .text(String(answer), tableX + questionWidth + 15, rowY + 8, {
-        width: answerWidth - 30,
-        align: "left"
-      });
+      .fontSize(10)
+      .text(String(answer), tableX + questionWidth + 15, rowY + 8, answerTextOptions);
 
     doc.y = rowY + rowHeight;
   });
@@ -385,6 +390,9 @@ const drawProfessionalCoverPage = (doc, { property, job, technician, report, tem
   switch (jobType) {
     case "Gas":
       coverImagePath = path.join(__dirname, "../../assets/reports/cover-pages/gas_safety_report_cover_page.jpg");
+      break;
+    case "GasSmoke":
+      coverImagePath = path.join(__dirname, "../../assets/reports/cover-pages/gas_smoke_combined_report_cover_page.jpg");
       break;
     case "Electrical":
       coverImagePath = path.join(__dirname, "../../assets/reports/cover-pages/electrical_safety_report_cover_page.jpg");
@@ -1083,6 +1091,9 @@ const drawNextStepsSection = (doc, { template, job, report }) => {
       case "Gas":
         nextDate.setFullYear(nextDate.getFullYear() + 2); // 24 months
         break;
+      case "GasSmoke":
+        nextDate.setFullYear(nextDate.getFullYear() + 1); // 12 months (smoke alarms need annual checks)
+        break;
       case "Electrical":
         nextDate.setFullYear(nextDate.getFullYear() + 2); // 24 months
         break;
@@ -1453,6 +1464,7 @@ const mapTestingStatus = (value) => {
 const mapYesNoValue = (value) => {
   if (value === "yes" || value === true) return "Yes";
   if (value === "no" || value === false) return "No";
+  if (value === "na" || value === "not-applicable") return "Not applicable";
   return "Not specified";
 };
 
@@ -1461,6 +1473,10 @@ const mapOutcomeValue = (value) => {
     "no-faults": "No faults identified",
     "faults-identified": "Faults identified",
     "repairs-required": "Repairs required",
+    "satisfactory": "Satisfactory - No faults identified",
+    "minor-faults": "Minor faults identified - rectified",
+    "major-faults": "Major faults identified - repairs required",
+    "unsafe": "Unsafe conditions found",
   };
   return displayMap[value] || "Pending";
 };
@@ -1468,13 +1484,71 @@ const mapOutcomeValue = (value) => {
 const getOutcomeColor = (value) => {
   switch (value) {
     case "no-faults":
+    case "satisfactory":
       return COLORS.success;
     case "faults-identified":
+    case "minor-faults":
       return COLORS.warning;
     case "repairs-required":
+    case "major-faults":
+    case "unsafe":
       return COLORS.error;
     default:
       return COLORS.textSecondary;
+  }
+};
+
+const mapSelectOptionLabel = (field = {}, value) => {
+  if (!field || !Array.isArray(field.options)) {
+    return undefined;
+  }
+
+  if (Array.isArray(value)) {
+    const labels = value
+      .map((entry) =>
+        field.options.find((option) => option.value === entry)?.label || entry
+      )
+      .filter(Boolean);
+    return labels.length ? labels.join(", ") : undefined;
+  }
+
+  return field.options.find((option) => option.value === value)?.label;
+};
+
+const mapFieldValue = (field = {}, rawValue) => {
+  if (rawValue === undefined || rawValue === null || rawValue === "") {
+    return "Not specified";
+  }
+
+  const { type } = field;
+
+  switch (type) {
+    case "yes-no":
+    case "yes-no-na":
+      return mapYesNoValue(rawValue);
+    case "pass-fail":
+      return mapTestingStatus(rawValue);
+    case "select":
+      return mapSelectOptionLabel(field, rawValue) || String(rawValue);
+    case "multi-select":
+      return mapSelectOptionLabel(field, rawValue) || (Array.isArray(rawValue) ? rawValue.join(", ") : String(rawValue));
+    case "boolean":
+    case "checkbox":
+      return rawValue ? "Yes" : "No";
+    case "date":
+      return formatDisplayDate(rawValue);
+    case "time":
+      return String(rawValue);
+    case "number":
+      return String(rawValue);
+    case "textarea":
+    case "text":
+      return String(rawValue);
+    default:
+      if (Array.isArray(rawValue)) {
+        return rawValue.join(", ");
+      }
+      return String(rawValue);
   }
 };
 
@@ -1532,24 +1606,37 @@ const drawStatusList = (
     const label = item.label || "";
     const mappedValue = valueMapper(item.value, item, index);
     const textValue = mappedValue || "Not specified";
-    const rowHeight = Math.max(
-      20,
-      doc.heightOfString(String(textValue), { width: valueWidth, align: "left" }) + 6
-    );
+
+    const labelOptions = {
+      width: labelWidth,
+      align: "left",
+      lineGap: 2,
+    };
+    const valueOptions = {
+      width: valueWidth,
+      align: "left",
+      lineGap: 2,
+    };
+
+    doc.font("Helvetica-Bold").fontSize(10);
+    const labelHeight = doc.heightOfString(label, labelOptions);
+    doc.font("Helvetica").fontSize(10);
+    const valueHeight = doc.heightOfString(String(textValue), valueOptions);
+    const rowHeight = Math.max(24, Math.max(labelHeight, valueHeight) + 8);
+
+    ensurePageSpace(doc, rowHeight + 10);
 
     doc
       .fillColor(COLORS.text)
       .font("Helvetica-Bold")
       .fontSize(10)
-      .text(label, PAGE.margin, cursorY, { width: labelWidth });
+      .text(label, PAGE.margin, cursorY, labelOptions);
 
     doc
       .fillColor(COLORS.textSecondary)
       .font("Helvetica")
       .fontSize(10)
-      .text(String(textValue), PAGE.margin + labelWidth + 10, cursorY, {
-        width: valueWidth,
-      });
+      .text(String(textValue), PAGE.margin + labelWidth + 10, cursorY, valueOptions);
 
     cursorY += rowHeight;
   });
@@ -1881,6 +1968,10 @@ const renderElectricalSmokeReport = async (doc, { report, template, job, propert
       "boolean",
       "text",
       "number",
+      "date",
+      "time",
+      "multi-select",
+      "checkbox",
     ]);
 
     const items = (sectionDefinition.fields || [])
@@ -1892,6 +1983,7 @@ const renderElectricalSmokeReport = async (doc, { report, template, job, propert
       .map((field) => ({
         label: field.label,
         value: responses[field.id],
+        field,
       }));
 
     if (items.length) {
@@ -1899,25 +1991,56 @@ const renderElectricalSmokeReport = async (doc, { report, template, job, propert
         doc,
         sectionDefinition.title || sectionId,
         items,
-        mapper || ((value) => value)
+        mapper || ((value, item) => mapFieldValue(item.field, value))
       );
     }
 
     noteFieldIds.forEach((noteId) => {
       const noteValue = responses[noteId];
-      if (noteValue) {
+      const noteField = (sectionDefinition.fields || []).find((field) => field.id === noteId);
+      const formattedNote = noteField
+        ? mapFieldValue(noteField, noteValue)
+        : noteValue;
+
+      if (formattedNote && formattedNote !== "Not specified") {
         ensurePageSpace(doc, 80);
         doc
           .fillColor(COLORS.textSecondary)
           .font("Helvetica")
           .fontSize(10)
-          .text(String(noteValue), PAGE.margin, doc.y, {
+          .text(String(formattedNote), PAGE.margin, doc.y, {
             width: doc.page.width - PAGE.margin * 2,
+            lineGap: 2,
           });
         doc.y += 40;
       }
     });
   };
+
+  renderStatusSection(
+    "electrical-installations",
+    (value, item) => mapFieldValue(item.field, value),
+    ["installation-comments"]
+  );
+  await renderSectionPhotos("electrical-installations", "Electrical Installations");
+  renderStatusSection(
+    "safety-testing",
+    (value, item) => mapFieldValue(item.field, value),
+    ["testing-comments"]
+  );
+  await renderSectionPhotos("safety-testing", "Safety Testing");
+  renderStatusSection(
+    "compliance-assessment",
+    (value, item) => mapFieldValue(item.field, value),
+    ["compliance-comments"]
+  );
+  await renderSectionPhotos("compliance-assessment", "Compliance Assessment");
+  renderStatusSection(
+    "remedial-actions",
+    (value, item) => mapFieldValue(item.field, value),
+    ["actions-description", "follow-up-details"]
+  );
+  await renderSectionPhotos("remedial-actions", "Remedial Actions");
 
   renderStatusSection("extent-of-installation", mapCoverageValue, ["extent-notes"]);
   renderStatusSection("visual-inspection", mapInspectionStatus, ["visual-notes"]);
@@ -2127,6 +2250,729 @@ const renderGasReport = async (doc, { template, report, job, property, technicia
 
       await renderSectionPhotos(section.id, section.title || "Section");
     }
+  }
+};
+
+const renderGasSmokeReport = async (doc, { template, report, job, property, technician }) => {
+  const getSectionValues = (id) => report.formData?.[id] || {};
+
+  const renderSectionPhotos = async (sectionId, heading) => {
+    const mediaItems = (report.media || []).filter(
+      (item) => item.metadata?.sectionId === sectionId || item.fieldId?.includes(sectionId)
+    );
+
+    if (!mediaItems.length) {
+      return;
+    }
+
+    // Ensure space for photo section header and at least one photo
+    ensurePageSpace(doc, 250);
+
+    doc
+      .fillColor(COLORS.primary)
+      .fontSize(12)
+      .font("Helvetica-Bold")
+      .text(`${heading} Photos`, PAGE.margin, doc.y);
+    doc.y += 18;
+
+    for (const mediaItem of mediaItems) {
+      // Check if we need space for this photo (220px height + spacing)
+      ensurePageSpace(doc, 240);
+
+      try {
+        const response = await fetch(mediaItem.url);
+        const imageBuffer = await response.buffer();
+        doc.image(imageBuffer, {
+          fit: [(PAGE.content?.width || (595.28 - (PAGE.margin * 2))) * 0.4, 200],
+          align: "left",
+        });
+        doc.y += 220;
+      } catch (error) {
+        console.error("Error loading image:", error);
+        doc
+          .fillColor(COLORS.text)
+          .fontSize(10)
+          .text(`Image could not be loaded: ${mediaItem.filename || "Unknown"}`, PAGE.margin, doc.y);
+        doc.y += 15;
+      }
+    }
+
+    doc.y += 10;
+  };
+
+  // Section 1: Inspection Details
+  const inspectionDetails = getSectionValues("inspection-details");
+  if (inspectionDetails && Object.keys(inspectionDetails).length > 0) {
+    ensurePageSpace(doc, 120);
+
+    doc
+      .fillColor(COLORS.primary)
+      .fontSize(14)
+      .font("Helvetica-Bold")
+      .text("INSPECTION DETAILS", PAGE.margin, doc.y);
+    doc.y += 20;
+
+    const detailsRows = [
+      ["Inspection Date", formatValue(inspectionDetails["inspection-date"])],
+      ["Inspection Time", formatValue(inspectionDetails["inspection-time"])],
+      ["Next Service Due", formatValue(inspectionDetails["next-service-due"])],
+    ].filter(([, value]) => value && value !== "N/A");
+
+    if (detailsRows.length > 0) {
+      drawRoomDetailTable(doc, null, detailsRows);
+    }
+
+    await renderSectionPhotos("inspection-details", "Inspection Details");
+  }
+
+  // Section 2: Gas Installation Assessment
+  const gasInstallation = getSectionValues("gas-installation");
+  if (gasInstallation && Object.keys(gasInstallation).length > 0) {
+    ensurePageSpace(doc, 120);
+
+    doc
+      .fillColor(COLORS.primary)
+      .fontSize(14)
+      .font("Helvetica-Bold")
+      .text("GAS INSTALLATION ASSESSMENT", PAGE.margin, doc.y);
+    doc.y += 20;
+
+    const gasRows = [
+      ["Gas Meter Accessible", formatValue(gasInstallation["gas-meter-accessible"])],
+      ["Gas Shut-off Valve", formatValue(gasInstallation["gas-shutoff-valve"])],
+      ["Gas Piping Condition", formatValue(gasInstallation["gas-piping-condition"])],
+      ["Gas Leakage Test", formatValue(gasInstallation["gas-leakage-test"])],
+      ["Number of Appliances", formatValue(gasInstallation["gas-appliances-count"])],
+      ["Appliances Condition", formatValue(gasInstallation["gas-appliances-condition"])],
+      ["Ventilation Adequate", formatValue(gasInstallation["gas-ventilation-adequate"])],
+      ["Safety Compliance", formatValue(gasInstallation["gas-safety-compliance"])],
+    ].filter(([, value]) => value && value !== "N/A");
+
+    if (gasRows.length > 0) {
+      drawRoomDetailTable(doc, null, gasRows);
+    }
+
+    if (gasInstallation["gas-inspection-comments"]) {
+      ensurePageSpace(doc, 60);
+      doc.y += 10;
+      doc
+        .fillColor(COLORS.text)
+        .fontSize(10)
+        .font("Helvetica-Bold")
+        .text("Gas Inspection Comments:", PAGE.margin, doc.y);
+      doc.y += 15;
+      doc
+        .font("Helvetica")
+        .text(gasInstallation["gas-inspection-comments"], PAGE.margin, doc.y, {
+          width: PAGE.content?.width || (595.28 - (PAGE.margin * 2)),
+        });
+      doc.y += 20;
+    }
+
+    await renderSectionPhotos("gas-installation", "Gas Installation");
+  }
+
+  // Section 3: Smoke Alarm Assessment
+  const smokeAssessment = getSectionValues("smoke-alarm-assessment");
+  if (smokeAssessment && Object.keys(smokeAssessment).length > 0) {
+    ensurePageSpace(doc, 120);
+
+    doc
+      .fillColor(COLORS.primary)
+      .fontSize(14)
+      .font("Helvetica-Bold")
+      .text("SMOKE ALARM ASSESSMENT", PAGE.margin, doc.y);
+    doc.y += 20;
+
+    const smokeRows = [
+      ["Alarms Present", formatValue(smokeAssessment["smoke-alarms-present"])],
+      ["Locations Compliant", formatValue(smokeAssessment["alarm-locations-compliant"])],
+      ["Alarms Interconnected", formatValue(smokeAssessment["alarms-interconnected"])],
+      ["Total Alarm Count", formatValue(smokeAssessment["alarm-count-total"])],
+      ["Functional Alarms", formatValue(smokeAssessment["alarms-tested-functional"])],
+      ["Power Source Compliant", formatValue(smokeAssessment["power-source-compliant"])],
+      ["Age Compliance", formatValue(smokeAssessment["alarm-age-compliance"])],
+      ["Overall Compliance", formatValue(smokeAssessment["smoke-alarm-compliance"])],
+    ].filter(([, value]) => value && value !== "N/A");
+
+    if (smokeRows.length > 0) {
+      drawRoomDetailTable(doc, null, smokeRows);
+    }
+
+    if (smokeAssessment["smoke-inspection-comments"]) {
+      ensurePageSpace(doc, 60);
+      doc.y += 10;
+      doc
+        .fillColor(COLORS.text)
+        .fontSize(10)
+        .font("Helvetica-Bold")
+        .text("Smoke Alarm Comments:", PAGE.margin, doc.y);
+      doc.y += 15;
+      doc
+        .font("Helvetica")
+        .text(smokeAssessment["smoke-inspection-comments"], PAGE.margin, doc.y, {
+          width: PAGE.content?.width || (595.28 - (PAGE.margin * 2)),
+        });
+      doc.y += 20;
+    }
+
+    await renderSectionPhotos("smoke-alarm-assessment", "Smoke Alarm Assessment");
+  }
+
+  // Section 4: Individual Alarm Records Table
+  const alarmRecords = getSectionValues("individual-alarm-records");
+  if (alarmRecords && alarmRecords["alarm-records"] && Array.isArray(alarmRecords["alarm-records"])) {
+    const records = alarmRecords["alarm-records"];
+
+    if (records.length > 0) {
+      ensurePageSpace(doc, 200);
+
+      doc
+        .fillColor(COLORS.primary)
+        .fontSize(14)
+        .font("Helvetica-Bold")
+        .text("INDIVIDUAL SMOKE ALARM RECORDS", PAGE.margin, doc.y);
+      doc.y += 20;
+
+      // Create table headers
+      const headers = [
+        "ID", "Location", "Brand", "Model", "Type", "Power",
+        "Mfg Date", "Expiry", "Test", "Status"
+      ];
+
+      // Create table data
+      const tableData = records.map(record => [
+        record["alarm-id"] || "",
+        (record.location === "other" ? record["location-other"] : record.location) || "",
+        record.brand || "",
+        record.model || "",
+        record["alarm-type"] || "",
+        record["power-source"] || "",
+        formatDate(record["manufacture-date"]),
+        formatDate(record["expiry-date"]),
+        record["push-test-result"] || "",
+        record["compliance-status"] || "",
+      ]);
+
+      // Draw the table
+      drawTable(doc, headers, tableData, {
+        columnWidths: [30, 60, 50, 50, 40, 50, 55, 55, 40, 60],
+        headerFontSize: 8,
+        cellFontSize: 7,
+        rowHeight: 25,
+        headerHeight: 30,
+      });
+
+      // Add individual alarm comments if any
+      records.forEach((record, index) => {
+        if (record["alarm-comments"]) {
+          ensurePageSpace(doc, 50);
+          doc.y += 10;
+          doc
+            .fillColor(COLORS.text)
+            .fontSize(9)
+            .font("Helvetica-Bold")
+            .text(`Alarm ${record["alarm-id"] || index + 1} Comments:`, PAGE.margin, doc.y);
+          doc.y += 12;
+          doc
+            .font("Helvetica")
+            .fontSize(8)
+            .text(record["alarm-comments"], PAGE.margin, doc.y, {
+              width: PAGE.content?.width || (595.28 - (PAGE.margin * 2)),
+            });
+          doc.y += 15;
+        }
+      });
+    }
+
+    await renderSectionPhotos("individual-alarm-records", "Alarm Records");
+  }
+
+  // Section 5: Actions Taken
+  const actionsTaken = getSectionValues("actions-taken");
+  if (actionsTaken && Object.keys(actionsTaken).length > 0) {
+    ensurePageSpace(doc, 120);
+
+    doc
+      .fillColor(COLORS.primary)
+      .fontSize(14)
+      .font("Helvetica-Bold")
+      .text("ACTIONS TAKEN", PAGE.margin, doc.y);
+    doc.y += 20;
+
+    const actionsRows = [
+      ["Gas Repairs", formatArrayValue(actionsTaken["gas-repairs-performed"])],
+      ["Smoke Actions", formatArrayValue(actionsTaken["smoke-actions-performed"])],
+      ["Follow-up Required", formatValue(actionsTaken["follow-up-required"])],
+    ].filter(([, value]) => value && value !== "N/A");
+
+    if (actionsRows.length > 0) {
+      drawRoomDetailTable(doc, null, actionsRows);
+    }
+
+    if (actionsTaken["materials-supplied"]) {
+      ensurePageSpace(doc, 60);
+      doc.y += 10;
+      doc
+        .fillColor(COLORS.text)
+        .fontSize(10)
+        .font("Helvetica-Bold")
+        .text("Materials Supplied:", PAGE.margin, doc.y);
+      doc.y += 15;
+      doc
+        .font("Helvetica")
+        .text(actionsTaken["materials-supplied"], PAGE.margin, doc.y, {
+          width: PAGE.content?.width || (595.28 - (PAGE.margin * 2)),
+        });
+      doc.y += 20;
+    }
+
+    if (actionsTaken["follow-up-details"]) {
+      ensurePageSpace(doc, 60);
+      doc.y += 10;
+      doc
+        .fillColor(COLORS.text)
+        .fontSize(10)
+        .font("Helvetica-Bold")
+        .text("Follow-up Details:", PAGE.margin, doc.y);
+      doc.y += 15;
+      doc
+        .font("Helvetica")
+        .text(actionsTaken["follow-up-details"], PAGE.margin, doc.y, {
+          width: PAGE.content?.width || (595.28 - (PAGE.margin * 2)),
+        });
+      doc.y += 20;
+    }
+
+    await renderSectionPhotos("actions-taken", "Actions Taken");
+  }
+
+  // Section 6: Compliance Summary
+  const complianceSummary = getSectionValues("compliance-summary");
+  if (complianceSummary && Object.keys(complianceSummary).length > 0) {
+    ensurePageSpace(doc, 120);
+
+    doc
+      .fillColor(COLORS.primary)
+      .fontSize(14)
+      .font("Helvetica-Bold")
+      .text("COMPLIANCE SUMMARY", PAGE.margin, doc.y);
+    doc.y += 20;
+
+    const summaryRows = [
+      ["Gas Compliance", formatValue(complianceSummary["overall-gas-compliance"])],
+      ["Smoke Compliance", formatValue(complianceSummary["overall-smoke-compliance"])],
+      ["Combined Status", formatValue(complianceSummary["combined-compliance-status"])],
+      ["Certificate Issued", formatValue(complianceSummary["compliance-certificate-issued"])],
+      ["Valid Until", formatValue(complianceSummary["certificate-valid-until"])],
+      ["Landlord Notification", formatValue(complianceSummary["landlord-notification-required"])],
+    ].filter(([, value]) => value && value !== "N/A");
+
+    if (summaryRows.length > 0) {
+      drawRoomDetailTable(doc, null, summaryRows);
+    }
+
+    if (complianceSummary["summary-comments"]) {
+      ensurePageSpace(doc, 60);
+      doc.y += 10;
+      doc
+        .fillColor(COLORS.text)
+        .fontSize(10)
+        .font("Helvetica-Bold")
+        .text("Summary Comments:", PAGE.margin, doc.y);
+      doc.y += 15;
+      doc
+        .font("Helvetica")
+        .text(complianceSummary["summary-comments"], PAGE.margin, doc.y, {
+          width: PAGE.content?.width || (595.28 - (PAGE.margin * 2)),
+        });
+      doc.y += 20;
+    }
+
+    await renderSectionPhotos("compliance-summary", "Compliance Summary");
+  }
+
+  // Section 7: Certification
+  const certification = getSectionValues("certification");
+  if (certification && Object.keys(certification).length > 0) {
+    ensurePageSpace(doc, 120);
+
+    doc
+      .fillColor(COLORS.primary)
+      .fontSize(14)
+      .font("Helvetica-Bold")
+      .text("TECHNICIAN CERTIFICATION", PAGE.margin, doc.y);
+    doc.y += 20;
+
+    const certRows = [
+      ["Declaration", certification["technician-declaration"] ? "Yes" : "No"],
+      ["Gasfitter License", formatValue(certification["gasfitter-license"])],
+      ["Electrical License", formatValue(certification["electrical-license"])],
+      ["Completion Date", formatValue(certification["completion-date"])],
+    ].filter(([, value]) => value && value !== "N/A");
+
+    if (certRows.length > 0) {
+      drawRoomDetailTable(doc, null, certRows);
+    }
+
+    // Add signature if present
+    if (certification["technician-signature"]) {
+      ensurePageSpace(doc, 80);
+      doc.y += 15;
+      doc
+        .fillColor(COLORS.text)
+        .fontSize(10)
+        .font("Helvetica-Bold")
+        .text("Technician Signature:", PAGE.margin, doc.y);
+      doc.y += 30;
+
+      // Draw signature line
+      doc
+        .strokeColor(COLORS.border)
+        .lineWidth(1)
+        .moveTo(PAGE.margin, doc.y)
+        .lineTo(PAGE.margin + 200, doc.y)
+        .stroke();
+      doc.y += 25;
+    }
+
+    await renderSectionPhotos("certification", "Certification");
+  }
+};
+
+const renderElectricalReport = async (doc, { template, report, job, property, technician }) => {
+  const getSectionValues = (id) => report.formData?.[id] || {};
+
+  const renderSectionPhotos = async (sectionId, heading) => {
+    const mediaItems = (report.media || []).filter(
+      (item) => item.metadata?.sectionId === sectionId || item.fieldId?.includes(sectionId)
+    );
+
+    if (!mediaItems.length) {
+      return;
+    }
+
+    // Ensure space for photo section header and at least one photo
+    ensurePageSpace(doc, 250);
+
+    doc
+      .fillColor(COLORS.primary)
+      .fontSize(12)
+      .font("Helvetica-Bold")
+      .text(`${heading} Photos`, PAGE.margin, doc.y);
+    doc.y += 18;
+
+    for (const mediaItem of mediaItems) {
+      // Check if we need space for this photo (220px height + spacing)
+      ensurePageSpace(doc, 240);
+
+      try {
+        const response = await fetch(mediaItem.url);
+        const imageBuffer = await response.buffer();
+        doc.image(imageBuffer, {
+          fit: [(PAGE.content?.width || (595.28 - (PAGE.margin * 2))) * 0.4, 200],
+          align: "left",
+        });
+        doc.y += 220;
+      } catch (error) {
+        console.error("Error loading image:", error);
+        doc
+          .fillColor(COLORS.text)
+          .fontSize(10)
+          .text(`Image could not be loaded: ${mediaItem.filename || "Unknown"}`, PAGE.margin, doc.y);
+        doc.y += 15;
+      }
+    }
+
+    doc.y += 10;
+  };
+
+  // Section 1: Inspection Summary
+  const inspectionSummary = getSectionValues("inspection-summary");
+  if (inspectionSummary && Object.keys(inspectionSummary).length > 0) {
+    ensurePageSpace(doc, 120);
+
+    doc
+      .fillColor(COLORS.primary)
+      .fontSize(14)
+      .font("Helvetica-Bold")
+      .text("INSPECTION SUMMARY", PAGE.margin, doc.y);
+    doc.y += 20;
+
+    const summaryRows = [
+      ["Inspection Date", formatValue(inspectionSummary["inspection-date"])],
+      ["Previous Inspection", formatValue(inspectionSummary["previous-inspection-date"])],
+      ["Inspector Name", formatValue(inspectionSummary["inspector-name"])],
+      ["License Number", formatValue(inspectionSummary["license-number"])],
+      ["Registration Number", formatValue(inspectionSummary["registration-number"])],
+      ["Electrical Outcome", formatValue(inspectionSummary["electrical-outcome"])],
+    ].filter(([, value]) => value && value !== "N/A");
+
+    if (summaryRows.length > 0) {
+      drawRoomDetailTable(doc, null, summaryRows);
+    }
+
+    await renderSectionPhotos("inspection-summary", "Inspection Summary");
+  }
+
+  // Section 2: Electrical Installations
+  const electricalInstallations = getSectionValues("electrical-installations");
+  if (electricalInstallations && Object.keys(electricalInstallations).length > 0) {
+    ensurePageSpace(doc, 120);
+
+    doc
+      .fillColor(COLORS.primary)
+      .fontSize(14)
+      .font("Helvetica-Bold")
+      .text("ELECTRICAL INSTALLATIONS", PAGE.margin, doc.y);
+    doc.y += 20;
+
+    const installationRows = [
+      ["Switchboard Accessible", formatValue(electricalInstallations["switchboard-accessible"])],
+      ["Switchboard Labeling", formatValue(electricalInstallations["switchboard-labeling"])],
+      ["Circuit Protection", formatValue(electricalInstallations["circuit-protection"])],
+      ["Earth Leakage Protection", formatValue(electricalInstallations["earth-leakage-protection"])],
+      ["Wiring Condition", formatValue(electricalInstallations["wiring-condition"])],
+      ["Light Fittings", formatValue(electricalInstallations["light-fittings"])],
+      ["Power Points", formatValue(electricalInstallations["power-points"])],
+      ["Safety Switches", formatValue(electricalInstallations["safety-switches"])],
+      ["Overall Condition", formatValue(electricalInstallations["overall-condition"])],
+    ].filter(([, value]) => value && value !== "N/A");
+
+    if (installationRows.length > 0) {
+      drawRoomDetailTable(doc, null, installationRows);
+    }
+
+    if (electricalInstallations["installation-comments"]) {
+      ensurePageSpace(doc, 60);
+      doc.y += 10;
+      doc
+        .fillColor(COLORS.text)
+        .fontSize(10)
+        .font("Helvetica-Bold")
+        .text("Installation Comments:", PAGE.margin, doc.y);
+      doc.y += 15;
+      doc
+        .font("Helvetica")
+        .text(electricalInstallations["installation-comments"], PAGE.margin, doc.y, {
+          width: PAGE.content?.width || (595.28 - (PAGE.margin * 2)),
+        });
+      doc.y += 20;
+    }
+
+    await renderSectionPhotos("electrical-installations", "Electrical Installations");
+  }
+
+  // Section 3: Safety Testing
+  const safetyTesting = getSectionValues("safety-testing");
+  if (safetyTesting && Object.keys(safetyTesting).length > 0) {
+    ensurePageSpace(doc, 120);
+
+    doc
+      .fillColor(COLORS.primary)
+      .fontSize(14)
+      .font("Helvetica-Bold")
+      .text("SAFETY TESTING", PAGE.margin, doc.y);
+    doc.y += 20;
+
+    const testingRows = [
+      ["Insulation Resistance", formatValue(safetyTesting["insulation-resistance"])],
+      ["Earth Continuity", formatValue(safetyTesting["earth-continuity"])],
+      ["Polarity Check", formatValue(safetyTesting["polarity-check"])],
+      ["RCD Testing", formatValue(safetyTesting["rcd-testing"])],
+      ["Load Testing", formatValue(safetyTesting["load-testing"])],
+      ["Voltage Measurements", formatValue(safetyTesting["voltage-measurements"])],
+      ["Test Results", formatValue(safetyTesting["test-results"])],
+    ].filter(([, value]) => value && value !== "N/A");
+
+    if (testingRows.length > 0) {
+      drawRoomDetailTable(doc, null, testingRows);
+    }
+
+    if (safetyTesting["testing-comments"]) {
+      ensurePageSpace(doc, 60);
+      doc.y += 10;
+      doc
+        .fillColor(COLORS.text)
+        .fontSize(10)
+        .font("Helvetica-Bold")
+        .text("Testing Comments:", PAGE.margin, doc.y);
+      doc.y += 15;
+      doc
+        .font("Helvetica")
+        .text(safetyTesting["testing-comments"], PAGE.margin, doc.y, {
+          width: PAGE.content?.width || (595.28 - (PAGE.margin * 2)),
+        });
+      doc.y += 20;
+    }
+
+    await renderSectionPhotos("safety-testing", "Safety Testing");
+  }
+
+  // Section 4: Compliance Assessment
+  const complianceAssessment = getSectionValues("compliance-assessment");
+  if (complianceAssessment && Object.keys(complianceAssessment).length > 0) {
+    ensurePageSpace(doc, 120);
+
+    doc
+      .fillColor(COLORS.primary)
+      .fontSize(14)
+      .font("Helvetica-Bold")
+      .text("COMPLIANCE ASSESSMENT", PAGE.margin, doc.y);
+    doc.y += 20;
+
+    const complianceRows = [
+      ["AS/NZS 3019 Compliance", formatValue(complianceAssessment["as-nzs-3019-compliance"])],
+      ["Installation Standards", formatValue(complianceAssessment["installation-standards"])],
+      ["Safety Requirements", formatValue(complianceAssessment["safety-requirements"])],
+      ["Code Compliance", formatValue(complianceAssessment["code-compliance"])],
+      ["Overall Assessment", formatValue(complianceAssessment["overall-assessment"])],
+    ].filter(([, value]) => value && value !== "N/A");
+
+    if (complianceRows.length > 0) {
+      drawRoomDetailTable(doc, null, complianceRows);
+    }
+
+    if (complianceAssessment["compliance-comments"]) {
+      ensurePageSpace(doc, 60);
+      doc.y += 10;
+      doc
+        .fillColor(COLORS.text)
+        .fontSize(10)
+        .font("Helvetica-Bold")
+        .text("Compliance Comments:", PAGE.margin, doc.y);
+      doc.y += 15;
+      doc
+        .font("Helvetica")
+        .text(complianceAssessment["compliance-comments"], PAGE.margin, doc.y, {
+          width: PAGE.content?.width || (595.28 - (PAGE.margin * 2)),
+        });
+      doc.y += 20;
+    }
+
+    await renderSectionPhotos("compliance-assessment", "Compliance Assessment");
+  }
+
+  // Section 5: Remedial Actions
+  const remedialActions = getSectionValues("remedial-actions");
+  if (remedialActions && Object.keys(remedialActions).length > 0) {
+    ensurePageSpace(doc, 120);
+
+    doc
+      .fillColor(COLORS.primary)
+      .fontSize(14)
+      .font("Helvetica-Bold")
+      .text("REMEDIAL ACTIONS", PAGE.margin, doc.y);
+    doc.y += 20;
+
+    const actionsRows = [
+      ["Actions Required", formatArrayValue(remedialActions["actions-required"])],
+      ["Repairs Completed", formatValue(remedialActions["repairs-completed"])],
+      ["Follow-up Required", formatValue(remedialActions["follow-up-required"])],
+    ].filter(([, value]) => value && value !== "N/A");
+
+    if (actionsRows.length > 0) {
+      drawRoomDetailTable(doc, null, actionsRows);
+    }
+
+    if (remedialActions["actions-description"]) {
+      ensurePageSpace(doc, 60);
+      doc.y += 10;
+      doc
+        .fillColor(COLORS.text)
+        .fontSize(10)
+        .font("Helvetica-Bold")
+        .text("Actions Description:", PAGE.margin, doc.y);
+      doc.y += 15;
+      doc
+        .font("Helvetica")
+        .text(remedialActions["actions-description"], PAGE.margin, doc.y, {
+          width: PAGE.content?.width || (595.28 - (PAGE.margin * 2)),
+        });
+      doc.y += 20;
+    }
+
+    if (remedialActions["follow-up-details"]) {
+      ensurePageSpace(doc, 60);
+      doc.y += 10;
+      doc
+        .fillColor(COLORS.text)
+        .fontSize(10)
+        .font("Helvetica-Bold")
+        .text("Follow-up Details:", PAGE.margin, doc.y);
+      doc.y += 15;
+      doc
+        .font("Helvetica")
+        .text(remedialActions["follow-up-details"], PAGE.margin, doc.y, {
+          width: PAGE.content?.width || (595.28 - (PAGE.margin * 2)),
+        });
+      doc.y += 20;
+    }
+
+    await renderSectionPhotos("remedial-actions", "Remedial Actions");
+  }
+
+  // Section 6: Certification
+  const certification = getSectionValues("certification");
+  if (certification && Object.keys(certification).length > 0) {
+    ensurePageSpace(doc, 120);
+
+    doc
+      .fillColor(COLORS.primary)
+      .fontSize(14)
+      .font("Helvetica-Bold")
+      .text("TECHNICIAN CERTIFICATION", PAGE.margin, doc.y);
+    doc.y += 20;
+
+    const certRows = [
+      ["Certification Declaration", certification["certification-declaration"] ? "Yes" : "No"],
+      ["Technician Signature", certification["certification-signature"] ? "Signed" : "Not Signed"],
+      ["Signed At", formatValue(certification["certification-signed-at"])],
+    ].filter(([, value]) => value && value !== "N/A");
+
+    if (certRows.length > 0) {
+      drawRoomDetailTable(doc, null, certRows);
+    }
+
+    if (certification["certification-notes"]) {
+      ensurePageSpace(doc, 60);
+      doc.y += 10;
+      doc
+        .fillColor(COLORS.text)
+        .fontSize(10)
+        .font("Helvetica-Bold")
+        .text("Certification Notes:", PAGE.margin, doc.y);
+      doc.y += 15;
+      doc
+        .font("Helvetica")
+        .text(certification["certification-notes"], PAGE.margin, doc.y, {
+          width: PAGE.content?.width || (595.28 - (PAGE.margin * 2)),
+        });
+      doc.y += 20;
+    }
+
+    // Add signature if present
+    if (certification["certification-signature"]) {
+      ensurePageSpace(doc, 80);
+      doc.y += 15;
+      doc
+        .fillColor(COLORS.text)
+        .fontSize(10)
+        .font("Helvetica-Bold")
+        .text("Technician Signature:", PAGE.margin, doc.y);
+      doc.y += 30;
+
+      // Draw signature line
+      doc
+        .strokeColor(COLORS.border)
+        .lineWidth(1)
+        .moveTo(PAGE.margin, doc.y)
+        .lineTo(PAGE.margin + 200, doc.y)
+        .stroke();
+      doc.y += 25;
+    }
+
+    await renderSectionPhotos("certification", "Certification");
   }
 };
 
@@ -3649,8 +4495,14 @@ export const buildInspectionReportPdf = async ({
 
   if (template?.jobType === "Gas") {
     await renderGasReport(doc, { template, report, job, property, technician });
+  } else if (template?.jobType === "GasSmoke") {
+    await renderGasSmokeReport(doc, { template, report, job, property, technician });
   } else if (template?.jobType === "Electrical") {
-    await renderElectricalSmokeReport(doc, { template, report, job, property, technician });
+    if ((template?.version ?? 1) >= 3) {
+      await renderElectricalSmokeReport(doc, { template, report, job, property, technician });
+    } else {
+      await renderElectricalReport(doc, { template, report, job, property, technician });
+    }
   } else if (template?.jobType === "Smoke") {
     // Check if it's the new smoke-only template (version 3+) or legacy
     if (template.version >= 3) {
