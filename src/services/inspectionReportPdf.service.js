@@ -929,6 +929,77 @@ const drawDeclarationSection = (doc, { template, job, technician, report }) => {
   doc.y = boxY + 80;
 };
 
+const drawGasHazardsSection = (doc) => {
+  const sectionTitle = "Gas Installation Hazards and Compliance";
+  const bulletPoints = [
+    "the gas distribution company if the installation uses natural gas, or",
+    "the gas retailer if the installation uses LPG."
+  ];
+
+  const requiredSpace = 220;
+  ensurePageSpace(doc, requiredSpace);
+
+  drawSectionHeader(doc, sectionTitle);
+
+  doc
+    .fillColor(COLORS.text)
+    .fontSize(10)
+    .font("Helvetica-Bold")
+    .text(
+      "Gas Safety (Gas Installation) Regulations 2018 — Part 3, Division 3, Section 21",
+      PAGE.margin,
+      doc.y,
+      {
+        width: doc.page.width - PAGE.margin * 2,
+        lineGap: 3
+      }
+    );
+
+  doc.y += 18;
+
+  const narrative =
+    "If a gasfitter finds a dangerous defect in a gas installation, they must act immediately to make it safe and notify the property owner and occupier. If it’s not possible or reasonable for the gasfitter to fix the issue themselves, they must promptly notify Energy Safe Victoria. They must also inform:";
+
+  doc
+    .fillColor(COLORS.text)
+    .fontSize(10)
+    .font("Helvetica")
+    .text(narrative, PAGE.margin, doc.y, {
+      width: doc.page.width - PAGE.margin * 2,
+      lineGap: 3
+    });
+
+  doc.y += 40;
+
+  bulletPoints.forEach((point) => {
+    doc
+      .fillColor(COLORS.text)
+      .fontSize(10)
+      .font("Helvetica")
+      .text(`• ${point}`, PAGE.margin + 15, doc.y, {
+        width: doc.page.width - PAGE.margin * 2 - 15,
+        lineGap: 3
+      });
+    doc.y += 18;
+  });
+
+  doc
+    .fillColor(COLORS.text)
+    .fontSize(10)
+    .font("Helvetica")
+    .text(
+      "This ensures that any hazardous situation is reported and addressed quickly, keeping the property safe and compliant.",
+      PAGE.margin,
+      doc.y,
+      {
+        width: doc.page.width - PAGE.margin * 2,
+        lineGap: 3
+      }
+    );
+
+  doc.y += 24;
+};
+
 const drawFaultSummarySection = (doc, { report, template, job }) => {
   ensurePageSpace(doc, 120);
   drawSectionHeader(doc, "Faults & Rectification Summary");
@@ -1081,7 +1152,7 @@ const drawFaultSummarySection = (doc, { report, template, job }) => {
 };
 
 const drawNextStepsSection = (doc, { template, job, report }) => {
-  ensurePageSpace(doc, 150);
+  ensurePageSpace(doc, 180);
   drawSectionHeader(doc, "Next Steps & Compliance Schedule");
 
   const jobType = template?.jobType || job?.jobType;
@@ -1130,6 +1201,37 @@ const drawNextStepsSection = (doc, { template, job, report }) => {
     .text(nextInspectionDate, PAGE.margin + 150, doc.y - 14);
 
   doc.y += 25;
+
+  const narrativeMap = {
+    Electrical:
+      "This electrical safety check has been completed in line with the Residential Tenancies Regulations 2021 and AS/NZS 3019: Electrical Installations — Periodic Verification. It ensures the property's electrical system is safe and free from damage or deterioration that could pose a risk. Any defects or safety concerns identified during the inspection are reported for corrective action.",
+    Gas:
+      "This gas safety check has been completed in line with the Residential Tenancies Regulations 2021 and AS/NZS 5601.1: Gas Installations. It confirms appliances, pipework, and ventilation are operating safely and documents any defects that require corrective action.",
+    GasSmoke:
+      "This combined gas and smoke safety inspection follows the Residential Tenancies Regulations 2021, AS/NZS 5601.1: Gas Installations, and AS 3786: Smoke Alarms. It verifies that both gas systems and smoke alarms remain safe, compliant, and supported by documented follow-up actions where required.",
+    Smoke:
+      "This smoke alarm safety inspection has been completed in accordance with the Residential Tenancies Regulations 2021 and AS 3786: Smoke Alarms. It confirms alarms are correctly installed, powered, and positioned to alert occupants in the event of a fire.",
+    MinimumSafetyStandard:
+      "This minimum safety standards inspection has been carried out to satisfy the Residential Tenancies Regulations 2021 minimum housing standards. It confirms the property remains fit for occupancy and records any areas that require remedial action to maintain compliance.",
+  };
+
+  const narrative = narrativeMap[jobType];
+  if (narrative) {
+    const movedToNewPage = ensurePageSpace(doc, 140);
+    if (movedToNewPage) {
+      drawSectionHeader(doc, "Next Steps & Compliance Schedule");
+    }
+    doc
+      .fillColor(COLORS.text)
+      .fontSize(10)
+      .font("Helvetica")
+      .text(narrative, PAGE.margin, doc.y, {
+        width: doc.page.width - PAGE.margin * 2,
+        lineGap: 3,
+      });
+
+    doc.y += 20;
+  }
 };
 
 
@@ -4190,6 +4292,53 @@ const processImageForPdf = async (imageUrl, doc, x, y, maxWidth, maxHeight) => {
   }
 };
 
+const drawFinalBrandPage = (doc) => {
+  // Finish the current page numbering before adding a new page
+  doc.addPage();
+  currentPageNumber++;
+
+  const pageWidth = doc.page.width;
+  const pageHeight = doc.page.height;
+
+  // Default to a white background to keep the finish page clean
+  doc.save();
+  doc
+    .rect(0, 0, pageWidth, pageHeight)
+    .fill("#FFFFFF");
+  doc.restore();
+
+  try {
+    const logoPath = path.join(__dirname, "../../assets/rentalease-logo.png");
+    const logoImage = doc.openImage(logoPath);
+
+    const maxLogoWidth = pageWidth * 0.4;
+    const maxLogoHeight = pageHeight * 0.4;
+    const widthScale = maxLogoWidth / logoImage.width;
+    const heightScale = maxLogoHeight / logoImage.height;
+    const scale = Math.min(widthScale, heightScale, 1);
+
+    const renderWidth = logoImage.width * scale;
+    const renderHeight = logoImage.height * scale;
+    const renderX = (pageWidth - renderWidth) / 2;
+    const renderY = (pageHeight - renderHeight) / 2;
+
+    doc.image(logoPath, renderX, renderY, {
+      width: renderWidth,
+      height: renderHeight,
+    });
+  } catch (error) {
+    console.error("Finish page logo not found, using text fallback:", error);
+    doc
+      .fillColor(COLORS.primary)
+      .fontSize(28)
+      .font("Helvetica-Bold")
+      .text("RentalEase", 0, pageHeight / 2 - 14, {
+        width: pageWidth,
+        align: "center",
+      });
+  }
+};
+
 /**
  * Render smoke-only inspection report matching the demo format
  */
@@ -4216,6 +4365,38 @@ const renderSmokeOnlyReport = async (doc, { report, template, job, property, tec
     ...propertyDetails,
     "alarm-records": alarmRecords,
   });
+
+  const normalizeOverallStatus = (value) => {
+    if (!value) {
+      return undefined;
+    }
+    const raw = String(value).trim().replace(/^["'`]+/, "").trim();
+    const lower = raw.toLowerCase();
+
+    if (lower === "compliant" || (lower.includes("compliant") && !lower.includes("non"))) {
+      return "✅ Compliant";
+    }
+    if (lower === "non-compliant" || lower.includes("non-compliant") || lower.includes("not compliant")) {
+      return "❌ Non-Compliant";
+    }
+    if (raw === "✅ Compliant" || raw === "❌ Non-Compliant") {
+      return raw;
+    }
+    return raw;
+  };
+
+  const manualOverallStatus = normalizeOverallStatus(
+    compliance?.["overall-status"] ||
+      inspectionSummary["overall-status"] ||
+      complianceAssessment["overall-status"]
+  );
+
+  const overallStatusDisplay =
+    manualOverallStatus !== undefined
+      ? manualOverallStatus
+      : complianceResult.isOverallCompliant
+      ? "✅ Compliant"
+      : "❌ Non-Compliant";
 
   // Draw report header section
   ensurePageSpace(doc, 100);
@@ -4296,9 +4477,7 @@ const renderSmokeOnlyReport = async (doc, { report, template, job, property, tec
     { label: "Inspection Type", value: "Smoke Alarm Safety Inspection" },
     {
       label: "Overall Status",
-      value: complianceResult.isOverallCompliant
-        ? "✅ Compliant"
-        : "❌ Non-Compliant",
+      value: overallStatusDisplay,
     },
   ];
 
@@ -4434,37 +4613,6 @@ const renderSmokeOnlyReport = async (doc, { report, template, job, property, tec
 
   doc.y += 20;
 
-  // Technician Declaration section
-  ensurePageSpace(doc, 100);
-  drawSectionHeader(doc, "Technician Declaration");
-
-  const declarationText =
-    signoff["declaration-text"] ||
-    `I, ${technicianName} (Lic. ${technicianLicense}), conducted the above inspection in accordance with the Residential Tenancies Regulations 2021 and AS 3786 – Smoke Alarms.`;
-
-  doc
-    .fillColor(COLORS.text)
-    .fontSize(11)
-    .font("Helvetica")
-    .text(declarationText, PAGE.margin, doc.y, {
-      width: doc.page.width - PAGE.margin * 2,
-      align: "left",
-    });
-
-  doc.y += 20;
-
-  // Signature area
-  doc
-    .fillColor(COLORS.text)
-    .fontSize(11)
-    .font("Helvetica")
-    .text(`Date: ${new Date().toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' })}`, PAGE.margin, doc.y);
-
-  doc.y += 15;
-  doc.text("Signature: _______________________", PAGE.margin, doc.y);
-
-  doc.y += 30;
-
   // Footer removed as requested
 };
 
@@ -4546,6 +4694,9 @@ export const buildInspectionReportPdf = async ({
   }
 
   // Declaration and Certification
+  if (template?.jobType === "Gas") {
+    drawGasHazardsSection(doc);
+  }
   drawDeclarationSection(doc, { template, job, technician, report });
 
   // Next Steps & Compliance Schedule
@@ -4553,20 +4704,29 @@ export const buildInspectionReportPdf = async ({
 
   // Photos section
   if (report.media?.length) {
+    const photoSectionTitle = "Annex: Photos";
+
     doc.addPage();
-    doc.y = PAGE.margin;
+    currentPageNumber++;
+    const startY = drawPageHeader(doc);
+    doc.y = startY;
     doc.fillColor(COLORS.text);
 
-    drawSectionHeader(doc, "Annex: Photos");
+    drawSectionHeader(doc, photoSectionTitle);
 
-    for (const item of report.media) {
-      // Add photo label
+    for (const [index, item] of report.media.entries()) {
+      const estimatedSpaceNeeded = 360; // Label + image + breathing room
+      const startedNewPage = ensurePageSpace(doc, estimatedSpaceNeeded);
+      if (startedNewPage) {
+        drawSectionHeader(doc, photoSectionTitle);
+      }
+
       const labelX = PAGE.margin + 10;
       doc
         .fillColor(COLORS.text)
         .fontSize(12)
         .font("Helvetica-Bold")
-        .text(item.label || `Photo ${report.media.indexOf(item) + 1}`, labelX, doc.y);
+        .text(item.label || `Photo ${index + 1}`, labelX, doc.y);
 
       doc.y += 20;
 
@@ -4589,25 +4749,14 @@ export const buildInspectionReportPdf = async ({
           .text(result.message, labelX, doc.y);
         doc.y += result.height;
       }
-
-      // Add page break if needed
-      if (doc.y > doc.page.height - 150) {
-        // Add footer to current page before creating new one
-        drawPageFooter(doc, currentPageNumber);
-
-        doc.addPage();
-        currentPageNumber++; // Increment page counter
-
-        // Add header to new page
-        const startY = drawPageHeader(doc);
-        doc.y = startY;
-        doc.fillColor(COLORS.text);
-      }
     }
   }
 
-  // Add footer to final page
+  // Add footer to final content page
   drawPageFooter(doc, currentPageNumber);
+
+  // Append finishing page with centered branding
+  drawFinalBrandPage(doc);
 
   doc.end();
   return pdfPromise;

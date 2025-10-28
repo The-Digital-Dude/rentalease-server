@@ -280,7 +280,7 @@ const createElectricalSmokeSections = () => [
         type: "textarea",
         placeholder: "Record recommended follow-up actions for the client",
         defaultValue:
-          "Next electrical safety check due in 2 years. Property is in good condition.",
+          "Good news! No electrical faults were found at this property.\nWe'll reach out in 2 years for your next compliance check. If you need any repairs or maintenance in the meantime, contact the RentalEase team for a free call-out and quote.",
       },
       {
         id: "contact-email",
@@ -3455,7 +3455,8 @@ const createSmokeOnlySections_OLD = () => [
   {
     id: "job-property-details",
     title: "Job & Property Details",
-    description: "Technician and inspection information recorded for the smoke alarm report.",
+    description:
+      "Technician and inspection information recorded for the smoke alarm report.",
     fields: [
       {
         id: "inspection-date",
@@ -3498,7 +3499,8 @@ const createSmokeOnlySections_OLD = () => [
   {
     id: "property-coverage-check",
     title: "Property Coverage Check (AS 3786 / RTA VIC)",
-    description: "Verify required smoke alarm locations and coverage compliance.",
+    description:
+      "Verify required smoke alarm locations and coverage compliance.",
     fields: [
       {
         id: "storeys-covered",
@@ -3559,7 +3561,8 @@ const createSmokeOnlySections_OLD = () => [
   {
     id: "alarm-inventory",
     title: "Alarm Inventory",
-    description: "Detailed inspection of each smoke alarm (add one section per alarm).",
+    description:
+      "Detailed inspection of each smoke alarm (add one section per alarm).",
     fields: [
       {
         id: "alarm-count",
@@ -3958,8 +3961,10 @@ const createSmokeOnlySections_OLD = () => [
         label: "General Comments",
         type: "textarea",
         required: true,
-        placeholder: "e.g., Two expired 240 V mains-powered smoke alarms identified; both require replacement.",
-        defaultValue: "Two expired 240 V mains-powered smoke alarms identified. Replacement of both alarms is required immediately to restore compliance.",
+        placeholder:
+          "e.g., Two expired 240 V mains-powered smoke alarms identified; both require replacement.",
+        defaultValue:
+          "Two expired 240 V mains-powered smoke alarms identified. Replacement of both alarms is required immediately to restore compliance.",
       },
     ],
   },
@@ -4056,13 +4061,15 @@ const createSmokeOnlySections_OLD = () => [
         type: "checkbox",
         required: true,
         defaultValue: false,
-        helpText: "I conducted this inspection in accordance with the Residential Tenancies Regulations 2021 and AS 3786 – Smoke Alarms.",
+        helpText:
+          "I conducted this inspection in accordance with the Residential Tenancies Regulations 2021 and AS 3786 – Smoke Alarms.",
       },
       {
         id: "declaration-text",
         label: "Declaration Statement",
         type: "text",
-        defaultValue: "I conducted this inspection in accordance with the Residential Tenancies Regulations 2021 and AS 3786 – Smoke Alarms.",
+        defaultValue:
+          "I conducted this inspection in accordance with the Residential Tenancies Regulations 2021 and AS 3786 – Smoke Alarms.",
         required: true,
       },
       {
@@ -4161,7 +4168,8 @@ const createSmokeOnlySections = () => [
   {
     id: "property-coverage",
     title: "Property Coverage Assessment",
-    description: "Verify smoke alarm coverage meets AS 3786 and RTA requirements.",
+    description:
+      "Verify smoke alarm coverage meets AS 3786 and RTA requirements.",
     fields: [
       {
         id: "property-type",
@@ -4338,8 +4346,14 @@ const createSmokeOnlySections = () => [
             options: [
               { value: "240v-mains", label: "240V mains hardwired" },
               { value: "battery-replaceable", label: "Replaceable battery" },
-              { value: "battery-sealed-lithium", label: "Sealed lithium battery" },
-              { value: "mains-battery-backup", label: "Mains with battery backup" },
+              {
+                value: "battery-sealed-lithium",
+                label: "Sealed lithium battery",
+              },
+              {
+                value: "mains-battery-backup",
+                label: "Mains with battery backup",
+              },
             ],
           },
           {
@@ -4382,7 +4396,8 @@ const createSmokeOnlySections = () => [
             label: "Positioning meets AS 3786",
             type: "yes-no",
             required: true,
-            helpText: "Clearances: 50cm from walls, 60cm from corners, 150cm from fans",
+            helpText:
+              "Clearances: 50cm from walls, 60cm from corners, 150cm from fans",
           },
           {
             id: "physical-condition",
@@ -4452,8 +4467,14 @@ const createSmokeOnlySections = () => [
             required: true,
             options: [
               { value: "compliant", label: "Compliant" },
-              { value: "non-compliant-minor", label: "Non-compliant (minor issues)" },
-              { value: "non-compliant-major", label: "Non-compliant (major issues)" },
+              {
+                value: "non-compliant-minor",
+                label: "Non-compliant (minor issues)",
+              },
+              {
+                value: "non-compliant-major",
+                label: "Non-compliant (major issues)",
+              },
               { value: "requires-replacement", label: "Requires replacement" },
             ],
           },
@@ -4532,7 +4553,8 @@ const createSmokeOnlySections = () => [
         label: "Alarm Installation Context",
         type: "photo-multi",
         required: true,
-        helpText: "Wide shots showing each alarm's installation location and context",
+        helpText:
+          "Wide shots showing each alarm's installation location and context",
         metadata: { max: 8 },
       },
       {
@@ -4540,7 +4562,8 @@ const createSmokeOnlySections = () => [
         label: "Manufacturer Labels",
         type: "photo-multi",
         required: true,
-        helpText: "Close-up photos of manufacturer labels showing brand, model, and manufacture date",
+        helpText:
+          "Close-up photos of manufacturer labels showing brand, model, and manufacture date",
         metadata: { max: 8 },
       },
       {
@@ -4548,7 +4571,8 @@ const createSmokeOnlySections = () => [
         label: "Testing in Progress",
         type: "photo-multi",
         required: true,
-        helpText: "Photos showing test button being pressed or dB meter readings",
+        helpText:
+          "Photos showing test button being pressed or dB meter readings",
         metadata: { max: 8 },
       },
       {
@@ -4562,7 +4586,8 @@ const createSmokeOnlySections = () => [
         id: "defect-photos",
         label: "Defects or Issues",
         type: "photo-multi",
-        helpText: "Photos documenting any defects, damage, or non-compliance issues",
+        helpText:
+          "Photos documenting any defects, damage, or non-compliance issues",
         metadata: { max: 6 },
       },
       {
@@ -4636,7 +4661,8 @@ const createSmokeOnlySections = () => [
         label: "Summary of compliance issues",
         type: "textarea",
         placeholder: "Describe any compliance issues found during inspection",
-        helpText: "Include details of expired alarms, positioning issues, coverage gaps, etc.",
+        helpText:
+          "Include details of expired alarms, positioning issues, coverage gaps, etc.",
       },
       {
         id: "work-required",
@@ -4725,34 +4751,51 @@ const createSmokeOnlySections = () => [
         type: "multi-select",
         required: true,
         options: [
-          { value: "as3786-2014", label: "AS 3786:2014 Smoke alarms using scattered light, transmitted light or ionization" },
-          { value: "rta-vic-2021", label: "Residential Tenancies Act (Victoria) 2021" },
-          { value: "building-regulations", label: "Building Regulations 2018 (Victoria)" },
-          { value: "as3000", label: "AS/NZS 3000:2018 Electrical installations" },
+          {
+            value: "as3786-2014",
+            label:
+              "AS 3786:2014 Smoke alarms using scattered light, transmitted light or ionization",
+          },
+          {
+            value: "rta-vic-2021",
+            label: "Residential Tenancies Act (Victoria) 2021",
+          },
+          {
+            value: "building-regulations",
+            label: "Building Regulations 2018 (Victoria)",
+          },
+          {
+            value: "as3000",
+            label: "AS/NZS 3000:2018 Electrical installations",
+          },
         ],
         defaultValue: ["as3786-2014", "rta-vic-2021"],
       },
       {
         id: "declaration-qualified",
-        label: "I declare that I am appropriately qualified and licensed to conduct this smoke alarm inspection",
+        label:
+          "I declare that I am appropriately qualified and licensed to conduct this smoke alarm inspection",
         type: "checkbox",
         required: true,
       },
       {
         id: "declaration-standards",
-        label: "I declare that this inspection has been conducted in accordance with the applicable Australian Standards and Victorian legislation",
+        label:
+          "I declare that this inspection has been conducted in accordance with the applicable Australian Standards and Victorian legislation",
         type: "checkbox",
         required: true,
       },
       {
         id: "declaration-accuracy",
-        label: "I declare that the information recorded in this report is true and accurate to the best of my knowledge",
+        label:
+          "I declare that the information recorded in this report is true and accurate to the best of my knowledge",
         type: "checkbox",
         required: true,
       },
       {
         id: "declaration-compliance",
-        label: "I declare that the compliance assessment provided is based on the current condition of the smoke alarms at the time of inspection",
+        label:
+          "I declare that the compliance assessment provided is based on the current condition of the smoke alarms at the time of inspection",
         type: "checkbox",
         required: true,
       },
@@ -4824,14 +4867,16 @@ const createGasSmokeTemplate = () => ({
           label: "Next Service Due Date",
           type: "date",
           required: true,
-          helpText: "Gas safety checks are required every 24 months, smoke alarms annually",
+          helpText:
+            "Gas safety checks are required every 24 months, smoke alarms annually",
         },
       ],
     },
     {
       id: "gas-installation",
       title: "Gas Installation Assessment",
-      description: "Comprehensive gas safety inspection including appliances and fittings",
+      description:
+        "Comprehensive gas safety inspection including appliances and fittings",
       fields: [
         {
           id: "gas-meter-accessible",
@@ -4880,7 +4925,10 @@ const createGasSmokeTemplate = () => ({
             { value: "all-satisfactory", label: "All Satisfactory" },
             { value: "some-minor-issues", label: "Some Minor Issues" },
             { value: "major-concerns", label: "Major Concerns Present" },
-            { value: "unsafe-appliances", label: "Unsafe Appliances Identified" },
+            {
+              value: "unsafe-appliances",
+              label: "Unsafe Appliances Identified",
+            },
           ],
         },
         {
@@ -4905,14 +4953,16 @@ const createGasSmokeTemplate = () => ({
           id: "gas-inspection-comments",
           label: "Gas inspection comments and observations",
           type: "textarea",
-          placeholder: "Document any specific findings, issues, or recommendations",
+          placeholder:
+            "Document any specific findings, issues, or recommendations",
         },
       ],
     },
     {
       id: "smoke-alarm-assessment",
       title: "Smoke Alarm Assessment",
-      description: "Comprehensive smoke alarm compliance and functionality check",
+      description:
+        "Comprehensive smoke alarm compliance and functionality check",
       fields: [
         {
           id: "smoke-alarms-present",
@@ -4976,7 +5026,8 @@ const createGasSmokeTemplate = () => ({
           id: "smoke-inspection-comments",
           label: "Smoke alarm inspection comments",
           type: "textarea",
-          placeholder: "Document any specific findings, replacements, or recommendations",
+          placeholder:
+            "Document any specific findings, replacements, or recommendations",
         },
       ],
     },
@@ -5055,7 +5106,10 @@ const createGasSmokeTemplate = () => ({
               options: [
                 { value: "mains-240v", label: "240V Mains" },
                 { value: "battery-only", label: "Battery Only" },
-                { value: "mains-battery-backup", label: "240V Mains + Battery Backup" },
+                {
+                  value: "mains-battery-backup",
+                  label: "240V Mains + Battery Backup",
+                },
               ],
             },
             {
@@ -5084,7 +5138,10 @@ const createGasSmokeTemplate = () => ({
               options: [
                 { value: "compliant", label: "Compliant" },
                 { value: "non-compliant", label: "Non-Compliant" },
-                { value: "requires-replacement", label: "Requires Replacement" },
+                {
+                  value: "requires-replacement",
+                  label: "Requires Replacement",
+                },
               ],
             },
             {
@@ -5112,7 +5169,10 @@ const createGasSmokeTemplate = () => ({
             { value: "valve-replacement", label: "Valve Replacement" },
             { value: "piping-repair", label: "Piping Repair" },
             { value: "appliance-service", label: "Appliance Service" },
-            { value: "ventilation-improvement", label: "Ventilation Improvement" },
+            {
+              value: "ventilation-improvement",
+              label: "Ventilation Improvement",
+            },
             { value: "other-gas", label: "Other Gas Work" },
           ],
         },
@@ -5126,7 +5186,10 @@ const createGasSmokeTemplate = () => ({
             { value: "alarm-replacement", label: "Alarm Unit Replacement" },
             { value: "cleaning", label: "Cleaning/Maintenance" },
             { value: "new-installation", label: "New Alarm Installation" },
-            { value: "interconnection-repair", label: "Interconnection Repair" },
+            {
+              value: "interconnection-repair",
+              label: "Interconnection Repair",
+            },
             { value: "other-smoke", label: "Other Smoke Alarm Work" },
           ],
         },
@@ -5162,7 +5225,10 @@ const createGasSmokeTemplate = () => ({
           required: true,
           options: [
             { value: "compliant", label: "Compliant" },
-            { value: "compliant-with-minor-issues", label: "Compliant with Minor Issues" },
+            {
+              value: "compliant-with-minor-issues",
+              label: "Compliant with Minor Issues",
+            },
             { value: "non-compliant", label: "Non-Compliant" },
             { value: "unsafe", label: "Unsafe - Immediate Action Required" },
           ],
@@ -5174,7 +5240,10 @@ const createGasSmokeTemplate = () => ({
           required: true,
           options: [
             { value: "compliant", label: "Compliant" },
-            { value: "compliant-with-minor-issues", label: "Compliant with Minor Issues" },
+            {
+              value: "compliant-with-minor-issues",
+              label: "Compliant with Minor Issues",
+            },
             { value: "non-compliant", label: "Non-Compliant" },
           ],
         },
@@ -5213,7 +5282,8 @@ const createGasSmokeTemplate = () => ({
           label: "Summary comments and recommendations",
           type: "textarea",
           required: true,
-          placeholder: "Provide overall assessment and any important recommendations",
+          placeholder:
+            "Provide overall assessment and any important recommendations",
         },
       ],
     },
@@ -5224,7 +5294,8 @@ const createGasSmokeTemplate = () => ({
       fields: [
         {
           id: "technician-declaration",
-          label: "I declare that this inspection has been carried out in accordance with relevant standards and regulations",
+          label:
+            "I declare that this inspection has been carried out in accordance with relevant standards and regulations",
           type: "checkbox",
           required: true,
         },
