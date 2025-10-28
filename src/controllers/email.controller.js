@@ -1109,11 +1109,11 @@ class EmailController {
         });
       }
 
-      // Authorization check - ensure user is authenticated
-      if (!req.superUser && !req.agency && !req.propertyManager && !req.teamMember) {
+      // Authorization check - only superuser and team member can access
+      if (!req.superUser && !req.teamMember) {
         return res.status(403).json({
           status: "error",
-          message: "Unauthorized - authentication required",
+          message: "Unauthorized - only superusers and team members can send general emails",
         });
       }
 
