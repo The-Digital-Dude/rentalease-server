@@ -43,7 +43,10 @@ const agencySchema = new mongoose.Schema(
       sparse: true,
       lowercase: true,
       trim: true,
-      match: [/^[a-z0-9.-]+@rentalease\.com\.au$/, 'Must be a valid @rentalease.com.au email']
+      match: [
+        /^[a-z0-9.-]+@rentalease\.com\.au$/,
+        "Must be a valid @rentalease.com.au email",
+      ],
     },
     phone: {
       type: String,
@@ -57,20 +60,20 @@ const agencySchema = new mongoose.Schema(
       type: String,
       required: [true, "Region is required"],
     },
-    compliance: {
-      type: String,
-      required: [true, "Compliance level is required"],
-      enum: {
-        values: [
-          "Basic Package",
-          "Basic Compliance",
-          "Standard Package",
-          "Premium Package",
-          "Full Package",
-        ],
-        message: "Please select a valid compliance package",
-      },
-    },
+    // compliance: {
+    //   type: String,
+    //   required: [true, "Compliance level is required"],
+    //   enum: {
+    //     values: [
+    //       "Basic Package",
+    //       "Basic Compliance",
+    //       "Standard Package",
+    //       "Premium Package",
+    //       "Full Package",
+    //     ],
+    //     message: "Please select a valid compliance package",
+    //   },
+    // },
     outstandingAmount: {
       type: Number,
       default: 0,
@@ -81,7 +84,7 @@ const agencySchema = new mongoose.Schema(
     status: {
       type: String,
       enum: ["Active", "Inactive", "Suspended", "Pending"],
-      default: "Pending",
+      default: "Active",
     },
 
     // Authentication Information
@@ -131,7 +134,15 @@ const agencySchema = new mongoose.Schema(
     },
     subscriptionStatus: {
       type: String,
-      enum: ["trial", "active", "past_due", "canceled", "unpaid", "incomplete", "pending_payment"],
+      enum: [
+        "trial",
+        "active",
+        "past_due",
+        "canceled",
+        "unpaid",
+        "incomplete",
+        "pending_payment",
+      ],
       default: "pending_payment",
     },
     planType: {
@@ -231,7 +242,9 @@ agencySchema.methods.isActive = function () {
 
 // Method to check if subscription is active
 agencySchema.methods.hasActiveSubscription = function () {
-  return this.subscriptionStatus === "active" || this.subscriptionStatus === "trial";
+  return (
+    this.subscriptionStatus === "active" || this.subscriptionStatus === "trial"
+  );
 };
 
 // Method to check if within plan limits
@@ -271,7 +284,7 @@ agencySchema.methods.getPlanLimits = function () {
 
   return {
     properties: propertyLimit,
-    subscriptionAmount: this.subscriptionAmount
+    subscriptionAmount: this.subscriptionAmount,
   };
 };
 

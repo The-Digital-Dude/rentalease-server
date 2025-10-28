@@ -6,7 +6,6 @@ import Job from "../models/Job.js";
 import PropertyManager from "../models/PropertyManager.js";
 import jwt from "jsonwebtoken";
 import emailService from "../services/email.service.js";
-import { stripe } from "../config/stripe.js";
 import {
   generateOTP,
   generateOTPExpiration,
@@ -42,233 +41,134 @@ const VALID_REGIONS = [
 ];
 
 // Register Agency (Only Super Users and Team Members can create Agencies)
-router.post("/register", authenticateUserTypes(['SuperUser', 'TeamMember']), async (req, res) => {
-  try {
-    const {
-      companyName,
-      abn,
-      contactPerson,
-      email,
-      phone,
-      region,
-      compliance,
-      password,
-      subscriptionAmount,
-    } = req.body;
-
-    // Validate required fields
-    if (
-      !companyName ||
-      !abn ||
-      !contactPerson ||
-      !email ||
-      !phone ||
-      !region ||
-      !compliance ||
-      !password ||
-      !subscriptionAmount
-    ) {
-      return res.status(400).json({
-        status: "error",
-        message: "All fields including subscription amount are required",
-      });
-    }
-
-    // Convert and validate subscription amount
-    const numericSubscriptionAmount = Number(subscriptionAmount);
-    if (isNaN(numericSubscriptionAmount) || numericSubscriptionAmount < 1 || numericSubscriptionAmount > 100000) {
-      return res.status(400).json({
-        status: "error",
-        message: "Subscription amount must be between $1 and $100,000",
-      });
-    }
-
-    // Validate region
-    if (!VALID_REGIONS.includes(region)) {
-      return res.status(400).json({
-        status: "error",
-        message: "Please select a valid region",
-      });
-    }
-
-    // Check if agency already exists by email
-    const existingAgencyByEmail = await Agency.findOne({
-      email: email.toLowerCase(),
-    });
-    if (existingAgencyByEmail) {
-      return res.status(400).json({
-        status: "error",
-        message: "Agency with this email already exists",
-      });
-    }
-
-    // Check if agency already exists by ABN
-    const existingAgencyByABN = await Agency.findOne({ abn });
-    if (existingAgencyByABN) {
-      return res.status(400).json({
-        status: "error",
-        message: "Agency with this ABN already exists",
-      });
-    }
-
-    // Create Stripe customer
-    const stripeCustomer = await stripe.customers.create({
-      email: email.toLowerCase(),
-      name: `${companyName} - ${contactPerson}`,
-      metadata: {
+router.post(
+  "/register",
+  authenticateUserTypes(["SuperUser", "TeamMember"]),
+  async (req, res) => {
+    try {
+      const {
         companyName,
         abn,
         contactPerson,
+        email,
+        phone,
         region,
-        compliance,
-        subscriptionAmount: numericSubscriptionAmount.toString(),
-      },
-    });
+        password,
+        subscriptionAmount,
+      } = req.body;
 
-    // Create Stripe product first
-    const stripeProduct = await stripe.products.create({
-      name: `RentalEase CRM - ${companyName}`,
-      description: `Custom subscription plan for ${companyName} - $${numericSubscriptionAmount}/month`,
-      metadata: {
-        agencyCompanyName: companyName,
-        subscriptionAmount: numericSubscriptionAmount.toString(),
-      },
-    });
+      // Validate required fields
+      if (
+        !companyName ||
+        !abn ||
+        !contactPerson ||
+        !email ||
+        !phone ||
+        !region ||
+        !password ||
+        !subscriptionAmount
+      ) {
+        return res.status(400).json({
+          status: "error",
+          message: "All fields including subscription amount are required",
+        });
+      }
 
-    // Create dynamic Stripe price
-    const stripePrice = await stripe.prices.create({
-      unit_amount: Math.round(numericSubscriptionAmount * 100), // Convert to cents
-      currency: 'aud',
-      recurring: {
-        interval: 'month',
-      },
-      product: stripeProduct.id,
-      metadata: {
-        agencyCompanyName: companyName,
-        subscriptionAmount: numericSubscriptionAmount.toString(),
-      },
-    });
+      // Convert and validate subscription amount
+      const numericSubscriptionAmount = Number(subscriptionAmount);
+      if (
+        isNaN(numericSubscriptionAmount) ||
+        numericSubscriptionAmount < 1 ||
+        numericSubscriptionAmount > 100000
+      ) {
+        return res.status(400).json({
+          status: "error",
+          message: "Subscription amount must be between $1 and $100,000",
+        });
+      }
 
-    // Create new agency
-    const agency = new Agency({
-      companyName,
-      abn,
-      contactPerson,
-      email: email.toLowerCase(),
-      phone,
-      region,
-      compliance,
-      password,
-      subscriptionAmount: numericSubscriptionAmount,
-      stripeCustomerId: stripeCustomer.id,
-      stripePriceId: stripePrice.id,
-      status: "Pending", // Will be activated after payment
-      subscriptionStatus: "pending_payment",
-      paymentStatus: "pending",
-      planType: "custom",
-    });
+      // Validate region
+      if (!VALID_REGIONS.includes(region)) {
+        return res.status(400).json({
+          status: "error",
+          message: "Please select a valid region",
+        });
+      }
 
-    await agency.save();
+      // Check if agency already exists by email
+      const existingAgencyByEmail = await Agency.findOne({
+        email: email.toLowerCase(),
+      });
+      if (existingAgencyByEmail) {
+        return res.status(400).json({
+          status: "error",
+          message: "Agency with this email already exists",
+        });
+      }
 
-    // Create Stripe checkout session
-    const checkoutSession = await stripe.checkout.sessions.create({
-      customer: stripeCustomer.id,
-      payment_method_types: ['card'],
-      line_items: [
-        {
-          price: stripePrice.id,
-          quantity: 1,
-        },
-      ],
-      mode: 'subscription',
-      success_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/login?payment_success=true`,
-      cancel_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/login?payment_cancelled=true`,
-      metadata: {
-        agencyId: agency._id.toString(),
-        subscriptionAmount: numericSubscriptionAmount.toString(),
-      },
-      subscription_data: {
-        metadata: {
-          agencyId: agency._id.toString(),
-          subscriptionAmount: numericSubscriptionAmount.toString(),
-        },
-      },
-    });
+      // Check if agency already exists by ABN
+      const existingAgencyByABN = await Agency.findOne({ abn });
+      if (existingAgencyByABN) {
+        return res.status(400).json({
+          status: "error",
+          message: "Agency with this ABN already exists",
+        });
+      }
 
-    // Update agency with payment link
-    agency.paymentLinkUrl = checkoutSession.url;
-    await agency.save();
-
-    // Send payment link email to agency
-    try {
-      await emailService.sendAgencyPaymentLinkEmail({
-        email: agency.email,
-        contactPerson: agency.contactPerson,
-        companyName: agency.companyName,
-        subscriptionAmount: subscriptionAmount,
-        paymentLinkUrl: checkoutSession.url,
-        loginPassword: password,
-        loginUrl: process.env.FRONTEND_URL || "http://localhost:5173/login"
+      // Create new agency
+      const agency = new Agency({
+        companyName,
+        abn,
+        contactPerson,
+        email: email.toLowerCase(),
+        phone,
+        region,
+        password,
+        subscriptionAmount: numericSubscriptionAmount,
+        status: "Active",
       });
 
-      console.log("Agency payment link email sent successfully:", {
+      await agency.save();
+
+      console.log("Agency created successfully:", {
         agencyId: agency._id,
-        email: agency.email,
         companyName: agency.companyName,
-        subscriptionAmount: subscriptionAmount,
-        paymentLinkUrl: checkoutSession.url,
+        contactPerson: agency.contactPerson,
+        email: agency.email,
+        subscriptionAmount: agency.subscriptionAmount,
+        createdBy: req.superUser?.email || req.user?.email,
         timestamp: new Date().toISOString(),
       });
-    } catch (emailError) {
-      console.error("Failed to send agency payment link email:", emailError);
-      // Continue with response even if email fails
-    }
 
-    console.log("Agency created successfully:", {
-      agencyId: agency._id,
-      companyName: agency.companyName,
-      contactPerson: agency.contactPerson,
-      email: agency.email,
-      subscriptionAmount: subscriptionAmount,
-      stripeCustomerId: stripeCustomer.id,
-      stripePriceId: stripePrice.id,
-      paymentLinkUrl: checkoutSession.url,
-      createdBy: req.superUser?.email || req.user?.email,
-      timestamp: new Date().toISOString(),
-    });
-
-    res.status(201).json({
-      status: "success",
-      message: "Agency registered successfully. Payment link email has been sent to activate the subscription.",
-      data: {
-        agency: {
-          id: agency._id,
-          companyName: agency.companyName,
-          contactPerson: agency.contactPerson,
-          email: agency.email,
-          phone: agency.phone,
-          region: agency.region,
-          compliance: agency.compliance,
-          status: agency.status,
-          abn: agency.abn,
-          subscriptionAmount: agency.subscriptionAmount,
-          subscriptionStatus: agency.subscriptionStatus,
-          paymentStatus: agency.paymentStatus,
-          paymentLinkUrl: agency.paymentLinkUrl,
-          outstandingAmount: agency.outstandingAmount,
-          totalProperties: agency.totalProperties,
-          joinedDate: agency.joinedDate,
+      res.status(201).json({
+        status: "success",
+        message: "Agency registered successfully.",
+        data: {
+          agency: {
+            id: agency._id,
+            companyName: agency.companyName,
+            contactPerson: agency.contactPerson,
+            email: agency.email,
+            phone: agency.phone,
+            region: agency.region,
+            status: agency.status,
+            abn: agency.abn,
+            subscriptionAmount: agency.subscriptionAmount,
+            outstandingAmount: agency.outstandingAmount,
+            totalProperties: agency.totalProperties,
+            joinedDate: agency.joinedDate,
+          },
         },
-      },
-    });
-  } catch (error) {
-    console.error("Agency registration error:", error);
-    res.status(500).json({
-      status: "error",
-      message: error.message || "An error occurred during registration",
-    });
+      });
+    } catch (error) {
+      console.error("Agency registration error:", error);
+      res.status(500).json({
+        status: "error",
+        message: error.message || "An error occurred during registration",
+      });
+    }
   }
-});
+);
 
 // Login Agency
 router.post("/login", async (req, res) => {
@@ -357,9 +257,9 @@ router.post("/login", async (req, res) => {
           email: agency.email,
           phone: agency.phone,
           region: agency.region,
-          compliance: agency.compliance,
           status: agency.status,
           abn: agency.abn,
+          subscriptionAmount: agency.subscriptionAmount,
           outstandingAmount: agency.outstandingAmount,
           totalProperties: agency.totalProperties,
           lastLogin: agency.lastLogin,
@@ -682,9 +582,9 @@ router.get("/profile", authenticateAgency, async (req, res) => {
           email: agency.email,
           phone: agency.phone,
           region: agency.region,
-          compliance: agency.compliance,
           status: agency.status,
           abn: agency.abn,
+          subscriptionAmount: agency.subscriptionAmount,
           outstandingAmount: agency.outstandingAmount,
           totalProperties: agency.totalProperties,
           lastLogin: agency.lastLogin,
@@ -1112,574 +1012,556 @@ router.get("/dashboard", authenticateAgency, async (req, res) => {
 });
 
 // Update Agency (Only Super Users and Team Members)
-router.patch("/:id", authenticateUserTypes(['SuperUser', 'TeamMember']), async (req, res) => {
-  try {
-    const { id } = req.params;
-    const {
-      companyName,
-      abn,
-      contactPerson,
-      email,
-      phone,
-      region,
-      compliance,
-      status,
-      outstandingAmount,
-    } = req.body;
+router.patch(
+  "/:id",
+  authenticateUserTypes(["SuperUser", "TeamMember"]),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const {
+        companyName,
+        abn,
+        contactPerson,
+        email,
+        phone,
+        region,
+        status,
+        outstandingAmount,
+      } = req.body;
 
-    // Find agency
-    const agency = await Agency.findById(id);
-    if (!agency) {
-      return res.status(404).json({
-        status: "error",
-        message: "Agency not found",
-      });
-    }
-
-    // Store original values for logging
-    const originalValues = {
-      companyName: agency.companyName,
-      abn: agency.abn,
-      contactPerson: agency.contactPerson,
-      email: agency.email,
-      phone: agency.phone,
-      region: agency.region,
-      compliance: agency.compliance,
-      status: agency.status,
-      outstandingAmount: agency.outstandingAmount,
-    };
-
-    // Validate and update fields if provided
-    if (companyName !== undefined) {
-      if (!companyName || companyName.trim().length < 2) {
-        return res.status(400).json({
+      // Find agency
+      const agency = await Agency.findById(id);
+      if (!agency) {
+        return res.status(404).json({
           status: "error",
-          message: "Company name must be at least 2 characters long",
+          message: "Agency not found",
         });
       }
-      agency.companyName = companyName.trim();
-    }
 
-    if (abn !== undefined) {
-      if (!abn || !/^\d{11}$/.test(abn)) {
-        return res.status(400).json({
-          status: "error",
-          message: "ABN must be 11 digits",
-        });
-      }
-      // Check if ABN is already used by another agency
-      const existingABN = await Agency.findOne({ abn, _id: { $ne: id } });
-      if (existingABN) {
-        return res.status(400).json({
-          status: "error",
-          message: "ABN is already used by another agency",
-        });
-      }
-      agency.abn = abn;
-    }
-
-    if (contactPerson !== undefined) {
-      if (!contactPerson || contactPerson.trim().length < 2) {
-        return res.status(400).json({
-          status: "error",
-          message: "Contact person name must be at least 2 characters long",
-        });
-      }
-      agency.contactPerson = contactPerson.trim();
-    }
-
-    if (email !== undefined) {
-      if (
-        !email ||
-        !/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/.test(email)
-      ) {
-        return res.status(400).json({
-          status: "error",
-          message: "Please enter a valid email address",
-        });
-      }
-      // Check if email is already used by another agency
-      const existingEmail = await Agency.findOne({
-        email: email.toLowerCase(),
-        _id: { $ne: id },
-      });
-      if (existingEmail) {
-        return res.status(400).json({
-          status: "error",
-          message: "Email is already used by another agency",
-        });
-      }
-      agency.email = email.toLowerCase();
-    }
-
-    if (phone !== undefined) {
-      if (!phone || !/^\+?[\d\s\-\(\)]+$/.test(phone)) {
-        return res.status(400).json({
-          status: "error",
-          message: "Please enter a valid phone number",
-        });
-      }
-      agency.phone = phone.trim();
-    }
-
-    if (region !== undefined) {
-      if (!VALID_REGIONS.includes(region)) {
-        return res.status(400).json({
-          status: "error",
-          message: "Please select a valid region",
-        });
-      }
-      agency.region = region;
-    }
-
-    if (compliance !== undefined) {
-      const validCompliance = [
-        "Basic Package",
-        "Basic Compliance",
-        "Standard Package",
-        "Premium Package",
-        "Full Package",
-      ];
-      if (!validCompliance.includes(compliance)) {
-        return res.status(400).json({
-          status: "error",
-          message: "Please select a valid compliance package",
-        });
-      }
-      agency.compliance = compliance;
-    }
-
-    if (status !== undefined) {
-      const validStatuses = ["Active", "Inactive", "Suspended", "Pending"];
-      if (!validStatuses.includes(status)) {
-        return res.status(400).json({
-          status: "error",
-          message: "Please select a valid status",
-        });
-      }
-      agency.status = status;
-    }
-
-    if (outstandingAmount !== undefined) {
-      if (isNaN(outstandingAmount) || outstandingAmount < 0) {
-        return res.status(400).json({
-          status: "error",
-          message: "Outstanding amount must be a non-negative number",
-        });
-      }
-      agency.outstandingAmount = outstandingAmount;
-    }
-
-    // Update timestamp
-    agency.lastUpdated = new Date();
-
-    // Save updated agency
-    await agency.save();
-
-    console.log("Agency updated:", {
-      agencyId: agency._id,
-      updatedBy: req.superUser.email,
-      originalValues,
-      newValues: {
+      // Store original values for logging
+      const originalValues = {
         companyName: agency.companyName,
         abn: agency.abn,
         contactPerson: agency.contactPerson,
         email: agency.email,
         phone: agency.phone,
         region: agency.region,
-        compliance: agency.compliance,
         status: agency.status,
         outstandingAmount: agency.outstandingAmount,
-      },
-      timestamp: new Date().toISOString(),
-    });
+      };
 
-    res.status(200).json({
-      status: "success",
-      message: "Agency updated successfully",
-      data: {
-        agency: {
-          id: agency._id,
+      // Validate and update fields if provided
+      if (companyName !== undefined) {
+        if (!companyName || companyName.trim().length < 2) {
+          return res.status(400).json({
+            status: "error",
+            message: "Company name must be at least 2 characters long",
+          });
+        }
+        agency.companyName = companyName.trim();
+      }
+
+      if (abn !== undefined) {
+        if (!abn || !/^\d{11}$/.test(abn)) {
+          return res.status(400).json({
+            status: "error",
+            message: "ABN must be 11 digits",
+          });
+        }
+        // Check if ABN is already used by another agency
+        const existingABN = await Agency.findOne({ abn, _id: { $ne: id } });
+        if (existingABN) {
+          return res.status(400).json({
+            status: "error",
+            message: "ABN is already used by another agency",
+          });
+        }
+        agency.abn = abn;
+      }
+
+      if (contactPerson !== undefined) {
+        if (!contactPerson || contactPerson.trim().length < 2) {
+          return res.status(400).json({
+            status: "error",
+            message: "Contact person name must be at least 2 characters long",
+          });
+        }
+        agency.contactPerson = contactPerson.trim();
+      }
+
+      if (email !== undefined) {
+        if (
+          !email ||
+          !/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/.test(email)
+        ) {
+          return res.status(400).json({
+            status: "error",
+            message: "Please enter a valid email address",
+          });
+        }
+        // Check if email is already used by another agency
+        const existingEmail = await Agency.findOne({
+          email: email.toLowerCase(),
+          _id: { $ne: id },
+        });
+        if (existingEmail) {
+          return res.status(400).json({
+            status: "error",
+            message: "Email is already used by another agency",
+          });
+        }
+        agency.email = email.toLowerCase();
+      }
+
+      if (phone !== undefined) {
+        if (!phone || !/^\+?[\d\s\-\(\)]+$/.test(phone)) {
+          return res.status(400).json({
+            status: "error",
+            message: "Please enter a valid phone number",
+          });
+        }
+        agency.phone = phone.trim();
+      }
+
+      if (region !== undefined) {
+        if (!VALID_REGIONS.includes(region)) {
+          return res.status(400).json({
+            status: "error",
+            message: "Please select a valid region",
+          });
+        }
+        agency.region = region;
+      }
+
+      if (status !== undefined) {
+        const validStatuses = ["Active", "Inactive", "Suspended", "Pending"];
+        if (!validStatuses.includes(status)) {
+          return res.status(400).json({
+            status: "error",
+            message: "Please select a valid status",
+          });
+        }
+        agency.status = status;
+      }
+
+      if (outstandingAmount !== undefined) {
+        if (isNaN(outstandingAmount) || outstandingAmount < 0) {
+          return res.status(400).json({
+            status: "error",
+            message: "Outstanding amount must be a non-negative number",
+          });
+        }
+        agency.outstandingAmount = outstandingAmount;
+      }
+
+      // Update timestamp
+      agency.lastUpdated = new Date();
+
+      // Save updated agency
+      await agency.save();
+
+      console.log("Agency updated:", {
+        agencyId: agency._id,
+        updatedBy: req.superUser.email,
+        originalValues,
+        newValues: {
           companyName: agency.companyName,
+          abn: agency.abn,
           contactPerson: agency.contactPerson,
           email: agency.email,
           phone: agency.phone,
           region: agency.region,
-          compliance: agency.compliance,
           status: agency.status,
-          abn: agency.abn,
           outstandingAmount: agency.outstandingAmount,
-          totalProperties: agency.totalProperties,
-          lastLogin: agency.lastLogin,
-          joinedDate: agency.joinedDate,
-          lastUpdated: agency.lastUpdated,
         },
-      },
-    });
-  } catch (error) {
-    console.error("Update agency error:", error);
-    res.status(500).json({
-      status: "error",
-      message: error.message || "An error occurred while updating agency",
-    });
+        timestamp: new Date().toISOString(),
+      });
+
+      res.status(200).json({
+        status: "success",
+        message: "Agency updated successfully",
+        data: {
+          agency: {
+            id: agency._id,
+            companyName: agency.companyName,
+            contactPerson: agency.contactPerson,
+            email: agency.email,
+            phone: agency.phone,
+            region: agency.region,
+            status: agency.status,
+            abn: agency.abn,
+            subscriptionAmount: agency.subscriptionAmount,
+            outstandingAmount: agency.outstandingAmount,
+            totalProperties: agency.totalProperties,
+            lastLogin: agency.lastLogin,
+            joinedDate: agency.joinedDate,
+            lastUpdated: agency.lastUpdated,
+          },
+        },
+      });
+    } catch (error) {
+      console.error("Update agency error:", error);
+      res.status(500).json({
+        status: "error",
+        message: error.message || "An error occurred while updating agency",
+      });
+    }
   }
-});
+);
 
 // Get All Agencies (Only Super Users and Team Members)
-router.get("/all", authenticateUserTypes(['SuperUser', 'TeamMember']), async (req, res) => {
-  try {
-    const { status, region, page = 1, limit = 10 } = req.query;
+router.get(
+  "/all",
+  authenticateUserTypes(["SuperUser", "TeamMember"]),
+  async (req, res) => {
+    try {
+      const { status, region, page = 1, limit = 10 } = req.query;
 
-    // Build filter object
-    const filter = {};
-    if (status) filter.status = status;
-    if (region) filter.region = region;
+      // Build filter object
+      const filter = {};
+      if (status) filter.status = status;
+      if (region) filter.region = region;
 
-    // Calculate pagination
-    const skip = (page - 1) * limit;
+      // Calculate pagination
+      const skip = (page - 1) * limit;
 
-    // Get agencies with pagination
-    const agencies = await Agency.find(filter)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit));
+      // Get agencies with pagination
+      const agencies = await Agency.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(parseInt(limit));
 
-    // Get total count for pagination
-    const totalCount = await Agency.countDocuments(filter);
+      // Get total count for pagination
+      const totalCount = await Agency.countDocuments(filter);
 
-    res.status(200).json({
-      status: "success",
-      data: {
-        agencies: agencies.map((agency) => ({
-          id: agency._id,
-          companyName: agency.companyName,
-          contactPerson: agency.contactPerson,
-          email: agency.email,
-          phone: agency.phone,
-          region: agency.region,
-          compliance: agency.compliance,
-          status: agency.status,
-          abn: agency.abn,
-          outstandingAmount: agency.outstandingAmount,
-          totalProperties: agency.totalProperties,
-          lastLogin: agency.lastLogin,
-          joinedDate: agency.joinedDate,
-          createdAt: agency.createdAt,
-          subscription: (agency.subscriptionId || agency.subscriptionStatus || agency.planType) ? {
-            id: agency.subscriptionId,
-            planType: agency.planType,
-            status: agency.subscriptionStatus,
-            subscriptionStartDate: agency.subscriptionStartDate,
-            subscriptionEndDate: agency.subscriptionEndDate,
-            trialEndsAt: agency.trialEndsAt,
-            currentPeriodStart: agency.currentPeriodStart,
-            currentPeriodEnd: agency.currentPeriodEnd,
-          } : null,
-        })),
-        pagination: {
-          currentPage: parseInt(page),
-          totalPages: Math.ceil(totalCount / limit),
-          totalCount,
-          hasNext: page * limit < totalCount,
-          hasPrev: page > 1,
+      res.status(200).json({
+        status: "success",
+        data: {
+          agencies: agencies.map((agency) => ({
+            id: agency._id,
+            companyName: agency.companyName,
+            contactPerson: agency.contactPerson,
+            email: agency.email,
+            phone: agency.phone,
+            region: agency.region,
+            status: agency.status,
+            abn: agency.abn,
+            subscriptionAmount: agency.subscriptionAmount,
+            outstandingAmount: agency.outstandingAmount,
+            totalProperties: agency.totalProperties,
+            lastLogin: agency.lastLogin,
+            joinedDate: agency.joinedDate,
+            createdAt: agency.createdAt,
+          })),
+          pagination: {
+            currentPage: parseInt(page),
+            totalPages: Math.ceil(totalCount / limit),
+            totalCount,
+            hasNext: page * limit < totalCount,
+            hasPrev: page > 1,
+          },
         },
-      },
-    });
-  } catch (error) {
-    console.error("Get all agencies error:", error);
-    res.status(500).json({
-      status: "error",
-      message: "An error occurred while fetching agencies",
-    });
+      });
+    } catch (error) {
+      console.error("Get all agencies error:", error);
+      res.status(500).json({
+        status: "error",
+        message: "An error occurred while fetching agencies",
+      });
+    }
   }
-});
+);
 
 // Get Single Agency Details with Properties and Jobs (Only Super Users and Team Members)
-router.get("/:id", authenticateUserTypes(['SuperUser', 'TeamMember']), async (req, res) => {
-  try {
-    const { id } = req.params;
+router.get(
+  "/:id",
+  authenticateUserTypes(["SuperUser", "TeamMember"]),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
 
-    // Validate ObjectId
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({
-        status: "error",
-        message: "Invalid agency ID format",
-      });
-    }
+      // Validate ObjectId
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        return res.status(400).json({
+          status: "error",
+          message: "Invalid agency ID format",
+        });
+      }
 
-    const agency = await Agency.findById(id);
-    if (!agency) {
-      return res.status(404).json({
-        status: "error",
-        message: "Agency not found",
-      });
-    }
+      const agency = await Agency.findById(id);
+      if (!agency) {
+        return res.status(404).json({
+          status: "error",
+          message: "Agency not found",
+        });
+      }
 
-    // Get properties managed by this agency using the direct agency reference
-    const properties = await Property.find({
-      agency: id,
-    })
-      .select(
-        "address propertyType currentTenant currentLandlord complianceSchedule status createdAt"
-      )
-      .sort({ createdAt: -1 });
+      // Get properties managed by this agency using the direct agency reference
+      const properties = await Property.find({
+        agency: id,
+      })
+        .select(
+          "address propertyType currentTenant currentLandlord complianceSchedule status createdAt"
+        )
+        .sort({ createdAt: -1 });
 
-    // Get jobs related to this agency - both directly owned and through properties
-    const [directJobs, propertyJobs] = await Promise.all([
-      // Jobs directly owned by the agency
-      Job.find({
+      // Get jobs related to this agency - both directly owned and through properties
+      const [directJobs, propertyJobs] = await Promise.all([
+        // Jobs directly owned by the agency
+        Job.find({
+          "owner.ownerType": "Agency",
+          "owner.ownerId": id,
+        })
+          .populate("property", "address")
+          .populate(
+            "assignedTechnician",
+            "firstName lastName tradeType availabilityStatus"
+          )
+          .select(
+            "job_id jobType dueDate status priority description cost estimatedDuration actualDuration completedAt createdAt"
+          ),
+
+        // Jobs related to properties owned by this agency
+        Job.find({
+          property: { $in: properties.map((p) => p._id) },
+        })
+          .populate("property", "address")
+          .populate(
+            "assignedTechnician",
+            "firstName lastName tradeType availabilityStatus"
+          )
+          .select(
+            "job_id jobType dueDate status priority description cost estimatedDuration actualDuration completedAt createdAt"
+          ),
+      ]);
+
+      // Combine and deduplicate jobs
+      const allJobIds = new Set();
+      const jobs = [...directJobs, ...propertyJobs]
+        .filter((job) => {
+          if (allJobIds.has(job._id.toString())) {
+            return false;
+          }
+          allJobIds.add(job._id.toString());
+          return true;
+        })
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+      // Get property managers managed by this agency
+      const propertyManagers = await PropertyManager.find({
         "owner.ownerType": "Agency",
         "owner.ownerId": id,
       })
-        .populate("property", "address")
-        .populate("assignedTechnician", "firstName lastName tradeType availabilityStatus")
         .select(
-          "job_id jobType dueDate status priority description cost estimatedDuration actualDuration completedAt createdAt"
-        ),
+          "firstName lastName email phone availabilityStatus assignedProperties status createdAt"
+        )
+        .sort({ createdAt: -1 });
 
-      // Jobs related to properties owned by this agency
-      Job.find({
-        property: { $in: properties.map((p) => p._id) },
-      })
-        .populate("property", "address")
-        .populate("assignedTechnician", "firstName lastName tradeType availabilityStatus")
-        .select(
-          "job_id jobType dueDate status priority description cost estimatedDuration actualDuration completedAt createdAt"
-        ),
-    ]);
-
-    // Combine and deduplicate jobs
-    const allJobIds = new Set();
-    const jobs = [...directJobs, ...propertyJobs]
-      .filter((job) => {
-        if (allJobIds.has(job._id.toString())) {
-          return false;
-        }
-        allJobIds.add(job._id.toString());
-        return true;
-      })
-      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-
-    // Get property managers managed by this agency
-    const propertyManagers = await PropertyManager.find({
-      "owner.ownerType": "Agency",
-      "owner.ownerId": id,
-    })
-      .select(
-        "firstName lastName email phone availabilityStatus assignedProperties status createdAt"
-      )
-      .sort({ createdAt: -1 });
-
-    // Calculate comprehensive statistics
-    const stats = {
-      totalProperties: properties.length,
-      totalJobs: jobs.length,
-      totalPropertyManagers: propertyManagers.length,
-      jobStatusCounts: {
-        pending: jobs.filter((job) => job.status === "Pending").length,
-        scheduled: jobs.filter((job) => job.status === "Scheduled").length,
-        completed: jobs.filter((job) => job.status === "Completed").length,
-        overdue: jobs.filter((job) => job.status === "Overdue").length,
-      },
-      propertyStatusCounts: {
-        active: properties.filter((prop) => prop.status === "Active").length,
-        inactive: properties.filter((prop) => prop.status === "Inactive")
-          .length,
-        maintenance: properties.filter(
-          (prop) => prop.status === "Under Maintenance"
-        ).length,
-      },
-      propertyManagerAvailability: {
-        available: propertyManagers.filter(
-          (manager) => manager.availabilityStatus === "Available"
-        ).length,
-        busy: propertyManagers.filter(
-          (manager) => manager.availabilityStatus === "Busy"
-        ).length,
-        unavailable: propertyManagers.filter(
-          (manager) => manager.availabilityStatus === "Unavailable"
-        ).length,
-      },
-      financials: {
-        totalJobValue: jobs.reduce(
-          (sum, job) => sum + (job.cost?.totalCost || 0),
-          0
-        ),
-        completedJobValue: jobs
-          .filter((job) => job.status === "Completed")
-          .reduce((sum, job) => sum + (job.cost?.totalCost || 0), 0),
-        averageJobValue:
-          jobs.length > 0
-            ? jobs.reduce((sum, job) => sum + (job.cost?.totalCost || 0), 0) /
-              jobs.length
-            : 0,
-      },
-    };
-
-    res.status(200).json({
-      status: "success",
-      data: {
-        agency: {
-          id: agency._id,
-          companyName: agency.companyName,
-          contactPerson: agency.contactPerson,
-          email: agency.email,
-          phone: agency.phone,
-          region: agency.region,
-          compliance: agency.compliance,
-          status: agency.status,
-          abn: agency.abn,
-          outstandingAmount: agency.outstandingAmount,
-          totalProperties: agency.totalProperties,
-          lastLogin: agency.lastLogin,
-          joinedDate: agency.joinedDate,
-          createdAt: agency.createdAt,
-          lastUpdated: agency.lastUpdated,
-          subscription: (agency.subscriptionId || agency.subscriptionStatus || agency.planType) ? {
-            id: agency.subscriptionId,
-            planType: agency.planType,
-            status: agency.subscriptionStatus,
-            subscriptionStartDate: agency.subscriptionStartDate,
-            subscriptionEndDate: agency.subscriptionEndDate,
-            trialEndsAt: agency.trialEndsAt,
-            currentPeriodStart: agency.currentPeriodStart,
-            currentPeriodEnd: agency.currentPeriodEnd,
-          } : null,
+      // Calculate comprehensive statistics
+      const stats = {
+        totalProperties: properties.length,
+        totalJobs: jobs.length,
+        totalPropertyManagers: propertyManagers.length,
+        jobStatusCounts: {
+          pending: jobs.filter((job) => job.status === "Pending").length,
+          scheduled: jobs.filter((job) => job.status === "Scheduled").length,
+          completed: jobs.filter((job) => job.status === "Completed").length,
+          overdue: jobs.filter((job) => job.status === "Overdue").length,
         },
-        statistics: stats,
-        properties: properties.map((property) => ({
-          id: property._id,
-          address: {
-            street: property.address?.street,
-            suburb: property.address?.suburb,
-            state: property.address?.state,
-            postcode: property.address?.postcode,
-            fullAddress: property.address?.fullAddress,
-          },
-          propertyType: property.propertyType,
-          currentTenant: {
-            name: property.currentTenant?.name,
-            email: property.currentTenant?.email,
-            phone: property.currentTenant?.phone,
-          },
-          currentLandlord: {
-            name: property.currentLandlord?.name,
-            email: property.currentLandlord?.email,
-            phone: property.currentLandlord?.phone,
-          },
-          complianceSchedule: property.complianceSchedule,
-          status: property.status,
-          createdAt: property.createdAt,
-        })),
-        jobs: jobs.map((job) => ({
-          id: job._id,
-          job_id: job.job_id,
-          jobType: job.jobType,
-          property: job.property
-            ? {
-                id: job.property._id,
-                address: job.property.address,
-              }
-            : null,
-          assignedTechnician: job.assignedTechnician
-            ? {
-                id: job.assignedTechnician._id,
-                fullName: job.assignedTechnician.fullName,
-                tradeType: job.assignedTechnician.tradeType,
-                availabilityStatus: job.assignedTechnician.availabilityStatus,
-              }
-            : null,
-          dueDate: job.dueDate,
-          status: job.status,
-          priority: job.priority,
-          description: job.description,
-          cost: {
-            materialCost: job.cost?.materialCost || 0,
-            laborCost: job.cost?.laborCost || 0,
-            totalCost: job.cost?.totalCost || 0,
-          },
-          estimatedDuration: job.estimatedDuration,
-          actualDuration: job.actualDuration,
-          completedAt: job.completedAt,
-          createdAt: job.createdAt,
-        })),
-        propertyManagers: propertyManagers.map((manager) => ({
-          id: manager._id,
-          fullName: `${manager.firstName} ${manager.lastName}`,
-          email: manager.email,
-          phone: manager.phone,
-          availabilityStatus: manager.availabilityStatus,
-          assignedPropertiesCount: manager.assignedProperties?.length || 0,
-          status: manager.status,
-          createdAt: manager.createdAt,
-        })),
-      },
-    });
-  } catch (error) {
-    console.error("Get agency details error:", error);
-    res.status(500).json({
-      status: "error",
-      message: "An error occurred while fetching agency details",
-    });
-  }
-});
+        propertyStatusCounts: {
+          active: properties.filter((prop) => prop.status === "Active").length,
+          inactive: properties.filter((prop) => prop.status === "Inactive")
+            .length,
+          maintenance: properties.filter(
+            (prop) => prop.status === "Under Maintenance"
+          ).length,
+        },
+        propertyManagerAvailability: {
+          available: propertyManagers.filter(
+            (manager) => manager.availabilityStatus === "Available"
+          ).length,
+          busy: propertyManagers.filter(
+            (manager) => manager.availabilityStatus === "Busy"
+          ).length,
+          unavailable: propertyManagers.filter(
+            (manager) => manager.availabilityStatus === "Unavailable"
+          ).length,
+        },
+        financials: {
+          totalJobValue: jobs.reduce(
+            (sum, job) => sum + (job.cost?.totalCost || 0),
+            0
+          ),
+          completedJobValue: jobs
+            .filter((job) => job.status === "Completed")
+            .reduce((sum, job) => sum + (job.cost?.totalCost || 0), 0),
+          averageJobValue:
+            jobs.length > 0
+              ? jobs.reduce((sum, job) => sum + (job.cost?.totalCost || 0), 0) /
+                jobs.length
+              : 0,
+        },
+      };
 
-// Delete Agency (Only Super Users and Team Members)
-router.delete("/:id", authenticateUserTypes(['SuperUser', 'TeamMember']), async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    // Find agency
-    const agency = await Agency.findById(id);
-    if (!agency) {
-      return res.status(404).json({
+      res.status(200).json({
+        status: "success",
+        data: {
+          agency: {
+            id: agency._id,
+            companyName: agency.companyName,
+            contactPerson: agency.contactPerson,
+            email: agency.email,
+            phone: agency.phone,
+            region: agency.region,
+            status: agency.status,
+            abn: agency.abn,
+            subscriptionAmount: agency.subscriptionAmount,
+            outstandingAmount: agency.outstandingAmount,
+            totalProperties: agency.totalProperties,
+            lastLogin: agency.lastLogin,
+            joinedDate: agency.joinedDate,
+            createdAt: agency.createdAt,
+            lastUpdated: agency.lastUpdated,
+          },
+          statistics: stats,
+          properties: properties.map((property) => ({
+            id: property._id,
+            address: {
+              street: property.address?.street,
+              suburb: property.address?.suburb,
+              state: property.address?.state,
+              postcode: property.address?.postcode,
+              fullAddress: property.address?.fullAddress,
+            },
+            propertyType: property.propertyType,
+            currentTenant: {
+              name: property.currentTenant?.name,
+              email: property.currentTenant?.email,
+              phone: property.currentTenant?.phone,
+            },
+            currentLandlord: {
+              name: property.currentLandlord?.name,
+              email: property.currentLandlord?.email,
+              phone: property.currentLandlord?.phone,
+            },
+            complianceSchedule: property.complianceSchedule,
+            status: property.status,
+            createdAt: property.createdAt,
+          })),
+          jobs: jobs.map((job) => ({
+            id: job._id,
+            job_id: job.job_id,
+            jobType: job.jobType,
+            property: job.property
+              ? {
+                  id: job.property._id,
+                  address: job.property.address,
+                }
+              : null,
+            assignedTechnician: job.assignedTechnician
+              ? {
+                  id: job.assignedTechnician._id,
+                  fullName: job.assignedTechnician.fullName,
+                  tradeType: job.assignedTechnician.tradeType,
+                  availabilityStatus: job.assignedTechnician.availabilityStatus,
+                }
+              : null,
+            dueDate: job.dueDate,
+            status: job.status,
+            priority: job.priority,
+            description: job.description,
+            cost: {
+              materialCost: job.cost?.materialCost || 0,
+              laborCost: job.cost?.laborCost || 0,
+              totalCost: job.cost?.totalCost || 0,
+            },
+            estimatedDuration: job.estimatedDuration,
+            actualDuration: job.actualDuration,
+            completedAt: job.completedAt,
+            createdAt: job.createdAt,
+          })),
+          propertyManagers: propertyManagers.map((manager) => ({
+            id: manager._id,
+            fullName: `${manager.firstName} ${manager.lastName}`,
+            email: manager.email,
+            phone: manager.phone,
+            availabilityStatus: manager.availabilityStatus,
+            assignedPropertiesCount: manager.assignedProperties?.length || 0,
+            status: manager.status,
+            createdAt: manager.createdAt,
+          })),
+        },
+      });
+    } catch (error) {
+      console.error("Get agency details error:", error);
+      res.status(500).json({
         status: "error",
-        message: "Agency not found",
+        message: "An error occurred while fetching agency details",
       });
     }
-
-    // Store info for logging before deletion
-    const agencyInfo = {
-      id: agency._id,
-      companyName: agency.companyName,
-      contactPerson: agency.contactPerson,
-      email: agency.email,
-      abn: agency.abn,
-      region: agency.region,
-      status: agency.status,
-    };
-
-    // Delete the agency
-    await Agency.findByIdAndDelete(id);
-
-    // Log the deletion
-    console.log("Agency deleted successfully:", {
-      deletedAgency: agencyInfo,
-      deletedBy: req.superUser.email,
-      timestamp: new Date().toISOString(),
-    });
-
-    res.status(200).json({
-      status: "success",
-      message: "Agency deleted successfully",
-      data: {
-        deletedAgency: agencyInfo,
-        deletedBy: req.superUser.name,
-      },
-    });
-  } catch (error) {
-    console.error("Delete agency error:", error);
-    res.status(500).json({
-      status: "error",
-      message: error.message || "An error occurred while deleting agency",
-    });
   }
-});
+);
+
+// Delete Agency (Only Super Users and Team Members)
+router.delete(
+  "/:id",
+  authenticateUserTypes(["SuperUser", "TeamMember"]),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      // Find agency
+      const agency = await Agency.findById(id);
+      if (!agency) {
+        return res.status(404).json({
+          status: "error",
+          message: "Agency not found",
+        });
+      }
+
+      // Store info for logging before deletion
+      const agencyInfo = {
+        id: agency._id,
+        companyName: agency.companyName,
+        contactPerson: agency.contactPerson,
+        email: agency.email,
+        abn: agency.abn,
+        region: agency.region,
+        status: agency.status,
+      };
+
+      // Delete the agency
+      await Agency.findByIdAndDelete(id);
+
+      // Log the deletion
+      console.log("Agency deleted successfully:", {
+        deletedAgency: agencyInfo,
+        deletedBy: req.superUser.email,
+        timestamp: new Date().toISOString(),
+      });
+
+      res.status(200).json({
+        status: "success",
+        message: "Agency deleted successfully",
+        data: {
+          deletedAgency: agencyInfo,
+          deletedBy: req.superUser.name,
+        },
+      });
+    } catch (error) {
+      console.error("Delete agency error:", error);
+      res.status(500).json({
+        status: "error",
+        message: error.message || "An error occurred while deleting agency",
+      });
+    }
+  }
+);
 
 // Resend Credentials Email - Agency
 router.post(
   "/:id/resend-credentials",
-  authenticateUserTypes(['SuperUser', 'TeamMember']),
+  authenticateUserTypes(["SuperUser", "TeamMember"]),
   async (req, res) => {
     try {
       const { id } = req.params;
@@ -1722,7 +1604,6 @@ router.post(
             companyName: agency.companyName,
             abn: agency.abn,
             region: agency.region,
-            compliance: agency.compliance,
           },
           newPassword,
           process.env.FRONTEND_URL ||

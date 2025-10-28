@@ -1319,4 +1319,346 @@ router.get(
   }
 );
 
+// GET - Agency Analytics Dashboard with Subscription Data
+router.get(
+  "/agency-analytics",
+  authenticateUserTypes(["SuperUser", "TeamMember"]),
+  async (req, res) => {
+    try {
+      console.log("Fetching agency analytics dashboard data...");
+
+      // Date ranges for different periods
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+      const thisWeekStart = new Date(now);
+      thisWeekStart.setDate(now.getDate() - now.getDay());
+
+      const lastWeekStart = new Date(thisWeekStart);
+      lastWeekStart.setDate(lastWeekStart.getDate() - 7);
+
+      const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+
+      const thisYearStart = new Date(now.getFullYear(), 0, 1);
+
+      // Get comprehensive agency metrics
+      const [
+        agencyStatusCounts,
+        totalSubscriptionRevenue,
+        thisWeekNewAgencies,
+        lastWeekNewAgencies,
+        thisMonthNewAgencies,
+        lastMonthNewAgencies,
+        yearToDateNewAgencies,
+        topAgenciesBySubscription,
+        agenciesByRegion,
+        subscriptionDistribution,
+        recentAgencies
+      ] = await Promise.all([
+        // Agency counts by status
+        Agency.aggregate([
+          {
+            $group: {
+              _id: "$status",
+              count: { $sum: 1 },
+              totalSubscription: { $sum: "$subscriptionAmount" }
+            }
+          }
+        ]),
+
+        // Total subscription revenue across all agencies
+        Agency.aggregate([
+          {
+            $group: {
+              _id: null,
+              totalRevenue: { $sum: "$subscriptionAmount" },
+              avgSubscription: { $avg: "$subscriptionAmount" },
+              minSubscription: { $min: "$subscriptionAmount" },
+              maxSubscription: { $max: "$subscriptionAmount" },
+              totalAgencies: { $sum: 1 }
+            }
+          }
+        ]),
+
+        // New agencies this week
+        Agency.countDocuments({ createdAt: { $gte: thisWeekStart } }),
+
+        // New agencies last week
+        Agency.countDocuments({
+          createdAt: { $gte: lastWeekStart, $lt: thisWeekStart }
+        }),
+
+        // New agencies this month
+        Agency.countDocuments({ createdAt: { $gte: thisMonthStart } }),
+
+        // New agencies last month
+        Agency.countDocuments({
+          createdAt: { $gte: lastMonthStart, $lte: lastMonthEnd }
+        }),
+
+        // New agencies year to date
+        Agency.countDocuments({ createdAt: { $gte: thisYearStart } }),
+
+        // Top 10 agencies by subscription amount
+        Agency.find({ status: "Active" })
+          .select("companyName email subscriptionAmount totalProperties region createdAt")
+          .sort({ subscriptionAmount: -1 })
+          .limit(10),
+
+        // Agencies grouped by region with subscription totals
+        Agency.aggregate([
+          {
+            $group: {
+              _id: "$region",
+              count: { $sum: 1 },
+              totalSubscription: { $sum: "$subscriptionAmount" },
+              avgSubscription: { $avg: "$subscriptionAmount" },
+              activeAgencies: {
+                $sum: { $cond: [{ $eq: ["$status", "Active"] }, 1, 0] }
+              }
+            }
+          },
+          { $sort: { totalSubscription: -1 } }
+        ]),
+
+        // Subscription amount distribution (ranges)
+        Agency.aggregate([
+          {
+            $bucket: {
+              groupBy: "$subscriptionAmount",
+              boundaries: [0, 50, 100, 200, 500, 1000, 10000, 100000],
+              default: "100000+",
+              output: {
+                count: { $sum: 1 },
+                totalRevenue: { $sum: "$subscriptionAmount" },
+                agencies: {
+                  $push: {
+                    companyName: "$companyName",
+                    subscriptionAmount: "$subscriptionAmount"
+                  }
+                }
+              }
+            }
+          }
+        ]),
+
+        // Recent agencies (last 10)
+        Agency.find()
+          .select("companyName email region subscriptionAmount status totalProperties createdAt")
+          .sort({ createdAt: -1 })
+          .limit(10)
+      ]);
+
+      // Calculate growth percentages
+      const calculateGrowth = (current, previous) => {
+        if (previous === 0) return current > 0 ? 100 : 0;
+        return ((current - previous) / previous * 100).toFixed(1);
+      };
+
+      // Format agency status counts
+      const statusBreakdown = {
+        active: 0,
+        inactive: 0,
+        suspended: 0,
+        pending: 0,
+        total: 0,
+        subscriptionByStatus: {}
+      };
+
+      agencyStatusCounts.forEach(item => {
+        const status = item._id?.toLowerCase() || "unknown";
+        statusBreakdown[status] = item.count;
+        statusBreakdown.total += item.count;
+        statusBreakdown.subscriptionByStatus[item._id] = item.totalSubscription;
+      });
+
+      // Revenue metrics
+      const revenueMetrics = totalSubscriptionRevenue[0] || {
+        totalRevenue: 0,
+        avgSubscription: 0,
+        minSubscription: 0,
+        maxSubscription: 0,
+        totalAgencies: 0
+      };
+
+      // Format subscription distribution with labels
+      const subscriptionRanges = [
+        { range: "$0-$50", min: 0, max: 50 },
+        { range: "$50-$100", min: 50, max: 100 },
+        { range: "$100-$200", min: 100, max: 200 },
+        { range: "$200-$500", min: 200, max: 500 },
+        { range: "$500-$1000", min: 500, max: 1000 },
+        { range: "$1000-$10000", min: 1000, max: 10000 },
+        { range: "$10000+", min: 10000, max: 100000 }
+      ];
+
+      const formattedSubscriptionDistribution = subscriptionDistribution.map((item, index) => ({
+        range: subscriptionRanges[index]?.range || "Unknown",
+        count: item.count,
+        totalRevenue: item.totalRevenue,
+        percentage: revenueMetrics.totalAgencies > 0
+          ? ((item.count / revenueMetrics.totalAgencies) * 100).toFixed(1)
+          : 0
+      }));
+
+      // Format regional data
+      const regionalBreakdown = agenciesByRegion.map(region => ({
+        region: region._id || "Unknown",
+        totalAgencies: region.count,
+        activeAgencies: region.activeAgencies,
+        totalSubscription: region.totalSubscription,
+        avgSubscription: parseFloat(region.avgSubscription.toFixed(2)),
+        percentageOfTotal: revenueMetrics.totalRevenue > 0
+          ? ((region.totalSubscription / revenueMetrics.totalRevenue) * 100).toFixed(1)
+          : 0
+      }));
+
+      // Get monthly trends for last 6 months
+      const sixMonthsAgo = new Date();
+      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+      const monthlyTrends = await Agency.aggregate([
+        {
+          $match: { createdAt: { $gte: sixMonthsAgo } }
+        },
+        {
+          $group: {
+            _id: {
+              year: { $year: "$createdAt" },
+              month: { $month: "$createdAt" }
+            },
+            newAgencies: { $sum: 1 },
+            totalSubscription: { $sum: "$subscriptionAmount" },
+            avgSubscription: { $avg: "$subscriptionAmount" }
+          }
+        },
+        { $sort: { "_id.year": 1, "_id.month": 1 } }
+      ]);
+
+      // Format monthly trends
+      const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      const formattedMonthlyTrends = monthlyTrends.map(item => ({
+        period: `${monthNames[item._id.month - 1]} ${item._id.year}`,
+        newAgencies: item.newAgencies,
+        totalSubscription: item.totalSubscription,
+        avgSubscription: parseFloat(item.avgSubscription.toFixed(2))
+      }));
+
+      // Format top agencies
+      const formattedTopAgencies = topAgenciesBySubscription.map(agency => ({
+        id: agency._id,
+        companyName: agency.companyName,
+        email: agency.email,
+        subscriptionAmount: agency.subscriptionAmount,
+        totalProperties: agency.totalProperties,
+        region: agency.region,
+        memberSince: agency.createdAt
+      }));
+
+      // Format recent agencies
+      const formattedRecentAgencies = recentAgencies.map(agency => ({
+        id: agency._id,
+        companyName: agency.companyName,
+        email: agency.email,
+        region: agency.region,
+        subscriptionAmount: agency.subscriptionAmount,
+        status: agency.status,
+        totalProperties: agency.totalProperties,
+        joinedDate: agency.createdAt
+      }));
+
+      // Calculate additional metrics
+      const churnRate = statusBreakdown.total > 0
+        ? ((statusBreakdown.inactive / statusBreakdown.total) * 100).toFixed(1)
+        : 0;
+
+      const activeRate = statusBreakdown.total > 0
+        ? ((statusBreakdown.active / statusBreakdown.total) * 100).toFixed(1)
+        : 0;
+
+      // Get agency properties statistics
+      const agencyPropertyStats = await Agency.aggregate([
+        {
+          $group: {
+            _id: null,
+            totalProperties: { $sum: "$totalProperties" },
+            avgPropertiesPerAgency: { $avg: "$totalProperties" }
+          }
+        }
+      ]);
+
+      const propertyStats = agencyPropertyStats[0] || {
+        totalProperties: 0,
+        avgPropertiesPerAgency: 0
+      };
+
+      const agencyAnalytics = {
+        overview: {
+          totalAgencies: statusBreakdown.total,
+          activeAgencies: statusBreakdown.active,
+          inactiveAgencies: statusBreakdown.inactive,
+          suspendedAgencies: statusBreakdown.suspended,
+          pendingAgencies: statusBreakdown.pending,
+          activeRate: parseFloat(activeRate),
+          churnRate: parseFloat(churnRate)
+        },
+        revenue: {
+          totalMonthlyRevenue: revenueMetrics.totalRevenue,
+          averageSubscription: parseFloat(revenueMetrics.avgSubscription.toFixed(2)),
+          minimumSubscription: revenueMetrics.minSubscription,
+          maximumSubscription: revenueMetrics.maxSubscription,
+          projectedAnnualRevenue: revenueMetrics.totalRevenue * 12,
+          revenueByStatus: statusBreakdown.subscriptionByStatus
+        },
+        growth: {
+          thisWeek: {
+            newAgencies: thisWeekNewAgencies,
+            growth: calculateGrowth(thisWeekNewAgencies, lastWeekNewAgencies)
+          },
+          thisMonth: {
+            newAgencies: thisMonthNewAgencies,
+            growth: calculateGrowth(thisMonthNewAgencies, lastMonthNewAgencies)
+          },
+          yearToDate: {
+            newAgencies: yearToDateNewAgencies
+          }
+        },
+        distribution: {
+          bySubscription: formattedSubscriptionDistribution,
+          byRegion: regionalBreakdown
+        },
+        trends: {
+          monthly: formattedMonthlyTrends
+        },
+        topPerformers: {
+          bySubscription: formattedTopAgencies
+        },
+        properties: {
+          totalPropertiesManaged: propertyStats.totalProperties,
+          avgPropertiesPerAgency: parseFloat(propertyStats.avgPropertiesPerAgency.toFixed(2))
+        },
+        recentActivity: {
+          newAgencies: formattedRecentAgencies
+        },
+        lastUpdated: new Date().toISOString()
+      };
+
+      res.status(200).json({
+        status: "success",
+        message: "Agency analytics data retrieved successfully",
+        data: agencyAnalytics
+      });
+
+    } catch (error) {
+      console.error("Get agency analytics error:", error);
+      res.status(500).json({
+        status: "error",
+        message: error.message || "Failed to get agency analytics data"
+      });
+    }
+  }
+);
+
 export default router;
