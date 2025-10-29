@@ -1955,7 +1955,7 @@ const renderElectricalSmokeReport = async (
 
   if (summarySection["summary-notes"]) {
     ensurePageSpace(doc, 120);
-    drawSectionHeader(doc, "Comment on Next Steps");
+    drawSectionHeader(doc, "Comments on Next Steps");
 
     doc
       .fillColor(COLORS.textSecondary)
