@@ -981,10 +981,10 @@ const drawGasHazardsSection = (doc) => {
 };
 
 const drawNextStepsSection = (doc, { template, job, report }) => {
-  ensurePageSpace(doc, 180);
-  drawSectionHeader(doc, "Comments on Next Steps");
-
   const jobType = template?.jobType || job?.jobType;
+
+  ensurePageSpace(doc, 180);
+  drawSectionHeader(doc, "Next Compliance Schedule");
 
   // Calculate next inspection dates based on job type
   const getNextInspectionDate = (jobType) => {
@@ -1787,7 +1787,8 @@ const drawCertificationBlock = (doc, certification = {}) => {
     rows.map((row) => ({
       question: row.label,
       answer: row.value,
-    }))
+    })),
+    { hideHeaders: true }
   );
 
   if (certification["certification-notes"]) {
@@ -1954,7 +1955,7 @@ const renderElectricalSmokeReport = async (
 
   if (summarySection["summary-notes"]) {
     ensurePageSpace(doc, 120);
-    drawSectionHeader(doc, "Next Steps");
+    drawSectionHeader(doc, "Comment on Next Steps");
 
     doc
       .fillColor(COLORS.textSecondary)
