@@ -25,7 +25,7 @@ const PAGE = {
   headerHeight: 50,
   footerHeight: 40,
   content: {
-    width: 595.28 - (60 * 2), // A4 width (595.28) minus left and right margins
+    width: 595.28 - 60 * 2, // A4 width (595.28) minus left and right margins
   },
 };
 
@@ -103,14 +103,13 @@ const drawRoomDetailTable = (doc, title, rows = []) => {
     .fontSize(10)
     .text("Inspection Item", tableX + 15, headerY + 8, {
       width: questionWidth - 30,
-      align: "left"
+      align: "left",
     });
 
-  doc
-    .text("Result", tableX + questionWidth + 15, headerY + 8, {
-      width: answerWidth - 30,
-      align: "left"
-    });
+  doc.text("Result", tableX + questionWidth + 15, headerY + 8, {
+    width: answerWidth - 30,
+    align: "left",
+  });
 
   doc.y = headerY + headerHeight;
 
@@ -168,7 +167,12 @@ const drawRoomDetailTable = (doc, title, rows = []) => {
     doc
       .font("Helvetica")
       .fontSize(10)
-      .text(String(answer), tableX + questionWidth + 15, answerTop, answerTextOptions);
+      .text(
+        String(answer),
+        tableX + questionWidth + 15,
+        answerTop,
+        answerTextOptions
+      );
 
     doc.y = rowY + rowHeight;
   });
@@ -180,10 +184,10 @@ const getReportTitle = (template, job) => {
   const jobType = template?.jobType || job?.jobType;
 
   const titleMap = {
-    "MinimumSafetyStandard": "Minimum Safety Standard Report",
-    "Electrical": "Electrical Compliance Report",
-    "Gas": "Gas Compliance Report",
-    "Smoke": "Smoke Compliance Report"
+    MinimumSafetyStandard: "Minimum Safety Standard Report",
+    Electrical: "Electrical and Smoke Compliance Report Summary",
+    Gas: "Gas Compliance Report",
+    Smoke: "Smoke Compliance Report",
   };
 
   return titleMap[jobType] || "Inspection Report";
@@ -193,26 +197,26 @@ const getComplianceStandards = (template, job) => {
   const jobType = template?.jobType || job?.jobType;
 
   const standardsMap = {
-    "MinimumSafetyStandard": [
+    MinimumSafetyStandard: [
       "Residential Tenancies Regulations 2021",
       "Building Code of Australia",
-      "Australian Standards AS/NZS 3000"
+      "Australian Standards AS/NZS 3000",
     ],
-    "Electrical": [
+    Electrical: [
       "AS/NZS 3000 Wiring Rules",
       "AS/NZS 3017:2022 Electrical Installations",
-      "Residential Tenancies Regulations 2021"
+      "Residential Tenancies Regulations 2021",
     ],
-    "Gas": [
+    Gas: [
       "AS 4575 Gas installations",
       "AS 3786:2014 Gas appliances",
-      "Residential Tenancies Regulations 2021"
+      "Residential Tenancies Regulations 2021",
     ],
-    "Smoke": [
+    Smoke: [
       "AS/NZS 3017:2022 Smoke alarms",
       "AS 3786:2014 Installation requirements",
-      "Residential Tenancies Regulations 2021"
-    ]
+      "Residential Tenancies Regulations 2021",
+    ],
   };
 
   return standardsMap[jobType] || ["Residential Tenancies Regulations 2021"];
@@ -266,13 +270,16 @@ const drawPageHeader = (doc) => {
 
   // RentalEase Logo (left side)
   try {
-    const logoPath = path.join(__dirname, "../../assets/reports/cover-pages/logo-report-header.png");
+    const logoPath = path.join(
+      __dirname,
+      "../../assets/reports/cover-pages/logo-report-header.png"
+    );
     doc.image(logoPath, PAGE.margin, headerY, {
       width: 120,
-      height: 30
+      height: 30,
     });
   } catch (error) {
-    console.error('Logo not found, using text fallback:', error);
+    console.error("Logo not found, using text fallback:", error);
     doc
       .fontSize(16)
       .font("Helvetica-Bold")
@@ -286,9 +293,18 @@ const drawPageHeader = (doc) => {
     .fillColor(COLORS.text)
     .fontSize(9)
     .font("Helvetica")
-    .text("3/581 Dohertys Road", addressX, headerY + 2, { align: "right", width: 200 })
-    .text("Truganina VIC 3029", addressX, headerY + 14, { align: "right", width: 200 })
-    .text("ABN 63 625 625 872", addressX, headerY + 26, { align: "right", width: 200 });
+    .text("3/581 Dohertys Road", addressX, headerY + 2, {
+      align: "right",
+      width: 200,
+    })
+    .text("Truganina VIC 3029", addressX, headerY + 14, {
+      align: "right",
+      width: 200,
+    })
+    .text("ABN 63 625 625 872", addressX, headerY + 26, {
+      align: "right",
+      width: 200,
+    });
 
   return headerY + headerHeight + 10; // Return the Y position after header
 };
@@ -313,19 +329,40 @@ const drawPageFooter = (doc, pageNumber) => {
   // Contact icons (right side)
   const iconSize = 20;
   const iconSpacing = 35;
-  const iconsStartX = doc.page.width - PAGE.margin - (iconSpacing * 2) - iconSize;
+  const iconsStartX = doc.page.width - PAGE.margin - iconSpacing * 2 - iconSize;
 
   // Phone icon
   const phoneX = iconsStartX;
-  drawContactIcon(doc, phoneX, footerY + 5, iconSize, "phone", "tel:0359067723");
+  drawContactIcon(
+    doc,
+    phoneX,
+    footerY + 5,
+    iconSize,
+    "phone",
+    "tel:0359067723"
+  );
 
   // Website icon
   const websiteX = phoneX + iconSpacing;
-  drawContactIcon(doc, websiteX, footerY + 5, iconSize, "website", "https://www.rentalease.com.au/");
+  drawContactIcon(
+    doc,
+    websiteX,
+    footerY + 5,
+    iconSize,
+    "website",
+    "https://www.rentalease.com.au/"
+  );
 
   // Email icon
   const emailX = websiteX + iconSpacing;
-  drawContactIcon(doc, emailX, footerY + 5, iconSize, "email", "mailto:info@rentalease.com.au");
+  drawContactIcon(
+    doc,
+    emailX,
+    footerY + 5,
+    iconSize,
+    "email",
+    "mailto:info@rentalease.com.au"
+  );
 };
 
 // Helper function to draw contact icons with links
@@ -334,9 +371,7 @@ const drawContactIcon = (doc, x, y, size, type, link) => {
   doc.link(x, y, size, size, link);
 
   // Draw circular background
-  doc
-    .circle(x + size/2, y + size/2, size/2)
-    .fill(COLORS.primary);
+  doc.circle(x + size / 2, y + size / 2, size / 2).fill(COLORS.primary);
 
   // Draw icon using geometric shapes instead of Unicode
   doc.fillColor("white");
@@ -344,8 +379,8 @@ const drawContactIcon = (doc, x, y, size, type, link) => {
   switch (type) {
     case "phone":
       // Draw phone shape with lines
-      const phoneX = x + size/2;
-      const phoneY = y + size/2;
+      const phoneX = x + size / 2;
+      const phoneY = y + size / 2;
       doc
         .roundedRect(phoneX - 4, phoneY - 5, 8, 10, 2)
         .fill()
@@ -356,8 +391,8 @@ const drawContactIcon = (doc, x, y, size, type, link) => {
       break;
     case "website":
       // Draw globe with lines
-      const globeX = x + size/2;
-      const globeY = y + size/2;
+      const globeX = x + size / 2;
+      const globeY = y + size / 2;
       doc
         .circle(globeX, globeY, 6)
         .stroke()
@@ -370,8 +405,8 @@ const drawContactIcon = (doc, x, y, size, type, link) => {
       break;
     case "email":
       // Draw envelope shape
-      const envX = x + size/2;
-      const envY = y + size/2;
+      const envX = x + size / 2;
+      const envY = y + size / 2;
       doc
         .rect(envX - 6, envY - 4, 12, 8)
         .fill()
@@ -385,7 +420,10 @@ const drawContactIcon = (doc, x, y, size, type, link) => {
   }
 };
 
-const drawProfessionalCoverPage = (doc, { property, job, technician, report, template }) => {
+const drawProfessionalCoverPage = (
+  doc,
+  { property, job, technician, report, template }
+) => {
   const reportTitle = getReportTitle(template, job);
   const jobType = template?.jobType || job?.jobType;
 
@@ -393,23 +431,41 @@ const drawProfessionalCoverPage = (doc, { property, job, technician, report, tem
   let coverImagePath;
   switch (jobType) {
     case "Gas":
-      coverImagePath = path.join(__dirname, "../../assets/reports/cover-pages/gas_safety_report_cover_page.jpg");
+      coverImagePath = path.join(
+        __dirname,
+        "../../assets/reports/cover-pages/gas_safety_report_cover_page.jpg"
+      );
       break;
     case "GasSmoke":
-      coverImagePath = path.join(__dirname, "../../assets/reports/cover-pages/gas_smoke_combined_report_cover_page.jpg");
+      coverImagePath = path.join(
+        __dirname,
+        "../../assets/reports/cover-pages/gas_smoke_combined_report_cover_page.jpg"
+      );
       break;
     case "Electrical":
-      coverImagePath = path.join(__dirname, "../../assets/reports/cover-pages/electrical_safety_report_cover_page.jpg");
+      coverImagePath = path.join(
+        __dirname,
+        "../../assets/reports/cover-pages/electrical_safety_report_cover_page.jpg"
+      );
       break;
     case "Smoke":
-      coverImagePath = path.join(__dirname, "../../assets/reports/cover-pages/smoke_alarm_safety_report_cover_page.jpg");
+      coverImagePath = path.join(
+        __dirname,
+        "../../assets/reports/cover-pages/smoke_alarm_safety_report_cover_page.jpg"
+      );
       break;
     case "MinimumSafetyStandard":
-      coverImagePath = path.join(__dirname, "../../assets/reports/cover-pages/minimum_standard_report_cover_page.jpg");
+      coverImagePath = path.join(
+        __dirname,
+        "../../assets/reports/cover-pages/minimum_standard_report_cover_page.jpg"
+      );
       break;
     default:
       // Default to gas safety cover for any other report types
-      coverImagePath = path.join(__dirname, "../../assets/reports/cover-pages/gas_safety_report_cover_page.jpg");
+      coverImagePath = path.join(
+        __dirname,
+        "../../assets/reports/cover-pages/gas_safety_report_cover_page.jpg"
+      );
       break;
   }
 
@@ -417,19 +473,18 @@ const drawProfessionalCoverPage = (doc, { property, job, technician, report, tem
   try {
     doc.image(coverImagePath, 0, 0, {
       width: doc.page.width,
-      height: doc.page.height
+      height: doc.page.height,
     });
   } catch (error) {
-    console.error(`Cover image not found for ${jobType} report, using fallback:`, error);
+    console.error(
+      `Cover image not found for ${jobType} report, using fallback:`,
+      error
+    );
     // Fallback to gradient background
-    doc
-      .rect(0, 0, doc.page.width, doc.page.height)
-      .fill(COLORS.primary);
+    doc.rect(0, 0, doc.page.width, doc.page.height).fill(COLORS.primary);
 
     // Add decorative accent
-    doc
-      .rect(0, 0, doc.page.width, 180)
-      .fill(COLORS.primaryAccent);
+    doc.rect(0, 0, doc.page.width, 180).fill(COLORS.primaryAccent);
 
     // Add title
     doc
@@ -439,7 +494,7 @@ const drawProfessionalCoverPage = (doc, { property, job, technician, report, tem
       .text(reportTitle, 60, 250, {
         width: doc.page.width - 120,
         align: "left",
-        lineGap: 10
+        lineGap: 10,
       });
   }
 
@@ -454,10 +509,18 @@ const drawProfessionalCoverPage = (doc, { property, job, technician, report, tem
 };
 
 // New function to draw property details section on page 2
-const drawPropertyDetailsSection = (doc, { property, job, technician, report, template }) => {
-  const propertyAddress = property?.address?.fullAddress || property?.address?.street || "Property Address Not Available";
+const drawPropertyDetailsSection = (
+  doc,
+  { property, job, technician, report, template }
+) => {
+  const propertyAddress =
+    property?.address?.fullAddress ||
+    property?.address?.street ||
+    "Property Address Not Available";
   const inspectionDate = formatDisplayDate(report?.submittedAt || job?.dueDate);
-  const inspectorName = `${technician?.firstName || ""} ${technician?.lastName || ""}`.trim() || "Inspector Name Not Available";
+  const inspectorName =
+    `${technician?.firstName || ""} ${technician?.lastName || ""}`.trim() ||
+    "Inspector Name Not Available";
   const reportTitle = getReportTitle(template, job);
 
   // Add equal top spacing
@@ -470,7 +533,7 @@ const drawPropertyDetailsSection = (doc, { property, job, technician, report, te
     .font("Helvetica-Bold")
     .text(`${reportTitle} Summary`, PAGE.margin, doc.y, {
       width: doc.page.width - PAGE.margin * 2,
-      align: "center"
+      align: "center",
     });
 
   doc.y += 40;
@@ -485,11 +548,11 @@ const drawPropertyDetailsSection = (doc, { property, job, technician, report, te
 
   const details = [
     { label: "Property Address:", value: propertyAddress },
-    { label: "Date:", value: inspectionDate }
+    { label: "Date:", value: inspectionDate },
   ];
 
   details.forEach((detail, index) => {
-    const rowY = detailsY + (index * 30);
+    const rowY = detailsY + index * 30;
 
     // Row background
     if (index % 2 === 0) {
@@ -512,11 +575,11 @@ const drawPropertyDetailsSection = (doc, { property, job, technician, report, te
       .fontSize(11)
       .font("Helvetica")
       .text(detail.value, PAGE.margin + labelWidth + 10, rowY + 2, {
-        width: valueWidth - 20
+        width: valueWidth - 20,
       });
   });
 
-  doc.y = detailsY + (details.length * 30) + 20;
+  doc.y = detailsY + details.length * 30 + 20;
 
   // Compliance Standards
   const complianceStandards = getComplianceStandards(template, job);
@@ -543,7 +606,10 @@ const drawPropertyDetailsSection = (doc, { property, job, technician, report, te
 };
 
 // New function to draw checks conducted and outcomes section
-const drawChecksAndOutcomesSection = async (doc, { template, report, job, property, technician }) => {
+const drawChecksAndOutcomesSection = async (
+  doc,
+  { template, report, job, property, technician }
+) => {
   ensurePageSpace(doc, 100);
 
   drawSectionHeader(doc, "Checks Conducted And Outcomes");
@@ -559,12 +625,12 @@ const drawChecksAndOutcomesSection = async (doc, { template, report, job, proper
   // Header background
   doc
     .rect(PAGE.margin, headerY, checkWidth, headerHeight)
-    .fill('#FF6B4A')
+    .fill("#FF6B4A")
     .stroke();
 
   doc
     .rect(PAGE.margin + checkWidth, headerY, outcomeWidth, headerHeight)
-    .fill('#FF6B4A')
+    .fill("#FF6B4A")
     .stroke();
 
   // Header text
@@ -574,8 +640,7 @@ const drawChecksAndOutcomesSection = async (doc, { template, report, job, proper
     .font("Helvetica-Bold")
     .text("Check Type", PAGE.margin + 10, headerY + 8);
 
-  doc
-    .text("Outcome", PAGE.margin + checkWidth + 10, headerY + 8);
+  doc.text("Outcome", PAGE.margin + checkWidth + 10, headerY + 8);
 
   doc.y = headerY + headerHeight;
 
@@ -600,14 +665,14 @@ const drawChecksAndOutcomesSection = async (doc, { template, report, job, proper
         .fontSize(10)
         .font("Helvetica")
         .text(item.label || "Check", PAGE.margin + 15, rowY + 8, {
-          width: checkWidth - 30
+          width: checkWidth - 30,
         });
 
       // Outcome
       let outcomeText = "Pass";
       if (item.flag) {
         outcomeText = "Fault(s) Identified";
-      } else if (typeof item.value === 'boolean') {
+      } else if (typeof item.value === "boolean") {
         outcomeText = item.value ? "Pass" : "Fault(s) Identified";
       } else if (item.value) {
         outcomeText = String(item.value);
@@ -618,7 +683,7 @@ const drawChecksAndOutcomesSection = async (doc, { template, report, job, proper
         .fontSize(10)
         .font("Helvetica-Bold")
         .text(outcomeText, PAGE.margin + checkWidth + 15, rowY + 8, {
-          width: outcomeWidth - 30
+          width: outcomeWidth - 30,
         });
 
       doc.y += rowHeight;
@@ -626,7 +691,7 @@ const drawChecksAndOutcomesSection = async (doc, { template, report, job, proper
   } else {
     // Fallback if no summary data
     const defaultChecks = [
-      { check: getReportTitle(template, job), outcome: "Pass" }
+      { check: getReportTitle(template, job), outcome: "Pass" },
     ];
 
     defaultChecks.forEach((item, index) => {
@@ -644,7 +709,7 @@ const drawChecksAndOutcomesSection = async (doc, { template, report, job, proper
         .fontSize(10)
         .font("Helvetica")
         .text(item.check, PAGE.margin + 15, rowY + 8, {
-          width: checkWidth - 30
+          width: checkWidth - 30,
         });
 
       doc
@@ -652,7 +717,7 @@ const drawChecksAndOutcomesSection = async (doc, { template, report, job, proper
         .fontSize(10)
         .font("Helvetica-Bold")
         .text(item.outcome, PAGE.margin + checkWidth + 15, rowY + 8, {
-          width: outcomeWidth - 30
+          width: outcomeWidth - 30,
         });
 
       doc.y += rowHeight;
@@ -663,19 +728,30 @@ const drawChecksAndOutcomesSection = async (doc, { template, report, job, proper
 };
 
 // New function to draw Details Of Identified Faults section with proper column widths
-const drawDetailsOfIdentifiedFaultsSection = async (doc, { template, report, job, property, technician }) => {
+const drawDetailsOfIdentifiedFaultsSection = async (
+  doc,
+  { template, report, job, property, technician }
+) => {
   ensurePageSpace(doc, 100);
 
-  drawSectionHeader(doc, "Details Of Identified Faults & Remedial Action To Be Taken");
+  drawSectionHeader(
+    doc,
+    "Details Of Identified Faults & Remedial Action To Be Taken"
+  );
 
   const tableWidth = doc.page.width - PAGE.margin * 2;
 
   // Better column width distribution to prevent overlapping
-  const faultWidth = Math.floor(tableWidth * 0.25);        // 25% for Identified Fault(s)
+  const faultWidth = Math.floor(tableWidth * 0.25); // 25% for Identified Fault(s)
   const rectificationWidth = Math.floor(tableWidth * 0.25); // 25% for Rectification
-  const locationWidth = Math.floor(tableWidth * 0.15);     // 15% for Location
-  const assessmentWidth = Math.floor(tableWidth * 0.20);   // 20% for Assessment
-  const repairWidth = tableWidth - faultWidth - rectificationWidth - locationWidth - assessmentWidth; // 15% for Repair Completed
+  const locationWidth = Math.floor(tableWidth * 0.15); // 15% for Location
+  const assessmentWidth = Math.floor(tableWidth * 0.2); // 20% for Assessment
+  const repairWidth =
+    tableWidth -
+    faultWidth -
+    rectificationWidth -
+    locationWidth -
+    assessmentWidth; // 15% for Repair Completed
 
   // Table header
   const headerY = doc.y;
@@ -693,56 +769,94 @@ const drawDetailsOfIdentifiedFaultsSection = async (doc, { template, report, job
     .stroke();
 
   doc
-    .rect(PAGE.margin + faultWidth + rectificationWidth, headerY, locationWidth, headerHeight)
+    .rect(
+      PAGE.margin + faultWidth + rectificationWidth,
+      headerY,
+      locationWidth,
+      headerHeight
+    )
     .fill(COLORS.primary)
     .stroke();
 
   doc
-    .rect(PAGE.margin + faultWidth + rectificationWidth + locationWidth, headerY, assessmentWidth, headerHeight)
+    .rect(
+      PAGE.margin + faultWidth + rectificationWidth + locationWidth,
+      headerY,
+      assessmentWidth,
+      headerHeight
+    )
     .fill(COLORS.primary)
     .stroke();
 
   doc
-    .rect(PAGE.margin + faultWidth + rectificationWidth + locationWidth + assessmentWidth, headerY, repairWidth, headerHeight)
+    .rect(
+      PAGE.margin +
+        faultWidth +
+        rectificationWidth +
+        locationWidth +
+        assessmentWidth,
+      headerY,
+      repairWidth,
+      headerHeight
+    )
     .fill(COLORS.primary)
     .stroke();
 
   // Header text
-  doc
-    .fillColor("white")
-    .fontSize(9)
-    .font("Helvetica-Bold");
+  doc.fillColor("white").fontSize(9).font("Helvetica-Bold");
 
   doc.text("Identified Fault(s)", PAGE.margin + 5, headerY + 8, {
     width: faultWidth - 10,
-    align: "left"
+    align: "left",
   });
 
   doc.text("Rectification", PAGE.margin + faultWidth + 5, headerY + 8, {
     width: rectificationWidth - 10,
-    align: "left"
+    align: "left",
   });
 
-  doc.text("Location", PAGE.margin + faultWidth + rectificationWidth + 5, headerY + 8, {
-    width: locationWidth - 10,
-    align: "left"
-  });
+  doc.text(
+    "Location",
+    PAGE.margin + faultWidth + rectificationWidth + 5,
+    headerY + 8,
+    {
+      width: locationWidth - 10,
+      align: "left",
+    }
+  );
 
-  doc.text("Assessment", PAGE.margin + faultWidth + rectificationWidth + locationWidth + 5, headerY + 8, {
-    width: assessmentWidth - 10,
-    align: "left"
-  });
+  doc.text(
+    "Assessment",
+    PAGE.margin + faultWidth + rectificationWidth + locationWidth + 5,
+    headerY + 8,
+    {
+      width: assessmentWidth - 10,
+      align: "left",
+    }
+  );
 
-  doc.text("Repair Completed?", PAGE.margin + faultWidth + rectificationWidth + locationWidth + assessmentWidth + 5, headerY + 8, {
-    width: repairWidth - 10,
-    align: "left"
-  });
+  doc.text(
+    "Repair Completed?",
+    PAGE.margin +
+      faultWidth +
+      rectificationWidth +
+      locationWidth +
+      assessmentWidth +
+      5,
+    headerY + 8,
+    {
+      width: repairWidth - 10,
+      align: "left",
+    }
+  );
 
   doc.y = headerY + headerHeight;
 
   // Get faults from the report or template data
-  const faults = (report.sectionsSummary || []).filter(item => item.flag);
-  const faultSection = (template?.sections || []).find(s => s.id === "fault-identification");
+  const faults = (report.sectionsSummary || []).filter((item) => item.flag);
+  const faultSection = (template?.sections || []).find(
+    (s) => s.id === "fault-identification"
+  );
   const faultResponses = report.formData?.[faultSection?.id] || {};
 
   if (faults.length > 0 || Object.keys(faultResponses).length > 0) {
@@ -762,63 +876,101 @@ const drawDetailsOfIdentifiedFaultsSection = async (doc, { template, report, job
       }
 
       // Row borders
-      doc
-        .rect(PAGE.margin, rowY, faultWidth, rowHeight)
-        .stroke(COLORS.border);
+      doc.rect(PAGE.margin, rowY, faultWidth, rowHeight).stroke(COLORS.border);
       doc
         .rect(PAGE.margin + faultWidth, rowY, rectificationWidth, rowHeight)
         .stroke(COLORS.border);
       doc
-        .rect(PAGE.margin + faultWidth + rectificationWidth, rowY, locationWidth, rowHeight)
+        .rect(
+          PAGE.margin + faultWidth + rectificationWidth,
+          rowY,
+          locationWidth,
+          rowHeight
+        )
         .stroke(COLORS.border);
       doc
-        .rect(PAGE.margin + faultWidth + rectificationWidth + locationWidth, rowY, assessmentWidth, rowHeight)
+        .rect(
+          PAGE.margin + faultWidth + rectificationWidth + locationWidth,
+          rowY,
+          assessmentWidth,
+          rowHeight
+        )
         .stroke(COLORS.border);
       doc
-        .rect(PAGE.margin + faultWidth + rectificationWidth + locationWidth + assessmentWidth, rowY, repairWidth, rowHeight)
+        .rect(
+          PAGE.margin +
+            faultWidth +
+            rectificationWidth +
+            locationWidth +
+            assessmentWidth,
+          rowY,
+          repairWidth,
+          rowHeight
+        )
         .stroke(COLORS.border);
 
       // Content
-      const faultText = fault?.label || faultResponses["fault-identified"] || (i === 0 ? "Cracked roof" : "—");
-      const rectificationText = faultResponses["rectification-required"] || "Instant fix";
+      const faultText =
+        fault?.label ||
+        faultResponses["fault-identified"] ||
+        (i === 0 ? "Cracked roof" : "—");
+      const rectificationText =
+        faultResponses["rectification-required"] || "Instant fix";
       const locationText = faultResponses["fault-location"] || "Roof";
-      const assessmentText = faultResponses["assessment-status"] || "non-compliant";
+      const assessmentText =
+        faultResponses["assessment-status"] || "non-compliant";
       const repairText = "No";
 
-      doc
-        .fillColor(COLORS.text)
-        .fontSize(8)
-        .font("Helvetica");
+      doc.fillColor(COLORS.text).fontSize(8).font("Helvetica");
 
       // Fault description
       doc.text(faultText, PAGE.margin + 5, rowY + 10, {
         width: faultWidth - 10,
-        height: rowHeight - 20
+        height: rowHeight - 20,
       });
 
       // Rectification
       doc.text(rectificationText, PAGE.margin + faultWidth + 5, rowY + 10, {
         width: rectificationWidth - 10,
-        height: rowHeight - 20
+        height: rowHeight - 20,
       });
 
       // Location
-      doc.text(locationText, PAGE.margin + faultWidth + rectificationWidth + 5, rowY + 10, {
-        width: locationWidth - 10,
-        height: rowHeight - 20
-      });
+      doc.text(
+        locationText,
+        PAGE.margin + faultWidth + rectificationWidth + 5,
+        rowY + 10,
+        {
+          width: locationWidth - 10,
+          height: rowHeight - 20,
+        }
+      );
 
       // Assessment
-      doc.text(assessmentText, PAGE.margin + faultWidth + rectificationWidth + locationWidth + 5, rowY + 10, {
-        width: assessmentWidth - 10,
-        height: rowHeight - 20
-      });
+      doc.text(
+        assessmentText,
+        PAGE.margin + faultWidth + rectificationWidth + locationWidth + 5,
+        rowY + 10,
+        {
+          width: assessmentWidth - 10,
+          height: rowHeight - 20,
+        }
+      );
 
       // Repair status
       doc
         .fillColor(COLORS.error)
         .font("Helvetica-Bold")
-        .text(repairText, PAGE.margin + faultWidth + rectificationWidth + locationWidth + assessmentWidth + 5, rowY + 18);
+        .text(
+          repairText,
+          PAGE.margin +
+            faultWidth +
+            rectificationWidth +
+            locationWidth +
+            assessmentWidth +
+            5,
+          rowY + 18
+        );
 
       doc.y += rowHeight;
     }
@@ -836,10 +988,15 @@ const drawDetailsOfIdentifiedFaultsSection = async (doc, { template, report, job
       .fillColor(COLORS.success)
       .fontSize(12)
       .font("Helvetica-Bold")
-      .text("No faults identified during inspection", PAGE.margin + 10, rowY + 12, {
-        width: tableWidth - 20,
-        align: 'center'
-      });
+      .text(
+        "No faults identified during inspection",
+        PAGE.margin + 10,
+        rowY + 12,
+        {
+          width: tableWidth - 20,
+          align: "center",
+        }
+      );
 
     doc.y += rowHeight;
   }
@@ -853,7 +1010,9 @@ const drawDeclarationSection = (doc, { template, job, technician, report }) => {
 
   const reportTitle = getReportTitle(template, job);
   const complianceStandards = getComplianceStandards(template, job);
-  const inspectorName = `${technician?.firstName || ""} ${technician?.lastName || ""}`.trim() || "Inspector";
+  const inspectorName =
+    `${technician?.firstName || ""} ${technician?.lastName || ""}`.trim() ||
+    "Inspector";
 
   // Declaration text
   const declarationText = `This ${reportTitle.toLowerCase()} has been prepared in accordance with the requirements contained in the following standards and regulations:`;
@@ -864,16 +1023,14 @@ const drawDeclarationSection = (doc, { template, job, technician, report }) => {
     .font("Helvetica")
     .text(declarationText, PAGE.margin, doc.y, {
       width: doc.page.width - PAGE.margin * 2,
-      lineGap: 3
+      lineGap: 3,
     });
 
   doc.y += 20;
 
   // List compliance standards
   complianceStandards.forEach((standard) => {
-    doc
-      .fontSize(10)
-      .text(`• ${standard}`, PAGE.margin + 20, doc.y);
+    doc.fontSize(10).text(`• ${standard}`, PAGE.margin + 20, doc.y);
     doc.y += 16;
   });
 
@@ -882,12 +1039,10 @@ const drawDeclarationSection = (doc, { template, job, technician, report }) => {
   // Professional certification statement
   const certificationText = `I certify that this inspection has been conducted by a qualified inspector and the information contained in this report is true and accurate to the best of my knowledge.`;
 
-  doc
-    .fontSize(10)
-    .text(certificationText, PAGE.margin, doc.y, {
-      width: doc.page.width - PAGE.margin * 2,
-      lineGap: 3
-    });
+  doc.fontSize(10).text(certificationText, PAGE.margin, doc.y, {
+    width: doc.page.width - PAGE.margin * 2,
+    lineGap: 3,
+  });
 
   doc.y += 30;
 
@@ -906,9 +1061,7 @@ const drawDeclarationSection = (doc, { template, job, technician, report }) => {
 
   // Signature box
   const boxY = doc.y;
-  doc
-    .roundedRect(PAGE.margin, boxY, 300, 60, 8)
-    .stroke(COLORS.border);
+  doc.roundedRect(PAGE.margin, boxY, 300, 60, 8).stroke(COLORS.border);
 
   doc
     .fontSize(9)
@@ -917,7 +1070,11 @@ const drawDeclarationSection = (doc, { template, job, technician, report }) => {
     .text("Inspector Name:", PAGE.margin + 10, boxY + 10)
     .text(inspectorName, PAGE.margin + 10, boxY + 25)
     .text("Date:", PAGE.margin + 10, boxY + 40)
-    .text(formatDisplayDate(report?.submittedAt || new Date()), PAGE.margin + 80, boxY + 40);
+    .text(
+      formatDisplayDate(report?.submittedAt || new Date()),
+      PAGE.margin + 80,
+      boxY + 40
+    );
 
   // Digital signature indicator
   doc
@@ -933,7 +1090,7 @@ const drawGasHazardsSection = (doc) => {
   const sectionTitle = "Gas Installation Hazards and Compliance";
   const bulletPoints = [
     "the gas distribution company if the installation uses natural gas, or",
-    "the gas retailer if the installation uses LPG."
+    "the gas retailer if the installation uses LPG.",
   ];
 
   const requiredSpace = 220;
@@ -951,7 +1108,7 @@ const drawGasHazardsSection = (doc) => {
       doc.y,
       {
         width: doc.page.width - PAGE.margin * 2,
-        lineGap: 3
+        lineGap: 3,
       }
     );
 
@@ -966,7 +1123,7 @@ const drawGasHazardsSection = (doc) => {
     .font("Helvetica")
     .text(narrative, PAGE.margin, doc.y, {
       width: doc.page.width - PAGE.margin * 2,
-      lineGap: 3
+      lineGap: 3,
     });
 
   doc.y += 40;
@@ -978,7 +1135,7 @@ const drawGasHazardsSection = (doc) => {
       .font("Helvetica")
       .text(`• ${point}`, PAGE.margin + 15, doc.y, {
         width: doc.page.width - PAGE.margin * 2 - 15,
-        lineGap: 3
+        lineGap: 3,
       });
     doc.y += 18;
   });
@@ -993,7 +1150,7 @@ const drawGasHazardsSection = (doc) => {
       doc.y,
       {
         width: doc.page.width - PAGE.margin * 2,
-        lineGap: 3
+        lineGap: 3,
       }
     );
 
@@ -1009,27 +1166,38 @@ const drawFaultSummarySection = (doc, { report, template, job }) => {
   const faults = [];
 
   // Check for common fault indicators in form data
-  Object.keys(formData).forEach(sectionId => {
+  Object.keys(formData).forEach((sectionId) => {
     const sectionData = formData[sectionId] || {};
-    Object.keys(sectionData).forEach(fieldId => {
+    Object.keys(sectionData).forEach((fieldId) => {
       const value = sectionData[fieldId];
 
       // Look for negative responses, failures, or issues
-      if (value === "does_not_meet" || value === "fail" || value === "not_present" ||
-          value === "no" || value === "unsafe" || value === "non-compliant") {
-
+      if (
+        value === "does_not_meet" ||
+        value === "fail" ||
+        value === "not_present" ||
+        value === "no" ||
+        value === "unsafe" ||
+        value === "non-compliant"
+      ) {
         // Get comments or action notes for this field
-        const comments = sectionData[`${fieldId}-comments`] ||
-                        sectionData[`${fieldId}-action`] ||
-                        sectionData[`${fieldId}-notes`] ||
-                        "Requires attention";
+        const comments =
+          sectionData[`${fieldId}-comments`] ||
+          sectionData[`${fieldId}-action`] ||
+          sectionData[`${fieldId}-notes`] ||
+          "Requires attention";
 
         faults.push({
-          area: sectionId.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-          issue: fieldId.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+          area: sectionId
+            .replace(/-/g, " ")
+            .replace(/\b\w/g, (l) => l.toUpperCase()),
+          issue: fieldId
+            .replace(/-/g, " ")
+            .replace(/\b\w/g, (l) => l.toUpperCase()),
           status: value,
           action: comments,
-          priority: value === "unsafe" ? "High" : value === "fail" ? "Medium" : "Low"
+          priority:
+            value === "unsafe" ? "High" : value === "fail" ? "Medium" : "Low",
         });
       }
     });
@@ -1063,12 +1231,22 @@ const drawFaultSummarySection = (doc, { report, template, job }) => {
       .stroke(COLORS.border);
 
     doc
-      .rect(tableX + areaWidth + issueWidth, headerY, priorityWidth, headerHeight)
+      .rect(
+        tableX + areaWidth + issueWidth,
+        headerY,
+        priorityWidth,
+        headerHeight
+      )
       .fill(COLORS.primary)
       .stroke(COLORS.border);
 
     doc
-      .rect(tableX + areaWidth + issueWidth + priorityWidth, headerY, actionWidth, headerHeight)
+      .rect(
+        tableX + areaWidth + issueWidth + priorityWidth,
+        headerY,
+        actionWidth,
+        headerHeight
+      )
       .fill(COLORS.primary)
       .stroke(COLORS.border);
 
@@ -1077,10 +1255,24 @@ const drawFaultSummarySection = (doc, { report, template, job }) => {
       .fillColor("white")
       .font("Helvetica-Bold")
       .fontSize(10)
-      .text("Area", tableX + 10, headerY + 8, { width: areaWidth - 20, align: "left" })
-      .text("Issue", tableX + areaWidth + 10, headerY + 8, { width: issueWidth - 20, align: "left" })
-      .text("Priority", tableX + areaWidth + issueWidth + 10, headerY + 8, { width: priorityWidth - 20, align: "center" })
-      .text("Required Action", tableX + areaWidth + issueWidth + priorityWidth + 10, headerY + 8, { width: actionWidth - 20, align: "left" });
+      .text("Area", tableX + 10, headerY + 8, {
+        width: areaWidth - 20,
+        align: "left",
+      })
+      .text("Issue", tableX + areaWidth + 10, headerY + 8, {
+        width: issueWidth - 20,
+        align: "left",
+      })
+      .text("Priority", tableX + areaWidth + issueWidth + 10, headerY + 8, {
+        width: priorityWidth - 20,
+        align: "center",
+      })
+      .text(
+        "Required Action",
+        tableX + areaWidth + issueWidth + priorityWidth + 10,
+        headerY + 8,
+        { width: actionWidth - 20, align: "left" }
+      );
 
     doc.y = headerY + headerHeight;
 
@@ -1089,7 +1281,7 @@ const drawFaultSummarySection = (doc, { report, template, job }) => {
       // Calculate dynamic row height based on content
       const actionHeight = doc.heightOfString(fault.action, {
         width: actionWidth - 20,
-        align: "left"
+        align: "left",
       });
       const rowHeight = Math.max(28, actionHeight + 12);
 
@@ -1101,29 +1293,59 @@ const drawFaultSummarySection = (doc, { report, template, job }) => {
 
       // Draw row backgrounds
       doc
-        .rect(tableX, rowY, areaWidth, rowHeight).fill(fillColor).stroke(COLORS.border)
-        .rect(tableX + areaWidth, rowY, issueWidth, rowHeight).fill(fillColor).stroke(COLORS.border)
-        .rect(tableX + areaWidth + issueWidth, rowY, priorityWidth, rowHeight).fill(fillColor).stroke(COLORS.border)
-        .rect(tableX + areaWidth + issueWidth + priorityWidth, rowY, actionWidth, rowHeight).fill(fillColor).stroke(COLORS.border);
+        .rect(tableX, rowY, areaWidth, rowHeight)
+        .fill(fillColor)
+        .stroke(COLORS.border)
+        .rect(tableX + areaWidth, rowY, issueWidth, rowHeight)
+        .fill(fillColor)
+        .stroke(COLORS.border)
+        .rect(tableX + areaWidth + issueWidth, rowY, priorityWidth, rowHeight)
+        .fill(fillColor)
+        .stroke(COLORS.border)
+        .rect(
+          tableX + areaWidth + issueWidth + priorityWidth,
+          rowY,
+          actionWidth,
+          rowHeight
+        )
+        .fill(fillColor)
+        .stroke(COLORS.border);
 
       // Priority color coding
-      const priorityColor = fault.priority === "High" ? COLORS.error :
-                           fault.priority === "Medium" ? COLORS.warning :
-                           COLORS.textSecondary;
+      const priorityColor =
+        fault.priority === "High"
+          ? COLORS.error
+          : fault.priority === "Medium"
+          ? COLORS.warning
+          : COLORS.textSecondary;
 
       // Add text content
       doc
         .fillColor(COLORS.text)
         .font("Helvetica")
         .fontSize(9)
-        .text(fault.area, tableX + 10, rowY + 8, { width: areaWidth - 20, align: "left" })
-        .text(fault.issue, tableX + areaWidth + 10, rowY + 8, { width: issueWidth - 20, align: "left" })
+        .text(fault.area, tableX + 10, rowY + 8, {
+          width: areaWidth - 20,
+          align: "left",
+        })
+        .text(fault.issue, tableX + areaWidth + 10, rowY + 8, {
+          width: issueWidth - 20,
+          align: "left",
+        })
         .fillColor(priorityColor)
         .font("Helvetica-Bold")
-        .text(fault.priority, tableX + areaWidth + issueWidth + 10, rowY + 8, { width: priorityWidth - 20, align: "center" })
+        .text(fault.priority, tableX + areaWidth + issueWidth + 10, rowY + 8, {
+          width: priorityWidth - 20,
+          align: "center",
+        })
         .fillColor(COLORS.text)
         .font("Helvetica")
-        .text(fault.action, tableX + areaWidth + issueWidth + priorityWidth + 10, rowY + 8, { width: actionWidth - 20, align: "left" });
+        .text(
+          fault.action,
+          tableX + areaWidth + issueWidth + priorityWidth + 10,
+          rowY + 8,
+          { width: actionWidth - 20, align: "left" }
+        );
 
       doc.y = rowY + rowHeight;
     });
@@ -1144,7 +1366,7 @@ const drawFaultSummarySection = (doc, { report, template, job }) => {
       .font("Helvetica-Bold")
       .text("✓ No Faults Identified", PAGE.margin + 20, doc.y + 20, {
         width: doc.page.width - PAGE.margin * 2 - 40,
-        align: "center"
+        align: "center",
       });
 
     doc.y += 80;
@@ -1205,8 +1427,7 @@ const drawNextStepsSection = (doc, { template, job, report }) => {
   const narrativeMap = {
     Electrical:
       "This electrical safety check has been completed in line with the Residential Tenancies Regulations 2021 and AS/NZS 3019: Electrical Installations — Periodic Verification. It ensures the property's electrical system is safe and free from damage or deterioration that could pose a risk. Any defects or safety concerns identified during the inspection are reported for corrective action.",
-    Gas:
-      "This gas safety check has been completed in line with the Residential Tenancies Regulations 2021 and AS/NZS 5601.1: Gas Installations. It confirms appliances, pipework, and ventilation are operating safely and documents any defects that require corrective action.",
+    Gas: "This gas safety check has been completed in line with the Residential Tenancies Regulations 2021 and AS/NZS 5601.1: Gas Installations. It confirms appliances, pipework, and ventilation are operating safely and documents any defects that require corrective action.",
     GasSmoke:
       "This combined gas and smoke safety inspection follows the Residential Tenancies Regulations 2021, AS/NZS 5601.1: Gas Installations, and AS 3786: Smoke Alarms. It verifies that both gas systems and smoke alarms remain safe, compliant, and supported by documented follow-up actions where required.",
     Smoke:
@@ -1233,7 +1454,6 @@ const drawNextStepsSection = (doc, { template, job, report }) => {
     doc.y += 20;
   }
 };
-
 
 const drawMinimumStandardStatusTable = (
   doc,
@@ -1276,20 +1496,22 @@ const drawMinimumStandardStatusTable = (
     .stroke(COLORS.border);
 
   doc
-    .rect(tableX + labelWidth + statusWidth * 2, headerY, actionWidth, headerHeight)
+    .rect(
+      tableX + labelWidth + statusWidth * 2,
+      headerY,
+      actionWidth,
+      headerHeight
+    )
     .fill(COLORS.primary)
     .stroke(COLORS.border);
 
   // Now draw text with white color
-  doc
-    .fillColor("white")
-    .font("Helvetica-Bold")
-    .fontSize(10);
+  doc.fillColor("white").font("Helvetica-Bold").fontSize(10);
 
   // Area column header
   doc.text("Area", tableX + 10, headerY + 8, {
     width: labelWidth - 20,
-    align: "left"
+    align: "left",
   });
 
   // Meets column header
@@ -1299,16 +1521,26 @@ const drawMinimumStandardStatusTable = (
   });
 
   // Does Not Meet column header
-  doc.text("Does Not Meet", tableX + labelWidth + statusWidth + 10, headerY + 8, {
-    width: statusWidth - 20,
-    align: "center",
-  });
+  doc.text(
+    "Does Not Meet",
+    tableX + labelWidth + statusWidth + 10,
+    headerY + 8,
+    {
+      width: statusWidth - 20,
+      align: "center",
+    }
+  );
 
   // Comments column header
-  doc.text(commentsLabel, tableX + labelWidth + statusWidth * 2 + 10, headerY + 8, {
-    width: actionWidth - 20,
-    align: "left"
-  });
+  doc.text(
+    commentsLabel,
+    tableX + labelWidth + statusWidth * 2 + 10,
+    headerY + 8,
+    {
+      width: actionWidth - 20,
+      align: "left",
+    }
+  );
 
   // Reset text formatting for data rows
   doc.fillColor(COLORS.text).font("Helvetica").fontSize(10);
@@ -1322,9 +1554,11 @@ const drawMinimumStandardStatusTable = (
       sectionData?.[`${row.id}-action`] ??
       "";
 
-    const meetsText = status === "meets" ? "Yes" : status === "not_applicable" ? "N/A" : "";
+    const meetsText =
+      status === "meets" ? "Yes" : status === "not_applicable" ? "N/A" : "";
     const doesNotMeetText = status === "does_not_meet" ? "Yes" : "";
-    const commentText = status === "not_applicable" && !comments ? "N/A" : comments || "";
+    const commentText =
+      status === "not_applicable" && !comments ? "N/A" : comments || "";
 
     const commentHeight = doc.heightOfString(String(commentText || ""), {
       width: actionWidth - 14,
@@ -1344,7 +1578,12 @@ const drawMinimumStandardStatusTable = (
       .fill("white")
       .stroke(COLORS.border);
     doc
-      .rect(tableX + labelWidth + statusWidth * 2, doc.y, actionWidth, rowHeight)
+      .rect(
+        tableX + labelWidth + statusWidth * 2,
+        doc.y,
+        actionWidth,
+        rowHeight
+      )
       .fill("white")
       .stroke(COLORS.border);
 
@@ -1355,21 +1594,24 @@ const drawMinimumStandardStatusTable = (
         width: labelWidth - 12,
       });
 
-    doc
-      .font("Helvetica")
-      .text(meetsText, tableX + labelWidth, doc.y + 8, {
-        width: statusWidth,
-        align: "center",
-      });
+    doc.font("Helvetica").text(meetsText, tableX + labelWidth, doc.y + 8, {
+      width: statusWidth,
+      align: "center",
+    });
 
     doc.text(doesNotMeetText, tableX + labelWidth + statusWidth, doc.y + 8, {
       width: statusWidth,
       align: "center",
     });
 
-    doc.text(String(commentText || ""), tableX + labelWidth + statusWidth * 2 + 10, doc.y + 8, {
-      width: actionWidth - 14,
-    });
+    doc.text(
+      String(commentText || ""),
+      tableX + labelWidth + statusWidth * 2 + 10,
+      doc.y + 8,
+      {
+        width: actionWidth - 14,
+      }
+    );
 
     doc.y += rowHeight;
   });
@@ -1413,25 +1655,32 @@ const drawPresenceTable = (
     .stroke(COLORS.border);
 
   doc
-    .rect(tableX + labelWidth + presenceWidth, headerY, presenceWidth, headerHeight)
+    .rect(
+      tableX + labelWidth + presenceWidth,
+      headerY,
+      presenceWidth,
+      headerHeight
+    )
     .fill(COLORS.primary)
     .stroke(COLORS.border);
 
   doc
-    .rect(tableX + labelWidth + presenceWidth * 2, headerY, actionWidth, headerHeight)
+    .rect(
+      tableX + labelWidth + presenceWidth * 2,
+      headerY,
+      actionWidth,
+      headerHeight
+    )
     .fill(COLORS.primary)
     .stroke(COLORS.border);
 
   // Now draw text with white color
-  doc
-    .fillColor("white")
-    .font("Helvetica-Bold")
-    .fontSize(10);
+  doc.fillColor("white").font("Helvetica-Bold").fontSize(10);
 
   // Fixture column header
   doc.text("Fixture", tableX + 10, headerY + 8, {
     width: labelWidth - 20,
-    align: "left"
+    align: "left",
   });
 
   // Present column header
@@ -1441,16 +1690,26 @@ const drawPresenceTable = (
   });
 
   // Not Present column header
-  doc.text("Not Present", tableX + labelWidth + presenceWidth + 10, headerY + 8, {
-    width: presenceWidth - 20,
-    align: "center",
-  });
+  doc.text(
+    "Not Present",
+    tableX + labelWidth + presenceWidth + 10,
+    headerY + 8,
+    {
+      width: presenceWidth - 20,
+      align: "center",
+    }
+  );
 
   // Action column header
-  doc.text(actionLabel, tableX + labelWidth + presenceWidth * 2 + 10, headerY + 8, {
-    width: actionWidth - 20,
-    align: "left"
-  });
+  doc.text(
+    actionLabel,
+    tableX + labelWidth + presenceWidth * 2 + 10,
+    headerY + 8,
+    {
+      width: actionWidth - 20,
+      align: "left",
+    }
+  );
 
   // Reset text formatting for data rows
   doc.fillColor(COLORS.text).font("Helvetica").fontSize(10);
@@ -1461,7 +1720,8 @@ const drawPresenceTable = (
     const value = sectionData?.[row.id];
     const action = sectionData?.[`${row.id}-action`] || "";
 
-    const presentText = value === "present" ? "Yes" : value === "not_applicable" ? "N/A" : "";
+    const presentText =
+      value === "present" ? "Yes" : value === "not_applicable" ? "N/A" : "";
     const notPresentText = value === "not_present" ? "Yes" : "";
     const actionText = value === "not_applicable" && !action ? "N/A" : action;
 
@@ -1479,11 +1739,21 @@ const drawPresenceTable = (
       .fill("white")
       .stroke(COLORS.border);
     doc
-      .rect(tableX + labelWidth + presenceWidth, doc.y, presenceWidth, rowHeight)
+      .rect(
+        tableX + labelWidth + presenceWidth,
+        doc.y,
+        presenceWidth,
+        rowHeight
+      )
       .fill("white")
       .stroke(COLORS.border);
     doc
-      .rect(tableX + labelWidth + presenceWidth * 2, doc.y, actionWidth, rowHeight)
+      .rect(
+        tableX + labelWidth + presenceWidth * 2,
+        doc.y,
+        actionWidth,
+        rowHeight
+      )
       .fill("white")
       .stroke(COLORS.border);
 
@@ -1492,21 +1762,24 @@ const drawPresenceTable = (
       .font("Helvetica-Bold")
       .text(row.label, tableX + 10, doc.y + 8, { width: labelWidth - 12 });
 
-    doc
-      .font("Helvetica")
-      .text(presentText, tableX + labelWidth, doc.y + 8, {
-        width: presenceWidth,
-        align: "center",
-      });
+    doc.font("Helvetica").text(presentText, tableX + labelWidth, doc.y + 8, {
+      width: presenceWidth,
+      align: "center",
+    });
 
     doc.text(notPresentText, tableX + labelWidth + presenceWidth, doc.y + 8, {
       width: presenceWidth,
       align: "center",
     });
 
-    doc.text(String(actionText || ""), tableX + labelWidth + presenceWidth * 2 + 10, doc.y + 8, {
-      width: actionWidth - 14,
-    });
+    doc.text(
+      String(actionText || ""),
+      tableX + labelWidth + presenceWidth * 2 + 10,
+      doc.y + 8,
+      {
+        width: actionWidth - 14,
+      }
+    );
 
     doc.y += rowHeight;
   });
@@ -1530,19 +1803,25 @@ const drawPropertyDetails = (doc, { property, job, technician, report }) => {
     },
     {
       label: "Inspector",
-      value: `${technician?.firstName || ""} ${technician?.lastName || ""}`.trim() || "N/A",
+      value:
+        `${technician?.firstName || ""} ${technician?.lastName || ""}`.trim() ||
+        "N/A",
     },
   ];
 
-  drawRoomDetailTable(doc, "Property Report Summary", rows.map(row => ({
-    question: row.label,
-    answer: row.value
-  })));
+  drawRoomDetailTable(
+    doc,
+    "Property Report Summary",
+    rows.map((row) => ({
+      question: row.label,
+      answer: row.value,
+    }))
+  );
 };
 
 const mapCoverageValue = (value) => {
   const displayMap = {
-    "included": "Included",
+    included: "Included",
     "not-included": "Not included",
     "not-inspected": "Not inspected",
   };
@@ -1551,8 +1830,8 @@ const mapCoverageValue = (value) => {
 
 const mapInspectionStatus = (value) => {
   const displayMap = {
-    "satisfactory": "Satisfactory",
-    "unsatisfactory": "Unsatisfactory",
+    satisfactory: "Satisfactory",
+    unsatisfactory: "Unsatisfactory",
     "not-inspected": "Not inspected",
   };
   return displayMap[value] || "Not specified";
@@ -1560,8 +1839,8 @@ const mapInspectionStatus = (value) => {
 
 const mapTestingStatus = (value) => {
   const displayMap = {
-    "pass": "Pass",
-    "fail": "Fail",
+    pass: "Pass",
+    fail: "Fail",
     "not-tested": "Not tested",
   };
   return displayMap[value] || "Not specified";
@@ -1579,10 +1858,10 @@ const mapOutcomeValue = (value) => {
     "no-faults": "No faults identified",
     "faults-identified": "Faults identified",
     "repairs-required": "Repairs required",
-    "satisfactory": "Satisfactory - No faults identified",
+    satisfactory: "Satisfactory - No faults identified",
     "minor-faults": "Minor faults identified - rectified",
     "major-faults": "Major faults identified - repairs required",
-    "unsafe": "Unsafe conditions found",
+    unsafe: "Unsafe conditions found",
   };
   return displayMap[value] || "Pending";
 };
@@ -1611,8 +1890,9 @@ const mapSelectOptionLabel = (field = {}, value) => {
 
   if (Array.isArray(value)) {
     const labels = value
-      .map((entry) =>
-        field.options.find((option) => option.value === entry)?.label || entry
+      .map(
+        (entry) =>
+          field.options.find((option) => option.value === entry)?.label || entry
       )
       .filter(Boolean);
     return labels.length ? labels.join(", ") : undefined;
@@ -1637,7 +1917,10 @@ const mapFieldValue = (field = {}, rawValue) => {
     case "select":
       return mapSelectOptionLabel(field, rawValue) || String(rawValue);
     case "multi-select":
-      return mapSelectOptionLabel(field, rawValue) || (Array.isArray(rawValue) ? rawValue.join(", ") : String(rawValue));
+      return (
+        mapSelectOptionLabel(field, rawValue) ||
+        (Array.isArray(rawValue) ? rawValue.join(", ") : String(rawValue))
+      );
     case "boolean":
     case "checkbox":
       return rawValue ? "Yes" : "No";
@@ -1664,7 +1947,8 @@ const drawOutcomeBadges = (doc, outcomes = []) => {
   }
 
   const availableWidth = doc.page.width - PAGE.margin * 2;
-  const badgeWidth = (availableWidth - (outcomes.length - 1) * 16) / outcomes.length;
+  const badgeWidth =
+    (availableWidth - (outcomes.length - 1) * 16) / outcomes.length;
   const y = doc.y;
 
   outcomes.forEach((outcome, index) => {
@@ -1742,7 +2026,12 @@ const drawStatusList = (
       .fillColor(COLORS.textSecondary)
       .font("Helvetica")
       .fontSize(10)
-      .text(String(textValue), PAGE.margin + labelWidth + 10, cursorY, valueOptions);
+      .text(
+        String(textValue),
+        PAGE.margin + labelWidth + 10,
+        cursorY,
+        valueOptions
+      );
 
     cursorY += rowHeight;
   });
@@ -1763,13 +2052,25 @@ const drawSmokeAlarmTable = (doc, alarms = []) => {
   const startY = doc.y;
 
   // Adjust column widths to fit page better and prevent overflow
-  const availableWidth = doc.page.width - (PAGE.margin * 2);
+  const availableWidth = doc.page.width - PAGE.margin * 2;
   const columnDefinitions = [
-    { id: "voltage", label: "Voltage", width: Math.floor(availableWidth * 0.15) },
+    {
+      id: "voltage",
+      label: "Voltage",
+      width: Math.floor(availableWidth * 0.15),
+    },
     { id: "status", label: "Status", width: Math.floor(availableWidth * 0.25) },
-    { id: "location", label: "Location", width: Math.floor(availableWidth * 0.30) },
+    {
+      id: "location",
+      label: "Location",
+      width: Math.floor(availableWidth * 0.3),
+    },
     { id: "level", label: "Level", width: Math.floor(availableWidth * 0.15) },
-    { id: "expiration", label: "Expiration", width: Math.floor(availableWidth * 0.15) },
+    {
+      id: "expiration",
+      label: "Expiration",
+      width: Math.floor(availableWidth * 0.15),
+    },
   ];
 
   const totalWidth = columnDefinitions.reduce((sum, col) => sum + col.width, 0);
@@ -1781,16 +2082,13 @@ const drawSmokeAlarmTable = (doc, alarms = []) => {
     .stroke(COLORS.border);
 
   // Draw header text with white color
-  doc
-    .fillColor("white")
-    .font("Helvetica-Bold")
-    .fontSize(10);
+  doc.fillColor("white").font("Helvetica-Bold").fontSize(10);
 
   let columnX = startX;
   columnDefinitions.forEach((column) => {
     doc.text(column.label, columnX + 8, startY + 7, {
       width: column.width - 16,
-      align: "center"
+      align: "center",
     });
     columnX += column.width;
   });
@@ -1876,10 +2174,14 @@ const drawCertificationBlock = (doc, certification = {}) => {
     },
   ];
 
-  drawRoomDetailTable(doc, "Electrical Safety Check Certification", rows.map(row => ({
-    question: row.label,
-    answer: row.value
-  })));
+  drawRoomDetailTable(
+    doc,
+    "Electrical Safety Check Certification",
+    rows.map((row) => ({
+      question: row.label,
+      answer: row.value,
+    }))
+  );
 
   if (certification["certification-notes"]) {
     ensurePageSpace(doc, 80);
@@ -1893,21 +2195,33 @@ const drawCertificationBlock = (doc, certification = {}) => {
       .fillColor(COLORS.textSecondary)
       .font("Helvetica")
       .fontSize(10)
-      .text(String(certification["certification-notes"]), PAGE.margin, doc.y + 14, {
-        width: doc.page.width - PAGE.margin * 2,
-      });
+      .text(
+        String(certification["certification-notes"]),
+        PAGE.margin,
+        doc.y + 14,
+        {
+          width: doc.page.width - PAGE.margin * 2,
+        }
+      );
 
     doc.y += 60;
   }
 };
 
-const renderElectricalSmokeReport = async (doc, { report, template, job, property, technician }) => {
+const renderElectricalSmokeReport = async (
+  doc,
+  { report, template, job, property, technician }
+) => {
   const getSectionValues = (id) => report.formData?.[id] || {};
-  const findSectionDefinition = (id) => template.sections?.find((section) => section.id === id);
+  const findSectionDefinition = (id) =>
+    template.sections?.find((section) => section.id === id);
 
   const summarySection = getSectionValues("inspection-summary");
-  const technicianFullName = `${technician?.firstName || ""} ${technician?.lastName || ""}`.trim() || "Technician";
-  const technicianLicense = technician?.licenseNumber || summarySection["license-number"];
+  const technicianFullName =
+    `${technician?.firstName || ""} ${technician?.lastName || ""}`.trim() ||
+    "Technician";
+  const technicianLicense =
+    technician?.licenseNumber || summarySection["license-number"];
 
   const certificationSection = {
     technicianName: technicianFullName,
@@ -1968,7 +2282,7 @@ const renderElectricalSmokeReport = async (doc, { report, template, job, propert
           .font("Helvetica")
           .text(mediaItem.metadata.caption, PAGE.margin, doc.y, {
             width: 400,
-            align: 'left'
+            align: "left",
           });
         doc.y += 10;
       }
@@ -1998,14 +2312,20 @@ const renderElectricalSmokeReport = async (doc, { report, template, job, propert
     },
     {
       label: "Previous safety check",
-      value: formatDisplayDate(summarySection["previous-inspection-date"]) || "Not recorded",
+      value:
+        formatDisplayDate(summarySection["previous-inspection-date"]) ||
+        "Not recorded",
     },
   ];
 
-  drawRoomDetailTable(doc, "Property Report Summary", summaryRows.map(row => ({
-    label: row.label,
-    value: row.value
-  })));
+  drawRoomDetailTable(
+    doc,
+    "Property Report Summary",
+    summaryRows.map((row) => ({
+      label: row.label,
+      value: row.value,
+    }))
+  );
   await renderSectionPhotos("inspection-summary", "Property Overview");
 
   const outcomeBadges = [];
@@ -2035,7 +2355,7 @@ const renderElectricalSmokeReport = async (doc, { report, template, job, propert
       .fontSize(10)
       .text(String(summarySection["summary-notes"]), PAGE.margin, doc.y, {
         width: doc.page.width - PAGE.margin * 2,
-        lineGap: 3
+        lineGap: 3,
       });
 
     doc.y += 40;
@@ -2052,10 +2372,14 @@ const renderElectricalSmokeReport = async (doc, { report, template, job, propert
         value: summarySection["contact-phone"] || "—",
       },
     ];
-    drawRoomDetailTable(doc, "Contact Information", contactRows.map(row => ({
-      label: row.label,
-      value: row.value
-    })));
+    drawRoomDetailTable(
+      doc,
+      "Contact Information",
+      contactRows.map((row) => ({
+        label: row.label,
+        value: row.value,
+      }))
+    );
     await renderSectionPhotos("contact", "Contact Details");
   }
 
@@ -2103,7 +2427,9 @@ const renderElectricalSmokeReport = async (doc, { report, template, job, propert
 
     noteFieldIds.forEach((noteId) => {
       const noteValue = responses[noteId];
-      const noteField = (sectionDefinition.fields || []).find((field) => field.id === noteId);
+      const noteField = (sectionDefinition.fields || []).find(
+        (field) => field.id === noteId
+      );
       const formattedNote = noteField
         ? mapFieldValue(noteField, noteValue)
         : noteValue;
@@ -2128,7 +2454,10 @@ const renderElectricalSmokeReport = async (doc, { report, template, job, propert
     (value, item) => mapFieldValue(item.field, value),
     ["installation-comments"]
   );
-  await renderSectionPhotos("electrical-installations", "Electrical Installations");
+  await renderSectionPhotos(
+    "electrical-installations",
+    "Electrical Installations"
+  );
   renderStatusSection(
     "safety-testing",
     (value, item) => mapFieldValue(item.field, value),
@@ -2148,10 +2477,16 @@ const renderElectricalSmokeReport = async (doc, { report, template, job, propert
   );
   await renderSectionPhotos("remedial-actions", "Remedial Actions");
 
-  renderStatusSection("extent-of-installation", mapCoverageValue, ["extent-notes"]);
-  renderStatusSection("visual-inspection", mapInspectionStatus, ["visual-notes"]);
+  renderStatusSection("extent-of-installation", mapCoverageValue, [
+    "extent-notes",
+  ]);
+  renderStatusSection("visual-inspection", mapInspectionStatus, [
+    "visual-notes",
+  ]);
   renderStatusSection("testing-polarity", mapTestingStatus, ["polarity-notes"]);
-  renderStatusSection("testing-earth", mapTestingStatus, ["earth-continuity-notes"]);
+  renderStatusSection("testing-earth", mapTestingStatus, [
+    "earth-continuity-notes",
+  ]);
 
   const rcdValues = getSectionValues("rcd-testing");
   const rcdDefinition = findSectionDefinition("rcd-testing");
@@ -2161,7 +2496,12 @@ const renderElectricalSmokeReport = async (doc, { report, template, job, propert
       .map((field) => ({ label: field.label, value: rcdValues[field.id] }));
 
     if (rcdStatusItems.length) {
-      drawStatusList(doc, rcdDefinition.title || "RCD testing", rcdStatusItems, mapTestingStatus);
+      drawStatusList(
+        doc,
+        rcdDefinition.title || "RCD testing",
+        rcdStatusItems,
+        mapTestingStatus
+      );
     }
 
     const rcdNotes = rcdValues["rcd-notes"];
@@ -2222,12 +2562,17 @@ const renderElectricalSmokeReport = async (doc, { report, template, job, propert
   drawCertificationBlock(doc, certificationSection);
 };
 
-const renderGasReport = async (doc, { template, report, job, property, technician }) => {
+const renderGasReport = async (
+  doc,
+  { template, report, job, property, technician }
+) => {
   const getSectionValues = (id) => report.formData?.[id] || {};
 
   const renderSectionPhotos = async (sectionId, heading) => {
     const mediaItems = (report.media || []).filter(
-      (item) => item.metadata?.sectionId === sectionId || item.fieldId?.includes(sectionId)
+      (item) =>
+        item.metadata?.sectionId === sectionId ||
+        item.fieldId?.includes(sectionId)
     );
 
     if (!mediaItems.length) {
@@ -2268,10 +2613,15 @@ const renderGasReport = async (doc, { template, report, job, property, technicia
           .fillColor(COLORS.textSecondary)
           .fontSize(9)
           .font("Helvetica")
-          .text(mediaItem.metadata?.caption || mediaItem.label || '', PAGE.margin, doc.y, {
-            width: 400,
-            align: 'left'
-          });
+          .text(
+            mediaItem.metadata?.caption || mediaItem.label || "",
+            PAGE.margin,
+            doc.y,
+            {
+              width: 400,
+              align: "left",
+            }
+          );
         doc.y += 10;
       }
     }
@@ -2281,9 +2631,12 @@ const renderGasReport = async (doc, { template, report, job, property, technicia
 
   // Property Details Summary
   const propertyDetails = getSectionValues("property-details") || {};
-  const propertyAddress = property?.address?.fullAddress || property?.address?.street || "N/A";
+  const propertyAddress =
+    property?.address?.fullAddress || property?.address?.street || "N/A";
   const inspectionDate = formatDisplayDate(report?.submittedAt || job?.dueDate);
-  const inspectorName = `${technician?.firstName || ""} ${technician?.lastName || ""}`.trim() || "Inspector Name Not Available";
+  const inspectorName =
+    `${technician?.firstName || ""} ${technician?.lastName || ""}`.trim() ||
+    "Inspector Name Not Available";
 
   const summaryRows = [
     {
@@ -2345,7 +2698,7 @@ const renderGasReport = async (doc, { template, report, job, property, technicia
           const formattedValue = formatValue(value, field.type);
           sectionRows.push({
             label: field.label,
-            value: formattedValue || "N/A"
+            value: formattedValue || "N/A",
           });
         }
       }
@@ -2359,12 +2712,17 @@ const renderGasReport = async (doc, { template, report, job, property, technicia
   }
 };
 
-const renderGasSmokeReport = async (doc, { template, report, job, property, technician }) => {
+const renderGasSmokeReport = async (
+  doc,
+  { template, report, job, property, technician }
+) => {
   const getSectionValues = (id) => report.formData?.[id] || {};
 
   const renderSectionPhotos = async (sectionId, heading) => {
     const mediaItems = (report.media || []).filter(
-      (item) => item.metadata?.sectionId === sectionId || item.fieldId?.includes(sectionId)
+      (item) =>
+        item.metadata?.sectionId === sectionId ||
+        item.fieldId?.includes(sectionId)
     );
 
     if (!mediaItems.length) {
@@ -2389,7 +2747,7 @@ const renderGasSmokeReport = async (doc, { template, report, job, property, tech
         const response = await fetch(mediaItem.url);
         const imageBuffer = await response.buffer();
         doc.image(imageBuffer, {
-          fit: [(PAGE.content?.width || (595.28 - (PAGE.margin * 2))) * 0.4, 200],
+          fit: [(PAGE.content?.width || 595.28 - PAGE.margin * 2) * 0.4, 200],
           align: "left",
         });
         doc.y += 220;
@@ -2398,7 +2756,11 @@ const renderGasSmokeReport = async (doc, { template, report, job, property, tech
         doc
           .fillColor(COLORS.text)
           .fontSize(10)
-          .text(`Image could not be loaded: ${mediaItem.filename || "Unknown"}`, PAGE.margin, doc.y);
+          .text(
+            `Image could not be loaded: ${mediaItem.filename || "Unknown"}`,
+            PAGE.margin,
+            doc.y
+          );
         doc.y += 15;
       }
     }
@@ -2444,14 +2806,32 @@ const renderGasSmokeReport = async (doc, { template, report, job, property, tech
     doc.y += 20;
 
     const gasRows = [
-      ["Gas Meter Accessible", formatValue(gasInstallation["gas-meter-accessible"])],
+      [
+        "Gas Meter Accessible",
+        formatValue(gasInstallation["gas-meter-accessible"]),
+      ],
       ["Gas Shut-off Valve", formatValue(gasInstallation["gas-shutoff-valve"])],
-      ["Gas Piping Condition", formatValue(gasInstallation["gas-piping-condition"])],
+      [
+        "Gas Piping Condition",
+        formatValue(gasInstallation["gas-piping-condition"]),
+      ],
       ["Gas Leakage Test", formatValue(gasInstallation["gas-leakage-test"])],
-      ["Number of Appliances", formatValue(gasInstallation["gas-appliances-count"])],
-      ["Appliances Condition", formatValue(gasInstallation["gas-appliances-condition"])],
-      ["Ventilation Adequate", formatValue(gasInstallation["gas-ventilation-adequate"])],
-      ["Safety Compliance", formatValue(gasInstallation["gas-safety-compliance"])],
+      [
+        "Number of Appliances",
+        formatValue(gasInstallation["gas-appliances-count"]),
+      ],
+      [
+        "Appliances Condition",
+        formatValue(gasInstallation["gas-appliances-condition"]),
+      ],
+      [
+        "Ventilation Adequate",
+        formatValue(gasInstallation["gas-ventilation-adequate"]),
+      ],
+      [
+        "Safety Compliance",
+        formatValue(gasInstallation["gas-safety-compliance"]),
+      ],
     ].filter(([, value]) => value && value !== "N/A");
 
     if (gasRows.length > 0) {
@@ -2470,7 +2850,7 @@ const renderGasSmokeReport = async (doc, { template, report, job, property, tech
       doc
         .font("Helvetica")
         .text(gasInstallation["gas-inspection-comments"], PAGE.margin, doc.y, {
-          width: PAGE.content?.width || (595.28 - (PAGE.margin * 2)),
+          width: PAGE.content?.width || 595.28 - PAGE.margin * 2,
         });
       doc.y += 20;
     }
@@ -2492,13 +2872,28 @@ const renderGasSmokeReport = async (doc, { template, report, job, property, tech
 
     const smokeRows = [
       ["Alarms Present", formatValue(smokeAssessment["smoke-alarms-present"])],
-      ["Locations Compliant", formatValue(smokeAssessment["alarm-locations-compliant"])],
-      ["Alarms Interconnected", formatValue(smokeAssessment["alarms-interconnected"])],
+      [
+        "Locations Compliant",
+        formatValue(smokeAssessment["alarm-locations-compliant"]),
+      ],
+      [
+        "Alarms Interconnected",
+        formatValue(smokeAssessment["alarms-interconnected"]),
+      ],
       ["Total Alarm Count", formatValue(smokeAssessment["alarm-count-total"])],
-      ["Functional Alarms", formatValue(smokeAssessment["alarms-tested-functional"])],
-      ["Power Source Compliant", formatValue(smokeAssessment["power-source-compliant"])],
+      [
+        "Functional Alarms",
+        formatValue(smokeAssessment["alarms-tested-functional"]),
+      ],
+      [
+        "Power Source Compliant",
+        formatValue(smokeAssessment["power-source-compliant"]),
+      ],
       ["Age Compliance", formatValue(smokeAssessment["alarm-age-compliance"])],
-      ["Overall Compliance", formatValue(smokeAssessment["smoke-alarm-compliance"])],
+      [
+        "Overall Compliance",
+        formatValue(smokeAssessment["smoke-alarm-compliance"]),
+      ],
     ].filter(([, value]) => value && value !== "N/A");
 
     if (smokeRows.length > 0) {
@@ -2516,18 +2911,30 @@ const renderGasSmokeReport = async (doc, { template, report, job, property, tech
       doc.y += 15;
       doc
         .font("Helvetica")
-        .text(smokeAssessment["smoke-inspection-comments"], PAGE.margin, doc.y, {
-          width: PAGE.content?.width || (595.28 - (PAGE.margin * 2)),
-        });
+        .text(
+          smokeAssessment["smoke-inspection-comments"],
+          PAGE.margin,
+          doc.y,
+          {
+            width: PAGE.content?.width || 595.28 - PAGE.margin * 2,
+          }
+        );
       doc.y += 20;
     }
 
-    await renderSectionPhotos("smoke-alarm-assessment", "Smoke Alarm Assessment");
+    await renderSectionPhotos(
+      "smoke-alarm-assessment",
+      "Smoke Alarm Assessment"
+    );
   }
 
   // Section 4: Individual Alarm Records Table
   const alarmRecords = getSectionValues("individual-alarm-records");
-  if (alarmRecords && alarmRecords["alarm-records"] && Array.isArray(alarmRecords["alarm-records"])) {
+  if (
+    alarmRecords &&
+    alarmRecords["alarm-records"] &&
+    Array.isArray(alarmRecords["alarm-records"])
+  ) {
     const records = alarmRecords["alarm-records"];
 
     if (records.length > 0) {
@@ -2542,14 +2949,24 @@ const renderGasSmokeReport = async (doc, { template, report, job, property, tech
 
       // Create table headers
       const headers = [
-        "ID", "Location", "Brand", "Model", "Type", "Power",
-        "Mfg Date", "Expiry", "Test", "Status"
+        "ID",
+        "Location",
+        "Brand",
+        "Model",
+        "Type",
+        "Power",
+        "Mfg Date",
+        "Expiry",
+        "Test",
+        "Status",
       ];
 
       // Create table data
-      const tableData = records.map(record => [
+      const tableData = records.map((record) => [
         record["alarm-id"] || "",
-        (record.location === "other" ? record["location-other"] : record.location) || "",
+        (record.location === "other"
+          ? record["location-other"]
+          : record.location) || "",
         record.brand || "",
         record.model || "",
         record["alarm-type"] || "",
@@ -2578,13 +2995,17 @@ const renderGasSmokeReport = async (doc, { template, report, job, property, tech
             .fillColor(COLORS.text)
             .fontSize(9)
             .font("Helvetica-Bold")
-            .text(`Alarm ${record["alarm-id"] || index + 1} Comments:`, PAGE.margin, doc.y);
+            .text(
+              `Alarm ${record["alarm-id"] || index + 1} Comments:`,
+              PAGE.margin,
+              doc.y
+            );
           doc.y += 12;
           doc
             .font("Helvetica")
             .fontSize(8)
             .text(record["alarm-comments"], PAGE.margin, doc.y, {
-              width: PAGE.content?.width || (595.28 - (PAGE.margin * 2)),
+              width: PAGE.content?.width || 595.28 - PAGE.margin * 2,
             });
           doc.y += 15;
         }
@@ -2608,7 +3029,10 @@ const renderGasSmokeReport = async (doc, { template, report, job, property, tech
 
     const actionsRows = [
       ["Gas Repairs", formatArrayValue(actionsTaken["gas-repairs-performed"])],
-      ["Smoke Actions", formatArrayValue(actionsTaken["smoke-actions-performed"])],
+      [
+        "Smoke Actions",
+        formatArrayValue(actionsTaken["smoke-actions-performed"]),
+      ],
       ["Follow-up Required", formatValue(actionsTaken["follow-up-required"])],
     ].filter(([, value]) => value && value !== "N/A");
 
@@ -2628,7 +3052,7 @@ const renderGasSmokeReport = async (doc, { template, report, job, property, tech
       doc
         .font("Helvetica")
         .text(actionsTaken["materials-supplied"], PAGE.margin, doc.y, {
-          width: PAGE.content?.width || (595.28 - (PAGE.margin * 2)),
+          width: PAGE.content?.width || 595.28 - PAGE.margin * 2,
         });
       doc.y += 20;
     }
@@ -2645,7 +3069,7 @@ const renderGasSmokeReport = async (doc, { template, report, job, property, tech
       doc
         .font("Helvetica")
         .text(actionsTaken["follow-up-details"], PAGE.margin, doc.y, {
-          width: PAGE.content?.width || (595.28 - (PAGE.margin * 2)),
+          width: PAGE.content?.width || 595.28 - PAGE.margin * 2,
         });
       doc.y += 20;
     }
@@ -2666,12 +3090,30 @@ const renderGasSmokeReport = async (doc, { template, report, job, property, tech
     doc.y += 20;
 
     const summaryRows = [
-      ["Gas Compliance", formatValue(complianceSummary["overall-gas-compliance"])],
-      ["Smoke Compliance", formatValue(complianceSummary["overall-smoke-compliance"])],
-      ["Combined Status", formatValue(complianceSummary["combined-compliance-status"])],
-      ["Certificate Issued", formatValue(complianceSummary["compliance-certificate-issued"])],
-      ["Valid Until", formatValue(complianceSummary["certificate-valid-until"])],
-      ["Landlord Notification", formatValue(complianceSummary["landlord-notification-required"])],
+      [
+        "Gas Compliance",
+        formatValue(complianceSummary["overall-gas-compliance"]),
+      ],
+      [
+        "Smoke Compliance",
+        formatValue(complianceSummary["overall-smoke-compliance"]),
+      ],
+      [
+        "Combined Status",
+        formatValue(complianceSummary["combined-compliance-status"]),
+      ],
+      [
+        "Certificate Issued",
+        formatValue(complianceSummary["compliance-certificate-issued"]),
+      ],
+      [
+        "Valid Until",
+        formatValue(complianceSummary["certificate-valid-until"]),
+      ],
+      [
+        "Landlord Notification",
+        formatValue(complianceSummary["landlord-notification-required"]),
+      ],
     ].filter(([, value]) => value && value !== "N/A");
 
     if (summaryRows.length > 0) {
@@ -2690,7 +3132,7 @@ const renderGasSmokeReport = async (doc, { template, report, job, property, tech
       doc
         .font("Helvetica")
         .text(complianceSummary["summary-comments"], PAGE.margin, doc.y, {
-          width: PAGE.content?.width || (595.28 - (PAGE.margin * 2)),
+          width: PAGE.content?.width || 595.28 - PAGE.margin * 2,
         });
       doc.y += 20;
     }
@@ -2746,12 +3188,17 @@ const renderGasSmokeReport = async (doc, { template, report, job, property, tech
   }
 };
 
-const renderElectricalReport = async (doc, { template, report, job, property, technician }) => {
+const renderElectricalReport = async (
+  doc,
+  { template, report, job, property, technician }
+) => {
   const getSectionValues = (id) => report.formData?.[id] || {};
 
   const renderSectionPhotos = async (sectionId, heading) => {
     const mediaItems = (report.media || []).filter(
-      (item) => item.metadata?.sectionId === sectionId || item.fieldId?.includes(sectionId)
+      (item) =>
+        item.metadata?.sectionId === sectionId ||
+        item.fieldId?.includes(sectionId)
     );
 
     if (!mediaItems.length) {
@@ -2776,7 +3223,7 @@ const renderElectricalReport = async (doc, { template, report, job, property, te
         const response = await fetch(mediaItem.url);
         const imageBuffer = await response.buffer();
         doc.image(imageBuffer, {
-          fit: [(PAGE.content?.width || (595.28 - (PAGE.margin * 2))) * 0.4, 200],
+          fit: [(PAGE.content?.width || 595.28 - PAGE.margin * 2) * 0.4, 200],
           align: "left",
         });
         doc.y += 220;
@@ -2785,7 +3232,11 @@ const renderElectricalReport = async (doc, { template, report, job, property, te
         doc
           .fillColor(COLORS.text)
           .fontSize(10)
-          .text(`Image could not be loaded: ${mediaItem.filename || "Unknown"}`, PAGE.margin, doc.y);
+          .text(
+            `Image could not be loaded: ${mediaItem.filename || "Unknown"}`,
+            PAGE.margin,
+            doc.y
+          );
         doc.y += 15;
       }
     }
@@ -2807,11 +3258,20 @@ const renderElectricalReport = async (doc, { template, report, job, property, te
 
     const summaryRows = [
       ["Inspection Date", formatValue(inspectionSummary["inspection-date"])],
-      ["Previous Inspection", formatValue(inspectionSummary["previous-inspection-date"])],
+      [
+        "Previous Inspection",
+        formatValue(inspectionSummary["previous-inspection-date"]),
+      ],
       ["Inspector Name", formatValue(inspectionSummary["inspector-name"])],
       ["License Number", formatValue(inspectionSummary["license-number"])],
-      ["Registration Number", formatValue(inspectionSummary["registration-number"])],
-      ["Electrical Outcome", formatValue(inspectionSummary["electrical-outcome"])],
+      [
+        "Registration Number",
+        formatValue(inspectionSummary["registration-number"]),
+      ],
+      [
+        "Electrical Outcome",
+        formatValue(inspectionSummary["electrical-outcome"]),
+      ],
     ].filter(([, value]) => value && value !== "N/A");
 
     if (summaryRows.length > 0) {
@@ -2823,7 +3283,10 @@ const renderElectricalReport = async (doc, { template, report, job, property, te
 
   // Section 2: Electrical Installations
   const electricalInstallations = getSectionValues("electrical-installations");
-  if (electricalInstallations && Object.keys(electricalInstallations).length > 0) {
+  if (
+    electricalInstallations &&
+    Object.keys(electricalInstallations).length > 0
+  ) {
     ensurePageSpace(doc, 120);
 
     doc
@@ -2834,15 +3297,39 @@ const renderElectricalReport = async (doc, { template, report, job, property, te
     doc.y += 20;
 
     const installationRows = [
-      ["Switchboard Accessible", formatValue(electricalInstallations["switchboard-accessible"])],
-      ["Switchboard Labeling", formatValue(electricalInstallations["switchboard-labeling"])],
-      ["Circuit Protection", formatValue(electricalInstallations["circuit-protection"])],
-      ["Earth Leakage Protection", formatValue(electricalInstallations["earth-leakage-protection"])],
-      ["Wiring Condition", formatValue(electricalInstallations["wiring-condition"])],
-      ["Light Fittings", formatValue(electricalInstallations["light-fittings"])],
+      [
+        "Switchboard Accessible",
+        formatValue(electricalInstallations["switchboard-accessible"]),
+      ],
+      [
+        "Switchboard Labeling",
+        formatValue(electricalInstallations["switchboard-labeling"]),
+      ],
+      [
+        "Circuit Protection",
+        formatValue(electricalInstallations["circuit-protection"]),
+      ],
+      [
+        "Earth Leakage Protection",
+        formatValue(electricalInstallations["earth-leakage-protection"]),
+      ],
+      [
+        "Wiring Condition",
+        formatValue(electricalInstallations["wiring-condition"]),
+      ],
+      [
+        "Light Fittings",
+        formatValue(electricalInstallations["light-fittings"]),
+      ],
       ["Power Points", formatValue(electricalInstallations["power-points"])],
-      ["Safety Switches", formatValue(electricalInstallations["safety-switches"])],
-      ["Overall Condition", formatValue(electricalInstallations["overall-condition"])],
+      [
+        "Safety Switches",
+        formatValue(electricalInstallations["safety-switches"]),
+      ],
+      [
+        "Overall Condition",
+        formatValue(electricalInstallations["overall-condition"]),
+      ],
     ].filter(([, value]) => value && value !== "N/A");
 
     if (installationRows.length > 0) {
@@ -2860,13 +3347,21 @@ const renderElectricalReport = async (doc, { template, report, job, property, te
       doc.y += 15;
       doc
         .font("Helvetica")
-        .text(electricalInstallations["installation-comments"], PAGE.margin, doc.y, {
-          width: PAGE.content?.width || (595.28 - (PAGE.margin * 2)),
-        });
+        .text(
+          electricalInstallations["installation-comments"],
+          PAGE.margin,
+          doc.y,
+          {
+            width: PAGE.content?.width || 595.28 - PAGE.margin * 2,
+          }
+        );
       doc.y += 20;
     }
 
-    await renderSectionPhotos("electrical-installations", "Electrical Installations");
+    await renderSectionPhotos(
+      "electrical-installations",
+      "Electrical Installations"
+    );
   }
 
   // Section 3: Safety Testing
@@ -2882,12 +3377,18 @@ const renderElectricalReport = async (doc, { template, report, job, property, te
     doc.y += 20;
 
     const testingRows = [
-      ["Insulation Resistance", formatValue(safetyTesting["insulation-resistance"])],
+      [
+        "Insulation Resistance",
+        formatValue(safetyTesting["insulation-resistance"]),
+      ],
       ["Earth Continuity", formatValue(safetyTesting["earth-continuity"])],
       ["Polarity Check", formatValue(safetyTesting["polarity-check"])],
       ["RCD Testing", formatValue(safetyTesting["rcd-testing"])],
       ["Load Testing", formatValue(safetyTesting["load-testing"])],
-      ["Voltage Measurements", formatValue(safetyTesting["voltage-measurements"])],
+      [
+        "Voltage Measurements",
+        formatValue(safetyTesting["voltage-measurements"]),
+      ],
       ["Test Results", formatValue(safetyTesting["test-results"])],
     ].filter(([, value]) => value && value !== "N/A");
 
@@ -2907,7 +3408,7 @@ const renderElectricalReport = async (doc, { template, report, job, property, te
       doc
         .font("Helvetica")
         .text(safetyTesting["testing-comments"], PAGE.margin, doc.y, {
-          width: PAGE.content?.width || (595.28 - (PAGE.margin * 2)),
+          width: PAGE.content?.width || 595.28 - PAGE.margin * 2,
         });
       doc.y += 20;
     }
@@ -2928,11 +3429,23 @@ const renderElectricalReport = async (doc, { template, report, job, property, te
     doc.y += 20;
 
     const complianceRows = [
-      ["AS/NZS 3019 Compliance", formatValue(complianceAssessment["as-nzs-3019-compliance"])],
-      ["Installation Standards", formatValue(complianceAssessment["installation-standards"])],
-      ["Safety Requirements", formatValue(complianceAssessment["safety-requirements"])],
+      [
+        "AS/NZS 3019 Compliance",
+        formatValue(complianceAssessment["as-nzs-3019-compliance"]),
+      ],
+      [
+        "Installation Standards",
+        formatValue(complianceAssessment["installation-standards"]),
+      ],
+      [
+        "Safety Requirements",
+        formatValue(complianceAssessment["safety-requirements"]),
+      ],
       ["Code Compliance", formatValue(complianceAssessment["code-compliance"])],
-      ["Overall Assessment", formatValue(complianceAssessment["overall-assessment"])],
+      [
+        "Overall Assessment",
+        formatValue(complianceAssessment["overall-assessment"]),
+      ],
     ].filter(([, value]) => value && value !== "N/A");
 
     if (complianceRows.length > 0) {
@@ -2951,7 +3464,7 @@ const renderElectricalReport = async (doc, { template, report, job, property, te
       doc
         .font("Helvetica")
         .text(complianceAssessment["compliance-comments"], PAGE.margin, doc.y, {
-          width: PAGE.content?.width || (595.28 - (PAGE.margin * 2)),
+          width: PAGE.content?.width || 595.28 - PAGE.margin * 2,
         });
       doc.y += 20;
     }
@@ -2972,9 +3485,15 @@ const renderElectricalReport = async (doc, { template, report, job, property, te
     doc.y += 20;
 
     const actionsRows = [
-      ["Actions Required", formatArrayValue(remedialActions["actions-required"])],
+      [
+        "Actions Required",
+        formatArrayValue(remedialActions["actions-required"]),
+      ],
       ["Repairs Completed", formatValue(remedialActions["repairs-completed"])],
-      ["Follow-up Required", formatValue(remedialActions["follow-up-required"])],
+      [
+        "Follow-up Required",
+        formatValue(remedialActions["follow-up-required"]),
+      ],
     ].filter(([, value]) => value && value !== "N/A");
 
     if (actionsRows.length > 0) {
@@ -2993,7 +3512,7 @@ const renderElectricalReport = async (doc, { template, report, job, property, te
       doc
         .font("Helvetica")
         .text(remedialActions["actions-description"], PAGE.margin, doc.y, {
-          width: PAGE.content?.width || (595.28 - (PAGE.margin * 2)),
+          width: PAGE.content?.width || 595.28 - PAGE.margin * 2,
         });
       doc.y += 20;
     }
@@ -3010,7 +3529,7 @@ const renderElectricalReport = async (doc, { template, report, job, property, te
       doc
         .font("Helvetica")
         .text(remedialActions["follow-up-details"], PAGE.margin, doc.y, {
-          width: PAGE.content?.width || (595.28 - (PAGE.margin * 2)),
+          width: PAGE.content?.width || 595.28 - PAGE.margin * 2,
         });
       doc.y += 20;
     }
@@ -3031,8 +3550,14 @@ const renderElectricalReport = async (doc, { template, report, job, property, te
     doc.y += 20;
 
     const certRows = [
-      ["Certification Declaration", certification["certification-declaration"] ? "Yes" : "No"],
-      ["Technician Signature", certification["certification-signature"] ? "Signed" : "Not Signed"],
+      [
+        "Certification Declaration",
+        certification["certification-declaration"] ? "Yes" : "No",
+      ],
+      [
+        "Technician Signature",
+        certification["certification-signature"] ? "Signed" : "Not Signed",
+      ],
       ["Signed At", formatValue(certification["certification-signed-at"])],
     ].filter(([, value]) => value && value !== "N/A");
 
@@ -3052,7 +3577,7 @@ const renderElectricalReport = async (doc, { template, report, job, property, te
       doc
         .font("Helvetica")
         .text(certification["certification-notes"], PAGE.margin, doc.y, {
-          width: PAGE.content?.width || (595.28 - (PAGE.margin * 2)),
+          width: PAGE.content?.width || 595.28 - PAGE.margin * 2,
         });
       doc.y += 20;
     }
@@ -3105,14 +3630,22 @@ const renderMinimumSafetyStandardReport = async (
   const mouldSummaryData = getSectionValues("mould-dampness-summary");
   const ventilationSummaryData = getSectionValues("ventilation-summary");
   const structuralBowingData = getSectionValues("structural-bowing-summary");
-  const structuralCrackingData = getSectionValues("structural-cracking-summary");
+  const structuralCrackingData = getSectionValues(
+    "structural-cracking-summary"
+  );
   const structuralWarpingData = getSectionValues("structural-warping-summary");
   const toiletSummaryData = getSectionValues("toilet-summary");
   const windowCoverSummaryData = getSectionValues("window-coverings-summary");
   const windowLatchSummaryData = getSectionValues("windows-latches-summary");
 
-  const bedroomsInspected = Number(propertySetup["bedroom-count"]) || template?.metadata?.bedroomCount || 0;
-  const bathroomsInspected = Number(propertySetup["bathroom-count"]) || template?.metadata?.bathroomCount || 0;
+  const bedroomsInspected =
+    Number(propertySetup["bedroom-count"]) ||
+    template?.metadata?.bedroomCount ||
+    0;
+  const bathroomsInspected =
+    Number(propertySetup["bathroom-count"]) ||
+    template?.metadata?.bathroomCount ||
+    0;
 
   const formatYesNo = (value) =>
     value === "yes" ? "Yes" : value === "no" ? "No" : value || "N/A";
@@ -3162,7 +3695,7 @@ const renderMinimumSafetyStandardReport = async (
           .font("Helvetica")
           .text(mediaItem.metadata.caption, PAGE.margin, doc.y, {
             width: 400,
-            align: 'left'
+            align: "left",
           });
         doc.y += 10;
       }
@@ -3175,15 +3708,24 @@ const renderMinimumSafetyStandardReport = async (
   const summaryRows = [
     {
       label: "Property Address",
-      value: propertySummary["property-address"] || property?.address?.fullAddress || property?.address?.street || "N/A",
+      value:
+        propertySummary["property-address"] ||
+        property?.address?.fullAddress ||
+        property?.address?.street ||
+        "N/A",
     },
     {
       label: "Inspection Date",
-      value: formatDisplayDate(propertySummary["inspection-date"] || report?.submittedAt),
+      value: formatDisplayDate(
+        propertySummary["inspection-date"] || report?.submittedAt
+      ),
     },
     {
       label: "Inspector Name",
-      value: propertySummary["inspector-name"] || `${technician?.firstName || ""} ${technician?.lastName || ""}`.trim() || "N/A",
+      value:
+        propertySummary["inspector-name"] ||
+        `${technician?.firstName || ""} ${technician?.lastName || ""}`.trim() ||
+        "N/A",
     },
     {
       label: "Inspector License",
@@ -3211,10 +3753,14 @@ const renderMinimumSafetyStandardReport = async (
     },
   ];
 
-  drawRoomDetailTable(doc, "Overall Property Summary", summaryRows.map(row => ({
-    label: row.label,
-    value: row.value
-  })));
+  drawRoomDetailTable(
+    doc,
+    "Overall Property Summary",
+    summaryRows.map((row) => ({
+      label: row.label,
+      value: row.value,
+    }))
+  );
   await renderSectionPhotos("property-summary", "Property Exterior");
 
   const overallRows = [
@@ -3243,25 +3789,49 @@ const renderMinimumSafetyStandardReport = async (
 
   const consolidatedOverallData = {
     // Map from bin facilities data
-    "summary-recycle-general": binFacilities["recycle-general-overall"] || binFacilities["bin-facilities-overall"],
-    "summary-recycle-general-comments": binFacilities["recycle-general-comments"] || binFacilities["bin-facilities-comments"],
+    "summary-recycle-general":
+      binFacilities["recycle-general-overall"] ||
+      binFacilities["bin-facilities-overall"],
+    "summary-recycle-general-comments":
+      binFacilities["recycle-general-comments"] ||
+      binFacilities["bin-facilities-comments"],
 
     // Map from kitchen facilities data
-    "summary-kitchen": kitchenFacilitiesData["kitchen-overall"] || kitchenFacilitiesData["kitchen-facilities-overall"],
-    "summary-kitchen-comments": kitchenFacilitiesData["kitchen-comments"] || kitchenFacilitiesData["kitchen-facilities-comments"],
+    "summary-kitchen":
+      kitchenFacilitiesData["kitchen-overall"] ||
+      kitchenFacilitiesData["kitchen-facilities-overall"],
+    "summary-kitchen-comments":
+      kitchenFacilitiesData["kitchen-comments"] ||
+      kitchenFacilitiesData["kitchen-facilities-comments"],
 
     // Map from other individual section data
-    "summary-laundry": getSectionValues("laundry-summary")["laundry-overall"] || getSectionValues("laundry")["laundry-overall"],
-    "summary-laundry-comments": getSectionValues("laundry-summary")["laundry-comments"] || getSectionValues("laundry")["laundry-comments"],
+    "summary-laundry":
+      getSectionValues("laundry-summary")["laundry-overall"] ||
+      getSectionValues("laundry")["laundry-overall"],
+    "summary-laundry-comments":
+      getSectionValues("laundry-summary")["laundry-comments"] ||
+      getSectionValues("laundry")["laundry-comments"],
 
-    "summary-living-room": getSectionValues("living-room-summary")["living-room-overall"] || getSectionValues("living-room")["living-room-overall"],
-    "summary-living-room-comments": getSectionValues("living-room-summary")["living-room-comments"] || getSectionValues("living-room")["living-room-comments"],
+    "summary-living-room":
+      getSectionValues("living-room-summary")["living-room-overall"] ||
+      getSectionValues("living-room")["living-room-overall"],
+    "summary-living-room-comments":
+      getSectionValues("living-room-summary")["living-room-comments"] ||
+      getSectionValues("living-room")["living-room-comments"],
 
-    "summary-front-entrance": frontEntrance["front-entrance-overall"] || frontEntrance["entrance-overall"],
-    "summary-front-entrance-comments": frontEntrance["front-entrance-comments"] || frontEntrance["entrance-comments"],
+    "summary-front-entrance":
+      frontEntrance["front-entrance-overall"] ||
+      frontEntrance["entrance-overall"],
+    "summary-front-entrance-comments":
+      frontEntrance["front-entrance-comments"] ||
+      frontEntrance["entrance-comments"],
 
-    "summary-electrical": electricalSafety["electrical-overall"] || electricalSafety["electrical-safety-overall"],
-    "summary-electrical-comments": electricalSafety["electrical-comments"] || electricalSafety["electrical-safety-comments"],
+    "summary-electrical":
+      electricalSafety["electrical-overall"] ||
+      electricalSafety["electrical-safety-overall"],
+    "summary-electrical-comments":
+      electricalSafety["electrical-comments"] ||
+      electricalSafety["electrical-safety-comments"],
 
     // Add data from overallSummaryData as fallback
     ...overallSummaryData,
@@ -3269,14 +3839,23 @@ const renderMinimumSafetyStandardReport = async (
 
   // Add bedroom and bathroom summary data
   for (let i = 1; i <= bathroomsInspected; i++) {
-    const bathroomData = getSectionValues(`bathroom-${i}-summary`) || getSectionValues(`bathroom-${i}`);
-    consolidatedOverallData[`summary-bathroom-${i}`] = bathroomData[`bathroom-${i}-overall`] || bathroomData["bathroom-overall"];
-    consolidatedOverallData[`summary-bathroom-${i}-comments`] = bathroomData[`bathroom-${i}-comments`] || bathroomData["bathroom-comments"];
+    const bathroomData =
+      getSectionValues(`bathroom-${i}-summary`) ||
+      getSectionValues(`bathroom-${i}`);
+    consolidatedOverallData[`summary-bathroom-${i}`] =
+      bathroomData[`bathroom-${i}-overall`] || bathroomData["bathroom-overall"];
+    consolidatedOverallData[`summary-bathroom-${i}-comments`] =
+      bathroomData[`bathroom-${i}-comments`] ||
+      bathroomData["bathroom-comments"];
   }
   for (let i = 1; i <= bedroomsInspected; i++) {
-    const bedroomData = getSectionValues(`bedroom-${i}-summary`) || getSectionValues(`bedroom-${i}`);
-    consolidatedOverallData[`summary-bedroom-${i}`] = bedroomData[`bedroom-${i}-overall`] || bedroomData["bedroom-overall"];
-    consolidatedOverallData[`summary-bedroom-${i}-comments`] = bedroomData[`bedroom-${i}-comments`] || bedroomData["bedroom-comments"];
+    const bedroomData =
+      getSectionValues(`bedroom-${i}-summary`) ||
+      getSectionValues(`bedroom-${i}`);
+    consolidatedOverallData[`summary-bedroom-${i}`] =
+      bedroomData[`bedroom-${i}-overall`] || bedroomData["bedroom-overall"];
+    consolidatedOverallData[`summary-bedroom-${i}-comments`] =
+      bedroomData[`bedroom-${i}-comments`] || bedroomData["bedroom-comments"];
   }
 
   drawMinimumStandardStatusTable(
@@ -3291,7 +3870,7 @@ const renderMinimumSafetyStandardReport = async (
     presenceRows.push(
       { id: `bathroom-${i}-bath`, label: `Bathroom ${i} – Bath` },
       { id: `bathroom-${i}-shower`, label: `Bathroom ${i} – Shower` },
-      { id: `bathroom-${i}-washbasin`, label: `Bathroom ${i} – Washbasin` },
+      { id: `bathroom-${i}-washbasin`, label: `Bathroom ${i} – Washbasin` }
     );
   }
   if (presenceRows.length) {
@@ -3331,12 +3910,28 @@ const renderMinimumSafetyStandardReport = async (
     { id: "hot-water-laundry", label: "Laundry" },
   ];
   for (let i = 1; i <= bathroomsInspected; i++) {
-    coldWaterRows.push({ id: `cold-water-bathroom-${i}`, label: `Bathroom ${i}` });
-    hotWaterRows.push({ id: `hot-water-bathroom-${i}`, label: `Bathroom ${i}` });
+    coldWaterRows.push({
+      id: `cold-water-bathroom-${i}`,
+      label: `Bathroom ${i}`,
+    });
+    hotWaterRows.push({
+      id: `hot-water-bathroom-${i}`,
+      label: `Bathroom ${i}`,
+    });
   }
 
-  drawMinimumStandardStatusTable(doc, "Cold Water Supply", coldWaterRows, coldWaterData);
-  drawMinimumStandardStatusTable(doc, "Hot Water Supply", hotWaterRows, hotWaterData);
+  drawMinimumStandardStatusTable(
+    doc,
+    "Cold Water Supply",
+    coldWaterRows,
+    coldWaterData
+  );
+  drawMinimumStandardStatusTable(
+    doc,
+    "Hot Water Supply",
+    hotWaterRows,
+    hotWaterData
+  );
 
   const kitchenFacilityRows = [
     { id: "kitchen-stovetop", label: "Stovetop" },
@@ -3391,23 +3986,62 @@ const renderMinimumSafetyStandardReport = async (
   for (let i = 1; i <= bedroomsInspected; i++) {
     lightingRows.push({ id: `lighting-bedroom-${i}`, label: `Bedroom ${i}` });
     mouldRows.push({ id: `mould-bedroom-${i}`, label: `Bedroom ${i}` });
-    ventilationRows.push({ id: `ventilation-bedroom-${i}`, label: `Bedroom ${i}` });
-    structuralBowingRows.push({ id: `struct-bowing-bedroom-${i}`, label: `Bedroom ${i}` });
-    structuralCrackingRows.push({ id: `struct-cracking-bedroom-${i}`, label: `Bedroom ${i}` });
-    structuralWarpingRows.push({ id: `struct-warping-bedroom-${i}`, label: `Bedroom ${i}` });
+    ventilationRows.push({
+      id: `ventilation-bedroom-${i}`,
+      label: `Bedroom ${i}`,
+    });
+    structuralBowingRows.push({
+      id: `struct-bowing-bedroom-${i}`,
+      label: `Bedroom ${i}`,
+    });
+    structuralCrackingRows.push({
+      id: `struct-cracking-bedroom-${i}`,
+      label: `Bedroom ${i}`,
+    });
+    structuralWarpingRows.push({
+      id: `struct-warping-bedroom-${i}`,
+      label: `Bedroom ${i}`,
+    });
   }
   for (let i = 1; i <= bathroomsInspected; i++) {
     lightingRows.push({ id: `lighting-bathroom-${i}`, label: `Bathroom ${i}` });
     mouldRows.push({ id: `mould-bathroom-${i}`, label: `Bathroom ${i}` });
-    ventilationRows.push({ id: `ventilation-bathroom-${i}`, label: `Bathroom ${i}` });
-    structuralBowingRows.push({ id: `struct-bowing-bathroom-${i}`, label: `Bathroom ${i}` });
-    structuralCrackingRows.push({ id: `struct-cracking-bathroom-${i}`, label: `Bathroom ${i}` });
-    structuralWarpingRows.push({ id: `struct-warping-bathroom-${i}`, label: `Bathroom ${i}` });
+    ventilationRows.push({
+      id: `ventilation-bathroom-${i}`,
+      label: `Bathroom ${i}`,
+    });
+    structuralBowingRows.push({
+      id: `struct-bowing-bathroom-${i}`,
+      label: `Bathroom ${i}`,
+    });
+    structuralCrackingRows.push({
+      id: `struct-cracking-bathroom-${i}`,
+      label: `Bathroom ${i}`,
+    });
+    structuralWarpingRows.push({
+      id: `struct-warping-bathroom-${i}`,
+      label: `Bathroom ${i}`,
+    });
   }
 
-  drawMinimumStandardStatusTable(doc, "Lighting", lightingRows, lightingSummaryData);
-  drawMinimumStandardStatusTable(doc, "Mould and Dampness", mouldRows, mouldSummaryData);
-  drawMinimumStandardStatusTable(doc, "Ventilation", ventilationRows, ventilationSummaryData);
+  drawMinimumStandardStatusTable(
+    doc,
+    "Lighting",
+    lightingRows,
+    lightingSummaryData
+  );
+  drawMinimumStandardStatusTable(
+    doc,
+    "Mould and Dampness",
+    mouldRows,
+    mouldSummaryData
+  );
+  drawMinimumStandardStatusTable(
+    doc,
+    "Ventilation",
+    ventilationRows,
+    ventilationSummaryData
+  );
   drawMinimumStandardStatusTable(
     doc,
     "Structural – Bowing and Leaning",
@@ -3432,14 +4066,22 @@ const renderMinimumSafetyStandardReport = async (
     for (let i = 1; i <= bathroomsInspected; i++) {
       toiletRows.push({ id: `toilet-bathroom-${i}`, label: `Bathroom ${i}` });
     }
-    drawMinimumStandardStatusTable(doc, "Toilet Facilities", toiletRows, toiletSummaryData);
+    drawMinimumStandardStatusTable(
+      doc,
+      "Toilet Facilities",
+      toiletRows,
+      toiletSummaryData
+    );
   }
 
   const windowCoverRows = [
     { id: "window-coverings-living-room", label: "Living Room" },
   ];
   for (let i = 1; i <= bedroomsInspected; i++) {
-    windowCoverRows.push({ id: `window-coverings-bedroom-${i}`, label: `Bedroom ${i}` });
+    windowCoverRows.push({
+      id: `window-coverings-bedroom-${i}`,
+      label: `Bedroom ${i}`,
+    });
   }
   drawMinimumStandardStatusTable(
     doc,
@@ -3453,7 +4095,10 @@ const renderMinimumSafetyStandardReport = async (
     windowLatchRows.push({ id: `windows-bedroom-${i}`, label: `Bedroom ${i}` });
   }
   for (let i = 1; i <= bathroomsInspected; i++) {
-    windowLatchRows.push({ id: `windows-bathroom-${i}`, label: `Bathroom ${i}` });
+    windowLatchRows.push({
+      id: `windows-bathroom-${i}`,
+      label: `Bathroom ${i}`,
+    });
   }
   if (windowLatchRows.length) {
     drawMinimumStandardStatusTable(
@@ -3523,7 +4168,11 @@ const renderMinimumSafetyStandardReport = async (
   await renderSectionPhotos("front-entrance", "Front Entrance");
 
   // Executive Summary Section
-  if (executiveSummary["inspection-summary"] || executiveSummary["key-findings"] || executiveSummary["recommendations"]) {
+  if (
+    executiveSummary["inspection-summary"] ||
+    executiveSummary["key-findings"] ||
+    executiveSummary["recommendations"]
+  ) {
     ensurePageSpace(doc, 150);
     drawSectionHeader(doc, "Executive Summary");
 
@@ -3538,7 +4187,9 @@ const renderMinimumSafetyStandardReport = async (
         .fillColor(COLORS.text)
         .fontSize(10)
         .font("Helvetica")
-        .text(executiveSummary["inspection-summary"], PAGE.margin, doc.y, { width: 500 });
+        .text(executiveSummary["inspection-summary"], PAGE.margin, doc.y, {
+          width: 500,
+        });
       doc.y += 20;
     }
 
@@ -3553,7 +4204,9 @@ const renderMinimumSafetyStandardReport = async (
         .fillColor(COLORS.text)
         .fontSize(10)
         .font("Helvetica")
-        .text(executiveSummary["key-findings"], PAGE.margin, doc.y, { width: 500 });
+        .text(executiveSummary["key-findings"], PAGE.margin, doc.y, {
+          width: 500,
+        });
       doc.y += 20;
     }
 
@@ -3568,7 +4221,9 @@ const renderMinimumSafetyStandardReport = async (
         .fillColor(COLORS.text)
         .fontSize(10)
         .font("Helvetica")
-        .text(executiveSummary["recommendations"], PAGE.margin, doc.y, { width: 500 });
+        .text(executiveSummary["recommendations"], PAGE.margin, doc.y, {
+          width: 500,
+        });
       doc.y += 30;
     }
   }
@@ -3593,7 +4248,12 @@ const renderMinimumSafetyStandardReport = async (
     },
     {
       label: "RCD Present and Working",
-      value: electricalSafety["rcd-present"] === "yes" ? "Yes" : electricalSafety["rcd-present"] === "no" ? "No" : "N/A",
+      value:
+        electricalSafety["rcd-present"] === "yes"
+          ? "Yes"
+          : electricalSafety["rcd-present"] === "no"
+          ? "No"
+          : "N/A",
     },
     {
       label: "Switchboard Meets Standards",
@@ -3676,12 +4336,16 @@ const renderMinimumSafetyStandardReport = async (
       : isBathroom
       ? "Bathroom"
       : section.title || section.id;
-    const roomTitle = isBedroom || isBathroom ? `${baseRoomLabel} ${roomNumber}` : baseRoomLabel;
+    const roomTitle =
+      isBedroom || isBathroom
+        ? `${baseRoomLabel} ${roomNumber}`
+        : baseRoomLabel;
 
     const roomRows = [];
     section.fields?.forEach((field) => {
       if (
-        (field.type === "photo" || field.type === "photo-multi") ||
+        field.type === "photo" ||
+        field.type === "photo-multi" ||
         sectionData[field.id] === undefined ||
         sectionData[field.id] === ""
       ) {
@@ -3697,7 +4361,11 @@ const renderMinimumSafetyStandardReport = async (
         if (matched) {
           value = matched.label;
         }
-      } else if (field.type === "number" && value !== null && value !== undefined) {
+      } else if (
+        field.type === "number" &&
+        value !== null &&
+        value !== undefined
+      ) {
         value = value === "" ? "—" : value;
       }
 
@@ -3715,12 +4383,17 @@ const renderMinimumSafetyStandardReport = async (
   }
 };
 
-const renderGenericReport = async (doc, { template, report, job, property, technician }) => {
+const renderGenericReport = async (
+  doc,
+  { template, report, job, property, technician }
+) => {
   const getSectionValues = (id) => report.formData?.[id] || {};
 
   const renderSectionPhotos = async (sectionId, heading) => {
     const mediaItems = (report.media || []).filter(
-      (item) => item.metadata?.sectionId === sectionId || item.fieldId?.includes(sectionId)
+      (item) =>
+        item.metadata?.sectionId === sectionId ||
+        item.fieldId?.includes(sectionId)
     );
 
     if (!mediaItems.length) {
@@ -3761,10 +4434,15 @@ const renderGenericReport = async (doc, { template, report, job, property, techn
           .fillColor(COLORS.textSecondary)
           .fontSize(9)
           .font("Helvetica")
-          .text(mediaItem.metadata?.caption || mediaItem.label || '', PAGE.margin, doc.y, {
-            width: 400,
-            align: 'left'
-          });
+          .text(
+            mediaItem.metadata?.caption || mediaItem.label || "",
+            PAGE.margin,
+            doc.y,
+            {
+              width: 400,
+              align: "left",
+            }
+          );
         doc.y += 10;
       }
     }
@@ -3774,9 +4452,12 @@ const renderGenericReport = async (doc, { template, report, job, property, techn
 
   // Property Details Summary
   const propertyDetails = getSectionValues("property-details") || {};
-  const propertyAddress = property?.address?.fullAddress || property?.address?.street || "N/A";
+  const propertyAddress =
+    property?.address?.fullAddress || property?.address?.street || "N/A";
   const inspectionDate = formatDisplayDate(report?.submittedAt || job?.dueDate);
-  const inspectorName = `${technician?.firstName || ""} ${technician?.lastName || ""}`.trim() || "Inspector Name Not Available";
+  const inspectorName =
+    `${technician?.firstName || ""} ${technician?.lastName || ""}`.trim() ||
+    "Inspector Name Not Available";
 
   const summaryRows = [
     {
@@ -3793,7 +4474,8 @@ const renderGenericReport = async (doc, { template, report, job, property, techn
     },
     {
       label: "Inspector License",
-      value: propertyDetails["license-number"] || technician?.licenseNumber || "N/A",
+      value:
+        propertyDetails["license-number"] || technician?.licenseNumber || "N/A",
     },
     {
       label: "Report Generated",
@@ -3801,10 +4483,14 @@ const renderGenericReport = async (doc, { template, report, job, property, techn
     },
   ];
 
-  drawRoomDetailTable(doc, "Inspection Summary", summaryRows.map(row => ({
-    label: row.label,
-    value: row.value
-  })));
+  drawRoomDetailTable(
+    doc,
+    "Inspection Summary",
+    summaryRows.map((row) => ({
+      label: row.label,
+      value: row.value,
+    }))
+  );
   await renderSectionPhotos("property-details", "Property Overview");
 
   if (!template?.sections?.length) {
@@ -3825,7 +4511,7 @@ const renderGenericReport = async (doc, { template, report, job, property, techn
         const formattedValue = formatValue(value, field.type);
         sectionRows.push({
           label: field.label,
-          value: formattedValue || "N/A"
+          value: formattedValue || "N/A",
         });
       }
     }
@@ -3864,7 +4550,13 @@ const formatValue = (value, fieldType) => {
     case "yes-no":
       return value === "yes" ? "Yes" : value === "no" ? "No" : "—";
     case "yes-no-na":
-      return value === "yes" ? "Yes" : value === "no" ? "No" : value === "na" ? "N/A" : "—";
+      return value === "yes"
+        ? "Yes"
+        : value === "no"
+        ? "No"
+        : value === "na"
+        ? "N/A"
+        : "—";
     case "pass-fail":
       return value === "pass" ? "Pass" : value === "fail" ? "Fail" : "—";
     case "boolean":
@@ -3902,7 +4594,9 @@ const drawApplianceSection = (doc, section, responses = {}) => {
 
   // Create appliance checklist table
   const tableY = doc.y;
-  const checklistItems = section.fields.filter(f => f.type === "yes-no" || f.type === "yes-no-na");
+  const checklistItems = section.fields.filter(
+    (f) => f.type === "yes-no" || f.type === "yes-no-na"
+  );
 
   if (checklistItems.length > 0) {
     // Use full page width
@@ -3924,9 +4618,9 @@ const drawApplianceSection = (doc, section, responses = {}) => {
       .text("Check Item", PAGE.margin + 10, tableY + 10);
 
     // Position Yes, No, N/A headers properly - align with checkboxes
-    const yesX = PAGE.margin + labelWidth + (checkboxSpacing * 0) + 25;
-    const noX = PAGE.margin + labelWidth + (checkboxSpacing * 1) + 25;
-    const naX = PAGE.margin + labelWidth + (checkboxSpacing * 2) + 25;
+    const yesX = PAGE.margin + labelWidth + checkboxSpacing * 0 + 25;
+    const noX = PAGE.margin + labelWidth + checkboxSpacing * 1 + 25;
+    const naX = PAGE.margin + labelWidth + checkboxSpacing * 2 + 25;
 
     doc
       .text("Yes", yesX, tableY + 10)
@@ -3942,7 +4636,7 @@ const drawApplianceSection = (doc, section, responses = {}) => {
     }
 
     // Comments and photos
-    const commentField = section.fields.find(f => f.id.includes("comments"));
+    const commentField = section.fields.find((f) => f.id.includes("comments"));
     if (commentField) {
       const comments = responses[commentField.id];
       if (comments) {
@@ -3955,10 +4649,18 @@ const drawApplianceSection = (doc, section, responses = {}) => {
 };
 
 // Function to draw pill-shaped chips
-const drawPillChip = (doc, text, x, y, bgColor, textColor = "white", strokeColor = null) => {
+const drawPillChip = (
+  doc,
+  text,
+  x,
+  y,
+  bgColor,
+  textColor = "white",
+  strokeColor = null
+) => {
   const padding = 8;
   const textWidth = doc.widthOfString(text, { fontSize: 9 });
-  const chipWidth = textWidth + (padding * 2);
+  const chipWidth = textWidth + padding * 2;
   const chipHeight = 18;
   const radius = chipHeight / 2;
 
@@ -4027,7 +4729,15 @@ const drawChecklistItem = (doc, label, value, type) => {
     } else if (value === "No" || value === "no") {
       drawPillChip(doc, "No", chipX, chipY, COLORS.error, "white");
     } else if (value === "N/A" || value === "na") {
-      drawPillChip(doc, "N/A", chipX, chipY, null, COLORS.primary, COLORS.primary);
+      drawPillChip(
+        doc,
+        "N/A",
+        chipX,
+        chipY,
+        null,
+        COLORS.primary,
+        COLORS.primary
+      );
     }
   }
 
@@ -4042,10 +4752,7 @@ const drawApplianceCheckRow = (doc, label, value, type) => {
   const columnStart = tableX + 10;
 
   // Row background - use full width
-  doc
-    .rect(tableX, baseY, tableWidth, 25)
-    .fill("white")
-    .stroke(COLORS.border);
+  doc.rect(tableX, baseY, tableWidth, 25).fill("white").stroke(COLORS.border);
 
   // Label - use about 60% of width
   const labelWidth = Math.floor(tableWidth * 0.6);
@@ -4065,7 +4772,7 @@ const drawApplianceCheckRow = (doc, label, value, type) => {
   for (let index = 0; index < options.length; index++) {
     const option = options[index];
     const isSelected = value === option;
-    const x = checkboxAreaStart + (index * checkboxSpacing) + 25; // Match gas installation alignment
+    const x = checkboxAreaStart + index * checkboxSpacing + 25; // Match gas installation alignment
 
     if (isSelected) {
       doc
@@ -4124,7 +4831,13 @@ const drawFaultIdentificationSection = (doc, section, responses = {}) => {
 
   if (faultIdentified || rectification || location || assessment) {
     // Create fault table
-    const tableHeaders = ["Identified Fault(s)", "Rectification", "Location", "Assessment", "Repair Completed?"];
+    const tableHeaders = [
+      "Identified Fault(s)",
+      "Rectification",
+      "Location",
+      "Assessment",
+      "Repair Completed?",
+    ];
     const tableY = doc.y;
 
     // Draw table header - background first
@@ -4134,10 +4847,7 @@ const drawFaultIdentificationSection = (doc, section, responses = {}) => {
       .stroke(COLORS.border);
 
     // Draw header text with white color
-    doc
-      .fillColor("white")
-      .fontSize(9)
-      .font("Helvetica-Bold");
+    doc.fillColor("white").fontSize(9).font("Helvetica-Bold");
 
     let x = PAGE.margin + 10;
     const columnWidths = [120, 150, 80, 80, 100];
@@ -4145,7 +4855,7 @@ const drawFaultIdentificationSection = (doc, section, responses = {}) => {
       const header = tableHeaders[index];
       doc.text(header, x, tableY + 6, {
         width: columnWidths[index] - 20,
-        align: "left"
+        align: "left",
       });
       x += columnWidths[index];
     }
@@ -4163,7 +4873,7 @@ const drawFaultIdentificationSection = (doc, section, responses = {}) => {
       rectification || "—",
       location || "—",
       assessment || "—",
-      "No" // Default repair status
+      "No", // Default repair status
     ];
 
     doc.fillColor(COLORS.text).fontSize(8).font("Helvetica");
@@ -4172,7 +4882,7 @@ const drawFaultIdentificationSection = (doc, section, responses = {}) => {
       doc.text(data, x, doc.y + 8, {
         width: columnWidths[index] - 10,
         height: 25,
-        ellipsis: true
+        ellipsis: true,
       });
       x += columnWidths[index];
     }
@@ -4182,9 +4892,14 @@ const drawFaultIdentificationSection = (doc, section, responses = {}) => {
     doc
       .fillColor(COLORS.textSecondary)
       .fontSize(10)
-      .text("No faults identified during this inspection.", PAGE.margin + 10, doc.y, {
-        width: doc.page.width - (PAGE.margin + 10) * 2,
-      });
+      .text(
+        "No faults identified during this inspection.",
+        PAGE.margin + 10,
+        doc.y,
+        {
+          width: doc.page.width - (PAGE.margin + 10) * 2,
+        }
+      );
     doc.y += 32;
   }
 };
@@ -4274,7 +4989,11 @@ const processImageForPdf = async (imageUrl, doc, x, y, maxWidth, maxHeight) => {
 
     const response = await fetch(imageUrl);
     if (!response.ok) {
-      return { success: false, height: 30, message: "[Image could not be loaded]" };
+      return {
+        success: false,
+        height: 30,
+        message: "[Image could not be loaded]",
+      };
     }
 
     const imageBuffer = await response.buffer();
@@ -4282,12 +5001,12 @@ const processImageForPdf = async (imageUrl, doc, x, y, maxWidth, maxHeight) => {
     // Add image to PDF
     doc.image(imageBuffer, x, y, {
       fit: [maxWidth, maxHeight],
-      align: 'left'
+      align: "left",
     });
 
     return { success: true, height: maxHeight + 20 };
   } catch (error) {
-    console.error('Error loading image for PDF:', error);
+    console.error("Error loading image for PDF:", error);
     return { success: false, height: 30, message: "[Error loading image]" };
   }
 };
@@ -4302,9 +5021,7 @@ const drawFinalBrandPage = (doc) => {
 
   // Default to a white background to keep the finish page clean
   doc.save();
-  doc
-    .rect(0, 0, pageWidth, pageHeight)
-    .fill("#FFFFFF");
+  doc.rect(0, 0, pageWidth, pageHeight).fill("#FFFFFF");
   doc.restore();
 
   try {
@@ -4342,20 +5059,33 @@ const drawFinalBrandPage = (doc) => {
 /**
  * Render smoke-only inspection report matching the demo format
  */
-const renderSmokeOnlyReport = async (doc, { report, template, job, property, technician }) => {
+const renderSmokeOnlyReport = async (
+  doc,
+  { report, template, job, property, technician }
+) => {
   const getSectionValues = (id) => report.formData?.[id] || {};
 
   // Import compliance service for automatic calculations
-  const { assessOverallCompliance, generateComplianceReportText } = await import('./smokeAlarmCompliance.service.js');
+  const { assessOverallCompliance, generateComplianceReportText } =
+    await import("./smokeAlarmCompliance.service.js");
 
   // Get all section data - supports both old and new template structures
   const inspectionSummary = getSectionValues("inspection-summary");
-  const jobDetails = getSectionValues("job-property-details") || inspectionSummary;
-  const propertyDetails = getSectionValues("property-coverage") || getSectionValues("property-coverage-check");
-  const alarmInventory = getSectionValues("smoke-alarm-inventory") || getSectionValues("alarm-inventory");
-  const complianceAssessment = getSectionValues("compliance-assessment") || getSectionValues("property-level-findings");
+  const jobDetails =
+    getSectionValues("job-property-details") || inspectionSummary;
+  const propertyDetails =
+    getSectionValues("property-coverage") ||
+    getSectionValues("property-coverage-check");
+  const alarmInventory =
+    getSectionValues("smoke-alarm-inventory") ||
+    getSectionValues("alarm-inventory");
+  const complianceAssessment =
+    getSectionValues("compliance-assessment") ||
+    getSectionValues("property-level-findings");
   const compliance = getSectionValues("compliance-next-steps");
-  const signoff = getSectionValues("certification-declaration") || getSectionValues("technician-signoff");
+  const signoff =
+    getSectionValues("certification-declaration") ||
+    getSectionValues("technician-signoff");
 
   // Get alarm records from the alarm inventory section
   const alarmRecords = alarmInventory["alarm-records"] || [];
@@ -4370,13 +5100,23 @@ const renderSmokeOnlyReport = async (doc, { report, template, job, property, tec
     if (!value) {
       return undefined;
     }
-    const raw = String(value).trim().replace(/^["'`]+/, "").trim();
+    const raw = String(value)
+      .trim()
+      .replace(/^["'`]+/, "")
+      .trim();
     const lower = raw.toLowerCase();
 
-    if (lower === "compliant" || (lower.includes("compliant") && !lower.includes("non"))) {
+    if (
+      lower === "compliant" ||
+      (lower.includes("compliant") && !lower.includes("non"))
+    ) {
       return "✅ Compliant";
     }
-    if (lower === "non-compliant" || lower.includes("non-compliant") || lower.includes("not compliant")) {
+    if (
+      lower === "non-compliant" ||
+      lower.includes("non-compliant") ||
+      lower.includes("not compliant")
+    ) {
       return "❌ Non-Compliant";
     }
     if (raw === "✅ Compliant" || raw === "❌ Non-Compliant") {
@@ -4406,17 +5146,26 @@ const renderSmokeOnlyReport = async (doc, { report, template, job, property, tec
     .fillColor(COLORS.textSecondary)
     .fontSize(11)
     .font("Helvetica")
-    .text("Our inspection identified compliance status of smoke alarms at this property.", PAGE.margin, doc.y, {
-      width: doc.page.width - PAGE.margin * 2,
-      align: "left",
-    });
+    .text(
+      "Our inspection identified compliance status of smoke alarms at this property.",
+      PAGE.margin,
+      doc.y,
+      {
+        width: doc.page.width - PAGE.margin * 2,
+        align: "left",
+      }
+    );
 
   doc.y += 10;
-  doc
-    .text("Please review the information below for findings and recommendations.", PAGE.margin, doc.y, {
+  doc.text(
+    "Please review the information below for findings and recommendations.",
+    PAGE.margin,
+    doc.y,
+    {
       width: doc.page.width - PAGE.margin * 2,
       align: "left",
-    });
+    }
+  );
 
   doc.y += 20;
 
@@ -4424,9 +5173,9 @@ const renderSmokeOnlyReport = async (doc, { report, template, job, property, tec
   ensurePageSpace(doc, 120);
   drawSectionHeader(doc, "Report Details");
 
-  const technicianName = [technician?.firstName, technician?.lastName]
-    .filter(Boolean)
-    .join(" ") || "Technician Name Not Available";
+  const technicianName =
+    [technician?.firstName, technician?.lastName].filter(Boolean).join(" ") ||
+    "Technician Name Not Available";
   const technicianLicense = technician?.licenseNumber || "Licence Not Recorded";
 
   const reportDetailsData = [
@@ -4473,7 +5222,10 @@ const renderSmokeOnlyReport = async (doc, { report, template, job, property, tec
     },
     { label: "Technician Name", value: technicianName },
     { label: "Technician Licence #", value: technicianLicense },
-    { label: "Business / Vendor", value: "RentalEase Property Services Pty Ltd" },
+    {
+      label: "Business / Vendor",
+      value: "RentalEase Property Services Pty Ltd",
+    },
     { label: "Inspection Type", value: "Smoke Alarm Safety Inspection" },
     {
       label: "Overall Status",
@@ -4524,68 +5276,82 @@ const renderSmokeOnlyReport = async (doc, { report, template, job, property, tec
       const alarmDetailsData = [
         {
           label: "Alarm Type",
-          value: alarmTypeDesc
+          value: alarmTypeDesc,
         },
         {
           label: "Location",
-          value: alarm.location === "hallway-bedrooms" ? "Hallway Near Bedrooms" :
-                 (alarm["location-other"] || alarm.location || "Not Specified")
+          value:
+            alarm.location === "hallway-bedrooms"
+              ? "Hallway Near Bedrooms"
+              : alarm["location-other"] || alarm.location || "Not Specified",
         },
         {
           label: "Brand & Model",
-          value: `${alarm.brand || "Not Specified"} ${alarm.model ? `- ${alarm.model}` : ""}`
+          value: `${alarm.brand || "Not Specified"} ${
+            alarm.model ? `- ${alarm.model}` : ""
+          }`,
         },
         {
           label: "Sound Level Test",
-          value: alarm["sound-level-db"] ? `${alarm["sound-level-db"]} dB (${alarm["push-test-result"] || "Not Tested"})` : "Not Tested"
+          value: alarm["sound-level-db"]
+            ? `${alarm["sound-level-db"]} dB (${
+                alarm["push-test-result"] || "Not Tested"
+              })`
+            : "Not Tested",
         },
         {
           label: "Manufacture Date",
-          value: alarm["manufacture-date"] ?
-                 new Date(alarm["manufacture-date"]).toLocaleDateString('en-AU', {
-                   day: 'numeric',
-                   month: 'long',
-                   year: 'numeric'
-                 }) : "Not Readable"
+          value: alarm["manufacture-date"]
+            ? new Date(alarm["manufacture-date"]).toLocaleDateString("en-AU", {
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+              })
+            : "Not Readable",
         },
         {
           label: "Expiry Date",
-          value: alarm["expiry-date"] ?
-                 new Date(alarm["expiry-date"]).toLocaleDateString('en-AU', {
-                   day: 'numeric',
-                   month: 'long',
-                   year: 'numeric'
-                 }) : "Not Stated"
+          value: alarm["expiry-date"]
+            ? new Date(alarm["expiry-date"]).toLocaleDateString("en-AU", {
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+              })
+            : "Not Stated",
         },
         {
           label: "Age (Years)",
-          value: alarm["age-years"] ? `${alarm["age-years"]} years` : "Unknown"
+          value: alarm["age-years"] ? `${alarm["age-years"]} years` : "Unknown",
         },
         {
           label: "Battery Status",
-          value: alarm["battery-replaced-today"] === "yes" ?
-                 "✅ Battery Replaced Today" :
-                 (alarm["battery-present"] === "yes" ? "Battery Present" : "No Battery")
+          value:
+            alarm["battery-replaced-today"] === "yes"
+              ? "✅ Battery Replaced Today"
+              : alarm["battery-present"] === "yes"
+              ? "Battery Present"
+              : "No Battery",
         },
         {
           label: "Physical Condition",
-          value: Array.isArray(alarm["physical-condition"]) ?
-                 alarm["physical-condition"].join(", ") :
-                 (alarm["physical-condition"] || "Not Assessed")
+          value: Array.isArray(alarm["physical-condition"])
+            ? alarm["physical-condition"].join(", ")
+            : alarm["physical-condition"] || "Not Assessed",
         },
         {
           label: "Compliance Status",
-          value: alarm["compliance-status"] === "compliant" ?
-                 "✅ COMPLIANT" :
-                 "❌ NON-COMPLIANT"
-        }
+          value:
+            alarm["compliance-status"] === "compliant"
+              ? "✅ COMPLIANT"
+              : "❌ NON-COMPLIANT",
+        },
       ];
 
       // Add comments if available
       if (alarm["alarm-comments"]) {
         alarmDetailsData.push({
           label: "Inspector Comments",
-          value: alarm["alarm-comments"]
+          value: alarm["alarm-comments"],
         });
       }
 
@@ -4600,7 +5366,9 @@ const renderSmokeOnlyReport = async (doc, { report, template, job, property, tec
   ensurePageSpace(doc, 80);
   drawSectionHeader(doc, "General Comments");
 
-  const generalComments = complianceAssessment["general-comments"] || generateComplianceReportText(complianceResult);
+  const generalComments =
+    complianceAssessment["general-comments"] ||
+    generateComplianceReportText(complianceResult);
 
   doc
     .fillColor(COLORS.text)
@@ -4637,30 +5405,78 @@ export const buildInspectionReportPdf = async ({
   });
 
   // Professional cover page with company branding
-  drawProfessionalCoverPage(doc, { property, job, technician, report, template });
+  drawProfessionalCoverPage(doc, {
+    property,
+    job,
+    technician,
+    report,
+    template,
+  });
 
   // Draw property details section on page 2
-  drawPropertyDetailsSection(doc, { property, job, technician, report, template });
+  drawPropertyDetailsSection(doc, {
+    property,
+    job,
+    technician,
+    report,
+    template,
+  });
 
   // Draw Details Of Identified Faults section
-  await drawDetailsOfIdentifiedFaultsSection(doc, { template, report, job, property, technician });
+  await drawDetailsOfIdentifiedFaultsSection(doc, {
+    template,
+    report,
+    job,
+    property,
+    technician,
+  });
 
   if (template?.jobType === "Gas") {
     await renderGasReport(doc, { template, report, job, property, technician });
   } else if (template?.jobType === "GasSmoke") {
-    await renderGasSmokeReport(doc, { template, report, job, property, technician });
+    await renderGasSmokeReport(doc, {
+      template,
+      report,
+      job,
+      property,
+      technician,
+    });
   } else if (template?.jobType === "Electrical") {
     if ((template?.version ?? 1) >= 3) {
-      await renderElectricalSmokeReport(doc, { template, report, job, property, technician });
+      await renderElectricalSmokeReport(doc, {
+        template,
+        report,
+        job,
+        property,
+        technician,
+      });
     } else {
-      await renderElectricalReport(doc, { template, report, job, property, technician });
+      await renderElectricalReport(doc, {
+        template,
+        report,
+        job,
+        property,
+        technician,
+      });
     }
   } else if (template?.jobType === "Smoke") {
     // Check if it's the new smoke-only template (version 3+) or legacy
     if (template.version >= 3) {
-      await renderSmokeOnlyReport(doc, { template, report, job, property, technician });
+      await renderSmokeOnlyReport(doc, {
+        template,
+        report,
+        job,
+        property,
+        technician,
+      });
     } else {
-      await renderElectricalSmokeReport(doc, { template, report, job, property, technician });
+      await renderElectricalSmokeReport(doc, {
+        template,
+        report,
+        job,
+        property,
+        technician,
+      });
     }
   } else if (template?.jobType === "MinimumSafetyStandard") {
     await renderMinimumSafetyStandardReport(doc, {
@@ -4671,7 +5487,13 @@ export const buildInspectionReportPdf = async ({
       technician,
     });
   } else {
-    await renderGenericReport(doc, { template, report, job, property, technician });
+    await renderGenericReport(doc, {
+      template,
+      report,
+      job,
+      property,
+      technician,
+    });
   }
 
   // Enhanced Fault & Rectification Summary
@@ -4687,7 +5509,7 @@ export const buildInspectionReportPdf = async ({
       .font("Helvetica")
       .text(report.notes, PAGE.margin, doc.y, {
         width: doc.page.width - PAGE.margin * 2,
-        lineGap: 3
+        lineGap: 3,
       });
 
     doc.y += 40;
