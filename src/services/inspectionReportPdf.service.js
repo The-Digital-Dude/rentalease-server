@@ -515,6 +515,15 @@ const drawPropertyDetailsSection = (
   doc,
   { property, job, technician, report, template }
 ) => {
+  // Add new page with header for property details
+  doc.addPage();
+  currentPageNumber++;
+
+  // Add header to property details page
+  const startY = drawPageHeader(doc);
+  doc.y = startY;
+  doc.fillColor(COLORS.text);
+
   const propertyAddress =
     property?.address?.fullAddress ||
     property?.address?.street ||
@@ -525,8 +534,8 @@ const drawPropertyDetailsSection = (
     "Inspector Name Not Available";
   const reportTitle = getReportTitle(template, job);
 
-  // Add equal top spacing
-  doc.y += 40;
+  // Add spacing after header
+  doc.y += 20;
 
   // Main header with report title
   doc
@@ -542,6 +551,7 @@ const drawPropertyDetailsSection = (
 
   // Property Details Section
   drawSectionHeader(doc, "Details");
+
 
   const detailsY = doc.y;
   const tableWidth = doc.page.width - PAGE.margin * 2;
@@ -560,8 +570,7 @@ const drawPropertyDetailsSection = (
     if (index % 2 === 0) {
       doc
         .rect(PAGE.margin, rowY - 5, tableWidth, 25)
-        .fill(COLORS.neutralBackground)
-        .stroke();
+        .fill(COLORS.neutralBackground);
     }
 
     // Label
@@ -760,7 +769,7 @@ const drawSignatureFromData = async (doc, signatureData, x, y, maxWidth = 200, m
   }
 };
 
-const drawDeclarationSection = (doc, { template, job, technician, report }) => {
+const drawDeclarationSection = async (doc, { template, job, technician, report }) => {
   ensurePageSpace(doc, 200);
   drawSectionHeader(doc, "Declaration & Certification");
 
@@ -815,31 +824,80 @@ const drawDeclarationSection = (doc, { template, job, technician, report }) => {
 
   doc.y += 20;
 
+  // Look for signature data in form responses
+  const formData = report?.formData || {};
+  let signatureData = null;
+
+  console.log('[PDF] Looking for signature data in formData:', Object.keys(formData));
+
+  // Check all sections for signature fields
+  Object.keys(formData).forEach(sectionId => {
+    const sectionData = formData[sectionId] || {};
+    Object.keys(sectionData).forEach(fieldId => {
+      const fieldValue = sectionData[fieldId];
+      const fieldType = typeof fieldValue;
+      const fieldPreview = fieldType === 'string' ? fieldValue.substring(0, 50) : fieldValue;
+      console.log(`[PDF] Checking field ${sectionId}.${fieldId}:`, fieldType, fieldPreview);
+
+      if (fieldId.includes('signature') && fieldType === 'string' && fieldValue && fieldValue.startsWith('data:')) {
+        signatureData = fieldValue;
+        console.log('[PDF] Found signature data:', signatureData.substring(0, 100));
+      }
+    });
+  });
+
+  console.log('[PDF] Final signatureData:', signatureData ? 'Found' : 'Not found');
+
   // Signature box
   const boxY = doc.y;
-  doc.roundedRect(PAGE.margin, boxY, 300, 60, 8).stroke(COLORS.border);
 
-  doc
-    .fontSize(9)
-    .font("Helvetica")
-    .fillColor(COLORS.textSecondary)
-    .text("Inspector Name:", PAGE.margin + 10, boxY + 10)
-    .text(inspectorName, PAGE.margin + 10, boxY + 25)
-    .text("Date:", PAGE.margin + 10, boxY + 40)
-    .text(
-      formatDisplayDate(report?.submittedAt || new Date()),
-      PAGE.margin + 80,
-      boxY + 40
-    );
+  if (signatureData) {
+    // Draw larger box to accommodate signature
+    doc.roundedRect(PAGE.margin, boxY, 400, 100, 8).stroke(COLORS.border);
 
-  // Digital signature indicator
-  doc
-    .fillColor(COLORS.success)
-    .fontSize(10)
-    .font("Helvetica-Bold")
-    .text("✓ Digitally Certified", PAGE.margin + 320, boxY + 25);
+    doc
+      .fontSize(9)
+      .font("Helvetica")
+      .fillColor(COLORS.textSecondary)
+      .text("Inspector Name:", PAGE.margin + 10, boxY + 10)
+      .text(inspectorName, PAGE.margin + 10, boxY + 25)
+      .text("Date:", PAGE.margin + 10, boxY + 40)
+      .text(
+        formatDisplayDate(report?.submittedAt || new Date()),
+        PAGE.margin + 80,
+        boxY + 40
+      );
 
-  doc.y = boxY + 80;
+    // Draw actual signature
+    await drawSignatureFromData(doc, signatureData, PAGE.margin + 250, boxY + 10, 140, 70);
+
+    doc.y = boxY + 110;
+  } else {
+    // Original smaller box
+    doc.roundedRect(PAGE.margin, boxY, 300, 60, 8).stroke(COLORS.border);
+
+    doc
+      .fontSize(9)
+      .font("Helvetica")
+      .fillColor(COLORS.textSecondary)
+      .text("Inspector Name:", PAGE.margin + 10, boxY + 10)
+      .text(inspectorName, PAGE.margin + 10, boxY + 25)
+      .text("Date:", PAGE.margin + 10, boxY + 40)
+      .text(
+        formatDisplayDate(report?.submittedAt || new Date()),
+        PAGE.margin + 80,
+        boxY + 40
+      );
+
+    // Digital signature indicator (fallback)
+    doc
+      .fillColor(COLORS.success)
+      .fontSize(10)
+      .font("Helvetica-Bold")
+      .text("✓ Digitally Certified", PAGE.margin + 320, boxY + 25);
+
+    doc.y = boxY + 80;
+  }
 };
 
 const drawGasHazardsSection = (doc) => {
@@ -4426,21 +4484,6 @@ const drawComplianceDeclaration = (doc, section, responses = {}, report) => {
 
   doc.y += 40;
 
-  // Signature area
-  if (hasSignature) {
-    doc
-      .fillColor(COLORS.text)
-      .fontSize(10)
-      .font("Helvetica-Bold")
-      .text("Signed by gasfitter:", PAGE.margin + 10, doc.y);
-
-    doc
-      .roundedRect(PAGE.margin + 10, doc.y + 20, 220, 34, 8)
-      .stroke(COLORS.border)
-      .fillColor(COLORS.success)
-      .fontSize(10)
-      .text("✓ Digitally Signed", PAGE.margin + 26, doc.y + 32);
-  }
 
   // Next check due
   const nextCheckDue = responses["next-check-due"];
@@ -4562,6 +4605,7 @@ const renderSmokeOnlyReport = async (
     getSectionValues("compliance-assessment") ||
     getSectionValues("property-level-findings");
   const compliance = getSectionValues("compliance-next-steps");
+  const complianceSummary = getSectionValues("compliance-summary");
   const signoff =
     getSectionValues("certification-declaration") ||
     getSectionValues("technician-signoff");
@@ -4587,6 +4631,7 @@ const renderSmokeOnlyReport = async (
 
     if (
       lower === "compliant" ||
+      lower === "fully-compliant" ||
       (lower.includes("compliant") && !lower.includes("non"))
     ) {
       return "✅ Compliant";
@@ -4604,10 +4649,19 @@ const renderSmokeOnlyReport = async (
     return raw;
   };
 
+  // Check all possible sources for overall compliance status
+  const complianceOverallStatus = compliance?.["overall-status"];
+  const summaryOverallStatus = inspectionSummary["overall-status"];
+  const assessmentOverallStatus = complianceAssessment["overall-status"];
+  const combinedComplianceStatus = compliance?.["combined-compliance-status"];
+  const complianceSummaryStatus = complianceSummary?.["overall-smoke-compliance"];
+
   const manualOverallStatus = normalizeOverallStatus(
-    compliance?.["overall-status"] ||
-      inspectionSummary["overall-status"] ||
-      complianceAssessment["overall-status"]
+    complianceOverallStatus ||
+      summaryOverallStatus ||
+      assessmentOverallStatus ||
+      combinedComplianceStatus ||
+      complianceSummaryStatus
   );
 
   const overallStatusDisplay =
@@ -4617,8 +4671,8 @@ const renderSmokeOnlyReport = async (
       ? "✅ Compliant"
       : "❌ Non-Compliant";
 
-  // Draw report header section
-  ensurePageSpace(doc, 100);
+  // Draw report header section (continue from current page position)
+  doc.y += 30; // Add some spacing after property details
   drawSectionHeader(doc, "Smoke Alarm Inspection Summary");
 
   doc
@@ -4988,7 +5042,7 @@ export const buildInspectionReportPdf = async ({
   if (template?.jobType === "Gas" || template?.title?.toLowerCase().includes("gas")) {
     drawGasHazardsSection(doc);
   }
-  drawDeclarationSection(doc, { template, job, technician, report });
+  await drawDeclarationSection(doc, { template, job, technician, report });
 
   // Next Steps & Compliance Schedule
   drawNextStepsSection(doc, { template, job, report });
