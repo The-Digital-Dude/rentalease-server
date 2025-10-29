@@ -762,7 +762,7 @@ const gasTemplate = {
         },
       ],
     },
-    {
+    /*  {
       id: "fault-identification",
       title: "Details Of Identified Faults & Remedial Action To Be Taken",
       description: "Document any faults found and required remedial actions",
@@ -802,7 +802,7 @@ const gasTemplate = {
           helpText: "Take a photo of the identified fault",
         },
       ],
-    },
+    }, */
     {
       id: "compliance-declaration",
       title: "Appliance Servicing Regulation",

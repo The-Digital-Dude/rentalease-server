@@ -728,281 +728,281 @@ const drawChecksAndOutcomesSection = async (
 };
 
 // New function to draw Details Of Identified Faults section with proper column widths
-const drawDetailsOfIdentifiedFaultsSection = async (
-  doc,
-  { template, report, job, property, technician }
-) => {
-  ensurePageSpace(doc, 100);
+// const drawDetailsOfIdentifiedFaultsSection = async (
+//   doc,
+//   { template, report, job, property, technician }
+// ) => {
+//   ensurePageSpace(doc, 100);
 
-  drawSectionHeader(
-    doc,
-    "Details Of Identified Faults & Remedial Action To Be Taken"
-  );
+//   drawSectionHeader(
+//     doc,
+//     "Details Of Identified Faults & Remedial Action To Be Taken"
+//   );
 
-  const tableWidth = doc.page.width - PAGE.margin * 2;
+//   const tableWidth = doc.page.width - PAGE.margin * 2;
 
-  // Better column width distribution to prevent overlapping
-  const faultWidth = Math.floor(tableWidth * 0.25); // 25% for Identified Fault(s)
-  const rectificationWidth = Math.floor(tableWidth * 0.25); // 25% for Rectification
-  const locationWidth = Math.floor(tableWidth * 0.15); // 15% for Location
-  const assessmentWidth = Math.floor(tableWidth * 0.2); // 20% for Assessment
-  const repairWidth =
-    tableWidth -
-    faultWidth -
-    rectificationWidth -
-    locationWidth -
-    assessmentWidth; // 15% for Repair Completed
+//   // Better column width distribution to prevent overlapping
+//   const faultWidth = Math.floor(tableWidth * 0.25); // 25% for Identified Fault(s)
+//   const rectificationWidth = Math.floor(tableWidth * 0.25); // 25% for Rectification
+//   const locationWidth = Math.floor(tableWidth * 0.15); // 15% for Location
+//   const assessmentWidth = Math.floor(tableWidth * 0.2); // 20% for Assessment
+//   const repairWidth =
+//     tableWidth -
+//     faultWidth -
+//     rectificationWidth -
+//     locationWidth -
+//     assessmentWidth; // 15% for Repair Completed
 
-  // Table header
-  const headerY = doc.y;
-  const headerHeight = 35; // Increased height for better text fit
+//   // Table header
+//   const headerY = doc.y;
+//   const headerHeight = 35; // Increased height for better text fit
 
-  // Header backgrounds
-  doc
-    .rect(PAGE.margin, headerY, faultWidth, headerHeight)
-    .fill(COLORS.primary)
-    .stroke();
+//   // Header backgrounds
+//   doc
+//     .rect(PAGE.margin, headerY, faultWidth, headerHeight)
+//     .fill(COLORS.primary)
+//     .stroke();
 
-  doc
-    .rect(PAGE.margin + faultWidth, headerY, rectificationWidth, headerHeight)
-    .fill(COLORS.primary)
-    .stroke();
+//   doc
+//     .rect(PAGE.margin + faultWidth, headerY, rectificationWidth, headerHeight)
+//     .fill(COLORS.primary)
+//     .stroke();
 
-  doc
-    .rect(
-      PAGE.margin + faultWidth + rectificationWidth,
-      headerY,
-      locationWidth,
-      headerHeight
-    )
-    .fill(COLORS.primary)
-    .stroke();
+//   doc
+//     .rect(
+//       PAGE.margin + faultWidth + rectificationWidth,
+//       headerY,
+//       locationWidth,
+//       headerHeight
+//     )
+//     .fill(COLORS.primary)
+//     .stroke();
 
-  doc
-    .rect(
-      PAGE.margin + faultWidth + rectificationWidth + locationWidth,
-      headerY,
-      assessmentWidth,
-      headerHeight
-    )
-    .fill(COLORS.primary)
-    .stroke();
+//   doc
+//     .rect(
+//       PAGE.margin + faultWidth + rectificationWidth + locationWidth,
+//       headerY,
+//       assessmentWidth,
+//       headerHeight
+//     )
+//     .fill(COLORS.primary)
+//     .stroke();
 
-  doc
-    .rect(
-      PAGE.margin +
-        faultWidth +
-        rectificationWidth +
-        locationWidth +
-        assessmentWidth,
-      headerY,
-      repairWidth,
-      headerHeight
-    )
-    .fill(COLORS.primary)
-    .stroke();
+//   doc
+//     .rect(
+//       PAGE.margin +
+//         faultWidth +
+//         rectificationWidth +
+//         locationWidth +
+//         assessmentWidth,
+//       headerY,
+//       repairWidth,
+//       headerHeight
+//     )
+//     .fill(COLORS.primary)
+//     .stroke();
 
-  // Header text
-  doc.fillColor("white").fontSize(9).font("Helvetica-Bold");
+//   // Header text
+//   doc.fillColor("white").fontSize(9).font("Helvetica-Bold");
 
-  doc.text("Identified Fault(s)", PAGE.margin + 5, headerY + 8, {
-    width: faultWidth - 10,
-    align: "left",
-  });
+//   doc.text("Identified Fault(s)", PAGE.margin + 5, headerY + 8, {
+//     width: faultWidth - 10,
+//     align: "left",
+//   });
 
-  doc.text("Rectification", PAGE.margin + faultWidth + 5, headerY + 8, {
-    width: rectificationWidth - 10,
-    align: "left",
-  });
+//   doc.text("Rectification", PAGE.margin + faultWidth + 5, headerY + 8, {
+//     width: rectificationWidth - 10,
+//     align: "left",
+//   });
 
-  doc.text(
-    "Location",
-    PAGE.margin + faultWidth + rectificationWidth + 5,
-    headerY + 8,
-    {
-      width: locationWidth - 10,
-      align: "left",
-    }
-  );
+//   doc.text(
+//     "Location",
+//     PAGE.margin + faultWidth + rectificationWidth + 5,
+//     headerY + 8,
+//     {
+//       width: locationWidth - 10,
+//       align: "left",
+//     }
+//   );
 
-  doc.text(
-    "Assessment",
-    PAGE.margin + faultWidth + rectificationWidth + locationWidth + 5,
-    headerY + 8,
-    {
-      width: assessmentWidth - 10,
-      align: "left",
-    }
-  );
+//   doc.text(
+//     "Assessment",
+//     PAGE.margin + faultWidth + rectificationWidth + locationWidth + 5,
+//     headerY + 8,
+//     {
+//       width: assessmentWidth - 10,
+//       align: "left",
+//     }
+//   );
 
-  doc.text(
-    "Repair Completed?",
-    PAGE.margin +
-      faultWidth +
-      rectificationWidth +
-      locationWidth +
-      assessmentWidth +
-      5,
-    headerY + 8,
-    {
-      width: repairWidth - 10,
-      align: "left",
-    }
-  );
+//   doc.text(
+//     "Repair Completed?",
+//     PAGE.margin +
+//       faultWidth +
+//       rectificationWidth +
+//       locationWidth +
+//       assessmentWidth +
+//       5,
+//     headerY + 8,
+//     {
+//       width: repairWidth - 10,
+//       align: "left",
+//     }
+//   );
 
-  doc.y = headerY + headerHeight;
+//   doc.y = headerY + headerHeight;
 
-  // Get faults from the report or template data
-  const faults = (report.sectionsSummary || []).filter((item) => item.flag);
-  const faultSection = (template?.sections || []).find(
-    (s) => s.id === "fault-identification"
-  );
-  const faultResponses = report.formData?.[faultSection?.id] || {};
+//   // Get faults from the report or template data
+//   const faults = (report.sectionsSummary || []).filter((item) => item.flag);
+//   const faultSection = (template?.sections || []).find(
+//     (s) => s.id === "fault-identification"
+//   );
+//   const faultResponses = report.formData?.[faultSection?.id] || {};
 
-  if (faults.length > 0 || Object.keys(faultResponses).length > 0) {
-    // Show actual faults data or fallback to form data
-    const rowsToShow = Math.max(1, faults.length);
+//   if (faults.length > 0 || Object.keys(faultResponses).length > 0) {
+//     // Show actual faults data or fallback to form data
+//     const rowsToShow = Math.max(1, faults.length);
 
-    for (let i = 0; i < rowsToShow; i++) {
-      const fault = faults[i];
-      const rowY = doc.y;
-      const rowHeight = 45;
+//     for (let i = 0; i < rowsToShow; i++) {
+//       const fault = faults[i];
+//       const rowY = doc.y;
+//       const rowHeight = 45;
 
-      // Alternate row background
-      if (i % 2 === 0) {
-        doc
-          .rect(PAGE.margin, rowY, tableWidth, rowHeight)
-          .fill(COLORS.neutralBackground);
-      }
+//       // Alternate row background
+//       if (i % 2 === 0) {
+//         doc
+//           .rect(PAGE.margin, rowY, tableWidth, rowHeight)
+//           .fill(COLORS.neutralBackground);
+//       }
 
-      // Row borders
-      doc.rect(PAGE.margin, rowY, faultWidth, rowHeight).stroke(COLORS.border);
-      doc
-        .rect(PAGE.margin + faultWidth, rowY, rectificationWidth, rowHeight)
-        .stroke(COLORS.border);
-      doc
-        .rect(
-          PAGE.margin + faultWidth + rectificationWidth,
-          rowY,
-          locationWidth,
-          rowHeight
-        )
-        .stroke(COLORS.border);
-      doc
-        .rect(
-          PAGE.margin + faultWidth + rectificationWidth + locationWidth,
-          rowY,
-          assessmentWidth,
-          rowHeight
-        )
-        .stroke(COLORS.border);
-      doc
-        .rect(
-          PAGE.margin +
-            faultWidth +
-            rectificationWidth +
-            locationWidth +
-            assessmentWidth,
-          rowY,
-          repairWidth,
-          rowHeight
-        )
-        .stroke(COLORS.border);
+//       // Row borders
+//       doc.rect(PAGE.margin, rowY, faultWidth, rowHeight).stroke(COLORS.border);
+//       doc
+//         .rect(PAGE.margin + faultWidth, rowY, rectificationWidth, rowHeight)
+//         .stroke(COLORS.border);
+//       doc
+//         .rect(
+//           PAGE.margin + faultWidth + rectificationWidth,
+//           rowY,
+//           locationWidth,
+//           rowHeight
+//         )
+//         .stroke(COLORS.border);
+//       doc
+//         .rect(
+//           PAGE.margin + faultWidth + rectificationWidth + locationWidth,
+//           rowY,
+//           assessmentWidth,
+//           rowHeight
+//         )
+//         .stroke(COLORS.border);
+//       doc
+//         .rect(
+//           PAGE.margin +
+//             faultWidth +
+//             rectificationWidth +
+//             locationWidth +
+//             assessmentWidth,
+//           rowY,
+//           repairWidth,
+//           rowHeight
+//         )
+//         .stroke(COLORS.border);
 
-      // Content
-      const faultText =
-        fault?.label ||
-        faultResponses["fault-identified"] ||
-        (i === 0 ? "Cracked roof" : "—");
-      const rectificationText =
-        faultResponses["rectification-required"] || "Instant fix";
-      const locationText = faultResponses["fault-location"] || "Roof";
-      const assessmentText =
-        faultResponses["assessment-status"] || "non-compliant";
-      const repairText = "No";
+//       // Content
+//       const faultText =
+//         fault?.label ||
+//         faultResponses["fault-identified"] ||
+//         (i === 0 ? "Cracked roof" : "—");
+//       const rectificationText =
+//         faultResponses["rectification-required"] || "Instant fix";
+//       const locationText = faultResponses["fault-location"] || "Roof";
+//       const assessmentText =
+//         faultResponses["assessment-status"] || "non-compliant";
+//       const repairText = "No";
 
-      doc.fillColor(COLORS.text).fontSize(8).font("Helvetica");
+//       doc.fillColor(COLORS.text).fontSize(8).font("Helvetica");
 
-      // Fault description
-      doc.text(faultText, PAGE.margin + 5, rowY + 10, {
-        width: faultWidth - 10,
-        height: rowHeight - 20,
-      });
+//       // Fault description
+//       doc.text(faultText, PAGE.margin + 5, rowY + 10, {
+//         width: faultWidth - 10,
+//         height: rowHeight - 20,
+//       });
 
-      // Rectification
-      doc.text(rectificationText, PAGE.margin + faultWidth + 5, rowY + 10, {
-        width: rectificationWidth - 10,
-        height: rowHeight - 20,
-      });
+//       // Rectification
+//       doc.text(rectificationText, PAGE.margin + faultWidth + 5, rowY + 10, {
+//         width: rectificationWidth - 10,
+//         height: rowHeight - 20,
+//       });
 
-      // Location
-      doc.text(
-        locationText,
-        PAGE.margin + faultWidth + rectificationWidth + 5,
-        rowY + 10,
-        {
-          width: locationWidth - 10,
-          height: rowHeight - 20,
-        }
-      );
+//       // Location
+//       doc.text(
+//         locationText,
+//         PAGE.margin + faultWidth + rectificationWidth + 5,
+//         rowY + 10,
+//         {
+//           width: locationWidth - 10,
+//           height: rowHeight - 20,
+//         }
+//       );
 
-      // Assessment
-      doc.text(
-        assessmentText,
-        PAGE.margin + faultWidth + rectificationWidth + locationWidth + 5,
-        rowY + 10,
-        {
-          width: assessmentWidth - 10,
-          height: rowHeight - 20,
-        }
-      );
+//       // Assessment
+//       doc.text(
+//         assessmentText,
+//         PAGE.margin + faultWidth + rectificationWidth + locationWidth + 5,
+//         rowY + 10,
+//         {
+//           width: assessmentWidth - 10,
+//           height: rowHeight - 20,
+//         }
+//       );
 
-      // Repair status
-      doc
-        .fillColor(COLORS.error)
-        .font("Helvetica-Bold")
-        .text(
-          repairText,
-          PAGE.margin +
-            faultWidth +
-            rectificationWidth +
-            locationWidth +
-            assessmentWidth +
-            5,
-          rowY + 18
-        );
+//       // Repair status
+//       doc
+//         .fillColor(COLORS.error)
+//         .font("Helvetica-Bold")
+//         .text(
+//           repairText,
+//           PAGE.margin +
+//             faultWidth +
+//             rectificationWidth +
+//             locationWidth +
+//             assessmentWidth +
+//             5,
+//           rowY + 18
+//         );
 
-      doc.y += rowHeight;
-    }
-  } else {
-    // No faults found
-    const rowY = doc.y;
-    const rowHeight = 40;
+//       doc.y += rowHeight;
+//     }
+//   } else {
+//     // No faults found
+//     const rowY = doc.y;
+//     const rowHeight = 40;
 
-    doc
-      .rect(PAGE.margin, rowY, tableWidth, rowHeight)
-      .fill(COLORS.neutralBackground)
-      .stroke(COLORS.border);
+//     doc
+//       .rect(PAGE.margin, rowY, tableWidth, rowHeight)
+//       .fill(COLORS.neutralBackground)
+//       .stroke(COLORS.border);
 
-    doc
-      .fillColor(COLORS.success)
-      .fontSize(12)
-      .font("Helvetica-Bold")
-      .text(
-        "No faults identified during inspection",
-        PAGE.margin + 10,
-        rowY + 12,
-        {
-          width: tableWidth - 20,
-          align: "center",
-        }
-      );
+//     doc
+//       .fillColor(COLORS.success)
+//       .fontSize(12)
+//       .font("Helvetica-Bold")
+//       .text(
+//         "No faults identified during inspection",
+//         PAGE.margin + 10,
+//         rowY + 12,
+//         {
+//           width: tableWidth - 20,
+//           align: "center",
+//         }
+//       );
 
-    doc.y += rowHeight;
-  }
+//     doc.y += rowHeight;
+//   }
 
-  doc.y += 30;
-};
+//   doc.y += 30;
+// };
 
 const drawDeclarationSection = (doc, { template, job, technician, report }) => {
   ensurePageSpace(doc, 200);
