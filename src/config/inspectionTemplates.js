@@ -228,27 +228,23 @@ const createElectricalSmokeSections = () => [
         id: "previous-inspection-date",
         label: "Date of previous safety check (if any)",
         type: "date",
-        defaultValue: "2023-10-07",
       },
       {
         id: "inspector-name",
         label: "Inspector name",
         type: "text",
         required: true,
-        defaultValue: "Daniel Smith",
       },
       {
         id: "license-number",
         label: "Licence/registration number",
         type: "text",
         required: true,
-        defaultValue: "32399",
       },
       {
         id: "registration-number",
         label: "Additional registration number",
         type: "text",
-        defaultValue: "EW123456",
       },
       {
         id: "electrical-outcome",
@@ -286,13 +282,11 @@ const createElectricalSmokeSections = () => [
         id: "contact-email",
         label: "Contact email",
         type: "text",
-        defaultValue: "support@checkhero.com.au",
       },
       {
         id: "contact-phone",
         label: "Contact phone",
         type: "text",
-        defaultValue: "03 7067 8237",
       },
     ],
   },
@@ -469,14 +463,12 @@ const createElectricalSmokeSections = () => [
         label: "Electrical safety check completed by",
         type: "text",
         required: true,
-        defaultValue: "Daniel Smith",
       },
       {
         id: "certification-licence-number",
         label: "Licence/registration number",
         type: "text",
         required: true,
-        defaultValue: "32399",
       },
       {
         id: "certification-inspection-date",
@@ -762,47 +754,6 @@ const gasTemplate = {
         },
       ],
     },
-    /*  {
-      id: "fault-identification",
-      title: "Details Of Identified Faults & Remedial Action To Be Taken",
-      description: "Document any faults found and required remedial actions",
-      fields: [
-        {
-          id: "fault-identified",
-          label: "Identified Fault(s)",
-          type: "textarea",
-          placeholder: "Describe any faults identified during the inspection",
-        },
-        {
-          id: "rectification-required",
-          label: "Rectification Required",
-          type: "textarea",
-          placeholder: "Detail the rectification work required",
-        },
-        {
-          id: "fault-location",
-          label: "Location",
-          type: "text",
-          placeholder: "Specify the location of the fault",
-        },
-        {
-          id: "assessment-status",
-          label: "Assessment",
-          type: "select",
-          options: [
-            { value: "compliant", label: "Compliant" },
-            { value: "non-compliant", label: "Non Compliant" },
-            { value: "unsafe", label: "Unsafe" },
-          ],
-        },
-        {
-          id: "fault-image",
-          label: "Assessment Image",
-          type: "photo",
-          helpText: "Take a photo of the identified fault",
-        },
-      ],
-    }, */
     {
       id: "compliance-declaration",
       title: "Appliance Servicing Regulation",
@@ -892,7 +843,6 @@ const createElectricalSections = () => [
         label: "Inspector name",
         type: "text",
         required: true,
-        defaultValue: "Jordan Smith",
       },
       {
         id: "license-number",
@@ -1038,48 +988,6 @@ const createElectricalSections = () => [
       },
     ],
   },
-  {
-    id: "fault-identification",
-    title: "Identified Faults & Remedial Actions",
-    description: "Document any faults found and required remedial actions.",
-    fields: [
-      {
-        id: "fault-identified",
-        label: "Identified Fault(s)",
-        type: "textarea",
-        placeholder: "Describe any faults identified during the inspection",
-      },
-      {
-        id: "rectification-required",
-        label: "Rectification Required",
-        type: "textarea",
-        placeholder: "Detail the rectification work required",
-      },
-      {
-        id: "fault-location",
-        label: "Location",
-        type: "text",
-        placeholder: "Specify the location of the fault",
-      },
-      {
-        id: "assessment-status",
-        label: "Assessment",
-        type: "select",
-        options: [
-          { value: "compliant", label: "Compliant" },
-          { value: "non-compliant", label: "Non Compliant" },
-          { value: "unsafe", label: "Unsafe" },
-        ],
-        defaultValue: "compliant",
-      },
-      {
-        id: "fault-image",
-        label: "Assessment Image",
-        type: "photo",
-        helpText: "Take a photo of the identified fault",
-      },
-    ],
-  },
   buildSmokeAlarmsSection(),
   {
     id: "inspection-photos",
@@ -1123,7 +1031,6 @@ const createElectricalSections = () => [
         label: "Electrical safety check completed by",
         type: "text",
         required: true,
-        defaultValue: "Jordan Smith",
       },
       {
         id: "certification-licence-number",
@@ -2817,8 +2724,7 @@ const createMinimumSafetyStandardTemplate = (
           type: "text",
           required: true,
           placeholder: "Enter inspector's full name",
-          defaultValue: "Auto Inspector",
-        },
+          },
         {
           id: "inspector-license",
           label: "Inspector License Number",
@@ -2833,7 +2739,6 @@ const createMinimumSafetyStandardTemplate = (
           type: "textarea",
           required: true,
           placeholder: "Enter complete property address",
-          defaultValue: "123 Example Street, Exampleville",
         },
         {
           id: "owner-name",
@@ -4114,14 +4019,12 @@ const createSmokeOnlySections = () => [
         label: "Inspector name",
         type: "text",
         required: true,
-        defaultValue: "Daniel Smith",
       },
       {
         id: "license-number",
         label: "Licence/registration number",
         type: "text",
         required: true,
-        defaultValue: "EW123456",
       },
       {
         id: "smoke-outcome",
@@ -4722,14 +4625,12 @@ const createSmokeOnlySections = () => [
         label: "Inspector Full Name",
         type: "text",
         required: true,
-        defaultValue: "Daniel Smith",
       },
       {
         id: "inspector-details-license",
         label: "Licence/Registration Number",
         type: "text",
         required: true,
-        defaultValue: "EW123456",
       },
       {
         id: "inspector-details-company",

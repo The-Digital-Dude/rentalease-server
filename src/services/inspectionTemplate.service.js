@@ -80,6 +80,82 @@ export const listTemplates = async (filters = {}) => {
   return templates;
 };
 
+// Function to prefill template with job, property, and technician data
+export const prefillTemplateWithJobData = (template, job, property, technician) => {
+  if (!template || !job) {
+    return template;
+  }
+
+  const inspectorName = `${technician?.firstName || ''} ${technician?.lastName || ''}`.trim();
+  const currentDate = new Date().toISOString().split('T')[0];
+
+  const prefillMap = {
+    // Inspector/Technician information
+    'inspector-name': inspectorName,
+    'inspector-details-name': inspectorName,
+    'technician-name': inspectorName,
+    'electrical-safety-check-completed-by': inspectorName,
+    'certification-electrician-name': inspectorName,
+    'license-number': technician?.licenseNumber || '',
+    'inspector-details-license': technician?.licenseNumber || '',
+    'registration-number': technician?.registrationNumber || '',
+    'licence-registration-number': technician?.licenseNumber || '',
+    'certification-licence-number': technician?.licenseNumber || '',
+
+    // Property information
+    'property-address': property?.address || '',
+    'property-location': property?.address || '',
+    'property-type': property?.propertyType || '',
+    'property-id': property?._id?.toString() || '',
+    'bedroom-count': property?.bedroomCount || '',
+    'bathroom-count': property?.bathroomCount || '',
+
+    // Job information
+    'job-id': job?.job_id || '',
+    'job-type': job?.jobType || '',
+    'inspection-date': currentDate,
+    'report-date': currentDate,
+    'completion-date': currentDate,
+    'signed-date': currentDate,
+
+    // Contact information
+    'contact-email': property?.contactEmail || technician?.email || '',
+    'contact-phone': property?.contactPhone || technician?.phone || '',
+
+    // Service dates - set next service to 12 months from now
+    'next-service-due': new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+
+    // Company information
+    'inspector-details-company': 'RentalEase Property Services Pty Ltd',
+    'company-name': 'RentalEase Property Services Pty Ltd',
+  };
+
+  // Deep clone the template to avoid modifying the original
+  const prefilledTemplate = JSON.parse(JSON.stringify(template));
+
+  // Recursively prefill fields in all sections
+  const prefillFields = (fields) => {
+    return fields.map(field => {
+      if (prefillMap[field.id]) {
+        return {
+          ...field,
+          defaultValue: prefillMap[field.id]
+        };
+      }
+      return field;
+    });
+  };
+
+  if (prefilledTemplate.sections) {
+    prefilledTemplate.sections = prefilledTemplate.sections.map(section => ({
+      ...section,
+      fields: prefillFields(section.fields || [])
+    }));
+  }
+
+  return prefilledTemplate;
+};
+
 export const serializeTemplate = (template) => {
   if (!template) {
     return null;

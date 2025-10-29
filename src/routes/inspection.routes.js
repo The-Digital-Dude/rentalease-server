@@ -10,11 +10,14 @@ import {
   getTemplateByJobType,
   serializeTemplate,
   cleanupOldTemplateVersions,
+  prefillTemplateWithJobData,
 } from "../services/inspectionTemplate.service.js";
 import { submitInspectionReport } from "../services/inspectionReport.service.js";
 import InspectionReport from "../models/InspectionReport.js";
 import Property from "../models/Property.js";
 import PropertyManager from "../models/PropertyManager.js";
+import Job from "../models/Job.js";
+import Technician from "../models/Technician.js";
 
 const router = express.Router();
 
@@ -51,6 +54,94 @@ router.get(
       res.status(500).json({
         status: "error",
         message: error.message || "Failed to load inspection templates",
+      });
+    }
+  }
+);
+
+// Get job-specific template with prefilled data
+router.get(
+  "/jobs/:jobId/template",
+  authenticateUserTypes(["Technician", "SuperUser", "TeamMember"]),
+  async (req, res) => {
+    try {
+      const { jobId } = req.params;
+      ensureValidObjectId(jobId, "Job ID");
+
+      // Fetch job with property and technician data
+      const job = await Job.findById(jobId)
+        .populate('property')
+        .populate('assignedTechnician');
+
+      if (!job) {
+        return res.status(404).json({
+          status: "error",
+          message: "Job not found",
+        });
+      }
+
+      // Check if technician has access to this job
+      if (req.technician && job.assignedTechnician?._id.toString() !== req.technician.id.toString()) {
+        return res.status(403).json({
+          status: "error",
+          message: "Access denied. You are not assigned to this job.",
+        });
+      }
+
+      // Get the template for this job type
+      const options = {};
+      if (job.property?.bedroomCount) options.bedroomCount = job.property.bedroomCount;
+      if (job.property?.bathroomCount) options.bathroomCount = job.property.bathroomCount;
+
+      const template = await getTemplateByJobType(job.jobType, options);
+      if (!template) {
+        return res.status(404).json({
+          status: "error",
+          message: `No template configured for job type ${job.jobType}`,
+        });
+      }
+
+      // Prefill template with job data
+      const prefilledTemplate = prefillTemplateWithJobData(
+        template,
+        job,
+        job.property,
+        job.assignedTechnician
+      );
+
+      res.status(200).json({
+        status: "success",
+        data: {
+          template: serializeTemplate(prefilledTemplate),
+          job: {
+            id: job._id,
+            job_id: job.job_id,
+            jobType: job.jobType,
+            status: job.status,
+            dueDate: job.dueDate,
+          },
+          property: job.property ? {
+            id: job.property._id,
+            address: job.property.address,
+            propertyType: job.property.propertyType,
+            bedroomCount: job.property.bedroomCount,
+            bathroomCount: job.property.bathroomCount,
+          } : null,
+          technician: job.assignedTechnician ? {
+            id: job.assignedTechnician._id,
+            firstName: job.assignedTechnician.firstName,
+            lastName: job.assignedTechnician.lastName,
+            email: job.assignedTechnician.email,
+            phone: job.assignedTechnician.phone,
+            licenseNumber: job.assignedTechnician.licenseNumber,
+          } : null,
+        },
+      });
+    } catch (error) {
+      console.error("Get job template error:", error);
+      res.status(500).json({
+        status: "error",
+        message: error.message || "Failed to load job template",
       });
     }
   }

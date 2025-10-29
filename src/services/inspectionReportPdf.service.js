@@ -61,7 +61,7 @@ const ensurePageSpace = (doc, required = 80) => {
   return false;
 };
 
-const drawRoomDetailTable = (doc, title, rows = []) => {
+const drawRoomDetailTable = (doc, title, rows = [], options = {}) => {
   if (!rows.length) {
     return;
   }
@@ -82,36 +82,38 @@ const drawRoomDetailTable = (doc, title, rows = []) => {
   const tableWidth = doc.page.width - PAGE.margin * 2;
   const questionWidth = Math.floor(tableWidth * 0.65); // 65% for questions
   const answerWidth = tableWidth - questionWidth;
-  const headerHeight = 26;
+  const headerHeight = options.hideHeaders ? 0 : 26;
 
-  // Draw table header
-  const headerY = doc.y;
-  doc
-    .rect(tableX, headerY, questionWidth, headerHeight)
-    .fill(COLORS.primary)
-    .stroke(COLORS.border);
+  // Draw table header (unless hideHeaders option is true)
+  if (!options.hideHeaders) {
+    const headerY = doc.y;
+    doc
+      .rect(tableX, headerY, questionWidth, headerHeight)
+      .fill(COLORS.primary)
+      .stroke(COLORS.border);
 
-  doc
-    .rect(tableX + questionWidth, headerY, answerWidth, headerHeight)
-    .fill(COLORS.primary)
-    .stroke(COLORS.border);
+    doc
+      .rect(tableX + questionWidth, headerY, answerWidth, headerHeight)
+      .fill(COLORS.primary)
+      .stroke(COLORS.border);
 
-  // Header text
-  doc
-    .fillColor("white")
-    .font("Helvetica-Bold")
-    .fontSize(10)
-    .text("Inspection Item", tableX + 15, headerY + 8, {
-      width: questionWidth - 30,
+    // Header text
+    doc
+      .fillColor("white")
+      .font("Helvetica-Bold")
+      .fontSize(10)
+      .text("Inspection Item", tableX + 15, headerY + 8, {
+        width: questionWidth - 30,
+        align: "left",
+      });
+
+    doc.text("Result", tableX + questionWidth + 15, headerY + 8, {
+      width: answerWidth - 30,
       align: "left",
     });
 
-  doc.text("Result", tableX + questionWidth + 15, headerY + 8, {
-    width: answerWidth - 30,
-    align: "left",
-  });
-
-  doc.y = headerY + headerHeight;
+    doc.y = headerY + headerHeight;
+  }
 
   const questionTextOptions = {
     width: questionWidth - 30,
@@ -727,282 +729,36 @@ const drawChecksAndOutcomesSection = async (
   doc.y += 30;
 };
 
-// New function to draw Details Of Identified Faults section with proper column widths
-// const drawDetailsOfIdentifiedFaultsSection = async (
-//   doc,
-//   { template, report, job, property, technician }
-// ) => {
-//   ensurePageSpace(doc, 100);
 
-//   drawSectionHeader(
-//     doc,
-//     "Details Of Identified Faults & Remedial Action To Be Taken"
-//   );
+const drawSignatureFromData = async (doc, signatureData, x, y, maxWidth = 200, maxHeight = 80) => {
+  if (!signatureData || typeof signatureData !== 'string') {
+    return;
+  }
 
-//   const tableWidth = doc.page.width - PAGE.margin * 2;
+  try {
+    // If it's a base64 data URL, extract the base64 part
+    const base64Data = signatureData.startsWith('data:')
+      ? signatureData.split(',')[1]
+      : signatureData;
 
-//   // Better column width distribution to prevent overlapping
-//   const faultWidth = Math.floor(tableWidth * 0.25); // 25% for Identified Fault(s)
-//   const rectificationWidth = Math.floor(tableWidth * 0.25); // 25% for Rectification
-//   const locationWidth = Math.floor(tableWidth * 0.15); // 15% for Location
-//   const assessmentWidth = Math.floor(tableWidth * 0.2); // 20% for Assessment
-//   const repairWidth =
-//     tableWidth -
-//     faultWidth -
-//     rectificationWidth -
-//     locationWidth -
-//     assessmentWidth; // 15% for Repair Completed
+    // Convert base64 to buffer
+    const imageBuffer = Buffer.from(base64Data, 'base64');
 
-//   // Table header
-//   const headerY = doc.y;
-//   const headerHeight = 35; // Increased height for better text fit
-
-//   // Header backgrounds
-//   doc
-//     .rect(PAGE.margin, headerY, faultWidth, headerHeight)
-//     .fill(COLORS.primary)
-//     .stroke();
-
-//   doc
-//     .rect(PAGE.margin + faultWidth, headerY, rectificationWidth, headerHeight)
-//     .fill(COLORS.primary)
-//     .stroke();
-
-//   doc
-//     .rect(
-//       PAGE.margin + faultWidth + rectificationWidth,
-//       headerY,
-//       locationWidth,
-//       headerHeight
-//     )
-//     .fill(COLORS.primary)
-//     .stroke();
-
-//   doc
-//     .rect(
-//       PAGE.margin + faultWidth + rectificationWidth + locationWidth,
-//       headerY,
-//       assessmentWidth,
-//       headerHeight
-//     )
-//     .fill(COLORS.primary)
-//     .stroke();
-
-//   doc
-//     .rect(
-//       PAGE.margin +
-//         faultWidth +
-//         rectificationWidth +
-//         locationWidth +
-//         assessmentWidth,
-//       headerY,
-//       repairWidth,
-//       headerHeight
-//     )
-//     .fill(COLORS.primary)
-//     .stroke();
-
-//   // Header text
-//   doc.fillColor("white").fontSize(9).font("Helvetica-Bold");
-
-//   doc.text("Identified Fault(s)", PAGE.margin + 5, headerY + 8, {
-//     width: faultWidth - 10,
-//     align: "left",
-//   });
-
-//   doc.text("Rectification", PAGE.margin + faultWidth + 5, headerY + 8, {
-//     width: rectificationWidth - 10,
-//     align: "left",
-//   });
-
-//   doc.text(
-//     "Location",
-//     PAGE.margin + faultWidth + rectificationWidth + 5,
-//     headerY + 8,
-//     {
-//       width: locationWidth - 10,
-//       align: "left",
-//     }
-//   );
-
-//   doc.text(
-//     "Assessment",
-//     PAGE.margin + faultWidth + rectificationWidth + locationWidth + 5,
-//     headerY + 8,
-//     {
-//       width: assessmentWidth - 10,
-//       align: "left",
-//     }
-//   );
-
-//   doc.text(
-//     "Repair Completed?",
-//     PAGE.margin +
-//       faultWidth +
-//       rectificationWidth +
-//       locationWidth +
-//       assessmentWidth +
-//       5,
-//     headerY + 8,
-//     {
-//       width: repairWidth - 10,
-//       align: "left",
-//     }
-//   );
-
-//   doc.y = headerY + headerHeight;
-
-//   // Get faults from the report or template data
-//   const faults = (report.sectionsSummary || []).filter((item) => item.flag);
-//   const faultSection = (template?.sections || []).find(
-//     (s) => s.id === "fault-identification"
-//   );
-//   const faultResponses = report.formData?.[faultSection?.id] || {};
-
-//   if (faults.length > 0 || Object.keys(faultResponses).length > 0) {
-//     // Show actual faults data or fallback to form data
-//     const rowsToShow = Math.max(1, faults.length);
-
-//     for (let i = 0; i < rowsToShow; i++) {
-//       const fault = faults[i];
-//       const rowY = doc.y;
-//       const rowHeight = 45;
-
-//       // Alternate row background
-//       if (i % 2 === 0) {
-//         doc
-//           .rect(PAGE.margin, rowY, tableWidth, rowHeight)
-//           .fill(COLORS.neutralBackground);
-//       }
-
-//       // Row borders
-//       doc.rect(PAGE.margin, rowY, faultWidth, rowHeight).stroke(COLORS.border);
-//       doc
-//         .rect(PAGE.margin + faultWidth, rowY, rectificationWidth, rowHeight)
-//         .stroke(COLORS.border);
-//       doc
-//         .rect(
-//           PAGE.margin + faultWidth + rectificationWidth,
-//           rowY,
-//           locationWidth,
-//           rowHeight
-//         )
-//         .stroke(COLORS.border);
-//       doc
-//         .rect(
-//           PAGE.margin + faultWidth + rectificationWidth + locationWidth,
-//           rowY,
-//           assessmentWidth,
-//           rowHeight
-//         )
-//         .stroke(COLORS.border);
-//       doc
-//         .rect(
-//           PAGE.margin +
-//             faultWidth +
-//             rectificationWidth +
-//             locationWidth +
-//             assessmentWidth,
-//           rowY,
-//           repairWidth,
-//           rowHeight
-//         )
-//         .stroke(COLORS.border);
-
-//       // Content
-//       const faultText =
-//         fault?.label ||
-//         faultResponses["fault-identified"] ||
-//         (i === 0 ? "Cracked roof" : "—");
-//       const rectificationText =
-//         faultResponses["rectification-required"] || "Instant fix";
-//       const locationText = faultResponses["fault-location"] || "Roof";
-//       const assessmentText =
-//         faultResponses["assessment-status"] || "non-compliant";
-//       const repairText = "No";
-
-//       doc.fillColor(COLORS.text).fontSize(8).font("Helvetica");
-
-//       // Fault description
-//       doc.text(faultText, PAGE.margin + 5, rowY + 10, {
-//         width: faultWidth - 10,
-//         height: rowHeight - 20,
-//       });
-
-//       // Rectification
-//       doc.text(rectificationText, PAGE.margin + faultWidth + 5, rowY + 10, {
-//         width: rectificationWidth - 10,
-//         height: rowHeight - 20,
-//       });
-
-//       // Location
-//       doc.text(
-//         locationText,
-//         PAGE.margin + faultWidth + rectificationWidth + 5,
-//         rowY + 10,
-//         {
-//           width: locationWidth - 10,
-//           height: rowHeight - 20,
-//         }
-//       );
-
-//       // Assessment
-//       doc.text(
-//         assessmentText,
-//         PAGE.margin + faultWidth + rectificationWidth + locationWidth + 5,
-//         rowY + 10,
-//         {
-//           width: assessmentWidth - 10,
-//           height: rowHeight - 20,
-//         }
-//       );
-
-//       // Repair status
-//       doc
-//         .fillColor(COLORS.error)
-//         .font("Helvetica-Bold")
-//         .text(
-//           repairText,
-//           PAGE.margin +
-//             faultWidth +
-//             rectificationWidth +
-//             locationWidth +
-//             assessmentWidth +
-//             5,
-//           rowY + 18
-//         );
-
-//       doc.y += rowHeight;
-//     }
-//   } else {
-//     // No faults found
-//     const rowY = doc.y;
-//     const rowHeight = 40;
-
-//     doc
-//       .rect(PAGE.margin, rowY, tableWidth, rowHeight)
-//       .fill(COLORS.neutralBackground)
-//       .stroke(COLORS.border);
-
-//     doc
-//       .fillColor(COLORS.success)
-//       .fontSize(12)
-//       .font("Helvetica-Bold")
-//       .text(
-//         "No faults identified during inspection",
-//         PAGE.margin + 10,
-//         rowY + 12,
-//         {
-//           width: tableWidth - 20,
-//           align: "center",
-//         }
-//       );
-
-//     doc.y += rowHeight;
-//   }
-
-//   doc.y += 30;
-// };
+    // Add the signature image to the PDF
+    doc.image(imageBuffer, x, y, {
+      fit: [maxWidth, maxHeight],
+      align: 'center',
+    });
+  } catch (error) {
+    console.error('Error drawing signature:', error);
+    // Fallback: draw a text placeholder
+    doc
+      .fillColor(COLORS.text)
+      .fontSize(10)
+      .font("Helvetica-Oblique")
+      .text("[Digital Signature]", x, y + maxHeight / 2);
+  }
+};
 
 const drawDeclarationSection = (doc, { template, job, technician, report }) => {
   ensurePageSpace(doc, 200);
@@ -1117,6 +873,11 @@ const drawGasHazardsSection = (doc) => {
   const narrative =
     "If a gasfitter finds a dangerous defect in a gas installation, they must act immediately to make it safe and notify the property owner and occupier. If it’s not possible or reasonable for the gasfitter to fix the issue themselves, they must promptly notify Energy Safe Victoria. They must also inform:";
 
+  // Calculate text height to properly advance y position
+  const narrativeHeight = doc.heightOfString(narrative, {
+    width: doc.page.width - PAGE.margin * 2,
+  });
+
   doc
     .fillColor(COLORS.text)
     .fontSize(10)
@@ -1126,7 +887,7 @@ const drawGasHazardsSection = (doc) => {
       lineGap: 3,
     });
 
-  doc.y += 40;
+  doc.y += narrativeHeight + 20;
 
   bulletPoints.forEach((point) => {
     doc
@@ -1140,12 +901,17 @@ const drawGasHazardsSection = (doc) => {
     doc.y += 18;
   });
 
+  const conclusionText = "This ensures that any hazardous situation is reported and addressed quickly, keeping the property safe and compliant.";
+  const conclusionHeight = doc.heightOfString(conclusionText, {
+    width: doc.page.width - PAGE.margin * 2,
+  });
+
   doc
     .fillColor(COLORS.text)
     .fontSize(10)
     .font("Helvetica")
     .text(
-      "This ensures that any hazardous situation is reported and addressed quickly, keeping the property safe and compliant.",
+      conclusionText,
       PAGE.margin,
       doc.y,
       {
@@ -1154,224 +920,9 @@ const drawGasHazardsSection = (doc) => {
       }
     );
 
-  doc.y += 24;
+  doc.y += conclusionHeight + 30;
 };
 
-const drawFaultSummarySection = (doc, { report, template, job }) => {
-  ensurePageSpace(doc, 120);
-  drawSectionHeader(doc, "Faults & Rectification Summary");
-
-  // Analyze form data to find any reported faults or issues
-  const formData = report?.formData || {};
-  const faults = [];
-
-  // Check for common fault indicators in form data
-  Object.keys(formData).forEach((sectionId) => {
-    const sectionData = formData[sectionId] || {};
-    Object.keys(sectionData).forEach((fieldId) => {
-      const value = sectionData[fieldId];
-
-      // Look for negative responses, failures, or issues
-      if (
-        value === "does_not_meet" ||
-        value === "fail" ||
-        value === "not_present" ||
-        value === "no" ||
-        value === "unsafe" ||
-        value === "non-compliant"
-      ) {
-        // Get comments or action notes for this field
-        const comments =
-          sectionData[`${fieldId}-comments`] ||
-          sectionData[`${fieldId}-action`] ||
-          sectionData[`${fieldId}-notes`] ||
-          "Requires attention";
-
-        faults.push({
-          area: sectionId
-            .replace(/-/g, " ")
-            .replace(/\b\w/g, (l) => l.toUpperCase()),
-          issue: fieldId
-            .replace(/-/g, " ")
-            .replace(/\b\w/g, (l) => l.toUpperCase()),
-          status: value,
-          action: comments,
-          priority:
-            value === "unsafe" ? "High" : value === "fail" ? "Medium" : "Low",
-        });
-      }
-    });
-  });
-
-  if (faults.length > 0) {
-    // Use improved table rendering with proper page management
-    const tableX = PAGE.margin;
-    const tableWidth = doc.page.width - PAGE.margin * 2;
-    const headerHeight = 26;
-
-    // Column widths
-    const areaWidth = 120;
-    const issueWidth = 180;
-    const priorityWidth = 80;
-    const actionWidth = tableWidth - areaWidth - issueWidth - priorityWidth;
-
-    // Ensure space for header + at least 2 rows
-    ensurePageSpace(doc, headerHeight + 80);
-
-    // Header
-    const headerY = doc.y;
-    doc
-      .rect(tableX, headerY, areaWidth, headerHeight)
-      .fill(COLORS.primary)
-      .stroke(COLORS.border);
-
-    doc
-      .rect(tableX + areaWidth, headerY, issueWidth, headerHeight)
-      .fill(COLORS.primary)
-      .stroke(COLORS.border);
-
-    doc
-      .rect(
-        tableX + areaWidth + issueWidth,
-        headerY,
-        priorityWidth,
-        headerHeight
-      )
-      .fill(COLORS.primary)
-      .stroke(COLORS.border);
-
-    doc
-      .rect(
-        tableX + areaWidth + issueWidth + priorityWidth,
-        headerY,
-        actionWidth,
-        headerHeight
-      )
-      .fill(COLORS.primary)
-      .stroke(COLORS.border);
-
-    // Header text
-    doc
-      .fillColor("white")
-      .font("Helvetica-Bold")
-      .fontSize(10)
-      .text("Area", tableX + 10, headerY + 8, {
-        width: areaWidth - 20,
-        align: "left",
-      })
-      .text("Issue", tableX + areaWidth + 10, headerY + 8, {
-        width: issueWidth - 20,
-        align: "left",
-      })
-      .text("Priority", tableX + areaWidth + issueWidth + 10, headerY + 8, {
-        width: priorityWidth - 20,
-        align: "center",
-      })
-      .text(
-        "Required Action",
-        tableX + areaWidth + issueWidth + priorityWidth + 10,
-        headerY + 8,
-        { width: actionWidth - 20, align: "left" }
-      );
-
-    doc.y = headerY + headerHeight;
-
-    // Fault rows with proper page break management
-    faults.forEach((fault, index) => {
-      // Calculate dynamic row height based on content
-      const actionHeight = doc.heightOfString(fault.action, {
-        width: actionWidth - 20,
-        align: "left",
-      });
-      const rowHeight = Math.max(28, actionHeight + 12);
-
-      // Ensure space for this row
-      ensurePageSpace(doc, rowHeight + 5);
-
-      const rowY = doc.y;
-      const fillColor = index % 2 === 0 ? "white" : COLORS.primarySoft;
-
-      // Draw row backgrounds
-      doc
-        .rect(tableX, rowY, areaWidth, rowHeight)
-        .fill(fillColor)
-        .stroke(COLORS.border)
-        .rect(tableX + areaWidth, rowY, issueWidth, rowHeight)
-        .fill(fillColor)
-        .stroke(COLORS.border)
-        .rect(tableX + areaWidth + issueWidth, rowY, priorityWidth, rowHeight)
-        .fill(fillColor)
-        .stroke(COLORS.border)
-        .rect(
-          tableX + areaWidth + issueWidth + priorityWidth,
-          rowY,
-          actionWidth,
-          rowHeight
-        )
-        .fill(fillColor)
-        .stroke(COLORS.border);
-
-      // Priority color coding
-      const priorityColor =
-        fault.priority === "High"
-          ? COLORS.error
-          : fault.priority === "Medium"
-          ? COLORS.warning
-          : COLORS.textSecondary;
-
-      // Add text content
-      doc
-        .fillColor(COLORS.text)
-        .font("Helvetica")
-        .fontSize(9)
-        .text(fault.area, tableX + 10, rowY + 8, {
-          width: areaWidth - 20,
-          align: "left",
-        })
-        .text(fault.issue, tableX + areaWidth + 10, rowY + 8, {
-          width: issueWidth - 20,
-          align: "left",
-        })
-        .fillColor(priorityColor)
-        .font("Helvetica-Bold")
-        .text(fault.priority, tableX + areaWidth + issueWidth + 10, rowY + 8, {
-          width: priorityWidth - 20,
-          align: "center",
-        })
-        .fillColor(COLORS.text)
-        .font("Helvetica")
-        .text(
-          fault.action,
-          tableX + areaWidth + issueWidth + priorityWidth + 10,
-          rowY + 8,
-          { width: actionWidth - 20, align: "left" }
-        );
-
-      doc.y = rowY + rowHeight;
-    });
-
-    doc.y += 20;
-  } else {
-    // No faults found
-    ensurePageSpace(doc, 80);
-
-    doc
-      .roundedRect(PAGE.margin, doc.y, doc.page.width - PAGE.margin * 2, 60, 8)
-      .fill(COLORS.success)
-      .stroke(COLORS.border);
-
-    doc
-      .fillColor("white")
-      .fontSize(12)
-      .font("Helvetica-Bold")
-      .text("✓ No Faults Identified", PAGE.margin + 20, doc.y + 20, {
-        width: doc.page.width - PAGE.margin * 2 - 40,
-        align: "center",
-      });
-
-    doc.y += 80;
-  }
-};
 
 const drawNextStepsSection = (doc, { template, job, report }) => {
   ensurePageSpace(doc, 180);
@@ -2378,7 +1929,8 @@ const renderElectricalSmokeReport = async (
       contactRows.map((row) => ({
         label: row.label,
         value: row.value,
-      }))
+      })),
+      { hideHeaders: true }
     );
     await renderSectionPhotos("contact", "Contact Details");
   }
@@ -2678,9 +2230,6 @@ const renderGasReport = async (
     } else if (section.id.startsWith("appliance-")) {
       drawApplianceSection(doc, section, responses);
       await renderSectionPhotos(section.id, section.title || "Appliance");
-    } else if (section.id === "fault-identification") {
-      // Skip fault identification section for gas reports as it's already covered by the main Details Of Identified Faults section
-      // await renderSectionPhotos(section.id, "Fault Identification"); // Also skip photos for this section
     } else if (section.id === "final-declaration") {
       drawComplianceDeclaration(doc, section, responses, report);
     } else {
@@ -3165,23 +2714,29 @@ const renderGasSmokeReport = async (
 
     // Add signature if present
     if (certification["technician-signature"]) {
-      ensurePageSpace(doc, 80);
+      ensurePageSpace(doc, 120);
       doc.y += 15;
       doc
         .fillColor(COLORS.text)
         .fontSize(10)
         .font("Helvetica-Bold")
         .text("Technician Signature:", PAGE.margin, doc.y);
-      doc.y += 30;
+      doc.y += 10;
 
-      // Draw signature line
-      doc
-        .strokeColor(COLORS.border)
-        .lineWidth(1)
-        .moveTo(PAGE.margin, doc.y)
-        .lineTo(PAGE.margin + 200, doc.y)
-        .stroke();
-      doc.y += 25;
+      // Draw signature image if available, otherwise draw signature line
+      if (certification["technician-signature"].startsWith('data:')) {
+        await drawSignatureFromData(doc, certification["technician-signature"], PAGE.margin, doc.y, 200, 60);
+        doc.y += 70;
+      } else {
+        // Draw signature line
+        doc
+          .strokeColor(COLORS.border)
+          .lineWidth(1)
+          .moveTo(PAGE.margin, doc.y + 20)
+          .lineTo(PAGE.margin + 200, doc.y + 20)
+          .stroke();
+        doc.y += 45;
+      }
     }
 
     await renderSectionPhotos("certification", "Certification");
@@ -3584,23 +3139,29 @@ const renderElectricalReport = async (
 
     // Add signature if present
     if (certification["certification-signature"]) {
-      ensurePageSpace(doc, 80);
+      ensurePageSpace(doc, 120);
       doc.y += 15;
       doc
         .fillColor(COLORS.text)
         .fontSize(10)
         .font("Helvetica-Bold")
         .text("Technician Signature:", PAGE.margin, doc.y);
-      doc.y += 30;
+      doc.y += 10;
 
-      // Draw signature line
-      doc
-        .strokeColor(COLORS.border)
-        .lineWidth(1)
-        .moveTo(PAGE.margin, doc.y)
-        .lineTo(PAGE.margin + 200, doc.y)
-        .stroke();
-      doc.y += 25;
+      // Draw signature image if available, otherwise draw signature line
+      if (certification["certification-signature"].startsWith('data:')) {
+        await drawSignatureFromData(doc, certification["certification-signature"], PAGE.margin, doc.y, 200, 60);
+        doc.y += 70;
+      } else {
+        // Draw signature line
+        doc
+          .strokeColor(COLORS.border)
+          .lineWidth(1)
+          .moveTo(PAGE.margin, doc.y + 20)
+          .lineTo(PAGE.margin + 200, doc.y + 20)
+          .stroke();
+        doc.y += 45;
+      }
     }
 
     await renderSectionPhotos("certification", "Certification");
@@ -4821,88 +4382,6 @@ const drawTextField = (doc, label, value) => {
   doc.y = baseY + Math.max(36, valueHeight + 22);
 };
 
-const drawFaultIdentificationSection = (doc, section, responses = {}) => {
-  drawSectionHeader(doc, section.title);
-
-  const faultIdentified = responses["fault-identified"];
-  const rectification = responses["rectification-required"];
-  const location = responses["fault-location"];
-  const assessment = responses["assessment-status"];
-
-  if (faultIdentified || rectification || location || assessment) {
-    // Create fault table
-    const tableHeaders = [
-      "Identified Fault(s)",
-      "Rectification",
-      "Location",
-      "Assessment",
-      "Repair Completed?",
-    ];
-    const tableY = doc.y;
-
-    // Draw table header - background first
-    doc
-      .rect(PAGE.margin, tableY, doc.page.width - PAGE.margin * 2, 24)
-      .fill(COLORS.primary)
-      .stroke(COLORS.border);
-
-    // Draw header text with white color
-    doc.fillColor("white").fontSize(9).font("Helvetica-Bold");
-
-    let x = PAGE.margin + 10;
-    const columnWidths = [120, 150, 80, 80, 100];
-    for (let index = 0; index < tableHeaders.length; index++) {
-      const header = tableHeaders[index];
-      doc.text(header, x, tableY + 6, {
-        width: columnWidths[index] - 20,
-        align: "left",
-      });
-      x += columnWidths[index];
-    }
-
-    // Draw data row
-    doc.y = tableY + 25;
-    doc
-      .rect(PAGE.margin, doc.y, doc.page.width - PAGE.margin * 2, 44)
-      .fill("white")
-      .stroke(COLORS.border);
-
-    x = PAGE.margin + 10;
-    const rowData = [
-      faultIdentified || "—",
-      rectification || "—",
-      location || "—",
-      assessment || "—",
-      "No", // Default repair status
-    ];
-
-    doc.fillColor(COLORS.text).fontSize(8).font("Helvetica");
-    for (let index = 0; index < rowData.length; index++) {
-      const data = rowData[index];
-      doc.text(data, x, doc.y + 8, {
-        width: columnWidths[index] - 10,
-        height: 25,
-        ellipsis: true,
-      });
-      x += columnWidths[index];
-    }
-
-    doc.y += 50;
-  } else {
-    doc
-      .fillColor(COLORS.textSecondary)
-      .fontSize(10)
-      .text(
-        "No faults identified during this inspection.",
-        PAGE.margin + 10,
-        doc.y,
-        {
-          width: doc.page.width - (PAGE.margin + 10) * 2,
-        }
-      );
-    doc.y += 32;
-  }
-};
 
 const drawComplianceDeclaration = (doc, section, responses = {}, report) => {
   drawSectionHeader(doc, "Declaration");
@@ -5422,14 +4901,6 @@ export const buildInspectionReportPdf = async ({
     template,
   });
 
-  // Draw Details Of Identified Faults section
-  await drawDetailsOfIdentifiedFaultsSection(doc, {
-    template,
-    report,
-    job,
-    property,
-    technician,
-  });
 
   if (template?.jobType === "Gas") {
     await renderGasReport(doc, { template, report, job, property, technician });
@@ -5496,8 +4967,6 @@ export const buildInspectionReportPdf = async ({
     });
   }
 
-  // Enhanced Fault & Rectification Summary
-  drawFaultSummarySection(doc, { report, template, job });
 
   // Technician notes
   if (report.notes) {
@@ -5516,7 +4985,7 @@ export const buildInspectionReportPdf = async ({
   }
 
   // Declaration and Certification
-  if (template?.jobType === "Gas") {
+  if (template?.jobType === "Gas" || template?.title?.toLowerCase().includes("gas")) {
     drawGasHazardsSection(doc);
   }
   drawDeclarationSection(doc, { template, job, technician, report });
