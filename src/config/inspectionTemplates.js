@@ -756,7 +756,8 @@ const gasTemplate = {
     },
     {
       id: "compliance-declaration",
-      title: "Appliance Servicing Regulation",
+      title:
+        "Appliance Servicing Regulation 12(4) Of The Gas Safety (Gas Installation) Regulations 2018 Prescribes AS4575",
       description: "AS4575 compliance declaration",
       fields: [
         {
@@ -776,7 +777,7 @@ const gasTemplate = {
     },
     {
       id: "final-declaration",
-      title: "Declaration",
+      title: "Testing Status",
       description: "Final compliance assessment and technician declaration",
       fields: [
         {
@@ -807,13 +808,6 @@ const gasTemplate = {
           label: "Signed by gasfitter",
           type: "signature",
           required: true,
-        },
-        {
-          id: "next-check-due",
-          label: "Next gas safety check due",
-          type: "date",
-          required: true,
-          helpText: "Next gas safety check is due within 24 months",
         },
       ],
     },
@@ -2724,7 +2718,7 @@ const createMinimumSafetyStandardTemplate = (
           type: "text",
           required: true,
           placeholder: "Enter inspector's full name",
-          },
+        },
         {
           id: "inspector-license",
           label: "Inspector License Number",
@@ -4508,34 +4502,6 @@ const createSmokeOnlySections = () => [
     description: "Final assessment of property-wide smoke alarm compliance.",
     fields: [
       {
-        id: "total-alarms-inspected",
-        label: "Total alarms inspected",
-        type: "number",
-        required: true,
-        defaultValue: 1,
-      },
-      {
-        id: "compliant-alarms-count",
-        label: "Number of compliant alarms",
-        type: "number",
-        required: true,
-        defaultValue: 1,
-      },
-      {
-        id: "non-compliant-alarms-count",
-        label: "Number of non-compliant alarms",
-        type: "number",
-        required: true,
-        defaultValue: 0,
-      },
-      {
-        id: "alarms-replaced-count",
-        label: "Number of alarms replaced today",
-        type: "number",
-        required: true,
-        defaultValue: 0,
-      },
-      {
         id: "overall-property-compliance",
         label: "Overall property compliance status",
         type: "select",
@@ -4559,65 +4525,11 @@ const createSmokeOnlySections = () => [
           },
         ],
       },
-      {
-        id: "compliance-issues-summary",
-        label: "Summary of compliance issues",
-        type: "textarea",
-        placeholder: "Describe any compliance issues found during inspection",
-        helpText:
-          "Include details of expired alarms, positioning issues, coverage gaps, etc.",
-      },
-      {
-        id: "work-required",
-        label: "Work required to achieve compliance",
-        type: "textarea",
-        placeholder: "List specific work items required",
-        helpText: "Detail what needs to be done, by when, and by whom",
-      },
-      {
-        id: "urgent-safety-concerns",
-        label: "Urgent safety concerns identified",
-        type: "yes-no",
-        required: true,
-      },
-      {
-        id: "urgent-concerns-details",
-        label: "Details of urgent safety concerns",
-        type: "textarea",
-        placeholder: "Describe any immediate safety risks",
-        helpText: "Complete if urgent safety concerns exist",
-      },
-      {
-        id: "reinspection-required",
-        label: "Re-inspection required after remedial work",
-        type: "yes-no",
-        required: true,
-      },
-      {
-        id: "reinspection-timeframe",
-        label: "Re-inspection timeframe",
-        type: "select",
-        options: [
-          { value: "immediate", label: "Immediate (within 48 hours)" },
-          { value: "1-week", label: "Within 1 week" },
-          { value: "2-weeks", label: "Within 2 weeks" },
-          { value: "1-month", label: "Within 1 month" },
-          { value: "3-months", label: "Within 3 months" },
-        ],
-        helpText: "Required if re-inspection needed",
-      },
-      {
-        id: "maintenance-recommendations",
-        label: "Maintenance recommendations",
-        type: "textarea",
-        placeholder: "Non-urgent maintenance suggestions",
-        helpText: "Suggestions for improving alarm performance or compliance",
-      },
     ],
   },
   {
     id: "certification-declaration",
-    title: "Certification & Declaration",
+    title: "Certification & Testing Status",
     description: "Inspector certification and legal declarations.",
     fields: [
       {

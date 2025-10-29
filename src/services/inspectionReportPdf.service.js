@@ -259,7 +259,6 @@ const formatNumericDate = (value) => {
   });
 };
 
-// Header function for all pages except cover
 const drawPageHeader = (doc) => {
   const headerY = 20;
   const headerHeight = PAGE.headerHeight;
@@ -500,11 +499,10 @@ const drawProfessionalCoverPage = (
       });
   }
 
-  // Start new page for content with header
+  // Prepare the next page for report content
   doc.addPage();
-  currentPageNumber++; // Increment page counter
+  currentPageNumber++;
 
-  // Add header to first content page
   const startY = drawPageHeader(doc);
   doc.y = startY;
   doc.fillColor(COLORS.text);
@@ -515,13 +513,7 @@ const drawPropertyDetailsSection = (
   doc,
   { property, job, technician, report, template }
 ) => {
-  // Add new page with header for property details
-  doc.addPage();
-  currentPageNumber++;
-
-  // Add header to property details page
-  const startY = drawPageHeader(doc);
-  doc.y = startY;
+  // Assume caller has already prepared the page header
   doc.fillColor(COLORS.text);
 
   const propertyAddress =
@@ -551,7 +543,6 @@ const drawPropertyDetailsSection = (
 
   // Property Details Section
   drawSectionHeader(doc, "Details");
-
 
   const detailsY = doc.y;
   const tableWidth = doc.page.width - PAGE.margin * 2;
@@ -591,29 +582,6 @@ const drawPropertyDetailsSection = (
   });
 
   doc.y = detailsY + details.length * 30 + 20;
-
-  // Compliance Standards
-  const complianceStandards = getComplianceStandards(template, job);
-  if (complianceStandards.length > 0) {
-    doc
-      .fillColor(COLORS.text)
-      .fontSize(12)
-      .font("Helvetica-Bold")
-      .text("Compliance Standards:", PAGE.margin, doc.y);
-
-    doc.y += 20;
-
-    complianceStandards.forEach((standard) => {
-      doc
-        .fillColor(COLORS.textSecondary)
-        .fontSize(10)
-        .font("Helvetica")
-        .text(`• ${standard}`, PAGE.margin + 10, doc.y);
-      doc.y += 16;
-    });
-
-    doc.y += 20;
-  }
 };
 
 // New function to draw checks conducted and outcomes section
@@ -738,28 +706,34 @@ const drawChecksAndOutcomesSection = async (
   doc.y += 30;
 };
 
-
-const drawSignatureFromData = async (doc, signatureData, x, y, maxWidth = 200, maxHeight = 80) => {
-  if (!signatureData || typeof signatureData !== 'string') {
+const drawSignatureFromData = async (
+  doc,
+  signatureData,
+  x,
+  y,
+  maxWidth = 200,
+  maxHeight = 80
+) => {
+  if (!signatureData || typeof signatureData !== "string") {
     return;
   }
 
   try {
     // If it's a base64 data URL, extract the base64 part
-    const base64Data = signatureData.startsWith('data:')
-      ? signatureData.split(',')[1]
+    const base64Data = signatureData.startsWith("data:")
+      ? signatureData.split(",")[1]
       : signatureData;
 
     // Convert base64 to buffer
-    const imageBuffer = Buffer.from(base64Data, 'base64');
+    const imageBuffer = Buffer.from(base64Data, "base64");
 
     // Add the signature image to the PDF
     doc.image(imageBuffer, x, y, {
       fit: [maxWidth, maxHeight],
-      align: 'center',
+      align: "center",
     });
   } catch (error) {
-    console.error('Error drawing signature:', error);
+    console.error("Error drawing signature:", error);
     // Fallback: draw a text placeholder
     doc
       .fillColor(COLORS.text)
@@ -769,18 +743,21 @@ const drawSignatureFromData = async (doc, signatureData, x, y, maxWidth = 200, m
   }
 };
 
-const drawDeclarationSection = async (doc, { template, job, technician, report }) => {
+const drawDeclarationSection = async (
+  doc,
+  { template, job, technician, report }
+) => {
   ensurePageSpace(doc, 200);
-  drawSectionHeader(doc, "Declaration & Certification");
+
+  drawSectionHeader(doc, "Declaration and Certification");
 
   const reportTitle = getReportTitle(template, job);
-  const complianceStandards = getComplianceStandards(template, job);
   const inspectorName =
     `${technician?.firstName || ""} ${technician?.lastName || ""}`.trim() ||
     "Inspector";
 
   // Declaration text
-  const declarationText = `This ${reportTitle.toLowerCase()} has been prepared in accordance with the requirements contained in the following standards and regulations:`;
+  const declarationText = `This ${reportTitle.toLowerCase()} summarises the inspection findings and certifies that the attending technician has performed the required checks and recommendations recorded below.`;
 
   doc
     .fillColor(COLORS.text)
@@ -792,8 +769,8 @@ const drawDeclarationSection = async (doc, { template, job, technician, report }
     });
 
   doc.y += 20;
-
   // List compliance standards
+  const complianceStandards = getComplianceStandards(template, job);
   complianceStandards.forEach((standard) => {
     doc.fontSize(10).text(`• ${standard}`, PAGE.margin + 20, doc.y);
     doc.y += 16;
@@ -828,25 +805,44 @@ const drawDeclarationSection = async (doc, { template, job, technician, report }
   const formData = report?.formData || {};
   let signatureData = null;
 
-  console.log('[PDF] Looking for signature data in formData:', Object.keys(formData));
+  console.log(
+    "[PDF] Looking for signature data in formData:",
+    Object.keys(formData)
+  );
 
   // Check all sections for signature fields
-  Object.keys(formData).forEach(sectionId => {
+  Object.keys(formData).forEach((sectionId) => {
     const sectionData = formData[sectionId] || {};
-    Object.keys(sectionData).forEach(fieldId => {
+    Object.keys(sectionData).forEach((fieldId) => {
       const fieldValue = sectionData[fieldId];
       const fieldType = typeof fieldValue;
-      const fieldPreview = fieldType === 'string' ? fieldValue.substring(0, 50) : fieldValue;
-      console.log(`[PDF] Checking field ${sectionId}.${fieldId}:`, fieldType, fieldPreview);
+      const fieldPreview =
+        fieldType === "string" ? fieldValue.substring(0, 50) : fieldValue;
+      console.log(
+        `[PDF] Checking field ${sectionId}.${fieldId}:`,
+        fieldType,
+        fieldPreview
+      );
 
-      if (fieldId.includes('signature') && fieldType === 'string' && fieldValue && fieldValue.startsWith('data:')) {
+      if (
+        fieldId.includes("signature") &&
+        fieldType === "string" &&
+        fieldValue &&
+        fieldValue.startsWith("data:")
+      ) {
         signatureData = fieldValue;
-        console.log('[PDF] Found signature data:', signatureData.substring(0, 100));
+        console.log(
+          "[PDF] Found signature data:",
+          signatureData.substring(0, 100)
+        );
       }
     });
   });
 
-  console.log('[PDF] Final signatureData:', signatureData ? 'Found' : 'Not found');
+  console.log(
+    "[PDF] Final signatureData:",
+    signatureData ? "Found" : "Not found"
+  );
 
   // Signature box
   const boxY = doc.y;
@@ -869,7 +865,14 @@ const drawDeclarationSection = async (doc, { template, job, technician, report }
       );
 
     // Draw actual signature
-    await drawSignatureFromData(doc, signatureData, PAGE.margin + 250, boxY + 10, 140, 70);
+    await drawSignatureFromData(
+      doc,
+      signatureData,
+      PAGE.margin + 250,
+      boxY + 10,
+      140,
+      70
+    );
 
     doc.y = boxY + 110;
   } else {
@@ -959,7 +962,8 @@ const drawGasHazardsSection = (doc) => {
     doc.y += 18;
   });
 
-  const conclusionText = "This ensures that any hazardous situation is reported and addressed quickly, keeping the property safe and compliant.";
+  const conclusionText =
+    "This ensures that any hazardous situation is reported and addressed quickly, keeping the property safe and compliant.";
   const conclusionHeight = doc.heightOfString(conclusionText, {
     width: doc.page.width - PAGE.margin * 2,
   });
@@ -968,23 +972,17 @@ const drawGasHazardsSection = (doc) => {
     .fillColor(COLORS.text)
     .fontSize(10)
     .font("Helvetica")
-    .text(
-      conclusionText,
-      PAGE.margin,
-      doc.y,
-      {
-        width: doc.page.width - PAGE.margin * 2,
-        lineGap: 3,
-      }
-    );
+    .text(conclusionText, PAGE.margin, doc.y, {
+      width: doc.page.width - PAGE.margin * 2,
+      lineGap: 3,
+    });
 
   doc.y += conclusionHeight + 30;
 };
 
-
 const drawNextStepsSection = (doc, { template, job, report }) => {
   ensurePageSpace(doc, 180);
-  drawSectionHeader(doc, "Next Steps & Compliance Schedule");
+  drawSectionHeader(doc, "Comments on Next Steps");
 
   const jobType = template?.jobType || job?.jobType;
 
@@ -1049,7 +1047,7 @@ const drawNextStepsSection = (doc, { template, job, report }) => {
   if (narrative) {
     const movedToNewPage = ensurePageSpace(doc, 140);
     if (movedToNewPage) {
-      drawSectionHeader(doc, "Next Steps & Compliance Schedule");
+      drawSectionHeader(doc, "Next Compliance Schedule");
     }
     doc
       .fillColor(COLORS.text)
@@ -2289,7 +2287,13 @@ const renderGasReport = async (
       drawApplianceSection(doc, section, responses);
       await renderSectionPhotos(section.id, section.title || "Appliance");
     } else if (section.id === "final-declaration") {
-      drawComplianceDeclaration(doc, section, responses, report);
+      drawComplianceDeclaration(
+        doc,
+        section,
+        responses,
+        report,
+        "Testing Status"
+      );
     } else {
       const genericTitle =
         section.title === "Property Details"
@@ -2311,7 +2315,9 @@ const renderGasReport = async (
       }
 
       if (sectionRows.length > 0) {
-        drawRoomDetailTable(doc, null, sectionRows);
+        const tableOptions =
+          section.id === "compliance-declaration" ? { hideHeaders: true } : {};
+        drawRoomDetailTable(doc, null, sectionRows, tableOptions);
       }
 
       await renderSectionPhotos(section.id, section.title || "Section");
@@ -2760,7 +2766,10 @@ const renderGasSmokeReport = async (
     doc.y += 20;
 
     const certRows = [
-      ["Declaration", certification["technician-declaration"] ? "Yes" : "No"],
+      [
+        "Testing Status",
+        certification["technician-declaration"] ? "Yes" : "No",
+      ],
       ["Gasfitter License", formatValue(certification["gasfitter-license"])],
       ["Electrical License", formatValue(certification["electrical-license"])],
       ["Completion Date", formatValue(certification["completion-date"])],
@@ -2782,8 +2791,15 @@ const renderGasSmokeReport = async (
       doc.y += 10;
 
       // Draw signature image if available, otherwise draw signature line
-      if (certification["technician-signature"].startsWith('data:')) {
-        await drawSignatureFromData(doc, certification["technician-signature"], PAGE.margin, doc.y, 200, 60);
+      if (certification["technician-signature"].startsWith("data:")) {
+        await drawSignatureFromData(
+          doc,
+          certification["technician-signature"],
+          PAGE.margin,
+          doc.y,
+          200,
+          60
+        );
         doc.y += 70;
       } else {
         // Draw signature line
@@ -3207,8 +3223,15 @@ const renderElectricalReport = async (
       doc.y += 10;
 
       // Draw signature image if available, otherwise draw signature line
-      if (certification["certification-signature"].startsWith('data:')) {
-        await drawSignatureFromData(doc, certification["certification-signature"], PAGE.margin, doc.y, 200, 60);
+      if (certification["certification-signature"].startsWith("data:")) {
+        await drawSignatureFromData(
+          doc,
+          certification["certification-signature"],
+          PAGE.margin,
+          doc.y,
+          200,
+          60
+        );
         doc.y += 70;
       } else {
         // Draw signature line
@@ -4144,20 +4167,37 @@ const renderGenericReport = async (
 };
 
 const drawSectionHeader = (doc, title) => {
-  ensurePageSpace(doc, 60);
-
   const headerWidth = doc.page.width - PAGE.margin * 2;
+  const maxTextWidth = headerWidth - 36;
+
+  doc.font("Helvetica-Bold").fontSize(13);
+  const textHeight = doc.heightOfString(title, {
+    width: maxTextWidth,
+    lineGap: 2,
+  });
+
+  const headerHeight = Math.max(32, textHeight + 20);
+
+  ensurePageSpace(doc, headerHeight + 40);
+
   const headerY = doc.y;
+  const textOffsetY = headerY + (headerHeight - textHeight) / 2;
 
   doc
-    .roundedRect(PAGE.margin, headerY, headerWidth, 32, 10)
-    .fill(COLORS.primary)
+    .roundedRect(PAGE.margin, headerY, headerWidth, headerHeight, 10)
+    .fill(COLORS.primary);
+
+  doc
     .fillColor("white")
     .fontSize(13)
     .font("Helvetica-Bold")
-    .text(title, PAGE.margin + 18, headerY + 10);
+    .text(title, PAGE.margin + 18, textOffsetY, {
+      width: maxTextWidth,
+      lineGap: 2,
+    });
 
-  doc.fillColor(COLORS.text).y = headerY + 48;
+  doc.fillColor(COLORS.text);
+  doc.y = headerY + headerHeight + 16;
 };
 
 const formatValue = (value, fieldType) => {
@@ -4440,9 +4480,14 @@ const drawTextField = (doc, label, value) => {
   doc.y = baseY + Math.max(36, valueHeight + 22);
 };
 
-
-const drawComplianceDeclaration = (doc, section, responses = {}, report) => {
-  drawSectionHeader(doc, "Declaration");
+const drawComplianceDeclaration = (
+  doc,
+  section,
+  responses = {},
+  report,
+  sectionHeader = "Testing Status"
+) => {
+  drawSectionHeader(doc, sectionHeader);
 
   const overallAssessment = responses["overall-assessment"];
   const hasSignature = responses["technician-signature"];
@@ -4484,9 +4529,8 @@ const drawComplianceDeclaration = (doc, section, responses = {}, report) => {
 
   doc.y += 40;
 
-
   // Next check due
-  const nextCheckDue = responses["next-check-due"];
+  /*  const nextCheckDue = responses["next-check-due"];
   if (nextCheckDue) {
     doc
       .fillColor(COLORS.text)
@@ -4500,7 +4544,7 @@ const drawComplianceDeclaration = (doc, section, responses = {}, report) => {
           width: doc.page.width - (PAGE.margin + 10) * 2,
         }
       );
-  }
+  } */
 };
 
 const processImageForPdf = async (imageUrl, doc, x, y, maxWidth, maxHeight) => {
@@ -4623,29 +4667,49 @@ const renderSmokeOnlyReport = async (
     if (!value) {
       return undefined;
     }
+
     const raw = String(value)
       .trim()
       .replace(/^["'`]+/, "")
       .trim();
-    const lower = raw.toLowerCase();
 
-    if (
-      lower === "compliant" ||
-      lower === "fully-compliant" ||
-      (lower.includes("compliant") && !lower.includes("non"))
-    ) {
-      return "✅ Compliant";
+    if (!raw) {
+      return undefined;
     }
-    if (
-      lower === "non-compliant" ||
-      lower.includes("non-compliant") ||
-      lower.includes("not compliant")
-    ) {
-      return "❌ Non-Compliant";
+
+    const lower = raw.toLowerCase();
+    const statusLabelMap = {
+      compliant: "Compliant",
+      "fully-compliant": "Fully Compliant",
+      "compliant-with-minor-issues": "Compliant – Minor maintenance items",
+      "minor-issues": "Minor issues noted",
+      "all-compliant": "All alarms compliant",
+      "issues-identified": "Issues identified",
+      "replacements-required": "Replacements required",
+      "urgent-work-required": "Urgent work required",
+      "non-compliant": "Non-Compliant",
+      "non-compliant-work-required": "Non-Compliant – Work required",
+      "non-compliant-urgent": "Non-Compliant – Urgent work required",
+      "major-non-compliance": "Major non-compliance",
+      unsafe: "Unsafe conditions present",
+    };
+
+    if (statusLabelMap[lower]) {
+      return statusLabelMap[lower];
     }
-    if (raw === "✅ Compliant" || raw === "❌ Non-Compliant") {
-      return raw;
+
+    if (raw.startsWith("✅") || raw.startsWith("❌")) {
+      return raw.replace(/^./, "").trim() || raw;
     }
+
+    if (lower.includes("non-compliant") || lower.includes("not compliant")) {
+      return "Non-Compliant";
+    }
+
+    if (lower.includes("compliant")) {
+      return "Compliant";
+    }
+
     return raw;
   };
 
@@ -4654,22 +4718,30 @@ const renderSmokeOnlyReport = async (
   const summaryOverallStatus = inspectionSummary["overall-status"];
   const assessmentOverallStatus = complianceAssessment["overall-status"];
   const combinedComplianceStatus = compliance?.["combined-compliance-status"];
-  const complianceSummaryStatus = complianceSummary?.["overall-smoke-compliance"];
+  const complianceSummaryStatus =
+    complianceSummary?.["overall-smoke-compliance"];
+  const propertyComplianceStatus =
+    complianceAssessment["overall-property-compliance"];
+  const smokeOutcomeStatus = inspectionSummary["smoke-outcome"];
 
-  const manualOverallStatus = normalizeOverallStatus(
-    complianceOverallStatus ||
-      summaryOverallStatus ||
-      assessmentOverallStatus ||
-      combinedComplianceStatus ||
-      complianceSummaryStatus
-  );
+  const manualOverallStatus = [
+    complianceOverallStatus,
+    summaryOverallStatus,
+    assessmentOverallStatus,
+    combinedComplianceStatus,
+    complianceSummaryStatus,
+    propertyComplianceStatus,
+    smokeOutcomeStatus,
+  ]
+    .map(normalizeOverallStatus)
+    .find((status) => status !== undefined);
 
   const overallStatusDisplay =
     manualOverallStatus !== undefined
       ? manualOverallStatus
       : complianceResult.isOverallCompliant
-      ? "✅ Compliant"
-      : "❌ Non-Compliant";
+      ? "Compliant"
+      : "Non-Compliant";
 
   // Draw report header section (continue from current page position)
   doc.y += 30; // Add some spacing after property details
@@ -4946,7 +5018,7 @@ export const buildInspectionReportPdf = async ({
     template,
   });
 
-  // Draw property details section on page 2
+  // Draw property details section at top of first content page
   drawPropertyDetailsSection(doc, {
     property,
     job,
@@ -4954,7 +5026,6 @@ export const buildInspectionReportPdf = async ({
     report,
     template,
   });
-
 
   if (template?.jobType === "Gas") {
     await renderGasReport(doc, { template, report, job, property, technician });
@@ -5021,11 +5092,10 @@ export const buildInspectionReportPdf = async ({
     });
   }
 
-
   // Technician notes
   if (report.notes) {
     ensurePageSpace(doc, 120);
-    drawSectionHeader(doc, "Inspector Observations");
+    drawSectionHeader(doc, "Inspector Observations and Suggestions");
     doc
       .fillColor(COLORS.textSecondary)
       .fontSize(10)
@@ -5039,12 +5109,15 @@ export const buildInspectionReportPdf = async ({
   }
 
   // Declaration and Certification
-  if (template?.jobType === "Gas" || template?.title?.toLowerCase().includes("gas")) {
+  if (
+    template?.jobType === "Gas" ||
+    template?.title?.toLowerCase().includes("gas")
+  ) {
     drawGasHazardsSection(doc);
   }
   await drawDeclarationSection(doc, { template, job, technician, report });
 
-  // Next Steps & Compliance Schedule
+  // Next Compliance Schedule
   drawNextStepsSection(doc, { template, job, report });
 
   // Photos section
