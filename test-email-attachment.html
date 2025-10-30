@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Email Attachments</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="text"],
+        input[type="email"],
+        textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        textarea {
+            min-height: 100px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .response {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 4px;
+            display: none;
+        }
+        .response.success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .response.error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .file-info {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Test Email with Attachments</h1>
+    <p>This form tests the /api/v1/emails/send-general endpoint with attachments</p>
+
+    <form id="emailForm">
+        <div class="form-group">
+            <label for="authToken">Auth Token (Bearer Token):</label>
+            <input type="text" id="authToken" placeholder="Paste your JWT token here" required>
+        </div>
+
+        <div class="form-group">
+            <label for="to">To (Email):</label>
+            <input type="email" id="to" placeholder="recipient@example.com" required>
+        </div>
+
+        <div class="form-group">
+            <label for="subject">Subject:</label>
+            <input type="text" id="subject" placeholder="Email subject" required>
+        </div>
+
+        <div class="form-group">
+            <label for="html">Message (HTML):</label>
+            <textarea id="html" placeholder="<h1>Hello</h1><p>Your message here</p>" required></textarea>
+        </div>
+
+        <div class="form-group">
+            <label for="attachments">Attachments (Max 5 files, 10MB each):</label>
+            <input type="file" id="attachments" multiple accept="*/*">
+            <div id="fileInfo" class="file-info" style="display: none;"></div>
+        </div>
+
+        <button type="submit" id="submitBtn">Send Email</button>
+    </form>
+
+    <div id="response" class="response"></div>
+
+    <script>
+        const form = document.getElementById('emailForm');
+        const submitBtn = document.getElementById('submitBtn');
+        const responseDiv = document.getElementById('response');
+        const fileInput = document.getElementById('attachments');
+        const fileInfo = document.getElementById('fileInfo');
+
+        // Show file info when files are selected
+        fileInput.addEventListener('change', (e) => {
+            const files = e.target.files;
+            if (files.length > 0) {
+                let info = `<strong>Selected files (${files.length}):</strong><ul>`;
+                for (let i = 0; i < files.length; i++) {
+                    const size = (files[i].size / 1024).toFixed(2);
+                    info += `<li>${files[i].name} (${size} KB)</li>`;
+                }
+                info += '</ul>';
+                fileInfo.innerHTML = info;
+                fileInfo.style.display = 'block';
+            } else {
+                fileInfo.style.display = 'none';
+            }
+        });
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            // Disable submit button
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Sending...';
+
+            // Hide previous response
+            responseDiv.style.display = 'none';
+
+            try {
+                const formData = new FormData();
+                
+                // Add form fields
+                formData.append('to', document.getElementById('to').value);
+                formData.append('subject', document.getElementById('subject').value);
+                formData.append('html', document.getElementById('html').value);
+
+                // Add attachments
+                const files = fileInput.files;
+                for (let i = 0; i < files.length; i++) {
+                    formData.append('attachments', files[i]);
+                }
+
+                console.log('Sending request...');
+                console.log('Files attached:', files.length);
+
+                // Make request
+                const response = await fetch('http://localhost:3000/api/v1/emails/send-general', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${document.getElementById('authToken').value}`,
+                        // Don't set Content-Type - browser will set it with boundary
+                    },
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                // Show response
+                responseDiv.style.display = 'block';
+                
+                if (response.ok && result.status === 'success') {
+                    responseDiv.className = 'response success';
+                    responseDiv.innerHTML = `
+                        <strong>✅ Success!</strong><br>
+                        Message: ${result.message}<br>
+                        Recipients: ${result.data.recipients.join(', ')}<br>
+                        Subject: ${result.data.subject}<br>
+                        Attachments: ${result.data.attachmentCount || 0}
+                    `;
+                    
+                    // Clear form on success
+                    form.reset();
+                    fileInfo.style.display = 'none';
+                } else {
+                    responseDiv.className = 'response error';
+                    responseDiv.innerHTML = `
+                        <strong>❌ Error!</strong><br>
+                        ${result.message}<br>
+                        ${result.details ? `Details: ${result.details}` : ''}
+                        ${result.error ? `<pre style="margin-top: 10px; font-size: 12px; overflow-x: auto;">${result.error}</pre>` : ''}
+                    `;
+                }
+
+            } catch (error) {
+                console.error('Error:', error);
+                responseDiv.style.display = 'block';
+                responseDiv.className = 'response error';
+                responseDiv.innerHTML = `
+                    <strong>❌ Network Error!</strong><br>
+                    ${error.message}<br>
+                    Check console for details.
+                `;
+            } finally {
+                // Re-enable submit button
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Send Email';
+            }
+        });
+    </script>
+</body>
+</html>
+

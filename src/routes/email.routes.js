@@ -76,13 +76,15 @@ router.post(
 
 /**
  * POST /api/v1/emails/send-general
- * Simple general-purpose send email (no attachments, no threading)
+ * Simple general-purpose send email with optional attachments
  * Body: to (string or array), subject (string), html (string)
+ * Files: attachments (multipart/form-data) - optional
  * Can be reused across multiple frontend modules
  */
 router.post(
   "/send-general",
   authenticate,
+  upload.array("attachments", 5),
   emailController.sendGeneralEmail
 );
 
