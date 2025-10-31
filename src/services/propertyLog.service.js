@@ -114,15 +114,26 @@ class PropertyLogService {
 
     // Add agency info
     if (property.agency) {
-      const agency = await Agency.findById(property.agency).select(
-        "companyName email"
-      );
-      if (agency) {
+      // Check if agency is already populated (object) or just an ID
+      if (property.agency.companyName) {
+        // Already populated
         snapshot.agency = {
-          id: agency._id,
-          name: agency.companyName,
-          email: agency.email,
+          id: property.agency._id,
+          name: property.agency.companyName,
+          email: property.agency.email,
         };
+      } else {
+        // Need to fetch from database
+        const agency = await Agency.findById(property.agency).select(
+          "companyName email"
+        );
+        if (agency) {
+          snapshot.agency = {
+            id: agency._id,
+            name: agency.companyName,
+            email: agency.email,
+          };
+        }
       }
     }
 
@@ -146,15 +157,26 @@ class PropertyLogService {
 
     // Add property manager info
     if (property.assignedPropertyManager) {
-      const pm = await PropertyManager.findById(
-        property.assignedPropertyManager
-      ).select("firstName lastName email");
-      if (pm) {
+      // Check if property manager is already populated
+      if (property.assignedPropertyManager.firstName) {
+        // Already populated
         snapshot.propertyManager = {
-          id: pm._id,
-          name: `${pm.firstName} ${pm.lastName}`,
-          email: pm.email,
+          id: property.assignedPropertyManager._id,
+          name: `${property.assignedPropertyManager.firstName} ${property.assignedPropertyManager.lastName}`,
+          email: property.assignedPropertyManager.email,
         };
+      } else {
+        // Need to fetch from database
+        const pm = await PropertyManager.findById(
+          property.assignedPropertyManager
+        ).select("firstName lastName email");
+        if (pm) {
+          snapshot.propertyManager = {
+            id: pm._id,
+            name: `${pm.firstName} ${pm.lastName}`,
+            email: pm.email,
+          };
+        }
       }
     }
 
@@ -308,7 +330,7 @@ class PropertyLogService {
     try {
       const userInfo = this.getUserInfo(req);
       const metadata = this.getMetadata(req);
-      const snapshot = await this.createSnapshot(property);
+      const currentSnapshot = await this.createSnapshot(property);
 
       const logData = {
         property: property._id,
@@ -318,6 +340,7 @@ class PropertyLogService {
         description: `Property created by ${userInfo.userName}`,
         changes: [],
         previousSnapshot: {},
+        currentSnapshot,
         metadata,
       };
 
@@ -336,12 +359,18 @@ class PropertyLogService {
       const userInfo = this.getUserInfo(req);
       const metadata = this.getMetadata(req);
 
-      // Create snapshot of old property state
+      // Create snapshot of old property state (oldProperty is already a plain object)
       const previousSnapshot = await this.createSnapshot(oldProperty);
 
-      // Get differences
+      // Create snapshot of new property state
+      const currentSnapshot = await this.createSnapshot(newProperty);
+
+      // Get differences - handle if oldProperty is already a plain object
+      const oldPropertyObj = typeof oldProperty.toObject === 'function'
+        ? oldProperty.toObject()
+        : oldProperty;
       const changes = this.getObjectDifferences(
-        oldProperty.toObject(),
+        oldPropertyObj,
         newProperty.toObject()
       );
 
@@ -369,6 +398,7 @@ class PropertyLogService {
         description,
         changes,
         previousSnapshot,
+        currentSnapshot,
         metadata,
       };
 
@@ -396,6 +426,7 @@ class PropertyLogService {
         description: `Property deleted by ${userInfo.userName}`,
         changes: [],
         previousSnapshot,
+        currentSnapshot: {},
         metadata,
       };
 

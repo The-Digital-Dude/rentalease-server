@@ -1027,12 +1027,12 @@ router.get("/agencies/available", authenticateUserTypes(['SuperUser', 'TeamMembe
 // Get Available Property Managers for Assignment (Agency/SuperUser/PropertyManager only)
 router.get("/available-property-managers", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'PropertyManager']), async (req, res) => {
   try {
-    // Check if user has permission (Agency, SuperUser, or PropertyManager)
-    if (!req.superUser && !req.agency && !req.propertyManager) {
+    // Check if user has permission (Agency, SuperUser, TeamMember, or PropertyManager)
+    if (!req.superUser && !req.agency && !req.teamMember && !req.propertyManager) {
       return res.status(403).json({
         status: "error",
         message:
-          "Access denied. Only Super Users, Agencies, and Property Managers can view available Property Managers.",
+          "Access denied. Only Super Users, Agencies, Team Members, and Property Managers can view available Property Managers.",
       });
     }
 
@@ -1044,10 +1044,13 @@ router.get("/available-property-managers", authenticateUserTypes(['SuperUser', '
       filter.availabilityStatus = availabilityStatus;
     }
 
-    // Add owner filter for agencies and property managers
+    // Add owner filter for agencies, team members, and property managers
     if (req.agency) {
       filter["owner.ownerType"] = "Agency";
       filter["owner.ownerId"] = req.agency.id;
+    } else if (req.teamMember) {
+      filter["owner.ownerType"] = "Agency";
+      filter["owner.ownerId"] = req.teamMember.agencyId;
     } else if (req.propertyManager) {
       filter["owner.ownerType"] = "Agency";
       filter["owner.ownerId"] = req.propertyManager.owner.ownerId;
@@ -1326,9 +1329,11 @@ router.put("/:id", sanitizePropertyInput(), authenticateUserTypes(['SuperUser', 
       });
     }
 
-    // Find property with access control
+    // Find property with access control and populate related data for logging
     const filter = { _id: id, isActive: true, ...agencyFilter };
-    const property = await Property.findOne(filter);
+    const property = await Property.findOne(filter)
+      .populate("agency", "companyName email")
+      .populate("assignedPropertyManager", "firstName lastName email");
 
     if (!property) {
       return res.status(404).json({
@@ -1405,8 +1410,21 @@ router.put("/:id", sanitizePropertyInput(), authenticateUserTypes(['SuperUser', 
       }
     }
 
-    // Capture the old property state for logging
-    const oldProperty = property.toObject();
+    // Capture the old property state for logging (store as plain object with populated data)
+    const oldPropertyData = {
+      ...property.toObject(),
+      agency: property.agency ? {
+        _id: property.agency._id,
+        companyName: property.agency.companyName,
+        email: property.agency.email
+      } : null,
+      assignedPropertyManager: property.assignedPropertyManager ? {
+        _id: property.assignedPropertyManager._id,
+        firstName: property.assignedPropertyManager.firstName,
+        lastName: property.assignedPropertyManager.lastName,
+        email: property.assignedPropertyManager.email
+      } : null
+    };
 
     // Update fields if provided
     if (address) {
@@ -1436,7 +1454,7 @@ router.put("/:id", sanitizePropertyInput(), authenticateUserTypes(['SuperUser', 
 
     // Log the property update
     await propertyLogService.logPropertyUpdate(
-      { toObject: () => oldProperty },
+      oldPropertyData,
       property,
       req
     );
@@ -1615,12 +1633,12 @@ router.post("/:id/assign-property-manager", authenticateUserTypes(['SuperUser', 
     const { id } = req.params;
     const { propertyManagerId, role = "Primary" } = req.body;
 
-    // Check if user has permission (Agency, SuperUser, or PropertyManager)
-    if (!req.superUser && !req.agency && !req.propertyManager) {
+    // Check if user has permission (Agency, SuperUser, TeamMember, or PropertyManager)
+    if (!req.superUser && !req.agency && !req.teamMember && !req.propertyManager) {
       return res.status(403).json({
         status: "error",
         message:
-          "Access denied. Only Super Users, Agencies, and Property Managers can assign Property Managers.",
+          "Access denied. Only Super Users, Agencies, Team Members, and Property Managers can assign Property Managers.",
       });
     }
 
@@ -1629,11 +1647,13 @@ router.post("/:id/assign-property-manager", authenticateUserTypes(['SuperUser', 
         ? "SuperUser"
         : req.agency
         ? "Agency"
+        : req.teamMember
+        ? "TeamMember"
         : req.propertyManager
         ? "PropertyManager"
         : "Unknown",
-      agencyId: req.agency?.id,
-      agencyIdType: typeof req.agency?.id,
+      agencyId: req.agency?.id || req.teamMember?.agencyId,
+      agencyIdType: typeof (req.agency?.id || req.teamMember?.agencyId),
     });
 
     // Validate ObjectId
@@ -1651,7 +1671,7 @@ router.post("/:id/assign-property-manager", authenticateUserTypes(['SuperUser', 
       });
     }
 
-    // Find property with access control
+    // Find property with access control and populate for logging
     const agencyFilter = getAgencyFilter(req);
     const filter = { _id: id, isActive: true, ...agencyFilter };
 
@@ -1661,7 +1681,9 @@ router.post("/:id/assign-property-manager", authenticateUserTypes(['SuperUser', 
       finalFilter: filter,
     });
 
-    const property = await Property.findOne(filter);
+    const property = await Property.findOne(filter)
+      .populate("agency", "companyName email")
+      .populate("assignedPropertyManager", "firstName lastName email");
 
     if (!property) {
       return res.status(404).json({
@@ -1695,31 +1717,41 @@ router.post("/:id/assign-property-manager", authenticateUserTypes(['SuperUser', 
       ownerIdString: propertyManager.owner?.ownerId?.toString(),
     });
 
+    // Get the current user's agency ID (works for both Agency and TeamMember)
+    const currentUserAgencyId = req.agency?.id || req.teamMember?.agencyId;
+
+    // Get property agency ID (handle both populated and unpopulated cases)
+    const propertyAgencyId = property.agency._id || property.agency;
+
     console.log("Agency comparison:", {
-      propertyAgency: property.agency.toString(),
+      propertyAgencyId: propertyAgencyId.toString(),
+      propertyAgencyIdType: typeof propertyAgencyId,
       propertyManagerOwnerId: propertyManager.owner.ownerId.toString(),
-      currentUserAgencyId: req.agency?.id?.toString(),
+      currentUserAgencyId: currentUserAgencyId?.toString(),
+      currentUserAgencyIdType: typeof currentUserAgencyId,
+      userType: req.agency ? 'Agency' : req.teamMember ? 'TeamMember' : 'Other',
+      teamMemberData: req.teamMember ? { id: req.teamMember.id, agencyId: req.teamMember.agencyId } : null,
       propertyManagerOwnerMatch:
-        property.agency.toString() === propertyManager.owner.ownerId.toString(),
-      currentUserAgencyMatch: req.agency
-        ? property.agency.toString() === req.agency.id.toString()
+        propertyAgencyId.toString() === propertyManager.owner.ownerId.toString(),
+      currentUserAgencyMatch: currentUserAgencyId
+        ? propertyAgencyId.toString() === currentUserAgencyId.toString()
         : false,
     });
 
-    // Check if property manager is owned by the same agency/superuser
+    // Check if property manager is owned by the same agency (for Agency and TeamMember users)
     if (
-      req.agency &&
+      currentUserAgencyId &&
       propertyManager.owner.ownerType === "Agency" &&
-      propertyManager.owner.ownerId.toString() !== req.agency.id.toString()
+      propertyManager.owner.ownerId.toString() !== currentUserAgencyId.toString()
     ) {
       console.log("Agency ownership check failed:", {
-        agencyId: req.agency.id,
-        agencyIdType: typeof req.agency.id,
+        agencyId: currentUserAgencyId,
+        agencyIdType: typeof currentUserAgencyId,
         propertyManagerOwnerId: propertyManager.owner.ownerId,
         propertyManagerOwnerIdType: typeof propertyManager.owner.ownerId,
         comparison:
-          propertyManager.owner.ownerId.toString() !== req.agency.id.toString(),
-        agencyIdString: req.agency.id.toString(),
+          propertyManager.owner.ownerId.toString() !== currentUserAgencyId.toString(),
+        agencyIdString: currentUserAgencyId.toString(),
         propertyManagerOwnerIdString: propertyManager.owner.ownerId.toString(),
       });
       return res.status(403).json({
@@ -1728,12 +1760,12 @@ router.post("/:id/assign-property-manager", authenticateUserTypes(['SuperUser', 
       });
     }
 
-    // Check if the property belongs to the current user's agency
-    if (req.agency && property.agency.toString() !== req.agency.id.toString()) {
+    // Check if the property belongs to the current user's agency (for Agency and TeamMember users)
+    if (currentUserAgencyId && propertyAgencyId.toString() !== currentUserAgencyId.toString()) {
       console.log("Property doesn't belong to current user's agency:", {
-        propertyAgency: property.agency.toString(),
-        currentUserAgencyId: req.agency.id.toString(),
-        match: property.agency.toString() === req.agency.id.toString(),
+        propertyAgencyId: propertyAgencyId.toString(),
+        currentUserAgencyId: currentUserAgencyId.toString(),
+        match: propertyAgencyId.toString() === currentUserAgencyId.toString(),
       });
       return res.status(403).json({
         status: "error",
@@ -1744,15 +1776,15 @@ router.post("/:id/assign-property-manager", authenticateUserTypes(['SuperUser', 
 
     // Additional check: Ensure the property belongs to the same agency as the property manager's owner
     if (
-      req.agency &&
+      currentUserAgencyId &&
       propertyManager.owner.ownerType === "Agency" &&
-      property.agency.toString() !== propertyManager.owner.ownerId.toString()
+      propertyAgencyId.toString() !== propertyManager.owner.ownerId.toString()
     ) {
       console.log("Property agency mismatch:", {
-        propertyAgency: property.agency.toString(),
+        propertyAgencyId: propertyAgencyId.toString(),
         propertyManagerOwnerId: propertyManager.owner.ownerId.toString(),
         match:
-          property.agency.toString() ===
+          propertyAgencyId.toString() ===
           propertyManager.owner.ownerId.toString(),
       });
       return res.status(403).json({
@@ -1772,7 +1804,7 @@ router.post("/:id/assign-property-manager", authenticateUserTypes(['SuperUser', 
 
     if (
       req.propertyManager &&
-      property.agency.toString() !==
+      propertyAgencyId.toString() !==
         req.propertyManager.owner.ownerId.toString()
     ) {
       return res.status(403).json({
@@ -1802,9 +1834,35 @@ router.post("/:id/assign-property-manager", authenticateUserTypes(['SuperUser', 
         property.assignedPropertyManager?.toString() || "None",
     });
 
+    // Capture the old property state for logging
+    const oldPropertyData = {
+      ...property.toObject(),
+      agency: property.agency ? {
+        _id: property.agency._id,
+        companyName: property.agency.companyName,
+        email: property.agency.email
+      } : null,
+      assignedPropertyManager: property.assignedPropertyManager ? {
+        _id: property.assignedPropertyManager._id,
+        firstName: property.assignedPropertyManager.firstName,
+        lastName: property.assignedPropertyManager.lastName,
+        email: property.assignedPropertyManager.email
+      } : null
+    };
+
     // Assign property manager to property
     property.assignedPropertyManager = propertyManagerId;
     await property.save();
+
+    // Populate the new property manager for logging
+    await property.populate("assignedPropertyManager", "firstName lastName email");
+
+    // Log the property manager assignment
+    await propertyLogService.logPropertyUpdate(
+      oldPropertyData,
+      property,
+      req
+    );
 
     // Add property to property manager's assigned properties
     await propertyManager.assignProperty(id, role);
@@ -1812,7 +1870,7 @@ router.post("/:id/assign-property-manager", authenticateUserTypes(['SuperUser', 
     console.log("Property Manager assigned to property:", {
       propertyId: id,
       propertyManagerId: propertyManagerId,
-      assignedBy: req.superUser ? req.superUser.email : req.agency.email,
+      assignedBy: req.superUser?.email || req.agency?.email || req.teamMember?.email || 'Unknown',
       role: role,
       timestamp: new Date().toISOString(),
     });
@@ -1906,10 +1964,12 @@ router.delete(
         });
       }
 
-      // Find property with access control
+      // Find property with access control and populate for logging
       const agencyFilter = getAgencyFilter(req);
       const filter = { _id: id, isActive: true, ...agencyFilter };
-      const property = await Property.findOne(filter);
+      const property = await Property.findOne(filter)
+        .populate("agency", "companyName email")
+        .populate("assignedPropertyManager", "firstName lastName email");
 
       if (!property) {
         return res.status(404).json({
@@ -1956,9 +2016,32 @@ router.delete(
         });
       }
 
+      // Capture the old property state for logging
+      const oldPropertyData = {
+        ...property.toObject(),
+        agency: property.agency ? {
+          _id: property.agency._id,
+          companyName: property.agency.companyName,
+          email: property.agency.email
+        } : null,
+        assignedPropertyManager: property.assignedPropertyManager ? {
+          _id: property.assignedPropertyManager._id,
+          firstName: property.assignedPropertyManager.firstName,
+          lastName: property.assignedPropertyManager.lastName,
+          email: property.assignedPropertyManager.email
+        } : null
+      };
+
       // Remove property manager from property
       property.assignedPropertyManager = null;
       await property.save();
+
+      // Log the property manager unassignment
+      await propertyLogService.logPropertyUpdate(
+        oldPropertyData,
+        property,
+        req
+      );
 
       // Remove property from property manager's assigned properties
       await propertyManager.removePropertyAssignment(id);
@@ -1994,12 +2077,12 @@ router.get("/:id/assignment-summary", authenticateUserTypes(['SuperUser', 'TeamM
   try {
     const { id } = req.params;
 
-    // Check if user has permission (Agency, SuperUser, or PropertyManager)
-    if (!req.superUser && !req.agency && !req.propertyManager) {
+    // Check if user has permission (Agency, SuperUser, TeamMember, or PropertyManager)
+    if (!req.superUser && !req.agency && !req.teamMember && !req.propertyManager) {
       return res.status(403).json({
         status: "error",
         message:
-          "Access denied. Only Super Users, Agencies, and Property Managers can view assignment summaries.",
+          "Access denied. Only Super Users, Agencies, Team Members, and Property Managers can view assignment summaries.",
       });
     }
 
@@ -2624,6 +2707,34 @@ router.get(
         endDate,
       });
 
+      // Format logs to include oldState and newState instead of raw snapshots
+      const formattedLogs = result.logs.map(log => ({
+        _id: log._id,
+        property: log.property,
+        propertyAddress: log.propertyAddress,
+        changeType: log.changeType,
+        description: log.description,
+        changedBy: log.changedBy,
+        oldState: {
+          agency: log.previousSnapshot?.agency || null,
+          tenant: log.previousSnapshot?.tenant || null,
+          landlord: log.previousSnapshot?.landlord || null,
+          propertyManager: log.previousSnapshot?.propertyManager || null,
+          status: log.previousSnapshot?.status || null,
+        },
+        newState: {
+          agency: log.currentSnapshot?.agency || null,
+          tenant: log.currentSnapshot?.tenant || null,
+          landlord: log.currentSnapshot?.landlord || null,
+          propertyManager: log.currentSnapshot?.propertyManager || null,
+          status: log.currentSnapshot?.status || null,
+        },
+        changes: log.changes,
+        metadata: log.metadata,
+        createdAt: log.createdAt,
+        updatedAt: log.updatedAt,
+      }));
+
       res.status(200).json({
         status: "success",
         message: "Property logs retrieved successfully",
@@ -2632,7 +2743,7 @@ router.get(
             id: property._id,
             address: property.address?.fullAddress,
           },
-          logs: result.logs,
+          logs: formattedLogs,
           pagination: result.pagination,
         },
       });
@@ -2757,6 +2868,34 @@ router.get(
         });
       }
 
+      // Format log to include oldState and newState
+      const formattedLog = {
+        _id: log._id,
+        property: log.property,
+        propertyAddress: log.propertyAddress,
+        changeType: log.changeType,
+        description: log.description,
+        changedBy: log.changedBy,
+        oldState: {
+          agency: log.previousSnapshot?.agency || null,
+          tenant: log.previousSnapshot?.tenant || null,
+          landlord: log.previousSnapshot?.landlord || null,
+          propertyManager: log.previousSnapshot?.propertyManager || null,
+          status: log.previousSnapshot?.status || null,
+        },
+        newState: {
+          agency: log.currentSnapshot?.agency || null,
+          tenant: log.currentSnapshot?.tenant || null,
+          landlord: log.currentSnapshot?.landlord || null,
+          propertyManager: log.currentSnapshot?.propertyManager || null,
+          status: log.currentSnapshot?.status || null,
+        },
+        changes: log.changes,
+        metadata: log.metadata,
+        createdAt: log.createdAt,
+        updatedAt: log.updatedAt,
+      };
+
       res.status(200).json({
         status: "success",
         message: "Property log retrieved successfully",
@@ -2765,7 +2904,7 @@ router.get(
             id: property._id,
             address: property.address?.fullAddress,
           },
-          log,
+          log: formattedLog,
         },
       });
     } catch (error) {

@@ -110,6 +110,31 @@ const propertyLogSchema = new mongoose.Schema(
       status: String,
     },
 
+    // Snapshot of important data after change (for complex objects)
+    currentSnapshot: {
+      agency: {
+        id: mongoose.Schema.Types.ObjectId,
+        name: String,
+        email: String,
+      },
+      tenant: {
+        name: String,
+        email: String,
+        phone: String,
+      },
+      landlord: {
+        name: String,
+        email: String,
+        phone: String,
+      },
+      propertyManager: {
+        id: mongoose.Schema.Types.ObjectId,
+        name: String,
+        email: String,
+      },
+      status: String,
+    },
+
     // IP address and user agent for audit purposes
     metadata: {
       ipAddress: String,
