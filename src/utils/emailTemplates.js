@@ -790,18 +790,6 @@ const agencyWelcomeTemplate = (data) => ({
           </a>
         </div>
 
-        <div style="background-color: #e7f3ff; border: 1px solid #b3d9ff; padding: 15px; border-radius: 5px; margin: 20px 0;">
-          <p style="color: #0056b3; margin: 0; font-size: 14px;">
-            <strong>🆓 14-Day Free Trial:</strong>
-          </p>
-          <ul style="color: #0056b3; margin: 10px 0 0 20px;">
-            <li>Your subscription of <strong>$${data.subscriptionAmount}/month</strong> starts after your trial ends</li>
-            <li>Trial period ends on: <strong>${data.trialEndDate ? new Date(data.trialEndDate).toLocaleDateString('en-AU', { year: 'numeric', month: 'long', day: 'numeric' }) : '14 days from today'}</strong></li>
-            <li>Full access to all CRM features during the trial</li>
-            <li>No charges until your trial period expires</li>
-          </ul>
-        </div>
-
         <div style="background-color: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 5px; margin: 20px 0;">
           <p style="color: #856404; margin: 0; font-size: 14px;">
             <strong>🚀 What You Can Do Now:</strong>

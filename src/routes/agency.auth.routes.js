@@ -140,6 +140,28 @@ router.post(
         timestamp: new Date().toISOString(),
       });
 
+      // Send welcome email immediately after agency creation
+      try {
+        await emailService.sendAgencyWelcomeEmail({
+          email: agency.email,
+          name: agency.contactPerson,
+          contactPerson: agency.contactPerson,
+          companyName: agency.companyName,
+          subscriptionAmount: agency.subscriptionAmount,
+          loginUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
+        });
+
+        console.log("Welcome email sent to new agency:", {
+          agencyId: agency._id,
+          email: agency.email,
+          companyName: agency.companyName,
+          timestamp: new Date().toISOString(),
+        });
+      } catch (emailError) {
+        console.error("Failed to send welcome email to agency:", emailError);
+        // Don't fail the registration if email fails, just log the error
+      }
+
       res.status(201).json({
         status: "success",
         message: "Agency registered successfully.",

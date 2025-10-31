@@ -21,6 +21,7 @@ import bookingNotificationService from "../services/bookingNotification.service.
 import fileUploadService from "../services/fileUpload.service.js";
 import notificationService from "../services/notification.service.js";
 import emailService from "../services/email.service.js";
+import propertyLogService from "../services/propertyLog.service.js";
 import { sanitizePropertyInput, sanitizeInput } from "../middleware/sanitizer.middleware.js";
 
 const router = express.Router();
@@ -865,6 +866,9 @@ router.post("/", sanitizePropertyInput(), authenticateUserTypes(['SuperUser', 'T
     const property = new Property(propertyData);
     await property.save();
 
+    // Log property creation
+    await propertyLogService.logPropertyCreation(property, req);
+
     // If property manager is assigned, add property to their assignedProperties array
     if (assignedPropertyManagerId) {
       const propertyManager = await PropertyManager.findById(
@@ -1303,7 +1307,7 @@ router.get("/:id", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', '
 router.put("/:id", sanitizePropertyInput(), authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'PropertyManager']), async (req, res) => {
   try {
     const { id } = req.params;
-    const { address, currentTenant, complianceSchedule, notes } = req.body;
+    const { address, currentTenant, currentLandlord, complianceSchedule, notes } = req.body;
 
     // Validate ObjectId
     if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -1382,6 +1386,28 @@ router.put("/:id", sanitizePropertyInput(), authenticateUserTypes(['SuperUser', 
       }
     }
 
+    // Validate landlord if provided
+    if (currentLandlord) {
+      if (!currentLandlord.name || !currentLandlord.email || !currentLandlord.phone) {
+        return res.status(400).json({
+          status: "error",
+          message:
+            "Complete landlord information (name, email, phone) is required",
+        });
+      }
+
+      const emailRegex = /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/;
+      if (!emailRegex.test(currentLandlord.email)) {
+        return res.status(400).json({
+          status: "error",
+          message: "Please enter a valid landlord email address",
+        });
+      }
+    }
+
+    // Capture the old property state for logging
+    const oldProperty = property.toObject();
+
     // Update fields if provided
     if (address) {
       property.address = address;
@@ -1392,6 +1418,7 @@ router.put("/:id", sanitizePropertyInput(), authenticateUserTypes(['SuperUser', 
       );
     }
     if (currentTenant) property.currentTenant = currentTenant;
+    if (currentLandlord) property.currentLandlord = currentLandlord;
     if (complianceSchedule) {
       property.complianceSchedule = {
         ...property.complianceSchedule,
@@ -1406,6 +1433,13 @@ router.put("/:id", sanitizePropertyInput(), authenticateUserTypes(['SuperUser', 
     if (notes !== undefined) property.notes = notes;
 
     await property.save();
+
+    // Log the property update
+    await propertyLogService.logPropertyUpdate(
+      { toObject: () => oldProperty },
+      property,
+      req
+    );
 
     // Populate agency and property manager details for response
     await property.populate("agency", "companyName contactPerson email phone");
@@ -1433,6 +1467,7 @@ router.put("/:id", sanitizePropertyInput(), authenticateUserTypes(['SuperUser', 
           agency: property.agency,
           assignedPropertyManager: property.assignedPropertyManager,
           currentTenant: property.currentTenant,
+          currentLandlord: property.currentLandlord,
           complianceSchedule: property.complianceSchedule,
           notes: property.notes,
           hasOverdueCompliance: property.hasOverdueCompliance(),
@@ -2534,6 +2569,210 @@ router.get(
       res.status(500).json({
         status: "error",
         message: "An error occurred while fetching the revenue report",
+      });
+    }
+  }
+);
+
+// ==================== PROPERTY LOG ENDPOINTS ====================
+
+// Get all logs for a property
+router.get(
+  "/:id/logs",
+  authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'PropertyManager']),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { page = 1, limit = 50, changeType, startDate, endDate } = req.query;
+
+      // Validate property ID
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        return res.status(400).json({
+          status: "error",
+          message: "Invalid property ID",
+        });
+      }
+
+      // Verify property exists and user has access
+      const agencyFilter = getAgencyFilter(req);
+      if (agencyFilter === null) {
+        return res.status(401).json({
+          status: "error",
+          message: "Authentication required",
+        });
+      }
+
+      const filter = { _id: id, isActive: true, ...agencyFilter };
+      const property = await Property.findOne(filter);
+
+      if (!property) {
+        return res.status(404).json({
+          status: "error",
+          message: "Property not found or you don't have access to it",
+        });
+      }
+
+      // Import PropertyLog model
+      const PropertyLog = (await import("../models/PropertyLog.js")).default;
+
+      // Get logs with filters
+      const result = await PropertyLog.getPropertyLogs(id, {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        changeType,
+        startDate,
+        endDate,
+      });
+
+      res.status(200).json({
+        status: "success",
+        message: "Property logs retrieved successfully",
+        data: {
+          property: {
+            id: property._id,
+            address: property.address?.fullAddress,
+          },
+          logs: result.logs,
+          pagination: result.pagination,
+        },
+      });
+    } catch (error) {
+      console.error("Get property logs error:", error);
+      res.status(500).json({
+        status: "error",
+        message: "An error occurred while fetching property logs",
+      });
+    }
+  }
+);
+
+// Get change summary for a property
+router.get(
+  "/:id/logs/summary",
+  authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'PropertyManager']),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      // Validate property ID
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        return res.status(400).json({
+          status: "error",
+          message: "Invalid property ID",
+        });
+      }
+
+      // Verify property exists and user has access
+      const agencyFilter = getAgencyFilter(req);
+      if (agencyFilter === null) {
+        return res.status(401).json({
+          status: "error",
+          message: "Authentication required",
+        });
+      }
+
+      const filter = { _id: id, isActive: true, ...agencyFilter };
+      const property = await Property.findOne(filter);
+
+      if (!property) {
+        return res.status(404).json({
+          status: "error",
+          message: "Property not found or you don't have access to it",
+        });
+      }
+
+      // Import PropertyLog model
+      const PropertyLog = (await import("../models/PropertyLog.js")).default;
+
+      // Get change summary
+      const summary = await PropertyLog.getChangeSummary(id);
+
+      res.status(200).json({
+        status: "success",
+        message: "Property change summary retrieved successfully",
+        data: {
+          property: {
+            id: property._id,
+            address: property.address?.fullAddress,
+          },
+          summary,
+          totalChanges: summary.reduce((sum, item) => sum + item.count, 0),
+        },
+      });
+    } catch (error) {
+      console.error("Get property change summary error:", error);
+      res.status(500).json({
+        status: "error",
+        message: "An error occurred while fetching property change summary",
+      });
+    }
+  }
+);
+
+// Get a specific log entry
+router.get(
+  "/:id/logs/:logId",
+  authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'PropertyManager']),
+  async (req, res) => {
+    try {
+      const { id, logId } = req.params;
+
+      // Validate IDs
+      if (!mongoose.Types.ObjectId.isValid(id) || !mongoose.Types.ObjectId.isValid(logId)) {
+        return res.status(400).json({
+          status: "error",
+          message: "Invalid property or log ID",
+        });
+      }
+
+      // Verify property exists and user has access
+      const agencyFilter = getAgencyFilter(req);
+      if (agencyFilter === null) {
+        return res.status(401).json({
+          status: "error",
+          message: "Authentication required",
+        });
+      }
+
+      const filter = { _id: id, isActive: true, ...agencyFilter };
+      const property = await Property.findOne(filter);
+
+      if (!property) {
+        return res.status(404).json({
+          status: "error",
+          message: "Property not found or you don't have access to it",
+        });
+      }
+
+      // Import PropertyLog model
+      const PropertyLog = (await import("../models/PropertyLog.js")).default;
+
+      // Get the specific log
+      const log = await PropertyLog.findOne({ _id: logId, property: id });
+
+      if (!log) {
+        return res.status(404).json({
+          status: "error",
+          message: "Log entry not found",
+        });
+      }
+
+      res.status(200).json({
+        status: "success",
+        message: "Property log retrieved successfully",
+        data: {
+          property: {
+            id: property._id,
+            address: property.address?.fullAddress,
+          },
+          log,
+        },
+      });
+    } catch (error) {
+      console.error("Get property log error:", error);
+      res.status(500).json({
+        status: "error",
+        message: "An error occurred while fetching property log",
       });
     }
   }
