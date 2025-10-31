@@ -420,18 +420,28 @@ technicianSchema.methods.getSummary = function () {
 };
 
 // Post-save middleware to send welcome email
+// Using a flag to track if the document was new before save
+technicianSchema.pre("save", function (next) {
+  this._wasNew = this.isNew;
+  next();
+});
+
 technicianSchema.post("save", async function (doc, next) {
-  if (this.isNew) {
+  // Check if this was a new document before it was saved
+  if (this._wasNew) {
     try {
+      // Construct fullName from firstName and lastName to ensure it's available
+      const fullName = `${this.firstName} ${this.lastName}`.trim();
+      
       await emailService.sendTechnicianWelcomeEmail({
         email: this.email,
-        fullName: this.fullName,
+        fullName: fullName,
       });
 
       console.log("Welcome email sent successfully to new technician:", {
         technicianId: this._id,
         email: this.email,
-        fullName: this.fullName,
+        fullName: fullName,
         timestamp: new Date().toISOString(),
       });
     } catch (error) {
@@ -439,8 +449,9 @@ technicianSchema.post("save", async function (doc, next) {
       console.error("Failed to send welcome email to technician:", {
         technicianId: this._id,
         email: this.email,
-        fullName: this.fullName,
+        fullName: `${this.firstName} ${this.lastName}`.trim(),
         error: error.message,
+        stack: error.stack,
         timestamp: new Date().toISOString(),
       });
     }

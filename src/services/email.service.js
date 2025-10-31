@@ -738,15 +738,13 @@ class EmailService {
    * @param {Object} technician - Technician object
    * @param {string} technician.email - Technician's email
    * @param {string} technician.fullName - Technician's full name
-   * @param {string} technician.tradeType - Technician's trade type
    * @returns {Promise} - Email send result
    */
   async sendTechnicianWelcomeEmail(technician) {
     if (
       !technician ||
       !technician.email ||
-      !technician.fullName ||
-      !technician.tradeType
+      !technician.fullName
     ) {
       throw new Error("Invalid technician data provided for welcome email");
     }
@@ -754,7 +752,6 @@ class EmailService {
     console.log("Sending welcome email to technician:", {
       email: technician.email,
       fullName: technician.fullName,
-      tradeType: technician.tradeType,
     });
 
     return await this.sendTemplatedEmail({
@@ -762,7 +759,6 @@ class EmailService {
       templateName: "technicianWelcome",
       templateData: {
         fullName: technician.fullName,
-        tradeType: technician.tradeType,
       },
     });
   }

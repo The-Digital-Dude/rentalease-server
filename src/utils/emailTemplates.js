@@ -2284,4 +2284,75 @@ const templates = {
   quotationRejected: quotationRejectedTemplate,
 };
 
+/**
+ * Email template for welcoming new technicians
+ * @param {Object} data - Template data
+ * @param {string} data.fullName - Technician's full name
+ * @returns {Object} - Email template configuration
+ */
+const technicianWelcomeTemplate = (data) => ({
+  subject: "Welcome to RentalEase - Technician Account",
+  html: `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+      <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #333; margin-bottom: 10px;">Welcome to RentalEase!</h1>
+          <div style="width: 50px; height: 3px; background-color: #28a745; margin: 0 auto;"></div>
+        </div>
+        
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">Hello ${data.fullName},</p>
+        
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">
+          Welcome to RentalEase! We're excited to have you join our team of skilled technicians.
+        </p>
+        
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">
+          Your technician account has been successfully created. You can now access the platform to:
+        </p>
+        
+        <div style="background-color: #d4edda; border: 1px solid #c3e6cb; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <ul style="color: #155724; margin: 10px 0 0 20px; line-height: 1.8;">
+            <li>View and manage your assigned jobs</li>
+            <li>Update job statuses and completion details</li>
+            <li>Track your schedule and availability</li>
+            <li>Access property information and contact details</li>
+            <li>Submit reports and documentation</li>
+            <li>View your payment history and earnings</li>
+          </ul>
+        </div>
+        
+        <div style="background-color: #d1ecf1; border: 1px solid #bee5eb; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <p style="color: #0c5460; margin: 0; font-size: 14px;">
+            <strong>📱 Download Our Mobile App:</strong> For the best experience, download our mobile app to manage jobs on the go, receive instant notifications, and update job statuses directly from the field.
+          </p>
+        </div>
+        
+        <div style="background-color: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <p style="color: #856404; margin: 0; font-size: 14px;">
+            <strong>🔐 Login Credentials:</strong> Use your registered email address and the password you set during registration to log in to the platform.
+          </p>
+        </div>
+        
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">
+          If you have any questions or need assistance getting started, please don't hesitate to reach out to your agency administrator or our support team.
+        </p>
+        
+        <div style="border-top: 1px solid #eee; padding-top: 20px; margin-top: 30px;">
+          <p style="color: #666; font-size: 12px; margin: 0;">
+            This is an automated message from RentalEase. Please do not reply to this email.
+          </p>
+        </div>
+        
+        <p style="color: #333; margin-top: 30px;">
+          Best regards,<br>
+          <strong>The RentalEase Team</strong>
+        </p>
+      </div>
+    </div>
+  `,
+});
+
+// Add technicianWelcome to templates object
+templates.technicianWelcome = technicianWelcomeTemplate;
+
 export default templates;
