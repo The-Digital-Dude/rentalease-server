@@ -40,9 +40,10 @@ const technicianPaymentSchema = new mongoose.Schema(
           "Smoke",
           "Repairs",
           "Routine Inspection",
+          "MinimumSafetyStandard",
         ],
         message:
-          "Job type must be one of: Gas, Electrical, Smoke, Repairs, Routine Inspection",
+          "Job type must be one of: Gas, Electrical, Smoke, Repairs, Routine Inspection, MinimumSafetyStandard",
       },
     },
     amount: {

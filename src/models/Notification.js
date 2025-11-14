@@ -34,6 +34,7 @@ const notificationSchema = new mongoose.Schema(
         "QUOTATION_ACCEPTED",
         "QUOTATION_REJECTED",
         "PROPERTY_ASSIGNED",
+        "INSPECTION_REPORT_SUBMITTED",
       ],
     },
     title: {
@@ -60,7 +61,7 @@ const notificationSchema = new mongoose.Schema(
     },
     priority: {
       type: String,
-      enum: ["Low", "Medium", "High", "Urgent"],
+      enum: ["Low", "Medium", "High", "Urgent", "Normal"],
       default: "Medium",
     },
     readAt: {

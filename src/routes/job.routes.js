@@ -1925,7 +1925,7 @@ router.patch(
   async (req, res) => {
     console.log(req.body, "req.body");
     console.log(req.file, "req.file");
-    const { hasInvoice, invoiceData } = req.body;
+    const { hasInvoice, invoiceData, completionNotes, totalCost } = req.body;
     console.log(invoiceData, "invoiceData");
 
     try {

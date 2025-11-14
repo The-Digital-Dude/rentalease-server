@@ -102,7 +102,7 @@ const drawRoomDetailTable = (doc, title, rows = [], options = {}) => {
       .fillColor("white")
       .font("Helvetica-Bold")
       .fontSize(10)
-      .text("Inspection Item", tableX + 15, headerY + 8, {
+      .text("Item", tableX + 15, headerY + 8, {
         width: questionWidth - 30,
         align: "left",
       });
@@ -234,7 +234,7 @@ const formatDisplayDate = (value) => {
     return "N/A";
   }
 
-  return date.toLocaleDateString(undefined, {
+  return date.toLocaleDateString("en-AU", {
     weekday: "long",
     year: "numeric",
     month: "long",
@@ -252,7 +252,7 @@ const formatNumericDate = (value) => {
     return "N/A";
   }
 
-  return date.toLocaleDateString(undefined, {
+  return date.toLocaleDateString("en-AU", {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -1067,94 +1067,93 @@ const drawMinimumStandardStatusTable = (
   title,
   rows,
   sectionData,
-  { commentsLabel = "Comments" } = {}
+  {
+    commentsLabel = "Comments",
+    meetsLabel = "Meets",
+    doesNotMeetLabel = "D/N Meet"
+  } = {}
 ) => {
   if (!rows.length) {
     return;
   }
 
-  ensurePageSpace(doc, 120 + rows.length * 32);
+  ensurePageSpace(doc, 50 + rows.length * 12);
   drawSectionHeader(doc, title);
 
   const tableX = PAGE.margin;
-  const tableWidth = doc.page.width - PAGE.margin * 2;
-  const labelWidth = Math.min(240, tableWidth * 0.4);
-  const statusWidth = 90;
-  const actionWidth = tableWidth - labelWidth - statusWidth * 2;
-  const headerHeight = 26;
+  const tableWidth = doc.page.width - PAGE.margin * 2; // Match section header width
+  const labelWidth = Math.min(200, tableWidth * 0.35); // Reduced label width
+  const statusWidth = 70; // Reduced status column width
+  const actionWidth = tableWidth - labelWidth - statusWidth * 2; // Larger comments column
+  const headerHeight = 20; // Reduced header height
+  const cellPadding = 4; // Minimal padding for very compact layout
+  const rowMinHeight = 18; // Much smaller row height
 
-  // Header row - Draw backgrounds first
+  // Header row - Modern unified design
   const headerY = doc.y;
 
-  // Draw all header backgrounds
+  // Draw header background with modern styling
   doc
-    .rect(tableX, headerY, labelWidth, headerHeight)
-    .fill(COLORS.primary)
-    .stroke(COLORS.border);
+    .rect(tableX, headerY, tableWidth, headerHeight)
+    .fill("#f8f9fa")
+    .strokeColor("#dee2e6")
+    .lineWidth(1)
+    .stroke();
 
-  doc
-    .rect(tableX + labelWidth, headerY, statusWidth, headerHeight)
-    .fill(COLORS.primary)
-    .stroke(COLORS.border);
-
-  doc
-    .rect(tableX + labelWidth + statusWidth, headerY, statusWidth, headerHeight)
-    .fill(COLORS.primary)
-    .stroke(COLORS.border);
+  // Draw vertical dividers for header
+  const dividerColor = "#dee2e6";
+  doc.strokeColor(dividerColor).lineWidth(1);
 
   doc
-    .rect(
-      tableX + labelWidth + statusWidth * 2,
-      headerY,
-      actionWidth,
-      headerHeight
-    )
-    .fill(COLORS.primary)
-    .stroke(COLORS.border);
+    .moveTo(tableX + labelWidth, headerY)
+    .lineTo(tableX + labelWidth, headerY + headerHeight)
+    .stroke();
 
-  // Now draw text with white color
-  doc.fillColor("white").font("Helvetica-Bold").fontSize(10);
+  doc
+    .moveTo(tableX + labelWidth + statusWidth, headerY)
+    .lineTo(tableX + labelWidth + statusWidth, headerY + headerHeight)
+    .stroke();
 
-  // Area column header
-  doc.text("Area", tableX + 10, headerY + 8, {
-    width: labelWidth - 20,
+  doc
+    .moveTo(tableX + labelWidth + statusWidth * 2, headerY)
+    .lineTo(tableX + labelWidth + statusWidth * 2, headerY + headerHeight)
+    .stroke();
+
+  // Header text with better vertical centering
+  const headerTextY = headerY + (headerHeight - 10) / 2;
+  doc.fillColor("#495057").font("Helvetica-Bold").fontSize(10);
+
+  doc.text("Area", tableX + cellPadding, headerTextY, {
+    width: labelWidth - cellPadding * 2,
     align: "left",
   });
 
-  // Meets column header
-  doc.text("Meets", tableX + labelWidth + 10, headerY + 8, {
-    width: statusWidth - 20,
+  doc.text(meetsLabel, tableX + labelWidth, headerTextY, {
+    width: statusWidth,
     align: "center",
   });
 
-  // Does Not Meet column header
-  doc.text(
-    "Does Not Meet",
-    tableX + labelWidth + statusWidth + 10,
-    headerY + 8,
-    {
-      width: statusWidth - 20,
-      align: "center",
-    }
-  );
+  doc.text(doesNotMeetLabel, tableX + labelWidth + statusWidth, headerTextY, {
+    width: statusWidth,
+    align: "center",
+  });
 
-  // Comments column header
   doc.text(
     commentsLabel,
-    tableX + labelWidth + statusWidth * 2 + 10,
-    headerY + 8,
+    tableX + labelWidth + statusWidth * 2 + cellPadding,
+    headerTextY,
     {
-      width: actionWidth - 20,
+      width: actionWidth - cellPadding * 2,
       align: "left",
     }
   );
 
   // Reset text formatting for data rows
-  doc.fillColor(COLORS.text).font("Helvetica").fontSize(10);
+  doc.fillColor(COLORS.text).font("Helvetica").fontSize(9.5);
   doc.y = headerY + headerHeight;
 
-  rows.forEach((row) => {
-    ensurePageSpace(doc, 80);
+  rows.forEach((row, index) => {
+    ensurePageSpace(doc, 30);
     const status = sectionData?.[row.id];
     const comments =
       sectionData?.[`${row.id}-comments`] ??
@@ -1167,63 +1166,97 @@ const drawMinimumStandardStatusTable = (
     const commentText =
       status === "not_applicable" && !comments ? "N/A" : comments || "";
 
-    const commentHeight = doc.heightOfString(String(commentText || ""), {
-      width: actionWidth - 14,
+    // Calculate row height based on content
+    const labelHeight = doc.heightOfString(String(row.label || ""), {
+      width: labelWidth - cellPadding * 2,
     });
-    const rowHeight = Math.max(28, commentHeight + 14);
+    const commentHeight = doc.heightOfString(String(commentText || ""), {
+      width: actionWidth - cellPadding * 2,
+    });
+
+    // Use minimum height or content height + minimal padding
+    const contentHeight = Math.max(labelHeight, commentHeight);
+    const rowHeight = Math.max(rowMinHeight, contentHeight + cellPadding);
+
+    // Alternating row colors for modern look (subtle zebra striping)
+    const rowBgColor = index % 2 === 0 ? "#ffffff" : "#f8f9fa";
+
+    // Draw row background and borders
+    doc
+      .rect(tableX, doc.y, tableWidth, rowHeight)
+      .fill(rowBgColor)
+      .strokeColor("#dee2e6")
+      .lineWidth(1)
+      .stroke();
+
+    // Draw vertical dividers
+    doc.strokeColor("#dee2e6").lineWidth(1);
 
     doc
-      .rect(tableX, doc.y, labelWidth, rowHeight)
-      .fill("white")
-      .stroke(COLORS.border);
-    doc
-      .rect(tableX + labelWidth, doc.y, statusWidth, rowHeight)
-      .fill("white")
-      .stroke(COLORS.border);
-    doc
-      .rect(tableX + labelWidth + statusWidth, doc.y, statusWidth, rowHeight)
-      .fill("white")
-      .stroke(COLORS.border);
-    doc
-      .rect(
-        tableX + labelWidth + statusWidth * 2,
-        doc.y,
-        actionWidth,
-        rowHeight
-      )
-      .fill("white")
-      .stroke(COLORS.border);
+      .moveTo(tableX + labelWidth, doc.y)
+      .lineTo(tableX + labelWidth, doc.y + rowHeight)
+      .stroke();
 
     doc
-      .fillColor(COLORS.text)
-      .font("Helvetica-Bold")
-      .text(row.label, tableX + 10, doc.y + 8, {
-        width: labelWidth - 12,
+      .moveTo(tableX + labelWidth + statusWidth, doc.y)
+      .lineTo(tableX + labelWidth + statusWidth, doc.y + rowHeight)
+      .stroke();
+
+    doc
+      .moveTo(tableX + labelWidth + statusWidth * 2, doc.y)
+      .lineTo(tableX + labelWidth + statusWidth * 2, doc.y + rowHeight)
+      .stroke();
+
+    const currentRowY = doc.y;
+
+    // Calculate vertical centering for text
+    const labelTextY = currentRowY + (rowHeight - labelHeight) / 2;
+    const statusTextY = currentRowY + (rowHeight - 10) / 2; // 10 is approx font height
+    const commentTextY = currentRowY + (rowHeight - commentHeight) / 2;
+
+    // Area label - vertically centered
+    doc
+      .fillColor("#212529")
+      .font("Helvetica")
+      .fontSize(9.5)
+      .text(row.label, tableX + cellPadding, labelTextY, {
+        width: labelWidth - cellPadding * 2,
+        align: "left",
       });
 
-    doc.font("Helvetica").text(meetsText, tableX + labelWidth, doc.y + 8, {
+    // Meets - vertically centered
+    doc
+      .font("Helvetica")
+      .fontSize(9.5)
+      .text(meetsText, tableX + labelWidth, statusTextY, {
+        width: statusWidth,
+        align: "center",
+      });
+
+    // Does Not Meet - vertically centered
+    doc.text(doesNotMeetText, tableX + labelWidth + statusWidth, statusTextY, {
       width: statusWidth,
       align: "center",
     });
 
-    doc.text(doesNotMeetText, tableX + labelWidth + statusWidth, doc.y + 8, {
-      width: statusWidth,
-      align: "center",
-    });
-
-    doc.text(
-      String(commentText || ""),
-      tableX + labelWidth + statusWidth * 2 + 10,
-      doc.y + 8,
-      {
-        width: actionWidth - 14,
-      }
-    );
+    // Comments - vertically centered
+    doc
+      .font("Helvetica")
+      .fontSize(9.5)
+      .text(
+        String(commentText || ""),
+        tableX + labelWidth + statusWidth * 2 + cellPadding,
+        commentTextY,
+        {
+          width: actionWidth - cellPadding * 2,
+          align: "left",
+        }
+      );
 
     doc.y += rowHeight;
   });
 
-  doc.y += 16;
+  doc.y += 16; // Add consistent spacing after table
 };
 
 const drawPresenceTable = (
@@ -1335,7 +1368,7 @@ const drawPresenceTable = (
     const actionHeight = doc.heightOfString(String(actionText || ""), {
       width: actionWidth - 14,
     });
-    const rowHeight = Math.max(28, actionHeight + 14);
+    const rowHeight = Math.max(20, actionHeight + 8);
 
     doc
       .rect(tableX, doc.y, labelWidth, rowHeight)
@@ -1364,25 +1397,37 @@ const drawPresenceTable = (
       .fill("white")
       .stroke(COLORS.border);
 
+    const currentRowY = doc.y;
+    const textVerticalCenter = currentRowY + (rowHeight - 10) / 2;
+
     doc
       .fillColor(COLORS.text)
       .font("Helvetica-Bold")
-      .text(row.label, tableX + 10, doc.y + 8, { width: labelWidth - 12 });
+      .text(row.label, tableX + 10, textVerticalCenter, {
+        width: labelWidth - 12,
+      });
 
-    doc.font("Helvetica").text(presentText, tableX + labelWidth, doc.y + 8, {
-      width: presenceWidth,
-      align: "center",
-    });
+    doc
+      .font("Helvetica")
+      .text(presentText, tableX + labelWidth, textVerticalCenter, {
+        width: presenceWidth,
+        align: "center",
+      });
 
-    doc.text(notPresentText, tableX + labelWidth + presenceWidth, doc.y + 8, {
-      width: presenceWidth,
-      align: "center",
-    });
+    doc.text(
+      notPresentText,
+      tableX + labelWidth + presenceWidth,
+      textVerticalCenter,
+      {
+        width: presenceWidth,
+        align: "center",
+      }
+    );
 
     doc.text(
       String(actionText || ""),
       tableX + labelWidth + presenceWidth * 2 + 10,
-      doc.y + 8,
+      textVerticalCenter,
       {
         width: actionWidth - 14,
       }
@@ -3347,15 +3392,45 @@ const renderMinimumSafetyStandardReport = async (
     doc.y += 5; // Extra spacing after photo section
   };
 
+  // Helper function to format property address
+  const formatPropertyAddress = () => {
+    // First check if propertySummary has a string value
+    if (propertySummary["property-address"]) {
+      const addr = propertySummary["property-address"];
+      if (typeof addr === "string") return addr;
+      if (typeof addr === "object" && addr !== null) {
+        return addr.fullAddress || addr.street || JSON.stringify(addr);
+      }
+    }
+
+    // Then check property.address
+    if (property?.address) {
+      if (typeof property.address === "string") {
+        return property.address;
+      }
+      if (typeof property.address === "object" && property.address !== null) {
+        return (
+          property.address.fullAddress ||
+          property.address.street ||
+          (property.address.streetNumber && property.address.streetName
+            ? `${property.address.streetNumber} ${
+                property.address.streetName
+              }, ${property.address.suburb || ""} ${
+                property.address.state || ""
+              } ${property.address.postcode || ""}`.trim()
+            : "N/A")
+        );
+      }
+    }
+
+    return "N/A";
+  };
+
   // Overall Property Summary Section
   const summaryRows = [
     {
       label: "Property Address",
-      value:
-        propertySummary["property-address"] ||
-        property?.address?.fullAddress ||
-        property?.address?.street ||
-        "N/A",
+      value: formatPropertyAddress(),
     },
     {
       label: "Inspection Date",
@@ -3415,12 +3490,8 @@ const renderMinimumSafetyStandardReport = async (
     { id: "summary-electrical", label: "Electrical Safety" },
   ];
 
-  for (let i = 1; i <= bathroomsInspected; i++) {
-    overallRows.push({ id: `summary-bathroom-${i}`, label: `Bathroom ${i}` });
-  }
-  for (let i = 1; i <= bedroomsInspected; i++) {
-    overallRows.push({ id: `summary-bedroom-${i}`, label: `Bedroom ${i}` });
-  }
+  // Bathroom and bedroom details are now handled in dedicated sections
+  // No longer adding individual bathroom/bedroom rows to Overall Minimum Standards
 
   // Build consolidated overall summary data from individual sections
   console.log("Available section data for overall summary:");
@@ -3480,26 +3551,8 @@ const renderMinimumSafetyStandardReport = async (
     ...overallSummaryData,
   };
 
-  // Add bedroom and bathroom summary data
-  for (let i = 1; i <= bathroomsInspected; i++) {
-    const bathroomData =
-      getSectionValues(`bathroom-${i}-summary`) ||
-      getSectionValues(`bathroom-${i}`);
-    consolidatedOverallData[`summary-bathroom-${i}`] =
-      bathroomData[`bathroom-${i}-overall`] || bathroomData["bathroom-overall"];
-    consolidatedOverallData[`summary-bathroom-${i}-comments`] =
-      bathroomData[`bathroom-${i}-comments`] ||
-      bathroomData["bathroom-comments"];
-  }
-  for (let i = 1; i <= bedroomsInspected; i++) {
-    const bedroomData =
-      getSectionValues(`bedroom-${i}-summary`) ||
-      getSectionValues(`bedroom-${i}`);
-    consolidatedOverallData[`summary-bedroom-${i}`] =
-      bedroomData[`bedroom-${i}-overall`] || bedroomData["bedroom-overall"];
-    consolidatedOverallData[`summary-bedroom-${i}-comments`] =
-      bedroomData[`bedroom-${i}-comments`] || bedroomData["bedroom-comments"];
-  }
+  // Bathroom and bedroom data is no longer included in Overall Minimum Standards
+  // They are handled in dedicated sections instead
 
   drawMinimumStandardStatusTable(
     doc,
@@ -3517,11 +3570,33 @@ const renderMinimumSafetyStandardReport = async (
     );
   }
   if (presenceRows.length) {
-    drawPresenceTable(
+    // Convert presence data to match drawMinimumStandardStatusTable format
+    const convertedExecutiveFixtures = {};
+    presenceRows.forEach(row => {
+      const originalValue = executiveFixtures[row.id];
+      // Map presence values to meets/doesn't meet format
+      if (originalValue === 'present') {
+        convertedExecutiveFixtures[row.id] = 'meets';
+      } else if (originalValue === 'not_present') {
+        convertedExecutiveFixtures[row.id] = 'does_not_meet';
+      }
+      // Copy over any comments/actions
+      const actionField = `${row.id}-action`;
+      if (executiveFixtures[actionField]) {
+        convertedExecutiveFixtures[`${row.id}-comments`] = executiveFixtures[actionField];
+      }
+    });
+
+    drawMinimumStandardStatusTable(
       doc,
       "Executive Summary – Bathroom Fixtures",
       presenceRows,
-      executiveFixtures
+      convertedExecutiveFixtures,
+      {
+        commentsLabel: "Action",
+        meetsLabel: "Present",
+        doesNotMeetLabel: "Not Present"
+      }
     );
   }
 
@@ -4222,7 +4297,7 @@ const formatValue = (value, fieldType) => {
     case "boolean":
       return value ? "Yes" : "No";
     case "date":
-      return value ? new Date(value).toLocaleDateString() : "—";
+      return value ? new Date(value).toLocaleDateString("en-AU") : "—";
     default:
       if (Array.isArray(value)) {
         return value.join(", ");
@@ -4554,26 +4629,47 @@ const processImageForPdf = async (imageUrl, doc, x, y, maxWidth, maxHeight) => {
       return { success: false, height: 30, message: "[No image URL provided]" };
     }
 
-    const response = await fetch(imageUrl);
-    if (!response.ok) {
-      return {
-        success: false,
-        height: 30,
-        message: "[Image could not be loaded]",
-      };
+    // Add timeout to fetch request (10 seconds)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+    try {
+      const response = await fetch(imageUrl, {
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        return {
+          success: false,
+          height: 30,
+          message: "[Image could not be loaded]",
+        };
+      }
+
+      const imageBuffer = await response.buffer();
+
+      // Add image to PDF
+      doc.image(imageBuffer, x, y, {
+        fit: [maxWidth, maxHeight],
+        align: "left",
+      });
+
+      return { success: true, height: maxHeight + 20 };
+    } catch (fetchError) {
+      clearTimeout(timeoutId);
+      if (fetchError.name === "AbortError") {
+        console.error("Image fetch timeout:", imageUrl);
+        return {
+          success: false,
+          height: 30,
+          message: "[Image load timeout]",
+        };
+      }
+      throw fetchError;
     }
-
-    const imageBuffer = await response.buffer();
-
-    // Add image to PDF
-    doc.image(imageBuffer, x, y, {
-      fit: [maxWidth, maxHeight],
-      align: "left",
-    });
-
-    return { success: true, height: maxHeight + 20 };
   } catch (error) {
-    console.error("Error loading image for PDF:", error);
+    console.error("Error loading image for PDF:", error, { imageUrl });
     return { success: false, height: 30, message: "[Error loading image]" };
   }
 };
