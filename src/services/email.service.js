@@ -105,6 +105,12 @@ class EmailService {
       throw new Error("Invalid user data provided for welcome email");
     }
 
+    // If Resend is not configured, log and return gracefully
+    if (!this.resend) {
+      console.warn("📧 Email service not configured. Skipping welcome email for:", user.email);
+      return { success: false, message: "Email service not configured" };
+    }
+
     console.log("Sending welcome email to:", {
       email: user.email,
       name: user.name,
@@ -174,6 +180,12 @@ class EmailService {
       throw new Error("OTP is required for password reset email");
     }
 
+    // If Resend is not configured, log and return gracefully
+    if (!this.resend) {
+      console.warn("📧 Email service not configured. Skipping password reset OTP email for:", user.email);
+      return { success: false, message: "Email service not configured" };
+    }
+
     console.log("Sending password reset OTP email to:", {
       email: user.email,
       name: user.name,
@@ -210,6 +222,12 @@ class EmailService {
       throw new Error(
         "Invalid property manager data provided for welcome email"
       );
+    }
+
+    // If Resend is not configured, log and return gracefully
+    if (!this.resend) {
+      console.warn("📧 Email service not configured. Skipping property manager welcome email for:", propertyManager.email);
+      return { success: false, message: "Email service not configured" };
     }
 
     console.log("Sending property manager welcome email to:", {
@@ -347,6 +365,12 @@ class EmailService {
       !agency.companyName
     ) {
       throw new Error("Invalid agency data provided for welcome email");
+    }
+
+    // If Resend is not configured, log and return gracefully
+    if (!this.resend) {
+      console.warn("📧 Email service not configured. Skipping agency welcome email for:", agency.email);
+      return { success: false, message: "Email service not configured" };
     }
 
     console.log("Sending agency welcome email to:", {
@@ -531,6 +555,12 @@ class EmailService {
       throw new Error(
         "Invalid owner data provided for technician welcome email"
       );
+    }
+
+    // If Resend is not configured, log and return gracefully
+    if (!this.resend) {
+      console.warn("📧 Email service not configured. Skipping technician welcome email for:", technician.email);
+      return { success: false, message: "Email service not configured" };
     }
 
     console.log("Sending technician welcome email to:", {
@@ -747,6 +777,12 @@ class EmailService {
       !technician.fullName
     ) {
       throw new Error("Invalid technician data provided for welcome email");
+    }
+
+    // If Resend is not configured, log and return gracefully
+    if (!this.resend) {
+      console.warn("📧 Email service not configured. Skipping technician welcome email for:", technician.email);
+      return { success: false, message: "Email service not configured" };
     }
 
     console.log("Sending welcome email to technician:", {

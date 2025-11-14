@@ -3263,6 +3263,72 @@ const createMinimumSafetyStandardTemplate = (
     baseSections.push(createBathroomSection(i));
   }
 
+  // Add technician signature section
+  baseSections.push({
+    id: "technician-signoff",
+    title: "Technician Sign-Off",
+    description: "Technician declaration and signature for Minimum Safety Standard inspection completion.",
+    fields: [
+      {
+        id: "technician-name",
+        label: "Inspection Completed By",
+        type: "text",
+        required: true,
+        placeholder: "Technician full name",
+      },
+      {
+        id: "technician-license",
+        label: "License/Registration Number",
+        type: "text",
+        required: true,
+        placeholder: "License or registration number",
+      },
+      {
+        id: "inspection-completion-date",
+        label: "Inspection Completion Date",
+        type: "date",
+        required: true,
+        defaultValue: new Date().toISOString().split("T")[0],
+      },
+      {
+        id: "technician-declaration",
+        label: "Technician Declaration",
+        type: "checkbox",
+        required: true,
+        defaultValue: false,
+        helpText:
+          "I conducted this inspection in accordance with the Residential Tenancies Regulations 2021 and applicable minimum safety standards.",
+      },
+      {
+        id: "declaration-statement",
+        label: "Declaration Statement",
+        type: "text",
+        defaultValue:
+          "I declare that this inspection has been completed in accordance with the Residential Tenancies Regulations 2021 and applicable minimum safety standards.",
+        required: true,
+      },
+      {
+        id: "technician-signature",
+        label: "Technician Signature",
+        type: "signature",
+        required: true,
+      },
+      {
+        id: "signature-date",
+        label: "Date Signed",
+        type: "date",
+        required: true,
+        defaultValue: new Date().toISOString().split("T")[0],
+      },
+      {
+        id: "inspection-notes",
+        label: "Final Inspection Notes",
+        type: "textarea",
+        placeholder: "Add any final remarks or recommendations",
+      },
+    ],
+  });
+
   return {
     jobType: "MinimumSafetyStandard",
     title: "Minimum Safety Standard Inspection",
@@ -5165,6 +5231,26 @@ const createBasicMinimumSafetyStandardTemplate = () => ({
           type: "text",
           defaultValue:
             "This template is dynamically generated based on bedroom and bathroom counts.",
+        },
+      ],
+    },
+    {
+      id: "technician-signoff",
+      title: "Technician Sign-Off",
+      description: "Technician declaration and signature for inspection completion.",
+      fields: [
+        {
+          id: "technician-signature",
+          label: "Technician Signature",
+          type: "signature",
+          required: true,
+        },
+        {
+          id: "signature-date",
+          label: "Date Signed",
+          type: "date",
+          required: true,
+          defaultValue: new Date().toISOString().split("T")[0],
         },
       ],
     },

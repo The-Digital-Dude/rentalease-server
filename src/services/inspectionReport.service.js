@@ -165,15 +165,25 @@ export const submitInspectionReport = async ({
     );
   }
 
+  console.log("[Inspection Submit] Normalizing form data and parsing media metadata");
   const normalizedFormData = normalizeFormData(formData);
   const mediaMetadata = parseMediaMeta(mediaMeta);
+  
+  console.log("[Inspection Submit] Uploading inspection media files", {
+    filesCount: Array.isArray(files) ? files.length : Object.keys(files || {}).length,
+  });
   const mediaUploads = await uploadInspectionMedia(files, mediaMetadata, {
     jobId: job._id,
     propertyId: property._id,
   });
+  console.log("[Inspection Submit] Media uploads completed", {
+    uploadsCount: mediaUploads.length,
+  });
 
+  console.log("[Inspection Submit] Building sections summary");
   const sectionsSummary = buildSectionsSummary(template, normalizedFormData);
 
+  console.log("[Inspection Submit] Creating inspection report document");
   const report = await InspectionReport.create({
     job: job._id,
     property: property._id,
@@ -190,15 +200,41 @@ export const submitInspectionReport = async ({
       userId: technicianId,
     },
   });
-
-  const pdfBuffer = await buildInspectionReportPdf({
-    report,
-    template,
-    job,
-    property,
-    technician,
+  console.log("[Inspection Submit] Report document created", {
+    reportId: report._id,
   });
 
+  console.log("[Inspection Submit] Starting PDF generation", {
+    templateType: template.jobType,
+    templateVersion: template.version,
+  });
+  const pdfStartTime = Date.now();
+  
+  // Add timeout wrapper for PDF generation (5 minutes max)
+  const PDF_GENERATION_TIMEOUT = 5 * 60 * 1000; // 5 minutes
+  const pdfBuffer = await Promise.race([
+    buildInspectionReportPdf({
+      report,
+      template,
+      job,
+      property,
+      technician,
+    }),
+    new Promise((_, reject) =>
+      setTimeout(
+        () => reject(new Error("PDF generation timeout after 5 minutes")),
+        PDF_GENERATION_TIMEOUT
+      )
+    ),
+  ]);
+  
+  const pdfDuration = Date.now() - pdfStartTime;
+  console.log("[Inspection Submit] PDF generation completed", {
+    duration: `${pdfDuration}ms`,
+    bufferSize: pdfBuffer.length,
+  });
+
+  console.log("[Inspection Submit] Uploading PDF to Cloudinary");
   const pdfUpload = await fileUploadService.uploadToCloudinary(pdfBuffer, {
     folder: "inspection-reports",
     public_id: `inspection-reports/job-${job._id}-report-${report._id}`,
@@ -209,6 +245,9 @@ export const submitInspectionReport = async ({
       "inspection-report",
     ],
   });
+  console.log("[Inspection Submit] PDF uploaded to Cloudinary", {
+    url: pdfUpload.secure_url,
+  });
 
   report.pdf = {
     url: pdfUpload.secure_url,
@@ -216,12 +255,14 @@ export const submitInspectionReport = async ({
     generatedAt: new Date(),
   };
   await report.save();
+  console.log("[Inspection Submit] Report saved with PDF reference");
 
   job.reportFile = pdfUpload.secure_url;
   job.latestInspectionReport = report._id;
   job.inspectionReports = job.inspectionReports || [];
   job.inspectionReports.push(report._id);
   await job.save();
+  console.log("[Inspection Submit] Job updated with report reference");
 
   // Notify stakeholders about the new inspection report
   notificationService

@@ -185,8 +185,16 @@ router.post(
   authenticateUserTypes(["Technician"]),
   fileUploadService.inspectionReports(),
   async (req, res) => {
+    const startTime = Date.now();
+    const { jobId } = req.params;
+    
     try {
-      const { jobId } = req.params;
+      console.log("[Inspection Submit] Request received", {
+        jobId,
+        timestamp: new Date().toISOString(),
+        filesCount: req.files?.length || 0,
+      });
+
       const technicianId = req.technician.id;
       const {
         jobType,
@@ -195,6 +203,16 @@ router.post(
         notes,
         mediaMeta,
       } = req.body;
+
+      console.log("[Inspection Submit] Starting report submission", {
+        jobId,
+        technicianId,
+        jobType,
+        templateVersion,
+        hasFormData: !!formData,
+        hasNotes: !!notes,
+        hasMediaMeta: !!mediaMeta,
+      });
 
       const { report, pdf } = await submitInspectionReport({
         jobId,
@@ -207,6 +225,10 @@ router.post(
         mediaMeta,
       });
 
+      console.log("[Inspection Submit] Report created, populating references", {
+        reportId: report._id,
+      });
+
       await report.populate([
         { path: "job", select: "job_id jobType status" },
         {
@@ -214,6 +236,12 @@ router.post(
           select: "firstName lastName email phone",
         },
       ]);
+
+      const duration = Date.now() - startTime;
+      console.log("[Inspection Submit] Successfully completed", {
+        reportId: report._id,
+        duration: `${duration}ms`,
+      });
 
       res.status(201).json({
         status: "success",
@@ -224,7 +252,14 @@ router.post(
         },
       });
     } catch (error) {
-      console.error("Submit inspection report error:", error);
+      const duration = Date.now() - startTime;
+      console.error("[Inspection Submit] Error occurred", {
+        jobId,
+        error: error.message,
+        stack: error.stack,
+        duration: `${duration}ms`,
+      });
+      
       res.status(error.statusCode || 500).json({
         status: "error",
         message: error.message || "Failed to submit inspection report",
