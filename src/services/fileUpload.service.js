@@ -46,6 +46,50 @@ const inspectionUpload = multer({
   },
 });
 
+// File filter for chat attachments (more permissive)
+const chatFileFilter = (req, file, cb) => {
+  // Allowed file types for chat attachments
+  const allowedTypes = [
+    // Images
+    "image/jpeg",
+    "image/jpg",
+    "image/png",
+    "image/gif",
+    "image/webp",
+    // Documents
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "text/plain",
+    // Archives
+    "application/zip",
+    "application/x-zip-compressed",
+  ];
+
+  if (allowedTypes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(
+      new Error(
+        "Invalid file type. Supported: Images (JPG, PNG, GIF), Documents (PDF, DOC, DOCX, XLS, XLSX), Text files, and ZIP archives."
+      ),
+      false
+    );
+  }
+};
+
+// Configure multer for chat attachments
+const chatUpload = multer({
+  storage: multer.memoryStorage(),
+  fileFilter: chatFileFilter,
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit for chat files
+    files: 1, // One file at a time for chat
+  },
+});
+
 // Helper function to upload buffer to Cloudinary
 const uploadToCloudinary = (buffer, options = {}) => {
   return new Promise((resolve, reject) => {
@@ -184,6 +228,9 @@ export default {
   inspectionSingle: (fieldName) => inspectionUpload.single(fieldName),
   inspectionArray: (fieldName, maxCount = 15) => inspectionUpload.array(fieldName, maxCount),
   inspectionFields: (fields) => inspectionUpload.fields(fields),
+
+  // Chat-specific upload configurations
+  chatAttachment: () => chatUpload.single('attachment'),
 
   // Cloudinary helper functions
   uploadToCloudinary,
