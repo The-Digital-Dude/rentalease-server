@@ -60,20 +60,20 @@ const agencySchema = new mongoose.Schema(
       type: String,
       required: [true, "Region is required"],
     },
-    // compliance: {
-    //   type: String,
-    //   required: [true, "Compliance level is required"],
-    //   enum: {
-    //     values: [
-    //       "Basic Package",
-    //       "Basic Compliance",
-    //       "Standard Package",
-    //       "Premium Package",
-    //       "Full Package",
-    //     ],
-    //     message: "Please select a valid compliance package",
-    //   },
-    // },
+    complianceSubscriptions: [
+      {
+        type: String,
+        enum: {
+          values: [
+            "Gas",
+            "Smoke Alarm",
+            "Smoke and Electricity",
+            "Minimum Compliance",
+          ],
+          message: "Invalid compliance subscription type: {VALUE}",
+        },
+      },
+    ],
     outstandingAmount: {
       type: Number,
       default: 0,

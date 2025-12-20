@@ -21,6 +21,8 @@ import {
 
 const router = express.Router();
 
+console.log("✅ agency.auth.routes.js file loaded");
+
 // Valid regions enum
 const VALID_REGIONS = [
   "Sydney Metro",
@@ -55,6 +57,7 @@ router.post(
         region,
         password,
         subscriptionAmount,
+        complianceSubscriptions,
       } = req.body;
 
       // Validate required fields
@@ -95,6 +98,25 @@ router.post(
         });
       }
 
+      // Validate compliance subscriptions if provided
+      if (complianceSubscriptions && Array.isArray(complianceSubscriptions)) {
+        const validComplianceTypes = [
+          "Gas",
+          "Smoke Alarm",
+          "Smoke and Electricity",
+          "Minimum Compliance",
+        ];
+        const hasInvalidType = complianceSubscriptions.some(
+          (type) => !validComplianceTypes.includes(type)
+        );
+        if (hasInvalidType) {
+          return res.status(400).json({
+            status: "error",
+            message: "Invalid compliance subscription type",
+          });
+        }
+      }
+
       // Check if agency already exists by email
       const existingAgencyByEmail = await Agency.findOne({
         email: email.toLowerCase(),
@@ -123,22 +145,13 @@ router.post(
         email: email.toLowerCase(),
         phone,
         region,
+        complianceSubscriptions,
         password,
         subscriptionAmount: numericSubscriptionAmount,
         status: "Active",
       });
 
       await agency.save();
-
-      console.log("Agency created successfully:", {
-        agencyId: agency._id,
-        companyName: agency.companyName,
-        contactPerson: agency.contactPerson,
-        email: agency.email,
-        subscriptionAmount: agency.subscriptionAmount,
-        createdBy: req.superUser?.email || req.user?.email,
-        timestamp: new Date().toISOString(),
-      });
 
       // Send welcome email immediately after agency creation
       try {
@@ -148,7 +161,7 @@ router.post(
           contactPerson: agency.contactPerson,
           companyName: agency.companyName,
           subscriptionAmount: agency.subscriptionAmount,
-          loginUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
+          loginUrl: process.env.FRONTEND_URL || "http://localhost:5173",
         });
 
         console.log("Welcome email sent to new agency:", {
@@ -173,6 +186,7 @@ router.post(
             email: agency.email,
             phone: agency.phone,
             region: agency.region,
+            complianceSubscriptions: agency.complianceSubscriptions,
             status: agency.status,
             abn: agency.abn,
             subscriptionAmount: agency.subscriptionAmount,
@@ -218,26 +232,8 @@ router.post("/login", async (req, res) => {
       });
     }
 
-    // Debug logging for agency status
-    console.log("Agency login debug:", {
-      email: agency.email,
-      status: agency.status,
-      statusType: typeof agency.status,
-      isActiveResult: agency.isActive(),
-      agencyId: agency._id,
-      timestamp: new Date().toISOString(),
-    });
-
     // Check if account is active
     if (!agency.isActive()) {
-      console.log("Agency login failed - not active:", {
-        email: agency.email,
-        status: agency.status,
-        statusType: typeof agency.status,
-        isActiveResult: agency.isActive(),
-        agencyId: agency._id,
-        timestamp: new Date().toISOString(),
-      });
       return res.status(401).json({
         status: "error",
         message: `Account is ${agency.status.toLowerCase()}. Please contact support.`,
@@ -279,6 +275,7 @@ router.post("/login", async (req, res) => {
           email: agency.email,
           phone: agency.phone,
           region: agency.region,
+          complianceSubscriptions: agency.complianceSubscriptions,
           status: agency.status,
           abn: agency.abn,
           subscriptionAmount: agency.subscriptionAmount,
@@ -604,6 +601,7 @@ router.get("/profile", authenticateAgency, async (req, res) => {
           email: agency.email,
           phone: agency.phone,
           region: agency.region,
+          complianceSubscriptions: agency.complianceSubscriptions,
           status: agency.status,
           abn: agency.abn,
           subscriptionAmount: agency.subscriptionAmount,
@@ -1040,6 +1038,15 @@ router.patch(
   async (req, res) => {
     try {
       const { id } = req.params;
+
+      // DEBUG: Force log to stdout
+      process.stdout.write("🌐 UPDATE ROUTE HIT!!!\n");
+      process.stdout.write(
+        `📦 req.body.complianceSubscriptions = ${JSON.stringify(
+          req.body.complianceSubscriptions
+        )}\n`
+      );
+
       const {
         companyName,
         abn,
@@ -1049,6 +1056,8 @@ router.patch(
         region,
         status,
         outstandingAmount,
+        complianceSubscriptions,
+        subscriptionAmount,
       } = req.body;
 
       // Find agency
@@ -1176,48 +1185,87 @@ router.patch(
         agency.outstandingAmount = outstandingAmount;
       }
 
+      // Update compliance subscriptions
+      if (
+        complianceSubscriptions !== undefined &&
+        complianceSubscriptions !== null
+      ) {
+        // Handle empty array or array with values
+        if (Array.isArray(complianceSubscriptions)) {
+          const validComplianceTypes = [
+            "Gas",
+            "Smoke Alarm",
+            "Smoke and Electricity",
+            "Minimum Compliance",
+          ];
+          const hasInvalidType = complianceSubscriptions.some(
+            (type) => !validComplianceTypes.includes(type)
+          );
+          if (hasInvalidType) {
+            return res.status(400).json({
+              status: "error",
+              message: "Invalid compliance subscription type",
+            });
+          }
+          // Use set() method and markModified() to ensure Mongoose tracks the change
+          agency.set("complianceSubscriptions", complianceSubscriptions);
+          agency.markModified("complianceSubscriptions");
+        } else {
+          // If it's not an array, treat as invalid
+          return res.status(400).json({
+            status: "error",
+            message: "complianceSubscriptions must be an array",
+          });
+        }
+      }
+
+      // Update subscription amount
+      if (subscriptionAmount !== undefined && subscriptionAmount !== null) {
+        const numericAmount =
+          typeof subscriptionAmount === "string"
+            ? parseFloat(subscriptionAmount)
+            : Number(subscriptionAmount);
+
+        if (
+          isNaN(numericAmount) ||
+          numericAmount < 1 ||
+          numericAmount > 100000
+        ) {
+          return res.status(400).json({
+            status: "error",
+            message: "Subscription amount must be between $1 and $100,000",
+          });
+        }
+
+        agency.subscriptionAmount = numericAmount;
+      }
+
       // Update timestamp
       agency.lastUpdated = new Date();
 
-      // Save updated agency
-      await agency.save();
-
-      console.log("Agency updated:", {
-        agencyId: agency._id,
-        updatedBy: req.superUser.email,
-        originalValues,
-        newValues: {
-          companyName: agency.companyName,
-          abn: agency.abn,
-          contactPerson: agency.contactPerson,
-          email: agency.email,
-          phone: agency.phone,
-          region: agency.region,
-          status: agency.status,
-          outstandingAmount: agency.outstandingAmount,
-        },
-        timestamp: new Date().toISOString(),
-      });
+      // Save all updates at once
+      const savedAgency = await agency.save();
 
       res.status(200).json({
         status: "success",
         message: "Agency updated successfully",
         data: {
           agency: {
-            id: agency._id,
-            companyName: agency.companyName,
-            contactPerson: agency.contactPerson,
-            email: agency.email,
-            phone: agency.phone,
-            region: agency.region,
-            status: agency.status,
-            abn: agency.abn,
-            subscriptionAmount: agency.subscriptionAmount,
-            outstandingAmount: agency.outstandingAmount,
-            totalProperties: agency.totalProperties,
-            lastLogin: agency.lastLogin,
-            joinedDate: agency.joinedDate,
-            lastUpdated: agency.lastUpdated,
+            id: savedAgency._id,
+            companyName: savedAgency.companyName,
+            contactPerson: savedAgency.contactPerson,
+            email: savedAgency.email,
+            phone: savedAgency.phone,
+            region: savedAgency.region,
+            complianceSubscriptions: savedAgency.complianceSubscriptions,
+            status: savedAgency.status,
+            abn: savedAgency.abn,
+            subscriptionAmount: savedAgency.subscriptionAmount,
+            outstandingAmount: savedAgency.outstandingAmount,
+            totalProperties: savedAgency.totalProperties,
+            lastLogin: savedAgency.lastLogin,
+            joinedDate: savedAgency.joinedDate,
+            lastUpdated: savedAgency.lastUpdated,
           },
         },
       });
@@ -1237,12 +1285,21 @@ router.get(
   authenticateUserTypes(["SuperUser", "TeamMember"]),
   async (req, res) => {
     try {
-      const { status, region, page = 1, limit = 10 } = req.query;
+      const {
+        status,
+        region,
+        complianceType,
+        page = 1,
+        limit = 10,
+      } = req.query;
 
       // Build filter object
       const filter = {};
       if (status) filter.status = status;
       if (region) filter.region = region;
+      if (complianceType) {
+        filter.complianceSubscriptions = { $in: [complianceType] };
+      }
 
       // Calculate pagination
       const skip = (page - 1) * limit;
@@ -1256,6 +1313,29 @@ router.get(
       // Get total count for pagination
       const totalCount = await Agency.countDocuments(filter);
 
+      // Get compliance statistics
+      const complianceStats = await Agency.aggregate([
+        {
+          $unwind: {
+            path: "$complianceSubscriptions",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $group: {
+            _id: "$complianceSubscriptions",
+            count: { $sum: 1 },
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            type: "$_id",
+            count: 1,
+          },
+        },
+      ]);
+
       res.status(200).json({
         status: "success",
         data: {
@@ -1266,6 +1346,7 @@ router.get(
             email: agency.email,
             phone: agency.phone,
             region: agency.region,
+            complianceSubscriptions: agency.complianceSubscriptions,
             status: agency.status,
             abn: agency.abn,
             subscriptionAmount: agency.subscriptionAmount,
@@ -1282,13 +1363,18 @@ router.get(
             hasNext: page * limit < totalCount,
             hasPrev: page > 1,
           },
+          complianceStats: complianceStats.map((stat) => ({
+            type: stat.type || "Not Set",
+            count: stat.count,
+          })),
         },
       });
     } catch (error) {
       console.error("Get all agencies error:", error);
       res.status(500).json({
         status: "error",
-        message: "An error occurred while fetching agencies",
+        message: error.message || "An error occurred while fetching agencies",
+        error: process.env.NODE_ENV === "development" ? error.stack : undefined,
       });
     }
   }
@@ -1435,6 +1521,7 @@ router.get(
             email: agency.email,
             phone: agency.phone,
             region: agency.region,
+            complianceSubscriptions: agency.complianceSubscriptions,
             status: agency.status,
             abn: agency.abn,
             subscriptionAmount: agency.subscriptionAmount,
