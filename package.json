@@ -8,7 +8,8 @@
     "test": "jest",
     "dev": "nodemon index.js",
     "start": "node index.js",
-    "fix-property-counts": "node src/scripts/fixAgencyPropertyCounts.js"
+    "fix-property-counts": "node src/scripts/fixAgencyPropertyCounts.js",
+    "drop-pm-abn-index": "node src/scripts/dropPropertyManagerAbnIndex.js"
   },
   "keywords": [],
   "author": "",
