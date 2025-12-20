@@ -19,7 +19,7 @@ const chatMessageSchema = new mongoose.Schema({
     userType: {
       type: String,
       required: true,
-      enum: ['Agency', 'SuperUser', 'TeamMember', 'System']
+      enum: ['Agency', 'PropertyManager', 'SuperUser', 'TeamMember', 'System']
     },
     userName: {
       type: String,
@@ -106,7 +106,7 @@ const chatMessageSchema = new mongoose.Schema({
       },
       userType: {
         type: String,
-        enum: ['Agency', 'SuperUser', 'TeamMember'],
+        enum: ['Agency', 'PropertyManager', 'SuperUser', 'TeamMember'],
         required: true
       },
       readAt: {
@@ -150,7 +150,7 @@ const chatMessageSchema = new mongoose.Schema({
       },
       userType: {
         type: String,
-        enum: ['Agency', 'SuperUser', 'TeamMember'],
+        enum: ['Agency', 'PropertyManager', 'SuperUser', 'TeamMember'],
         required: true
       },
       addedAt: {
@@ -182,7 +182,7 @@ const chatMessageSchema = new mongoose.Schema({
     },
     userType: {
       type: String,
-      enum: ['Agency', 'SuperUser', 'TeamMember'],
+      enum: ['Agency', 'PropertyManager', 'SuperUser', 'TeamMember'],
       default: null
     },
     deletedAt: {
@@ -368,13 +368,23 @@ chatMessageSchema.statics.getMessagesForSession = async function(sessionId, limi
         case 'TeamMember':
           modelName = 'TeamMember';
           break;
+        case 'PropertyManager':
+          modelName = 'PropertyManager';
+          break;
         default:
           continue; // Skip population for unknown types
       }
       
       try {
         const Model = mongoose.model(modelName);
-        const user = await Model.findById(message.sender.userId).select('name email companyName');
+        // Select appropriate fields based on model type
+        let selectFields = 'name email';
+        if (modelName === 'Agency') {
+          selectFields = 'companyName contactPerson email';
+        } else if (modelName === 'PropertyManager') {
+          selectFields = 'firstName lastName email';
+        }
+        const user = await Model.findById(message.sender.userId).select(selectFields);
         if (user) {
           message.sender.userId = user;
         }
@@ -388,10 +398,22 @@ chatMessageSchema.statics.getMessagesForSession = async function(sessionId, limi
 };
 
 // Static method to get unread message count for user
-chatMessageSchema.statics.getUnreadCountForUser = function(userId, userType, sessionId = null) {
+chatMessageSchema.statics.getUnreadCountForUser = async function(userId, userType, sessionId = null) {
+  const ChatSession = mongoose.model('ChatSession');
+  
+  // If sessionId is provided, check if session is closed
+  if (sessionId) {
+    const session = await ChatSession.findById(sessionId).select('status');
+    if (session && session.status === 'closed') {
+      // Session is closed, return 0 unread messages
+      return 0;
+    }
+  }
+  
   const query = {
     status: 'active',
     'sender.userId': { $ne: userId }, // Don't count own messages
+    'sender.userType': { $ne: 'System' }, // Don't count system messages
     'metadata.readBy': {
       $not: {
         $elemMatch: {
@@ -404,6 +426,14 @@ chatMessageSchema.statics.getUnreadCountForUser = function(userId, userType, ses
   
   if (sessionId) {
     query.sessionId = sessionId;
+  } else {
+    // If no specific session, only count messages from active sessions (not closed)
+    const activeSessions = await ChatSession.find({ status: { $ne: 'closed' } }).select('_id');
+    const activeSessionIds = activeSessions.map(s => s._id);
+    if (activeSessionIds.length === 0) {
+      return 0; // No active sessions
+    }
+    query.sessionId = { $in: activeSessionIds };
   }
   
   return this.countDocuments(query);

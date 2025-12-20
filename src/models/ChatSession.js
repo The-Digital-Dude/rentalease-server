@@ -8,16 +8,16 @@ const chatSessionSchema = new mongoose.Schema({
     default: () => `chat_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
   },
   
-  // Who initiated the chat (Agency)
+  // Who initiated the chat (Agency or PropertyManager)
   initiatedBy: {
     userId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Agency',
+      refPath: 'initiatedBy.userType',
       required: true
     },
     userType: {
       type: String,
-      enum: ['Agency'],
+      enum: ['Agency', 'PropertyManager'],
       default: 'Agency',
       required: true
     },
@@ -138,7 +138,7 @@ const chatSessionSchema = new mongoose.Schema({
     },
     userType: {
       type: String,
-      enum: ['Agency', 'SuperUser', 'TeamMember', 'System'],
+      enum: ['Agency', 'PropertyManager', 'SuperUser', 'TeamMember', 'System'],
       default: null
     }
   },
@@ -308,7 +308,7 @@ chatSessionSchema.methods.addRating = async function(score, feedback = '') {
 chatSessionSchema.statics.getWaitingChats = function() {
   return this.find({ status: 'waiting' })
     .sort({ createdAt: 1 }) // FIFO - first in, first out
-    .populate('initiatedBy.userId', 'companyName contactPerson email');
+    .populate('initiatedBy.userId', 'companyName contactPerson email firstName lastName');
 };
 
 // Static method to get active chats for a support agent
@@ -318,10 +318,10 @@ chatSessionSchema.statics.getActiveChatsForAgent = function(agentId) {
     status: 'active' 
   })
     .sort({ 'metadata.lastActivity': -1 })
-    .populate('initiatedBy.userId', 'companyName contactPerson email');
+    .populate('initiatedBy.userId', 'companyName contactPerson email firstName lastName');
 };
 
-// Static method to get chat history for an agency
+// Static method to get chat history for an agency or property manager
 chatSessionSchema.statics.getChatHistoryForAgency = function(agencyId, limit = 20) {
   return this.find({ 'initiatedBy.userId': agencyId })
     .sort({ createdAt: -1 })

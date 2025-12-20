@@ -9,6 +9,7 @@ import Notification from "../models/Notification.js";
 import Agency from "../models/Agency.js";
 import SuperUser from "../models/SuperUser.js";
 import TeamMember from "../models/TeamMember.js";
+import PropertyManager from "../models/PropertyManager.js";
 
 // Middleware
 import { authenticateUserTypes } from "../middleware/auth.middleware.js";
@@ -23,8 +24,10 @@ const router = express.Router();
 const chatAccessMiddleware = async (req, res, next) => {
   const { type, id: userId } = req.user;
 
-  // Only Agency, SuperUser, and TeamMember can access chat
-  if (!["agency", "super_user", "team_member"].includes(type)) {
+  // Only Agency, PropertyManager, SuperUser, and TeamMember can access chat
+  if (
+    !["agency", "property_manager", "super_user", "team_member"].includes(type)
+  ) {
     return res.status(403).json({
       success: false,
       message: "Access denied. Chat feature not available for your user type.",
@@ -34,21 +37,27 @@ const chatAccessMiddleware = async (req, res, next) => {
   next();
 };
 
-// POST /api/v1/chat/initiate - Agency initiates new chat session
+// POST /api/v1/chat/initiate - Agency or PropertyManager initiates new chat session
 router.post(
   "/initiate",
-  authenticateUserTypes(["agency", "super_user", "team_member"]),
+  authenticateUserTypes([
+    "agency",
+    "property_manager",
+    "super_user",
+    "team_member",
+  ]),
   chatAccessMiddleware,
   async (req, res) => {
     try {
       const { id: userId, type: userType } = req.user;
       const { subject, initialMessage, priority = "medium" } = req.body;
 
-      // Only agencies can initiate chats
-      if (userType !== "agency") {
+      // Only agencies and property managers can initiate chats
+      if (!["agency", "property_manager"].includes(userType)) {
         return res.status(403).json({
           success: false,
-          message: "Only agencies can initiate chat sessions.",
+          message:
+            "Only agencies and property managers can initiate chat sessions.",
         });
       }
 
@@ -67,16 +76,43 @@ router.post(
         });
       }
 
-      // Get agency details
-      const agency = await Agency.findById(userId);
-      if (!agency) {
-        return res.status(404).json({
-          success: false,
-          message: "Agency not found.",
-        });
+      // Get user details based on type
+      let userDetails;
+      let displayName;
+
+      if (userType === "agency") {
+        const agency = await Agency.findById(userId);
+        if (!agency) {
+          return res.status(404).json({
+            success: false,
+            message: "Agency not found.",
+          });
+        }
+        userDetails = {
+          userId: agency._id,
+          userType: "Agency",
+          userName: agency.companyName,
+          userEmail: agency.email,
+        };
+        displayName = agency.companyName;
+      } else if (userType === "property_manager") {
+        const propertyManager = await PropertyManager.findById(userId);
+        if (!propertyManager) {
+          return res.status(404).json({
+            success: false,
+            message: "Property manager not found.",
+          });
+        }
+        userDetails = {
+          userId: propertyManager._id,
+          userType: "PropertyManager",
+          userName: `${propertyManager.firstName} ${propertyManager.lastName}`,
+          userEmail: propertyManager.email,
+        };
+        displayName = `${propertyManager.firstName} ${propertyManager.lastName}`;
       }
 
-      // Check if agency has any active chat sessions
+      // Check if user has any active chat sessions
       const existingActiveSession = await ChatSession.findOne({
         "initiatedBy.userId": userId,
         status: { $in: ["waiting", "active"] },
@@ -96,12 +132,7 @@ router.post(
 
       // Create new chat session
       const chatSession = new ChatSession({
-        initiatedBy: {
-          userId: agency._id,
-          userType: "Agency",
-          userName: agency.companyName,
-          userEmail: agency.email,
-        },
+        initiatedBy: userDetails,
         subject: subject || "Support Request",
         initialMessage: initialMessage.trim(),
         priority: priority,
@@ -118,18 +149,13 @@ router.post(
       await ChatMessage.createSystemMessage(
         chatSession._id,
         "session_started",
-        `${agency.companyName} started a new chat session.`
+        `${displayName} started a new chat session.`
       );
 
-      // Create the initial message from agency
+      // Create the initial message from user
       const initialChatMessage = new ChatMessage({
         sessionId: chatSession._id,
-        sender: {
-          userId: agency._id,
-          userType: "Agency",
-          userName: agency.companyName,
-          userEmail: agency.email,
-        },
+        sender: userDetails,
         messageType: "text",
         content: {
           text: initialMessage.trim(),
@@ -147,8 +173,9 @@ router.post(
       await initialChatMessage.save();
 
       // Get all SuperUsers and active TeamMembers to notify
+      // Note: SuperUser doesn't have a status field, so we fetch all SuperUsers
       const [superUsers, teamMembers] = await Promise.all([
-        SuperUser.find({ status: "Active" }).select("_id name email"),
+        SuperUser.find().select("_id name email"),
         TeamMember.find({ status: "Active" }).select("_id name email"),
       ]);
 
@@ -179,21 +206,32 @@ router.post(
       }
 
       // Broadcast to WebSocket clients
-      websocketService.broadcastChatRequest({
-        type: "chat_request",
-        sessionId: chatSession._id,
-        sessionData: {
-          id: chatSession._id,
-          initiatedBy: chatSession.initiatedBy,
-          subject: chatSession.subject,
-          priority: chatSession.priority,
-          createdAt: chatSession.createdAt,
-          initialMessage:
-            initialMessage.substring(0, 200) +
-            (initialMessage.length > 200 ? "..." : ""),
-        },
-        timestamp: new Date().toISOString(),
-      });
+      try {
+        websocketService.broadcastChatRequest({
+          type: "chat_request",
+          sessionId: chatSession._id.toString(),
+          sessionData: {
+            id: chatSession._id.toString(),
+            initiatedBy: chatSession.initiatedBy,
+            subject: chatSession.subject,
+            priority: chatSession.priority,
+            createdAt: chatSession.createdAt,
+            initialMessage:
+              initialMessage.substring(0, 200) +
+              (initialMessage.length > 200 ? "..." : ""),
+          },
+          timestamp: new Date().toISOString(),
+        });
+        console.log(
+          `📡 WebSocket broadcast sent for chat session: ${chatSession._id}`
+        );
+      } catch (wsError) {
+        console.error(
+          "❌ Error broadcasting chat request via WebSocket:",
+          wsError
+        );
+        // Don't fail the request if WebSocket broadcast fails
+      }
 
       res.status(201).json({
         success: true,
@@ -218,7 +256,12 @@ router.post(
 // GET /api/v1/chat/sessions - Get chat sessions (filtered by role)
 router.get(
   "/sessions",
-  authenticateUserTypes(["agency", "super_user", "team_member"]),
+  authenticateUserTypes([
+    "agency",
+    "property_manager",
+    "super_user",
+    "team_member",
+  ]),
   chatAccessMiddleware,
   async (req, res) => {
     try {
@@ -229,8 +272,8 @@ router.get(
       let query = {};
 
       // Build query based on user type
-      if (userType === "agency") {
-        // Agencies can only see their own chat sessions
+      if (userType === "agency" || userType === "property_manager") {
+        // Agencies and PropertyManagers can only see their own chat sessions
         query["initiatedBy.userId"] = userId;
       } else if (userType === "super_user") {
         // SuperUsers can see all chat sessions
@@ -256,7 +299,10 @@ router.get(
           .sort({ "metadata.lastActivity": -1, createdAt: -1 })
           .skip(skip)
           .limit(parseInt(limit))
-          .populate("initiatedBy.userId", "companyName contactPerson email")
+          .populate(
+            "initiatedBy.userId",
+            "companyName contactPerson email firstName lastName"
+          )
           .populate("assignedTo.userId", "name email"),
         ChatSession.countDocuments(query),
       ]);
@@ -264,13 +310,17 @@ router.get(
       // Get unread message count for each session
       const sessionsWithUnreadCount = await Promise.all(
         sessions.map(async (session) => {
-          const unreadCount = await ChatMessage.getUnreadCountForUser(
-            userId,
+          const userTypeEnum =
             userType === "agency"
               ? "Agency"
+              : userType === "property_manager"
+              ? "PropertyManager"
               : userType === "super_user"
               ? "SuperUser"
-              : "TeamMember",
+              : "TeamMember";
+          const unreadCount = await ChatMessage.getUnreadCountForUser(
+            userId,
+            userTypeEnum,
             session._id
           );
 
@@ -307,7 +357,12 @@ router.get(
 // GET /api/v1/chat/session/:sessionId - Get specific chat session with messages
 router.get(
   "/session/:sessionId",
-  authenticateUserTypes(["agency", "super_user", "team_member"]),
+  authenticateUserTypes([
+    "agency",
+    "property_manager",
+    "super_user",
+    "team_member",
+  ]),
   chatAccessMiddleware,
   async (req, res) => {
     try {
@@ -325,7 +380,10 @@ router.get(
 
       // Get chat session
       const chatSession = await ChatSession.findById(sessionId)
-        .populate("initiatedBy.userId", "companyName contactPerson email")
+        .populate(
+          "initiatedBy.userId",
+          "companyName contactPerson email firstName lastName"
+        )
         .populate("assignedTo.userId", "name email");
 
       if (!chatSession) {
@@ -338,7 +396,7 @@ router.get(
       // Check access permissions
       let hasAccess = false;
 
-      if (userType === "agency") {
+      if (userType === "agency" || userType === "property_manager") {
         hasAccess =
           chatSession.initiatedBy.userId._id.toString() === userId.toString();
       } else if (userType === "super_user") {
@@ -370,6 +428,8 @@ router.get(
         const userTypeEnum =
           userType === "agency"
             ? "Agency"
+            : userType === "property_manager"
+            ? "PropertyManager"
             : userType === "super_user"
             ? "SuperUser"
             : "TeamMember";
@@ -413,7 +473,12 @@ router.get(
 // POST /api/v1/chat/message - Send message in chat session
 router.post(
   "/message",
-  authenticateUserTypes(["agency", "super_user", "team_member"]),
+  authenticateUserTypes([
+    "agency",
+    "property_manager",
+    "super_user",
+    "team_member",
+  ]),
   chatAccessMiddleware,
   async (req, res) => {
     try {
@@ -455,7 +520,7 @@ router.post(
       // Check access permissions
       let hasAccess = false;
 
-      if (userType === "agency") {
+      if (userType === "agency" || userType === "property_manager") {
         hasAccess =
           chatSession.initiatedBy.userId.toString() === userId.toString();
       } else if (userType === "super_user" || userType === "team_member") {
@@ -481,6 +546,14 @@ router.post(
           userType: "Agency",
           userName: agency.companyName,
           userEmail: agency.email,
+        };
+      } else if (userType === "property_manager") {
+        const propertyManager = await PropertyManager.findById(userId);
+        senderDetails = {
+          userId: propertyManager._id,
+          userType: "PropertyManager",
+          userName: `${propertyManager.firstName} ${propertyManager.lastName}`,
+          userEmail: propertyManager.email,
         };
       } else if (userType === "super_user") {
         const superUser = await SuperUser.findById(userId);
@@ -527,8 +600,8 @@ router.post(
       // Determine recipients for notification
       const recipients = [];
 
-      if (userType === "agency") {
-        // If agency sent message, notify assigned agent (if any)
+      if (userType === "agency" || userType === "property_manager") {
+        // If agency or property manager sent message, notify assigned agent (if any)
         if (chatSession.assignedTo.userId) {
           recipients.push({
             recipientType: chatSession.assignedTo.userType,
@@ -536,8 +609,9 @@ router.post(
           });
         } else {
           // If no agent assigned yet, notify all available support team
+          // Note: SuperUser doesn't have a status field, so we fetch all SuperUsers
           const [superUsers, teamMembers] = await Promise.all([
-            SuperUser.find({ status: "Active" }).select("_id"),
+            SuperUser.find().select("_id"),
             TeamMember.find({ status: "Active" }).select("_id"),
           ]);
 
@@ -553,9 +627,9 @@ router.post(
           );
         }
       } else {
-        // If support agent sent message, notify agency
+        // If support agent sent message, notify the initiator (agency or property manager)
         recipients.push({
-          recipientType: "Agency",
+          recipientType: chatSession.initiatedBy.userType,
           recipientId: chatSession.initiatedBy.userId,
         });
       }
@@ -605,7 +679,12 @@ router.post(
 // POST /api/v1/chat/message/attachment - Send message with attachment
 router.post(
   "/message/attachment",
-  authenticateUserTypes(["agency", "super_user", "team_member"]),
+  authenticateUserTypes([
+    "agency",
+    "property_manager",
+    "super_user",
+    "team_member",
+  ]),
   chatAccessMiddleware,
   fileUploadService.chatAttachment(),
   async (req, res) => {
@@ -656,7 +735,7 @@ router.post(
       // Check access permissions
       let hasAccess = false;
 
-      if (userType === "agency") {
+      if (userType === "agency" || userType === "property_manager") {
         hasAccess =
           chatSession.initiatedBy.userId.toString() === userId.toString();
       } else if (["super_user", "team_member"].includes(userType)) {
@@ -704,10 +783,17 @@ router.post(
         attachmentType = "audio";
       }
 
+      // Map user type to ChatMessage enum format
+      const userTypeMap = {
+        agency: "Agency",
+        super_user: "SuperUser",
+        team_member: "TeamMember",
+      };
+
       // Get sender info
       let senderInfo = {
         userId,
-        userType,
+        userType: userTypeMap[userType] || userType,
         userName: "",
         userEmail: "",
       };
@@ -717,6 +803,12 @@ router.post(
         if (agency) {
           senderInfo.userName = agency.companyName;
           senderInfo.userEmail = agency.email;
+        }
+      } else if (userType === "property_manager") {
+        const propertyManager = await PropertyManager.findById(userId);
+        if (propertyManager) {
+          senderInfo.userName = `${propertyManager.firstName} ${propertyManager.lastName}`;
+          senderInfo.userEmail = propertyManager.email;
         }
       } else if (userType === "super_user") {
         const superUser = await SuperUser.findById(userId);
@@ -762,8 +854,8 @@ router.post(
       // Determine recipients for notifications
       const recipients = [];
 
-      if (userType === "agency") {
-        // If agency sent message, notify assigned agent (if any)
+      if (userType === "agency" || userType === "property_manager") {
+        // If agency or property manager sent message, notify assigned agent (if any)
         if (chatSession.assignedTo.userId) {
           recipients.push({
             recipientType: chatSession.assignedTo.userType,
@@ -771,8 +863,9 @@ router.post(
           });
         } else {
           // If no agent assigned yet, notify all available support team
+          // Note: SuperUser doesn't have a status field, so we fetch all SuperUsers
           const [superUsers, teamMembers] = await Promise.all([
-            SuperUser.find({ status: "Active" }).select("_id"),
+            SuperUser.find().select("_id"),
             TeamMember.find({ status: "Active" }).select("_id"),
           ]);
 
@@ -788,9 +881,9 @@ router.post(
           );
         }
       } else {
-        // If support agent sent message, notify agency
+        // If support agent sent message, notify the initiator (agency or property manager)
         recipients.push({
-          recipientType: "Agency",
+          recipientType: chatSession.initiatedBy.userType,
           recipientId: chatSession.initiatedBy.userId,
         });
       }
@@ -842,7 +935,12 @@ router.post(
 // PUT /api/v1/chat/session/:sessionId/accept - Accept chat request (SuperUser/TeamMember only)
 router.put(
   "/session/:sessionId/accept",
-  authenticateUserTypes(["agency", "super_user", "team_member"]),
+  authenticateUserTypes([
+    "agency",
+    "property_manager",
+    "super_user",
+    "team_member",
+  ]),
   chatAccessMiddleware,
   async (req, res) => {
     try {
@@ -906,7 +1004,7 @@ router.put(
         `${supportAgent.name} has joined the chat and will assist you.`
       );
 
-      // Create notification for agency
+      // Create notification for initiator (agency or property manager)
       await Notification.createChatAcceptedNotification(
         chatSession,
         supportAgent.name
@@ -946,7 +1044,12 @@ router.put(
 // PUT /api/v1/chat/session/:sessionId/close - Close chat session
 router.put(
   "/session/:sessionId/close",
-  authenticateUserTypes(["agency", "super_user", "team_member"]),
+  authenticateUserTypes([
+    "agency",
+    "property_manager",
+    "super_user",
+    "team_member",
+  ]),
   chatAccessMiddleware,
   async (req, res) => {
     try {
@@ -981,7 +1084,7 @@ router.put(
       // Check access permissions
       let hasAccess = false;
 
-      if (userType === "agency") {
+      if (userType === "agency" || userType === "property_manager") {
         hasAccess =
           chatSession.initiatedBy.userId.toString() === userId.toString();
       } else if (userType === "super_user") {
@@ -1001,30 +1104,62 @@ router.put(
 
       // Get user details for closure
       let closedByUser;
+      let closedByName;
       if (userType === "agency") {
         closedByUser = await Agency.findById(userId);
+        closedByName = closedByUser.companyName;
+      } else if (userType === "property_manager") {
+        closedByUser = await PropertyManager.findById(userId);
+        closedByName = `${closedByUser.firstName} ${closedByUser.lastName}`;
       } else if (userType === "super_user") {
         closedByUser = await SuperUser.findById(userId);
+        closedByName = closedByUser.name;
       } else {
         closedByUser = await TeamMember.findById(userId);
+        closedByName = closedByUser.name;
       }
 
       // Close the chat
       await chatSession.closeChat(closedByUser, reason);
 
+      // Mark all messages in the session as read for all participants
+      // This ensures no unread messages remain after session closure
+      const allParticipants = [];
+
+      // Add initiator (agency or property manager)
+      allParticipants.push({
+        userId: chatSession.initiatedBy.userId,
+        userType: chatSession.initiatedBy.userType,
+      });
+
+      // Add assigned agent if exists
+      if (chatSession.assignedTo && chatSession.assignedTo.userId) {
+        allParticipants.push({
+          userId: chatSession.assignedTo.userId,
+          userType: chatSession.assignedTo.userType,
+        });
+      }
+
+      // Mark all messages as read for each participant
+      for (const participant of allParticipants) {
+        await ChatMessage.markAllAsReadInSession(
+          chatSession._id,
+          participant.userId,
+          participant.userType
+        );
+      }
+
       // Create system message for closure
       await ChatMessage.createSystemMessage(
         chatSession._id,
         "session_closed",
-        `Chat session closed by ${
-          closedByUser.name || closedByUser.companyName
-        }. Reason: ${reason}`
+        `Chat session closed by ${closedByName}. Reason: ${reason}`
       );
 
       // Create notifications for closure
       await Notification.createChatClosedNotification(
         chatSession,
-        closedByUser.name || closedByUser.companyName,
+        closedByName,
         reason
       );
 
@@ -1034,7 +1169,7 @@ router.put(
         sessionId: chatSession._id,
         closedBy: {
           id: closedByUser._id,
-          name: closedByUser.name || closedByUser.companyName,
+          name: closedByName,
           userType: userType,
         },
         reason: reason,
@@ -1063,7 +1198,12 @@ router.put(
 // GET /api/v1/chat/stats - Get chat statistics (SuperUser only)
 router.get(
   "/stats",
-  authenticateUserTypes(["agency", "super_user", "team_member"]),
+  authenticateUserTypes([
+    "agency",
+    "property_manager",
+    "super_user",
+    "team_member",
+  ]),
   async (req, res) => {
     try {
       const { type: userType } = req.user;
