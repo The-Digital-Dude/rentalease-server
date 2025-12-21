@@ -68,26 +68,28 @@ router.post(
         !email ||
         !phone ||
         !region ||
-        !password ||
-        !subscriptionAmount
+        !password
       ) {
         return res.status(400).json({
           status: "error",
-          message: "All fields including subscription amount are required",
+          message: "All required fields must be provided",
         });
       }
 
-      // Convert and validate subscription amount
-      const numericSubscriptionAmount = Number(subscriptionAmount);
-      if (
-        isNaN(numericSubscriptionAmount) ||
-        numericSubscriptionAmount < 1 ||
-        numericSubscriptionAmount > 100000
-      ) {
-        return res.status(400).json({
-          status: "error",
-          message: "Subscription amount must be between $1 and $100,000",
-        });
+      // Convert and validate subscription amount if provided
+      let numericSubscriptionAmount = null;
+      if (subscriptionAmount !== undefined && subscriptionAmount !== null) {
+        numericSubscriptionAmount = Number(subscriptionAmount);
+        if (
+          isNaN(numericSubscriptionAmount) ||
+          numericSubscriptionAmount < 1 ||
+          numericSubscriptionAmount > 100000
+        ) {
+          return res.status(400).json({
+            status: "error",
+            message: "Subscription amount must be between $1 and $100,000",
+          });
+        }
       }
 
       // Validate region
@@ -138,7 +140,7 @@ router.post(
       }
 
       // Create new agency
-      const agency = new Agency({
+      const agencyData = {
         companyName,
         abn,
         contactPerson,
@@ -147,9 +149,15 @@ router.post(
         region,
         complianceSubscriptions,
         password,
-        subscriptionAmount: numericSubscriptionAmount,
         status: "Active",
-      });
+      };
+
+      // Only set subscriptionAmount if provided
+      if (numericSubscriptionAmount !== null) {
+        agencyData.subscriptionAmount = numericSubscriptionAmount;
+      }
+
+      const agency = new Agency(agencyData);
 
       await agency.save();
 
@@ -1291,6 +1299,8 @@ router.get(
         complianceType,
         page = 1,
         limit = 10,
+        includeArchived = false,
+        onlyArchived = false,
       } = req.query;
 
       // Build filter object
@@ -1300,6 +1310,15 @@ router.get(
       if (complianceType) {
         filter.complianceSubscriptions = { $in: [complianceType] };
       }
+
+      // Handle archived filter
+      if (onlyArchived === "true" || onlyArchived === true) {
+        filter.isArchived = true;
+      } else if (includeArchived !== "true" && includeArchived !== true) {
+        // Default: exclude archived items
+        filter.isArchived = { $ne: true };
+      }
+      // If includeArchived is true, don't filter by isArchived (show all)
 
       // Calculate pagination
       const skip = (page - 1) * limit;
@@ -1355,6 +1374,8 @@ router.get(
             lastLogin: agency.lastLogin,
             joinedDate: agency.joinedDate,
             createdAt: agency.createdAt,
+            isArchived: agency.isArchived || false,
+            archivedAt: agency.archivedAt || null,
           })),
           pagination: {
             currentPage: parseInt(page),
@@ -1611,7 +1632,7 @@ router.get(
   }
 );
 
-// Delete Agency (Only Super Users and Team Members)
+// Archive Agency (Only Super Users and Team Members)
 router.delete(
   "/:id",
   authenticateUserTypes(["SuperUser", "TeamMember"]),
@@ -1628,7 +1649,15 @@ router.delete(
         });
       }
 
-      // Store info for logging before deletion
+      // Check if already archived
+      if (agency.isArchived) {
+        return res.status(400).json({
+          status: "error",
+          message: "Agency is already archived",
+        });
+      }
+
+      // Store info for logging before archiving
       const agencyInfo = {
         id: agency._id,
         companyName: agency.companyName,
@@ -1639,29 +1668,95 @@ router.delete(
         status: agency.status,
       };
 
-      // Delete the agency
-      await Agency.findByIdAndDelete(id);
+      // Archive the agency instead of deleting
+      agency.isArchived = true;
+      agency.archivedAt = new Date();
+      await agency.save();
 
-      // Log the deletion
-      console.log("Agency deleted successfully:", {
-        deletedAgency: agencyInfo,
-        deletedBy: req.superUser.email,
+      // Log the archiving
+      console.log("Agency archived successfully:", {
+        archivedAgency: agencyInfo,
+        archivedBy: req.superUser?.email || req.teamMember?.email,
         timestamp: new Date().toISOString(),
       });
 
       res.status(200).json({
         status: "success",
-        message: "Agency deleted successfully",
+        message: "Agency archived successfully",
         data: {
-          deletedAgency: agencyInfo,
-          deletedBy: req.superUser.name,
+          archivedAgency: agencyInfo,
+          archivedBy: req.superUser?.name || req.teamMember?.name,
+          archivedAt: agency.archivedAt,
         },
       });
     } catch (error) {
-      console.error("Delete agency error:", error);
+      console.error("Archive agency error:", error);
       res.status(500).json({
         status: "error",
-        message: error.message || "An error occurred while deleting agency",
+        message: error.message || "An error occurred while archiving agency",
+      });
+    }
+  }
+);
+
+// Restore Archived Agency (Only Super Users and Team Members)
+router.post(
+  "/:id/restore",
+  authenticateUserTypes(["SuperUser", "TeamMember"]),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      // Find agency (including archived ones)
+      const agency = await Agency.findById(id);
+      if (!agency) {
+        return res.status(404).json({
+          status: "error",
+          message: "Agency not found",
+        });
+      }
+
+      // Check if agency is archived
+      if (!agency.isArchived) {
+        return res.status(400).json({
+          status: "error",
+          message: "Agency is not archived",
+        });
+      }
+
+      // Restore the agency
+      agency.isArchived = false;
+      agency.archivedAt = null;
+      await agency.save();
+
+      // Log the restoration
+      console.log("Agency restored successfully:", {
+        agencyId: agency._id,
+        companyName: agency.companyName,
+        restoredBy: req.superUser?.email || req.teamMember?.email,
+        timestamp: new Date().toISOString(),
+      });
+
+      res.status(200).json({
+        status: "success",
+        message: "Agency restored successfully",
+        data: {
+          agency: {
+            id: agency._id,
+            companyName: agency.companyName,
+            contactPerson: agency.contactPerson,
+            email: agency.email,
+            status: agency.status,
+          },
+          restoredBy: req.superUser?.name || req.teamMember?.name,
+          restoredAt: new Date(),
+        },
+      });
+    } catch (error) {
+      console.error("Restore agency error:", error);
+      res.status(500).json({
+        status: "error",
+        message: error.message || "An error occurred while restoring agency",
       });
     }
   }

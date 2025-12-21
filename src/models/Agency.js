@@ -202,6 +202,16 @@ const agencySchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
+
+    // Archive fields
+    isArchived: {
+      type: Boolean,
+      default: false,
+    },
+    archivedAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,

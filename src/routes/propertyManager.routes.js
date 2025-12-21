@@ -23,6 +23,8 @@ router.get("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'Pro
       agencyId,
       sortBy = "createdAt",
       sortOrder = "desc",
+      includeArchived = false,
+      onlyArchived = false,
     } = req.query;
 
     // Build filter object
@@ -55,6 +57,15 @@ router.get("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'Pro
       ];
     }
 
+    // Handle archived filter
+    if (onlyArchived === "true" || onlyArchived === true) {
+      filter.isArchived = true;
+    } else if (includeArchived !== "true" && includeArchived !== true) {
+      // Default: exclude archived items
+      filter.isArchived = { $ne: true };
+    }
+    // If includeArchived is true, don't filter by isArchived (show all)
+
     // Calculate pagination
     const skip = (parseInt(page) - 1) * parseInt(limit);
     const sort = { [sortBy]: sortOrder === "desc" ? -1 : 1 };
@@ -71,27 +82,40 @@ router.get("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'Pro
     const totalPages = Math.ceil(total / parseInt(limit));
 
     // Calculate summary statistics
+    // For summary, we need to count without archived filter to get accurate totals
+    const baseFilter = { ...filter };
+    delete baseFilter.isArchived;
+    
     const summary = {
       total: total,
       active: await PropertyManager.countDocuments({
-        ...filter,
+        ...baseFilter,
         status: "Active",
+        isArchived: { $ne: true },
       }),
       inactive: await PropertyManager.countDocuments({
-        ...filter,
+        ...baseFilter,
         status: "Inactive",
+        isArchived: { $ne: true },
       }),
       available: await PropertyManager.countDocuments({
-        ...filter,
+        ...baseFilter,
         availabilityStatus: "Available",
+        isArchived: { $ne: true },
       }),
       busy: await PropertyManager.countDocuments({
-        ...filter,
+        ...baseFilter,
         availabilityStatus: "Busy",
+        isArchived: { $ne: true },
       }),
       unavailable: await PropertyManager.countDocuments({
-        ...filter,
+        ...baseFilter,
         availabilityStatus: "Unavailable",
+        isArchived: { $ne: true },
+      }),
+      archived: await PropertyManager.countDocuments({
+        ...baseFilter,
+        isArchived: true,
       }),
     };
 
@@ -399,15 +423,15 @@ router.patch("/:id/availability", authenticate, async (req, res) => {
   }
 });
 
-// Delete PropertyManager (Agency/SuperUser only)
+// Archive PropertyManager (Agency/SuperUser only)
 router.delete("/:id", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency']), async (req, res) => {
   try {
     // Check if user is Agency or SuperUser
-    if (!req.agency && !req.superUser) {
+    if (!req.agency && !req.superUser && !req.teamMember) {
       return res.status(403).json({
         success: false,
         message:
-          "Access denied. Only Agency and SuperUser can delete PropertyManagers.",
+          "Access denied. Only Agency, SuperUser, and TeamMember can archive PropertyManagers.",
       });
     }
 
@@ -416,7 +440,7 @@ router.delete("/:id", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency'
     // Build filter
     const filter = { _id: id };
 
-    // Agency can only delete their own PropertyManagers
+    // Agency can only archive their own PropertyManagers
     if (req.agency) {
       filter["owner.ownerType"] = "Agency";
       filter["owner.ownerId"] = req.agency.id.toString();
@@ -431,26 +455,101 @@ router.delete("/:id", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency'
       });
     }
 
-    // Check if PropertyManager has any active assignments
-    if (propertyManager.assignedProperties.length > 0) {
+    // Check if already archived
+    if (propertyManager.isArchived) {
       return res.status(400).json({
         success: false,
-        message:
-          "Cannot delete PropertyManager with active property assignments. Please remove all assignments first.",
+        message: "PropertyManager is already archived",
       });
     }
 
-    await PropertyManager.findByIdAndDelete(id);
+    // Archive the property manager instead of deleting
+    propertyManager.isArchived = true;
+    propertyManager.archivedAt = new Date();
+    await propertyManager.save();
 
     res.status(200).json({
       success: true,
-      message: "PropertyManager deleted successfully",
+      message: "PropertyManager archived successfully",
+      data: {
+        propertyManagerId: propertyManager._id,
+        archivedAt: propertyManager.archivedAt,
+      },
     });
   } catch (error) {
-    console.error("Error deleting PropertyManager:", error);
+    console.error("Error archiving PropertyManager:", error);
     res.status(500).json({
       success: false,
-      message: "Failed to delete PropertyManager",
+      message: "Failed to archive PropertyManager",
+      error: error.message,
+    });
+  }
+});
+
+// Restore Archived PropertyManager (Agency/SuperUser only)
+router.post("/:id/restore", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency']), async (req, res) => {
+  try {
+    // Check if user is Agency or SuperUser
+    if (!req.agency && !req.superUser && !req.teamMember) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "Access denied. Only Agency, SuperUser, and TeamMember can restore PropertyManagers.",
+      });
+    }
+
+    const { id } = req.params;
+
+    // Build filter
+    const filter = { _id: id };
+
+    // Agency can only restore their own PropertyManagers
+    if (req.agency) {
+      filter["owner.ownerType"] = "Agency";
+      filter["owner.ownerId"] = req.agency.id.toString();
+    }
+
+    const propertyManager = await PropertyManager.findOne(filter);
+
+    if (!propertyManager) {
+      return res.status(404).json({
+        success: false,
+        message: "PropertyManager not found",
+      });
+    }
+
+    // Check if property manager is archived
+    if (!propertyManager.isArchived) {
+      return res.status(400).json({
+        success: false,
+        message: "PropertyManager is not archived",
+      });
+    }
+
+    // Restore the property manager
+    propertyManager.isArchived = false;
+    propertyManager.archivedAt = null;
+    await propertyManager.save();
+
+    res.status(200).json({
+      success: true,
+      message: "PropertyManager restored successfully",
+      data: {
+        propertyManager: {
+          id: propertyManager._id,
+          firstName: propertyManager.firstName,
+          lastName: propertyManager.lastName,
+          email: propertyManager.email,
+          status: propertyManager.status,
+        },
+        restoredAt: new Date(),
+      },
+    });
+  } catch (error) {
+    console.error("Error restoring PropertyManager:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to restore PropertyManager",
       error: error.message,
     });
   }

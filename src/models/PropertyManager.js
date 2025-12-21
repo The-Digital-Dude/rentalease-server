@@ -163,6 +163,16 @@ const propertyManagerSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+
+    // Archive fields
+    isArchived: {
+      type: Boolean,
+      default: false,
+    },
+    archivedAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,
