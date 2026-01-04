@@ -624,6 +624,110 @@ router.delete("/profile/image", authenticate, async (req, res) => {
   }
 });
 
+// REGISTER PUSH TOKEN - Save Expo push token for technician device
+router.post("/push-token", authenticate, async (req, res) => {
+  try {
+    if (req.user.userType !== "Technician") {
+      return res.status(403).json({
+        status: "error",
+        message: "Access denied. Technician account required.",
+      });
+    }
+
+    const { token } = req.body;
+    if (!token) {
+      return res.status(400).json({
+        status: "error",
+        message: "Push token is required",
+      });
+    }
+
+    const isExpoToken = /^(ExponentPushToken|ExpoPushToken)\[[^\]]+\]$/.test(
+      token
+    );
+    if (!isExpoToken) {
+      return res.status(400).json({
+        status: "error",
+        message: "Invalid Expo push token format",
+      });
+    }
+
+    const technician = await Technician.findByIdAndUpdate(
+      req.user.id,
+      { $addToSet: { expoPushTokens: token } },
+      { new: true }
+    );
+
+    if (!technician) {
+      return res.status(404).json({
+        status: "error",
+        message: "Technician not found",
+      });
+    }
+
+    res.status(200).json({
+      status: "success",
+      message: "Push token registered successfully",
+      data: {
+        tokens: technician.expoPushTokens || [],
+      },
+    });
+  } catch (error) {
+    console.error("Register push token error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Failed to register push token. Please try again later.",
+    });
+  }
+});
+
+// UNREGISTER PUSH TOKEN - Remove Expo push token
+router.delete("/push-token", authenticate, async (req, res) => {
+  try {
+    if (req.user.userType !== "Technician") {
+      return res.status(403).json({
+        status: "error",
+        message: "Access denied. Technician account required.",
+      });
+    }
+
+    const { token } = req.body;
+    if (!token) {
+      return res.status(400).json({
+        status: "error",
+        message: "Push token is required",
+      });
+    }
+
+    const technician = await Technician.findByIdAndUpdate(
+      req.user.id,
+      { $pull: { expoPushTokens: token } },
+      { new: true }
+    );
+
+    if (!technician) {
+      return res.status(404).json({
+        status: "error",
+        message: "Technician not found",
+      });
+    }
+
+    res.status(200).json({
+      status: "success",
+      message: "Push token removed successfully",
+      data: {
+        tokens: technician.expoPushTokens || [],
+      },
+    });
+  } catch (error) {
+    console.error("Remove push token error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Failed to remove push token. Please try again later.",
+    });
+  }
+});
+
 // FORGOT PASSWORD - Send password reset OTP
 router.post("/forgot-password", async (req, res) => {
   try {

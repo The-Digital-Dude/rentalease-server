@@ -7,6 +7,7 @@ import Technician from "../models/Technician.js";
 import PropertyManager from "../models/PropertyManager.js";
 import Job from "../models/Job.js";
 import emailService from "./email.service.js";
+import { sendToTechnician as sendExpoPushToTechnician } from "./expoPush.service.js";
 
 class NotificationService {
   constructor() {
@@ -284,6 +285,26 @@ class NotificationService {
       });
 
       await notification.save();
+
+      // Push notifications for technicians (Expo)
+      if (recipient.recipientType === "Technician") {
+        try {
+          await sendExpoPushToTechnician(recipient.recipientId, {
+            title: notificationData.title,
+            body: notificationData.message,
+            data: {
+              notificationId: notification._id,
+              type: notificationData.type,
+              ...(notificationData.data || {}),
+            },
+          });
+        } catch (pushError) {
+          console.error("[NotificationService] Technician push failed:", {
+            recipientId: recipient.recipientId,
+            error: pushError?.message || pushError,
+          });
+        }
+      }
 
       console.log(
         `✅ In-app notification sent to ${recipient.recipientType}:${recipient.recipientId}`,
@@ -733,13 +754,38 @@ class NotificationService {
         });
       });
 
+      // If the job is unassigned (available), notify all technicians under the same owner
+      const isAvailableToTechnicians =
+        !job.assignedTechnician && String(job.status) === "Pending";
+
+      if (isAvailableToTechnicians && job.owner?.ownerType && job.owner?.ownerId) {
+        const technicians = await Technician.find({
+          "owner.ownerType": job.owner.ownerType,
+          "owner.ownerId": job.owner.ownerId,
+          status: "Active",
+        }).select("_id");
+
+        technicians.forEach((technician) => {
+          recipients.push({
+            recipientType: "Technician",
+            recipientId: technician._id,
+          });
+        });
+      }
+
       // Prepare notification data
       const notificationData = {
         type: "JOB_CREATED",
-        title: `New ${job.jobType} Job Created`,
-        message: `A new ${job.jobType} job has been created for property at ${
-          property.address.fullAddress
-        }. Due date: ${new Date(job.dueDate).toLocaleDateString()}`,
+        title: isAvailableToTechnicians
+          ? `New ${job.jobType} Job Available`
+          : `New ${job.jobType} Job Created`,
+        message: isAvailableToTechnicians
+          ? `A new ${job.jobType} job is available to claim at ${property.address.fullAddress}. Due date: ${new Date(
+              job.dueDate
+            ).toLocaleDateString()}`
+          : `A new ${job.jobType} job has been created for property at ${
+              property.address.fullAddress
+            }. Due date: ${new Date(job.dueDate).toLocaleDateString()}`,
         data: {
           jobId: job._id,
           job_id: job.job_id,
@@ -748,6 +794,7 @@ class NotificationService {
           jobType: job.jobType,
           dueDate: job.dueDate,
           priority: job.priority,
+          availableToTechnicians: isAvailableToTechnicians,
           creator: {
             userType: creator.userType,
             userId: creator.userId,
@@ -818,13 +865,28 @@ class NotificationService {
         });
       });
 
-      const technicians = await Technician.find();
-      technicians.forEach((technician) => {
-        recipients.push({
-          recipientType: "Technician",
-          recipientId: technician._id,
+      // If the compliance job is unassigned (available), notify technicians under the same owner
+      const isAvailableToTechnicians =
+        !job.assignedTechnician && String(job.status) === "Pending";
+
+      if (
+        isAvailableToTechnicians &&
+        job.owner?.ownerType &&
+        job.owner?.ownerId
+      ) {
+        const technicians = await Technician.find({
+          "owner.ownerType": job.owner.ownerType,
+          "owner.ownerId": job.owner.ownerId,
+          status: "Active",
+        }).select("_id");
+
+        technicians.forEach((technician) => {
+          recipients.push({
+            recipientType: "Technician",
+            recipientId: technician._id,
+          });
         });
-      });
+      }
 
       // Add PropertyManagers assigned to this property
       const propertyManagers = await this.getPropertyManagersForProperty(
@@ -840,12 +902,18 @@ class NotificationService {
       // Prepare notification data
       const notificationData = {
         type: "COMPLIANCE_DUE",
-        title: `Compliance ${job.jobType} Due`,
-        message: `A compliance ${
-          job.jobType
-        } inspection is due for property at ${
-          property.address.fullAddress
-        }. Due date: ${new Date(job.dueDate).toLocaleDateString()}`,
+        title: isAvailableToTechnicians
+          ? `Compliance ${job.jobType} Job Available`
+          : `Compliance ${job.jobType} Due`,
+        message: isAvailableToTechnicians
+          ? `A compliance ${job.jobType} job is available to claim at ${property.address.fullAddress}. Due date: ${new Date(
+              job.dueDate
+            ).toLocaleDateString()}`
+          : `A compliance ${
+              job.jobType
+            } inspection is due for property at ${
+              property.address.fullAddress
+            }. Due date: ${new Date(job.dueDate).toLocaleDateString()}`,
         data: {
           jobId: job._id,
           job_id: job.job_id,
@@ -854,6 +922,7 @@ class NotificationService {
           jobType: job.jobType,
           dueDate: job.dueDate,
           complianceType: job.jobType,
+          availableToTechnicians: isAvailableToTechnicians,
         },
         priority: "High",
       };

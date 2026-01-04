@@ -177,6 +177,12 @@ const technicianSchema = new mongoose.Schema(
       },
     },
 
+    // Push notification tokens (Expo)
+    expoPushTokens: {
+      type: [String],
+      default: [],
+    },
+
     // Password reset OTP fields
     resetPasswordOTP: {
       type: String,
