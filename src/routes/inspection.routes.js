@@ -202,6 +202,7 @@ router.post(
         formData,
         notes,
         mediaMeta,
+        nextComplianceDate,
       } = req.body;
 
       console.log("[Inspection Submit] Starting report submission", {
@@ -212,6 +213,7 @@ router.post(
         hasFormData: !!formData,
         hasNotes: !!notes,
         hasMediaMeta: !!mediaMeta,
+        hasNextComplianceDate: !!nextComplianceDate,
       });
 
       const { report, pdf } = await submitInspectionReport({
@@ -223,6 +225,7 @@ router.post(
         notes,
         files: req.files || [],
         mediaMeta,
+        nextComplianceDate,
       });
 
       console.log("[Inspection Submit] Report created, populating references", {

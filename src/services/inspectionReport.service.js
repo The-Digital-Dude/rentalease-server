@@ -7,6 +7,8 @@ import { getTemplateByJobType } from "./inspectionTemplate.service.js";
 import fileUploadService from "./fileUpload.service.js";
 import buildInspectionReportPdf from "./inspectionReportPdf.service.js";
 import notificationService from "./notification.service.js";
+import complianceService from "./compliance.service.js";
+import { validateNextComplianceDate } from "../utils/complianceValidation.js";
 
 const normalizeFormData = (formData) => {
   if (!formData) {
@@ -121,6 +123,7 @@ export const submitInspectionReport = async ({
   notes,
   files,
   mediaMeta,
+  nextComplianceDate,
 }) => {
   if (!mongoose.Types.ObjectId.isValid(jobId)) {
     throw new Error("Invalid job id");
@@ -165,6 +168,27 @@ export const submitInspectionReport = async ({
     );
   }
 
+  // Validate nextComplianceDate for compliance job types
+  const complianceJobTypes = [
+    'Gas', 'Gas Safety', 'Gas Safety Check', 'Gas Safety Inspection',
+    'Electrical', 'Electrical Safety', 'Electrical Safety Check', 'Electrical Safety Inspection',
+    'Smoke', 'Smoke Alarm', 'Smoke Alarm Inspection',
+    'MinimumSafetyStandard', 'Minimum Safety Standard'
+  ];
+
+  if (complianceJobTypes.includes(template.jobType)) {
+    if (!nextComplianceDate) {
+      throw new Error(`Next compliance date is required for ${template.jobType} inspections`);
+    }
+
+    // Validate against Australian regulations
+    validateNextComplianceDate(nextComplianceDate, template.jobType);
+    console.log("[Inspection Submit] Next compliance date validated", {
+      jobType: template.jobType,
+      nextComplianceDate,
+    });
+  }
+
   console.log("[Inspection Submit] Normalizing form data and parsing media metadata");
   const normalizedFormData = normalizeFormData(formData);
   const mediaMetadata = parseMediaMeta(mediaMeta);
@@ -195,6 +219,7 @@ export const submitInspectionReport = async ({
     sectionsSummary,
     media: mediaUploads,
     notes,
+    nextComplianceDate: nextComplianceDate ? new Date(nextComplianceDate) : null,
     submittedBy: {
       userType: "Technician",
       userId: technicianId,
@@ -263,6 +288,34 @@ export const submitInspectionReport = async ({
   job.inspectionReports.push(report._id);
   await job.save();
   console.log("[Inspection Submit] Job updated with report reference");
+
+  // Update property compliance schedule if nextComplianceDate is provided
+  if (nextComplianceDate) {
+    try {
+      console.log("[Inspection Submit] Updating property compliance schedule");
+      const complianceUpdate = await complianceService.updatePropertyCompliance(
+        property._id,
+        template.jobType,
+        nextComplianceDate
+      );
+
+      if (complianceUpdate) {
+        console.log("[Inspection Submit] ✓ Property compliance updated successfully", {
+          complianceType: complianceUpdate.complianceType,
+          nextInspection: complianceUpdate.nextInspection,
+          status: complianceUpdate.status,
+        });
+      }
+    } catch (complianceError) {
+      // Log error but don't fail the inspection submission
+      // Graceful degradation: inspection succeeded even if compliance update failed
+      console.error("[Inspection Submit] ✗ Failed to update property compliance", {
+        propertyId: property._id,
+        jobType: template.jobType,
+        error: complianceError.message,
+      });
+    }
+  }
 
   // Notify stakeholders about the new inspection report
   notificationService

@@ -129,6 +129,10 @@ const propertySchema = new mongoose.Schema(
           enum: ["Compliant", "Due Soon", "Overdue", "Not Required"],
           default: "Due Soon",
         },
+        lastUpdated: {
+          type: Date,
+          default: null,
+        },
       },
 
       electricalSafety: {
@@ -141,6 +145,10 @@ const propertySchema = new mongoose.Schema(
           type: String,
           enum: ["Compliant", "Due Soon", "Overdue", "Not Required"],
           default: "Due Soon",
+        },
+        lastUpdated: {
+          type: Date,
+          default: null,
         },
       },
 
@@ -155,6 +163,10 @@ const propertySchema = new mongoose.Schema(
           enum: ["Compliant", "Due Soon", "Overdue", "Not Required"],
           default: "Due Soon",
         },
+        lastUpdated: {
+          type: Date,
+          default: null,
+        },
       },
 
       minimumSafetyStandard: {
@@ -167,6 +179,10 @@ const propertySchema = new mongoose.Schema(
           type: String,
           enum: ["Compliant", "Due Soon", "Overdue", "Not Required"],
           default: "Due Soon",
+        },
+        lastUpdated: {
+          type: Date,
+          default: null,
         },
       },
     },

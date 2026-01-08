@@ -89,6 +89,29 @@ const inspectionReportSchema = new mongoose.Schema(
       trim: true,
       maxlength: 4000,
     },
+    nextComplianceDate: {
+      type: Date,
+      required: function() {
+        // Only required for compliance job types
+        const complianceTypes = [
+          'Gas', 'Gas Safety', 'Gas Safety Check', 'Gas Safety Inspection',
+          'Electrical', 'Electrical Safety', 'Electrical Safety Check', 'Electrical Safety Inspection',
+          'Smoke', 'Smoke Alarm', 'Smoke Alarm Inspection',
+          'MinimumSafetyStandard', 'Minimum Safety Standard'
+        ];
+        return complianceTypes.includes(this.jobType);
+      },
+      validate: {
+        validator: function(value) {
+          // If field is not required, allow null/undefined
+          if (!value) return !this.isRequired('nextComplianceDate');
+          // If value exists, must be in the future
+          return value > new Date();
+        },
+        message: 'Next compliance date must be in the future'
+      },
+      index: true,
+    },
     media: {
       type: [inspectionMediaSchema],
       default: [],
