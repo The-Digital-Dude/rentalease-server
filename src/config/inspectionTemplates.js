@@ -521,6 +521,7 @@ const gasTemplate = {
   metadata: {
     category: "compliance",
     durationEstimateMins: 60,
+    summary: "Comprehensive gas appliance and installation safety inspection",
   },
   sections: [
     {
@@ -5217,6 +5218,7 @@ const createBasicMinimumSafetyStandardTemplate = () => ({
     category: "compliance",
     durationEstimateMins: 120,
     requiresRoomCount: true,
+    summary: "Complete property inspection covering minimum safety standards for rental properties",
   },
   sections: [
     {
@@ -5273,12 +5275,10 @@ const createComprehensiveElectricalSmokeTemplate = () => ({
 });
 
 export const defaultInspectionTemplates = [
-  createElectricalTemplate(),
-  createComprehensiveElectricalSmokeTemplate(), // Add the new comprehensive template
-  gasTemplate,
-  createGasSmokeTemplate(),
-  createSmokeTemplate(),
-  createBasicMinimumSafetyStandardTemplate(),
+  createSmokeTemplate(), // Smoke report
+  gasTemplate, // Gas report
+  createComprehensiveElectricalSmokeTemplate(), // Electric and Smoke report combined
+  createBasicMinimumSafetyStandardTemplate(), // Minimum Standard
 ];
 
 export default defaultInspectionTemplates;
