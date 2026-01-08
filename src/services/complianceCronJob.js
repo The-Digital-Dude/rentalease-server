@@ -39,6 +39,7 @@ class ComplianceCronJob {
     const emailLogs = await EmailLog.find({
       propertyId: propertyId,
       complianceType: complianceType,
+      emailStatus: "sent",
     });
 
     for (const emailLog of emailLogs) {
@@ -331,25 +332,21 @@ class ComplianceCronJob {
       $or: [
         {
           "complianceSchedule.gasCompliance.nextInspection": {
-            $gte: startOfToday,
             $lte: endOfMonth,
           },
         },
         {
           "complianceSchedule.electricalSafety.nextInspection": {
-            $gte: startOfToday,
             $lte: endOfMonth,
           },
         },
         {
           "complianceSchedule.smokeAlarms.nextInspection": {
-            $gte: startOfToday,
             $lte: endOfMonth,
           },
         },
         {
           "complianceSchedule.minimumSafetyStandard.nextInspection": {
-            $gte: startOfToday,
             $lte: endOfMonth,
           },
         },
@@ -361,10 +358,11 @@ class ComplianceCronJob {
     const inspection = compliance?.[type];
     if (
       inspection?.nextInspection &&
-      inspection.nextInspection >= startOfToday &&
       inspection.nextInspection <= endOfMonth
     ) {
-      return `${type}: ${inspection.nextInspection.toDateString()}`;
+      const statusLabel =
+        inspection.nextInspection < startOfToday ? "OVERDUE" : "DUE";
+      return `${type}: ${inspection.nextInspection.toDateString()} (${statusLabel})`;
     }
     return null;
   }
@@ -465,7 +463,8 @@ class ComplianceCronJob {
       tokenExpiresAt.setDate(tokenExpiresAt.getDate() + 30); // Token expires in 30 days
 
       // Create booking link with verification token
-      const bookingLink = `${process.env.FRONTEND_URL}/book-inspection/${property._id}/${complianceType}?token=${verificationToken}`;
+      const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+      const bookingLink = `${frontendUrl}/book-inspection/${property._id}/${complianceType}?token=${verificationToken}`;
 
       this.logMessage(`🔗 Booking link created: ${bookingLink}`);
 
@@ -541,11 +540,10 @@ class ComplianceCronJob {
         },
       ];
 
-      for (const { type, jobType } of complianceTypes) {
+      for (const { type } of complianceTypes) {
         const inspection = compliance?.[type];
         if (
           inspection?.nextInspection &&
-          inspection.nextInspection >= startOfToday &&
           inspection.nextInspection <= endOfMonth
         ) {
           const emailSent = await this.sendTenantNotificationEmail(
@@ -592,7 +590,7 @@ class ComplianceCronJob {
   async logComplianceResults(properties, startOfToday, endOfMonth) {
     if (properties.length > 0) {
       this.logMessage(
-        `Found ${properties.length} active properties with compliance due within 1 month:`
+        `Found ${properties.length} active properties with compliance due/overdue up to 1 month ahead:`
       );
 
       let totalEmailsSent = 0;
