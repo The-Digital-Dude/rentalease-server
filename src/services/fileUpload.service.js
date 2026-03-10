@@ -41,8 +41,8 @@ const inspectionUpload = multer({
   storage: multer.memoryStorage(),
   fileFilter: fileFilter,
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB per file
-    files: 20, // Support up to 20 files for complex inspections
+    fileSize: 25 * 1024 * 1024, // 25MB per file
+    files: 400, // Support up to 400 files for photo-heavy inspections
   },
 });
 
