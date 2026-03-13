@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
+import multer from "multer";
 
 // Import routes
 import authRoutes from "../routes/auth.routes.js";
@@ -34,6 +35,10 @@ import propertyManagerReportsRoutes from "../routes/propertyManagerReports.route
 import emailService from "../services/email.service.js";
 import inspectionRoutes from "../routes/inspection.routes.js";
 import propertyManagerInvoiceRoutes from "../routes/propertyManagerInvoice.routes.js";
+import {
+  CLOUDINARY_UPLOAD_LIMIT_BYTES,
+  DEFAULT_UPLOAD_LIMIT_BYTES,
+} from "../services/fileUpload.service.js";
 
 // Create Express app
 const app = express();
@@ -94,6 +99,27 @@ app.get("/health", async (req, res) => {
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
+
+  if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
+    return res.status(413).json({
+      status: "error",
+      message: `File size too large. Maximum allowed size is ${DEFAULT_UPLOAD_LIMIT_BYTES} bytes.`,
+      code: err.code,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  if (err.code === "FILE_TOO_LARGE") {
+    return res.status(err.status || 413).json({
+      status: "error",
+      message:
+        err.message ||
+        `File size too large after processing. Maximum allowed size is ${CLOUDINARY_UPLOAD_LIMIT_BYTES} bytes.`,
+      code: err.code,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
   res.status(err.status || 500).json({
     status: "error",
     message: err.message || "Internal server error",

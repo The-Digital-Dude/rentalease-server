@@ -2051,9 +2051,12 @@ router.patch(
             reportFileUrl = cloudinaryResult.secure_url;
           } catch (uploadError) {
             console.error("Failed to upload report file:", uploadError);
-            return res.status(500).json({
+            return res.status(uploadError.status || 500).json({
               status: "error",
-              message: "Failed to upload report file",
+              message:
+                uploadError.code === "FILE_TOO_LARGE"
+                  ? uploadError.message
+                  : "Failed to upload report file",
               details: uploadError.message,
             });
           }

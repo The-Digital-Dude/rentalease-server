@@ -1,6 +1,18 @@
 import multer from "multer";
 import { cloudinary } from "../config/cloudinary.js";
 import { Readable } from "stream";
+import sharp from "sharp";
+
+export const CLOUDINARY_UPLOAD_LIMIT_BYTES = 10 * 1024 * 1024;
+export const DEFAULT_UPLOAD_LIMIT_BYTES = 20 * 1024 * 1024;
+
+const IMAGE_COMPRESSION_STEPS = [
+  { width: 2200, quality: 82 },
+  { width: 1920, quality: 76 },
+  { width: 1600, quality: 70 },
+  { width: 1280, quality: 64 },
+  { width: 1080, quality: 58 },
+];
 
 // File filter to allow only specific file types
 const fileFilter = (req, file, cb) => {
@@ -31,7 +43,7 @@ const upload = multer({
   storage: multer.memoryStorage(),
   fileFilter: fileFilter,
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit
+    fileSize: DEFAULT_UPLOAD_LIMIT_BYTES, // 10MB limit
     files: 6, // Maximum 6 files per upload (3 licensing + 3 insurance)
   },
 });
@@ -90,9 +102,62 @@ const chatUpload = multer({
   },
 });
 
+const tryCompressImageBuffer = async (buffer) => {
+  if (!buffer?.length) {
+    return buffer;
+  }
+
+  let metadata;
+  try {
+    metadata = await sharp(buffer).metadata();
+  } catch {
+    return buffer;
+  }
+
+  if (!metadata?.width || !metadata?.height) {
+    return buffer;
+  }
+
+  for (const step of IMAGE_COMPRESSION_STEPS) {
+    const resizedBuffer = await sharp(buffer)
+      .rotate()
+      .resize({
+        width: Math.min(step.width, metadata.width),
+        withoutEnlargement: true,
+      })
+      .flatten({ background: "#ffffff" })
+      .jpeg({
+        quality: step.quality,
+        mozjpeg: true,
+      })
+      .toBuffer();
+
+    if (resizedBuffer.length <= CLOUDINARY_UPLOAD_LIMIT_BYTES) {
+      return resizedBuffer;
+    }
+  }
+
+  return buffer;
+};
+
 // Helper function to upload buffer to Cloudinary
-const uploadToCloudinary = (buffer, options = {}) => {
+const uploadToCloudinary = async (buffer, options = {}) => {
+  let uploadBuffer = buffer;
+
+  if (uploadBuffer?.length > CLOUDINARY_UPLOAD_LIMIT_BYTES) {
+    uploadBuffer = await tryCompressImageBuffer(uploadBuffer);
+  }
+
   return new Promise((resolve, reject) => {
+    if (uploadBuffer?.length > CLOUDINARY_UPLOAD_LIMIT_BYTES) {
+      const error = new Error(
+        `File size too large after processing. Maximum allowed size is ${CLOUDINARY_UPLOAD_LIMIT_BYTES} bytes.`
+      );
+      error.status = 413;
+      error.code = "FILE_TOO_LARGE";
+      return reject(error);
+    }
+
     const uploadStream = cloudinary.uploader.upload_stream(
       {
         resource_type: "auto", // Automatically detect file type
@@ -111,7 +176,7 @@ const uploadToCloudinary = (buffer, options = {}) => {
     );
 
     // Create a readable stream from buffer and pipe to Cloudinary
-    const stream = Readable.from(buffer);
+    const stream = Readable.from(uploadBuffer);
     stream.pipe(uploadStream);
   });
 };
