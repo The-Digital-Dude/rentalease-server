@@ -40,6 +40,37 @@ const parseMediaMeta = (meta) => {
   return meta;
 };
 
+const NEXT_COMPLIANCE_FIELD_IDS = [
+  "next-inspection-date",
+  "certification-next-inspection-due",
+  "next-service-due",
+];
+
+const resolveNextComplianceDate = (template, formData = {}, nextComplianceDate) => {
+  if (nextComplianceDate) {
+    return nextComplianceDate;
+  }
+
+  if (!template?.sections?.length) {
+    return nextComplianceDate;
+  }
+
+  for (const section of template.sections) {
+    const sectionResponses = formData[section.id];
+    if (!sectionResponses || typeof sectionResponses !== "object") {
+      continue;
+    }
+
+    for (const fieldId of NEXT_COMPLIANCE_FIELD_IDS) {
+      if (sectionResponses[fieldId]) {
+        return sectionResponses[fieldId];
+      }
+    }
+  }
+
+  return nextComplianceDate;
+};
+
 const buildSectionsSummary = (template, formData = {}) => {
   if (!template?.sections?.length) {
     return [];
@@ -168,6 +199,13 @@ export const submitInspectionReport = async ({
     );
   }
 
+  const normalizedFormData = normalizeFormData(formData);
+  const resolvedNextComplianceDate = resolveNextComplianceDate(
+    template,
+    normalizedFormData,
+    nextComplianceDate
+  );
+
   // Validate nextComplianceDate for compliance job types
   const complianceJobTypes = [
     'Gas', 'Gas Safety', 'Gas Safety Check', 'Gas Safety Inspection',
@@ -177,20 +215,19 @@ export const submitInspectionReport = async ({
   ];
 
   if (complianceJobTypes.includes(template.jobType)) {
-    if (!nextComplianceDate) {
+    if (!resolvedNextComplianceDate) {
       throw new Error(`Next compliance date is required for ${template.jobType} inspections`);
     }
 
     // Validate against Australian regulations
-    validateNextComplianceDate(nextComplianceDate, template.jobType);
+    validateNextComplianceDate(resolvedNextComplianceDate, template.jobType);
     console.log("[Inspection Submit] Next compliance date validated", {
       jobType: template.jobType,
-      nextComplianceDate,
+      nextComplianceDate: resolvedNextComplianceDate,
     });
   }
 
-  console.log("[Inspection Submit] Normalizing form data and parsing media metadata");
-  const normalizedFormData = normalizeFormData(formData);
+  console.log("[Inspection Submit] Form data normalized and media metadata parsing started");
   const mediaMetadata = parseMediaMeta(mediaMeta);
   
   console.log("[Inspection Submit] Uploading inspection media files", {
@@ -219,7 +256,7 @@ export const submitInspectionReport = async ({
     sectionsSummary,
     media: mediaUploads,
     notes,
-    nextComplianceDate: nextComplianceDate ? new Date(nextComplianceDate) : null,
+    nextComplianceDate: resolvedNextComplianceDate ? new Date(resolvedNextComplianceDate) : null,
     submittedBy: {
       userType: "Technician",
       userId: technicianId,
@@ -290,13 +327,13 @@ export const submitInspectionReport = async ({
   console.log("[Inspection Submit] Job updated with report reference");
 
   // Update property compliance schedule if nextComplianceDate is provided
-  if (nextComplianceDate) {
+  if (resolvedNextComplianceDate) {
     try {
       console.log("[Inspection Submit] Updating property compliance schedule");
       const complianceUpdate = await complianceService.updatePropertyCompliance(
         property._id,
         template.jobType,
-        nextComplianceDate
+        resolvedNextComplianceDate
       );
 
       if (complianceUpdate) {
