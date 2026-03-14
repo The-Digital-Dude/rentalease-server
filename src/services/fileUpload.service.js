@@ -39,22 +39,21 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
-// Configure multer for memory storage (files will be uploaded to Cloudinary)
+// Configure multer for memory storage
+// No fileSize limit here — PDFs go to GCS (no size cap), images are validated inside uploadToCloudinary
 const upload = multer({
   storage: multer.memoryStorage(),
   fileFilter: fileFilter,
   limits: {
-    fileSize: DEFAULT_UPLOAD_LIMIT_BYTES, // 10MB limit
     files: 6, // Maximum 6 files per upload (3 licensing + 3 insurance)
   },
 });
 
-// Configure multer specifically for inspection reports with higher file limits
+// Configure multer specifically for inspection reports
 const inspectionUpload = multer({
   storage: multer.memoryStorage(),
   fileFilter: fileFilter,
   limits: {
-    fileSize: 25 * 1024 * 1024, // 25MB per file
     files: 400, // Support up to 400 files for photo-heavy inspections
   },
 });
