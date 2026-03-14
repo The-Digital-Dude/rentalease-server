@@ -1,5 +1,6 @@
 import multer from "multer";
 import { cloudinary } from "../config/cloudinary.js";
+import { bucket } from "../config/gcs.js";
 import { Readable } from "stream";
 import sharp from "sharp";
 
@@ -192,6 +193,44 @@ const deleteFromCloudinary = async (publicId) => {
   }
 };
 
+// Helper function to upload a buffer to Google Cloud Storage
+const uploadToGCS = async (buffer, { folder, fileName, contentType = "application/octet-stream" }) => {
+  const objectName = `${folder}/${fileName}`;
+  const file = bucket.file(objectName);
+
+  await file.save(buffer, {
+    metadata: { contentType },
+  });
+
+  // Return a permanent backend proxy URL so the file is always accessible
+  const backendUrl = process.env.BACKEND_URL || "http://localhost:4000";
+  const url = `${backendUrl}/api/v1/files/pdf?path=${encodeURIComponent(objectName)}`;
+  return { url, gcsPath: objectName };
+};
+
+// Helper function to delete a file from Google Cloud Storage
+const deleteFromGCS = async (gcsPath) => {
+  try {
+    await bucket.file(gcsPath).delete();
+  } catch (error) {
+    console.error("Error deleting file from GCS:", error);
+    throw error;
+  }
+};
+
+// Helper function to batch delete GCS files
+const deleteFilesFromGCS = async (documents) => {
+  const deletePromises = documents
+    .filter((doc) => doc.gcsPath)
+    .map((doc) => deleteFromGCS(doc.gcsPath));
+
+  try {
+    await Promise.all(deletePromises);
+  } catch (error) {
+    console.error("Error deleting some files from GCS:", error);
+  }
+};
+
 // Helper function to process uploaded files and upload to Cloudinary
 const processUploadedFiles = async (files, technicianId) => {
   const result = {};
@@ -302,6 +341,11 @@ export default {
   deleteFromCloudinary,
   processUploadedFiles,
   deleteFiles,
+
+  // GCS helper functions
+  uploadToGCS,
+  deleteFromGCS,
+  deleteFilesFromGCS,
 
   // Legacy helper functions
   getFileInfo,

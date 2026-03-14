@@ -222,6 +222,9 @@ const propertySchema = new mongoose.Schema(
           cloudinaryId: {
             type: String,
           },
+          gcsPath: {
+            type: String,
+          },
           uploadDate: {
             type: Date,
             default: Date.now,

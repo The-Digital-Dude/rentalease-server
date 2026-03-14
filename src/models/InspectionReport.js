@@ -125,6 +125,10 @@ const inspectionReportSchema = new mongoose.Schema(
         type: String,
         trim: true,
       },
+      gcsPath: {
+        type: String,
+        trim: true,
+      },
       generatedAt: {
         type: Date,
       },

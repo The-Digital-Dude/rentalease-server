@@ -72,6 +72,10 @@ const chatMessageSchema = new mongoose.Schema({
       type: String,
       default: null
     },
+    gcsPath: {
+      type: String,
+      default: null
+    },
     size: {
       type: Number,
       default: null

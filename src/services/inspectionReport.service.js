@@ -296,30 +296,25 @@ export const submitInspectionReport = async ({
     bufferSize: pdfBuffer.length,
   });
 
-  console.log("[Inspection Submit] Uploading PDF to Cloudinary");
-  const pdfUpload = await fileUploadService.uploadToCloudinary(pdfBuffer, {
+  console.log("[Inspection Submit] Uploading PDF to GCS");
+  const pdfUpload = await fileUploadService.uploadToGCS(pdfBuffer, {
     folder: "inspection-reports",
-    public_id: `inspection-reports/job-${job._id}-report-${report._id}`,
-    resource_type: "auto",
-    tags: [
-      `job-${job._id}`,
-      `property-${property._id}`,
-      "inspection-report",
-    ],
+    fileName: `job-${job._id}-report-${report._id}.pdf`,
+    contentType: "application/pdf",
   });
-  console.log("[Inspection Submit] PDF uploaded to Cloudinary", {
-    url: pdfUpload.secure_url,
+  console.log("[Inspection Submit] PDF uploaded to GCS", {
+    url: pdfUpload.url,
   });
 
   report.pdf = {
-    url: pdfUpload.secure_url,
-    cloudinaryId: pdfUpload.public_id,
+    url: pdfUpload.url,
+    gcsPath: pdfUpload.gcsPath,
     generatedAt: new Date(),
   };
   await report.save();
   console.log("[Inspection Submit] Report saved with PDF reference");
 
-  job.reportFile = pdfUpload.secure_url;
+  job.reportFile = pdfUpload.url;
   job.latestInspectionReport = report._id;
   job.inspectionReports = job.inspectionReports || [];
   job.inspectionReports.push(report._id);

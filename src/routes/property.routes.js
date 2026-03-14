@@ -2173,20 +2173,34 @@ router.post(
         });
       }
 
-      const cloudinaryResult = await fileUploadService.uploadToCloudinary(
-        req.file.buffer,
-        {
+      let documentUrl, documentCloudinaryId, documentGcsPath;
+      if (req.file.mimetype === "application/pdf") {
+        const gcsResult = await fileUploadService.uploadToGCS(req.file.buffer, {
           folder: `properties/${id}/documents`,
-          public_id: req.file.originalname,
-        }
-      );
+          fileName: `${Date.now()}-${req.file.originalname}`,
+          contentType: "application/pdf",
+        });
+        documentUrl = gcsResult.url;
+        documentGcsPath = gcsResult.gcsPath;
+      } else {
+        const cloudinaryResult = await fileUploadService.uploadToCloudinary(
+          req.file.buffer,
+          {
+            folder: `properties/${id}/documents`,
+            public_id: req.file.originalname,
+          }
+        );
+        documentUrl = cloudinaryResult.secure_url;
+        documentCloudinaryId = cloudinaryResult.public_id;
+      }
 
       const document = {
         name: req.file.originalname,
         type: req.file.mimetype,
         size: req.file.size,
-        url: cloudinaryResult.secure_url,
-        cloudinaryId: cloudinaryResult.public_id,
+        url: documentUrl,
+        cloudinaryId: documentCloudinaryId,
+        gcsPath: documentGcsPath,
         uploadDate: new Date(),
       };
 
@@ -2262,8 +2276,14 @@ router.delete(
 
       const documentToDelete = property.documents[documentIndex];
 
-      // Delete from Cloudinary if it has a cloudinaryId
-      if (documentToDelete.cloudinaryId) {
+      // Delete from GCS or Cloudinary depending on where it was stored
+      if (documentToDelete.gcsPath) {
+        try {
+          await fileUploadService.deleteFromGCS(documentToDelete.gcsPath);
+        } catch (gcsError) {
+          console.warn("Failed to delete from GCS:", gcsError);
+        }
+      } else if (documentToDelete.cloudinaryId) {
         try {
           await fileUploadService.deleteFromCloudinary(documentToDelete.cloudinaryId);
         } catch (cloudinaryError) {

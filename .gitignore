@@ -2,3 +2,4 @@
 /.env
 /devtest-scripts
 /dev-test-script
+/gcs-service-account.json

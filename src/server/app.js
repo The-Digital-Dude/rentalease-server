@@ -35,6 +35,7 @@ import propertyManagerReportsRoutes from "../routes/propertyManagerReports.route
 import emailService from "../services/email.service.js";
 import inspectionRoutes from "../routes/inspection.routes.js";
 import propertyManagerInvoiceRoutes from "../routes/propertyManagerInvoice.routes.js";
+import filesRoutes from "../routes/files.routes.js";
 import {
   CLOUDINARY_UPLOAD_LIMIT_BYTES,
   DEFAULT_UPLOAD_LIMIT_BYTES,
@@ -86,6 +87,7 @@ app.use("/api/v1/calls", callRoutes);
 app.use("/api/v1/reports/property-manager", propertyManagerReportsRoutes);
 app.use("/api/v1/inspections", inspectionRoutes);
 app.use("/api/v1/property-manager-invoices", propertyManagerInvoiceRoutes);
+app.use("/api/v1/files", filesRoutes);
 
 // Health check route
 app.get("/health", async (req, res) => {

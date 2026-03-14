@@ -2039,16 +2039,28 @@ router.patch(
         // Handle report file upload if provided
         if (!reportFileUrl && req.file) {
           try {
-            const cloudinaryResult = await fileUploadService.uploadToCloudinary(
-              req.file.buffer,
-              {
-                public_id: `job-reports/job-${job._id}-${Date.now()}`,
-                resource_type: "auto",
-                folder: "job-reports",
-                tags: [`job-${job._id}`, "report"],
-              }
-            );
-            reportFileUrl = cloudinaryResult.secure_url;
+            if (req.file.mimetype === "application/pdf") {
+              const gcsResult = await fileUploadService.uploadToGCS(
+                req.file.buffer,
+                {
+                  folder: "job-reports",
+                  fileName: `job-${job._id}-${Date.now()}.pdf`,
+                  contentType: "application/pdf",
+                }
+              );
+              reportFileUrl = gcsResult.url;
+            } else {
+              const cloudinaryResult = await fileUploadService.uploadToCloudinary(
+                req.file.buffer,
+                {
+                  public_id: `job-reports/job-${job._id}-${Date.now()}`,
+                  resource_type: "auto",
+                  folder: "job-reports",
+                  tags: [`job-${job._id}`, "report"],
+                }
+              );
+              reportFileUrl = cloudinaryResult.secure_url;
+            }
           } catch (uploadError) {
             console.error("Failed to upload report file:", uploadError);
             return res.status(uploadError.status || 500).json({

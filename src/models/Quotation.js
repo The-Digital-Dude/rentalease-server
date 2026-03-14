@@ -94,6 +94,12 @@ const quotationSchema = new mongoose.Schema(
           type: String,
           required: true,
         },
+        cloudinaryId: {
+          type: String,
+        },
+        gcsPath: {
+          type: String,
+        },
         uploadedAt: {
           type: Date,
           default: Date.now,

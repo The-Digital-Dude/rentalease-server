@@ -750,20 +750,32 @@ router.post(
         });
       }
 
-      // Upload file to Cloudinary
-      let cloudinaryResult;
+      // Upload file to GCS (PDF) or Cloudinary (other types)
+      let uploadedFileUrl, uploadedCloudinaryId, uploadedGcsPath;
       try {
-        cloudinaryResult = await fileUploadService.uploadToCloudinary(
-          file.buffer,
-          {
+        if (file.mimetype === "application/pdf") {
+          const gcsResult = await fileUploadService.uploadToGCS(file.buffer, {
             folder: "chat-attachments",
-            resource_type: "auto",
-            use_filename: true,
-            unique_filename: true,
-          }
-        );
+            fileName: `${Date.now()}-${file.originalname}`,
+            contentType: "application/pdf",
+          });
+          uploadedFileUrl = gcsResult.url;
+          uploadedGcsPath = gcsResult.gcsPath;
+        } else {
+          const cloudinaryResult = await fileUploadService.uploadToCloudinary(
+            file.buffer,
+            {
+              folder: "chat-attachments",
+              resource_type: "auto",
+              use_filename: true,
+              unique_filename: true,
+            }
+          );
+          uploadedFileUrl = cloudinaryResult.secure_url;
+          uploadedCloudinaryId = cloudinaryResult.public_id;
+        }
       } catch (uploadError) {
-        console.error("Error uploading file to Cloudinary:", uploadError);
+        console.error("Error uploading file:", uploadError);
         return res.status(500).json({
           success: false,
           message: "Failed to upload attachment.",
@@ -835,10 +847,11 @@ router.post(
         },
         attachment: {
           type: attachmentType,
-          filename: cloudinaryResult.public_id,
+          filename: uploadedCloudinaryId || uploadedGcsPath,
           originalName: file.originalname,
-          url: cloudinaryResult.secure_url,
-          cloudinaryId: cloudinaryResult.public_id,
+          url: uploadedFileUrl,
+          cloudinaryId: uploadedCloudinaryId,
+          gcsPath: uploadedGcsPath,
           size: file.size,
           mimeType: file.mimetype,
         },
@@ -918,7 +931,7 @@ router.post(
         message: "Attachment sent successfully.",
         data: {
           messageId: chatMessage._id,
-          attachmentUrl: cloudinaryResult.secure_url,
+          attachmentUrl: uploadedFileUrl,
           createdAt: chatMessage.createdAt,
         },
       });
