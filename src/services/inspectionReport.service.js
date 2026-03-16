@@ -308,6 +308,7 @@ export const submitInspectionReport = async ({
 
   report.pdf = {
     url: pdfUpload.url,
+    cloudinaryId: pdfUpload.cloudinaryId || undefined,
     gcsPath: pdfUpload.gcsPath,
     generatedAt: new Date(),
   };

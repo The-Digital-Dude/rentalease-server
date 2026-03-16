@@ -3,3 +3,5 @@
 /devtest-scripts
 /dev-test-script
 /gcs-service-account.json
+/secrets/
+/.gcloud/

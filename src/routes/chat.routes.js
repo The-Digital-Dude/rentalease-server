@@ -760,6 +760,7 @@ router.post(
             contentType: "application/pdf",
           });
           uploadedFileUrl = gcsResult.url;
+          uploadedCloudinaryId = gcsResult.cloudinaryId;
           uploadedGcsPath = gcsResult.gcsPath;
         } else {
           const cloudinaryResult = await fileUploadService.uploadToCloudinary(

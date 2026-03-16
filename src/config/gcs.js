@@ -1,5 +1,22 @@
 import { Storage } from "@google-cloud/storage";
 
+const normalizeCredentials = (rawCredentials) => {
+  if (!rawCredentials) {
+    return null;
+  }
+
+  const credentials =
+    typeof rawCredentials === "string"
+      ? JSON.parse(rawCredentials)
+      : rawCredentials;
+
+  if (credentials.private_key) {
+    credentials.private_key = credentials.private_key.replace(/\\n/g, "\n");
+  }
+
+  return credentials;
+};
+
 const storageConfig = {
   projectId: process.env.GCS_PROJECT_ID,
 };
@@ -7,11 +24,16 @@ const storageConfig = {
 if (process.env.GCS_KEY_FILE) {
   storageConfig.keyFilename = process.env.GCS_KEY_FILE;
 } else if (process.env.GCS_KEY_JSON) {
-  storageConfig.credentials = JSON.parse(process.env.GCS_KEY_JSON);
+  storageConfig.credentials = normalizeCredentials(process.env.GCS_KEY_JSON);
 }
 
 const storage = new Storage(storageConfig);
 const bucket = storage.bucket(process.env.GCS_BUCKET_NAME);
+const isGCSConfigured = () =>
+  Boolean(
+    process.env.GCS_BUCKET_NAME &&
+      (process.env.GCS_KEY_FILE || process.env.GCS_KEY_JSON)
+  );
 
 const testGCSConnection = async () => {
   try {
@@ -28,5 +50,5 @@ const testGCSConnection = async () => {
   }
 };
 
-export { storage, bucket, testGCSConnection };
+export { storage, bucket, testGCSConnection, isGCSConfigured };
 export default bucket;

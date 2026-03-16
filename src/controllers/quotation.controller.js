@@ -124,6 +124,7 @@ export const createQuotationRequest = async (req, res) => {
               contentType: "application/pdf",
             });
             fileUrl = gcsResult.url;
+            fileCloudinaryId = gcsResult.cloudinaryId;
             fileGcsPath = gcsResult.gcsPath;
           } else {
             const cloudinaryResult = await fileUploadService.uploadToCloudinary(
@@ -1069,6 +1070,7 @@ export const uploadQuotationAttachments = async (req, res) => {
             contentType: "application/pdf",
           });
           fileUrl = gcsResult.url;
+          fileCloudinaryId = gcsResult.cloudinaryId;
           fileGcsPath = gcsResult.gcsPath;
         } else {
           const cloudinaryResult = await fileUploadService.uploadToCloudinary(

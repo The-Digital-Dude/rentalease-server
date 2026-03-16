@@ -1,6 +1,6 @@
 import multer from "multer";
 import { cloudinary } from "../config/cloudinary.js";
-import { bucket } from "../config/gcs.js";
+import { bucket, isGCSConfigured } from "../config/gcs.js";
 import { Readable } from "stream";
 import sharp from "sharp";
 
@@ -140,6 +140,22 @@ const tryCompressImageBuffer = async (buffer) => {
   return buffer;
 };
 
+const createCloudinaryUpload = (buffer, options) =>
+  new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      options,
+      (error, result) => {
+        if (error) {
+          reject(error);
+        } else {
+          resolve(result);
+        }
+      }
+    );
+
+    Readable.from(buffer).pipe(uploadStream);
+  });
+
 // Helper function to upload buffer to Cloudinary
 const uploadToCloudinary = async (buffer, options = {}) => {
   let uploadBuffer = buffer;
@@ -157,34 +173,66 @@ const uploadToCloudinary = async (buffer, options = {}) => {
       error.code = "FILE_TOO_LARGE";
       return reject(error);
     }
-
-    const uploadStream = cloudinary.uploader.upload_stream(
-      {
-        resource_type: "auto", // Automatically detect file type
-        folder: "technician-documents", // Organize files in folders
-        use_filename: true,
-        unique_filename: true,
-        ...options,
-      },
-      (error, result) => {
-        if (error) {
-          reject(error);
-        } else {
-          resolve(result);
-        }
-      }
-    );
-
-    // Create a readable stream from buffer and pipe to Cloudinary
-    const stream = Readable.from(uploadBuffer);
-    stream.pipe(uploadStream);
+    createCloudinaryUpload(uploadBuffer, {
+      resource_type: "auto", // Automatically detect file type
+      folder: "technician-documents", // Organize files in folders
+      use_filename: true,
+      unique_filename: true,
+      ...options,
+    }).then(resolve).catch(reject);
   });
+};
+
+const uploadPdfToCloudinary = async (buffer, { folder, fileName }) => {
+  const publicId = fileName.replace(/\.pdf$/i, "");
+  const result = await createCloudinaryUpload(buffer, {
+    resource_type: "raw",
+    folder,
+    public_id: publicId,
+    use_filename: false,
+    unique_filename: false,
+    overwrite: true,
+    format: "pdf",
+  });
+
+  return {
+    url: result.secure_url,
+    cloudinaryId: result.public_id,
+    gcsPath: null,
+    storageProvider: "cloudinary",
+  };
+};
+
+const isGCSAuthOrConfigError = (error) => {
+  const combinedMessage = [
+    error?.message,
+    error?.response?.data?.error,
+    error?.response?.data?.error_description,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  return [
+    "invalid_grant",
+    "could not refresh access token",
+    "error fetching access token",
+    "could not load the default credentials",
+    "private key",
+    "keyfile",
+    "enoent",
+    "bucket name",
+    "credentials",
+  ].some((fragment) => combinedMessage.includes(fragment));
 };
 
 // Helper function to delete file from Cloudinary
 const deleteFromCloudinary = async (publicId) => {
   try {
     const result = await cloudinary.uploader.destroy(publicId);
+    if (result?.result === "not found") {
+      return cloudinary.uploader.destroy(publicId, { resource_type: "raw" });
+    }
     return result;
   } catch (error) {
     console.error("Error deleting file from Cloudinary:", error);
@@ -194,17 +242,48 @@ const deleteFromCloudinary = async (publicId) => {
 
 // Helper function to upload a buffer to Google Cloud Storage
 const uploadToGCS = async (buffer, { folder, fileName, contentType = "application/octet-stream" }) => {
+  const canFallbackToCloudinary = contentType === "application/pdf";
+
+  if (!isGCSConfigured()) {
+    if (canFallbackToCloudinary) {
+      console.warn("GCS is not configured. Falling back to Cloudinary for PDF upload.", {
+        folder,
+        fileName,
+      });
+      return uploadPdfToCloudinary(buffer, { folder, fileName });
+    }
+
+    throw new Error("GCS is not configured for file uploads");
+  }
+
   const objectName = `${folder}/${fileName}`;
   const file = bucket.file(objectName);
 
-  await file.save(buffer, {
-    metadata: { contentType },
-  });
+  try {
+    await file.save(buffer, {
+      metadata: { contentType },
+    });
+  } catch (error) {
+    if (canFallbackToCloudinary && isGCSAuthOrConfigError(error)) {
+      console.warn("GCS upload failed. Falling back to Cloudinary for PDF upload.", {
+        folder,
+        fileName,
+        error: error.message,
+      });
+      return uploadPdfToCloudinary(buffer, { folder, fileName });
+    }
+    throw error;
+  }
 
   // Return a permanent backend proxy URL so the file is always accessible
   const backendUrl = process.env.BACKEND_URL || "http://localhost:4000";
   const url = `${backendUrl}/api/v1/files/pdf?path=${encodeURIComponent(objectName)}`;
-  return { url, gcsPath: objectName };
+  return {
+    url,
+    cloudinaryId: null,
+    gcsPath: objectName,
+    storageProvider: "gcs",
+  };
 };
 
 // Helper function to delete a file from Google Cloud Storage
