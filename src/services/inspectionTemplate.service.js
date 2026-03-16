@@ -88,6 +88,20 @@ export const prefillTemplateWithJobData = (template, job, property, technician) 
 
   const inspectorName = `${technician?.firstName || ''} ${technician?.lastName || ''}`.trim();
   const currentDate = new Date().toISOString().split('T')[0];
+  const complianceDateOffsets = {
+    Gas: 2,
+    Electrical: 2,
+    Smoke: 1,
+    MinimumSafetyStandard: 1,
+  };
+  const complianceOffsetYears = complianceDateOffsets[template.jobType];
+  const nextComplianceDate = complianceOffsetYears
+    ? new Date(
+        Date.now() + complianceOffsetYears * 365 * 24 * 60 * 60 * 1000
+      )
+        .toISOString()
+        .split("T")[0]
+    : null;
 
   const prefillMap = {
     // Inspector/Technician information
@@ -122,13 +136,16 @@ export const prefillTemplateWithJobData = (template, job, property, technician) 
     'contact-email': property?.contactEmail || technician?.email || '',
     'contact-phone': property?.contactPhone || technician?.phone || '',
 
-    // Service dates - set next service to 12 months from now
-    'next-service-due': new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-
     // Company information
     'inspector-details-company': 'RentalEase Property Services Pty Ltd',
     'company-name': 'RentalEase Property Services Pty Ltd',
   };
+
+  if (nextComplianceDate) {
+    prefillMap["next-service-due"] = nextComplianceDate;
+    prefillMap["certification-next-inspection-due"] = nextComplianceDate;
+    prefillMap["next-inspection-date"] = nextComplianceDate;
+  }
 
   // Deep clone the template to avoid modifying the original
   const prefilledTemplate = JSON.parse(JSON.stringify(template));
