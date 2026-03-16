@@ -226,6 +226,47 @@ const isGCSAuthOrConfigError = (error) => {
   ].some((fragment) => combinedMessage.includes(fragment));
 };
 
+const normalizeBaseUrl = (value) => {
+  if (!value) {
+    return null;
+  }
+
+  return String(value).trim().replace(/\/+$/, "");
+};
+
+const isLocalBaseUrl = (value) => {
+  if (!value) {
+    return false;
+  }
+
+  return /\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(value);
+};
+
+const resolveBackendUrl = () => {
+  const nodeEnv = process.env.NODE_ENV || "development";
+  const allowLocalhost = nodeEnv === "development" || nodeEnv === "test";
+  const candidates = [
+    process.env.BACKEND_URL,
+    process.env.PUBLIC_BACKEND_URL,
+    process.env.RENDER_EXTERNAL_URL,
+    process.env.RAILWAY_STATIC_URL
+      ? `https://${process.env.RAILWAY_STATIC_URL}`
+      : null,
+  ]
+    .map(normalizeBaseUrl)
+    .filter(Boolean);
+
+  for (const candidate of candidates) {
+    if (allowLocalhost || !isLocalBaseUrl(candidate)) {
+      return candidate;
+    }
+  }
+
+  return allowLocalhost
+    ? "http://localhost:4000"
+    : "https://server.rentalease.com.au";
+};
+
 // Helper function to delete file from Cloudinary
 const deleteFromCloudinary = async (publicId) => {
   try {
@@ -276,7 +317,7 @@ const uploadToGCS = async (buffer, { folder, fileName, contentType = "applicatio
   }
 
   // Return a permanent backend proxy URL so the file is always accessible
-  const backendUrl = process.env.BACKEND_URL || "http://localhost:4000";
+  const backendUrl = resolveBackendUrl();
   const url = `${backendUrl}/api/v1/files/pdf?path=${encodeURIComponent(objectName)}`;
   return {
     url,
