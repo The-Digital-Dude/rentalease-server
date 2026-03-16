@@ -142,10 +142,21 @@ const tryCompressImageBuffer = async (buffer) => {
 const uploadToCloudinary = async (buffer, options = {}) => {
   let uploadBuffer = buffer;
   const {
-    folder,
-    fileName,
+    folder: providedFolder,
+    fileName: providedFileName,
+    public_id,
     contentType = "image/jpeg",
   } = options;
+  const folder = providedFolder || "uploads";
+  const derivedBaseName =
+    typeof public_id === "string" && public_id.trim()
+      ? public_id.trim().split("/").pop()
+      : null;
+  const extension = contentType === "application/pdf" ? ".pdf" : "";
+  const fileName =
+    providedFileName ||
+    (derivedBaseName ? `${derivedBaseName}${extension}` : null) ||
+    `upload-${Date.now()}${extension}`;
 
   if (uploadBuffer?.length > CLOUDINARY_UPLOAD_LIMIT_BYTES) {
     uploadBuffer = await tryCompressImageBuffer(uploadBuffer);
@@ -158,10 +169,6 @@ const uploadToCloudinary = async (buffer, options = {}) => {
     error.status = 413;
     error.code = "FILE_TOO_LARGE";
     throw error;
-  }
-
-  if (!folder || !fileName) {
-    throw new Error("folder and fileName are required for storage uploads");
   }
 
   return uploadToGCS(uploadBuffer, {
