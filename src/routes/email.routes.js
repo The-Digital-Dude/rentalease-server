@@ -12,7 +12,7 @@ const router = express.Router();
 
 // Configure multer for file uploads
 const upload = multer({
-  dest: "uploads/temp/",
+  storage: multer.memoryStorage(),
   limits: {
     fileSize: 10 * 1024 * 1024, // 10MB max file size
     files: 5 // Max 5 files per email

@@ -191,15 +191,16 @@ router.post("/profile/avatar", authenticate, fileUpload.single("avatar"), async 
     }
 
     // Delete old avatar if exists
-    if (user.avatar && user.avatar.cloudinaryId) {
-      await fileUpload.deleteFromCloudinary(user.avatar.cloudinaryId);
-    } else if (user.profileImage && user.profileImage.cloudinaryId) {
-      await fileUpload.deleteFromCloudinary(user.profileImage.cloudinaryId);
+    if (user.avatar && (user.avatar.cloudinaryId || user.avatar.gcsPath)) {
+      await fileUpload.deleteStoredFile(user.avatar);
+    } else if (user.profileImage && (user.profileImage.cloudinaryId || user.profileImage.gcsPath)) {
+      await fileUpload.deleteStoredFile(user.profileImage);
     }
 
-    // Upload new avatar to Cloudinary
-    const cloudinaryResult = await fileUpload.uploadToCloudinary(req.file.buffer, {
-      public_id: `${userType.toLowerCase()}-${req.user.id}-avatar-${Date.now()}`,
+    const fileName = `${userType.toLowerCase()}-${req.user.id}-avatar-${Date.now()}.jpg`;
+    const uploadResult = await fileUpload.uploadToStorage(req.file.buffer, {
+      fileName,
+      contentType: req.file.mimetype,
       folder: "user-avatars",
       transformation: [
         { width: 400, height: 400, crop: "fill", gravity: "face" },
@@ -210,8 +211,9 @@ router.post("/profile/avatar", authenticate, fileUpload.single("avatar"), async 
 
     // Update user with new avatar
     const avatarData = {
-      url: cloudinaryResult.secure_url,
-      cloudinaryId: cloudinaryResult.public_id,
+      url: uploadResult.secure_url || uploadResult.url,
+      cloudinaryId: uploadResult.public_id,
+      gcsPath: uploadResult.gcsPath || null,
     };
 
     // Update based on user type model structure
@@ -227,7 +229,7 @@ router.post("/profile/avatar", authenticate, fileUpload.single("avatar"), async 
       status: "success",
       message: "Avatar uploaded successfully",
       data: {
-        avatar: cloudinaryResult.secure_url,
+        avatar: avatarData.url,
       },
     });
   } catch (error) {
@@ -259,12 +261,12 @@ router.delete("/profile/avatar", authenticate, async (req, res) => {
       });
     }
 
-    // Delete avatar from Cloudinary if exists
-    if (user.avatar && user.avatar.cloudinaryId) {
-      await fileUpload.deleteFromCloudinary(user.avatar.cloudinaryId);
+    // Delete stored avatar if it exists
+    if (user.avatar && (user.avatar.cloudinaryId || user.avatar.gcsPath)) {
+      await fileUpload.deleteStoredFile(user.avatar);
       user.avatar = null;
-    } else if (user.profileImage && user.profileImage.cloudinaryId) {
-      await fileUpload.deleteFromCloudinary(user.profileImage.cloudinaryId);
+    } else if (user.profileImage && (user.profileImage.cloudinaryId || user.profileImage.gcsPath)) {
+      await fileUpload.deleteStoredFile(user.profileImage);
       user.profileImage = null;
     }
 

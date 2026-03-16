@@ -11,10 +11,36 @@ import PropertyManager from "../models/PropertyManager.js";
 import TeamMember from "../models/TeamMember.js";
 import Technician from "../models/Technician.js";
 import emailService from "../services/email.service.js";
+import fileUploadService from "../services/fileUpload.service.js";
 import emailGenerator from "../utils/emailGenerator.js";
-import cloudinary from "../config/cloudinary.js";
 
 class EmailController {
+  async uploadEmailAttachments(files = []) {
+    const attachments = [];
+
+    for (const file of files) {
+      const sanitizedOriginalName = String(file.originalname || "attachment")
+        .replace(/[^\w.-]/g, "-");
+      const fileName = `${Date.now()}-${sanitizedOriginalName}`;
+      const result = await fileUploadService.uploadToStorage(file.buffer, {
+        folder: "email-attachments",
+        fileName,
+        contentType: file.mimetype || "application/octet-stream",
+      });
+
+      attachments.push({
+        id: result.gcsPath || fileName,
+        filename: file.originalname,
+        contentType: file.mimetype,
+        size: file.size,
+        cloudinaryUrl: result.secure_url || result.url,
+        cloudinaryPublicId: null,
+      });
+    }
+
+    return attachments;
+  }
+
   /**
    * Get emails for authenticated user
    * Thinking: Need pagination, filtering, and search to handle large volumes
@@ -239,24 +265,7 @@ class EmailController {
       let attachments = [];
       if (req.files && req.files.length > 0) {
         console.log(`📎 Processing ${req.files.length} attachments`);
-
-        for (const file of req.files) {
-          // Upload to Cloudinary
-          const result = await cloudinary.uploader.upload(file.path, {
-            resource_type: "auto",
-            folder: "email-attachments",
-            public_id: `${Date.now()}-${file.originalname}`,
-          });
-
-          attachments.push({
-            id: result.public_id,
-            filename: file.originalname,
-            contentType: file.mimetype,
-            size: file.size,
-            cloudinaryUrl: result.secure_url,
-            cloudinaryPublicId: result.public_id,
-          });
-        }
+        attachments = await this.uploadEmailAttachments(req.files);
       }
 
       // Check if all recipients are internal
@@ -486,24 +495,7 @@ class EmailController {
       let attachments = [];
       if (req.files && req.files.length > 0) {
         console.log(`📎 Processing ${req.files.length} reply attachments`);
-
-        for (const file of req.files) {
-          // Upload to Cloudinary
-          const result = await cloudinary.uploader.upload(file.path, {
-            resource_type: "auto",
-            folder: "email-attachments",
-            public_id: `${Date.now()}-${file.originalname}`,
-          });
-
-          attachments.push({
-            id: result.public_id,
-            filename: file.originalname,
-            contentType: file.mimetype,
-            size: file.size,
-            cloudinaryUrl: result.secure_url,
-            cloudinaryPublicId: result.public_id,
-          });
-        }
+        attachments = await this.uploadEmailAttachments(req.files);
       }
 
       // Check if all recipients are internal
@@ -708,27 +700,11 @@ class EmailController {
       // Handle file attachments from multipart
       const attachments = [];
       if (req.files && req.files.length > 0) {
-        // Process file uploads with cloudinary (same as sendEmail)
+        // Process file uploads with the shared storage service
         for (const file of req.files) {
           try {
-            const result = await cloudinary.uploader.upload(file.path, {
-              folder: "email-attachments",
-              resource_type: "auto",
-              public_id: `${Date.now()}-${file.originalname}`,
-            });
-
-            attachments.push({
-              filename: file.originalname,
-              contentType: file.mimetype,
-              size: file.size,
-              cloudinaryUrl: result.secure_url,
-              cloudinaryPublicId: result.public_id,
-            });
-
-            // Clean up temp file
-            if (fs.existsSync(file.path)) {
-              fs.unlinkSync(file.path);
-            }
+            const [uploadedAttachment] = await this.uploadEmailAttachments([file]);
+            attachments.push(uploadedAttachment);
           } catch (uploadError) {
             console.error("❌ Attachment upload failed:", uploadError);
             // Continue with other attachments
@@ -1236,24 +1212,13 @@ class EmailController {
         );
 
         try {
-          for (const file of req.files) {
+          attachments = await this.uploadEmailAttachments(req.files);
+
+          for (const attachment of attachments) {
             console.log(
-              `Uploading file: ${file.originalname} (${file.size} bytes)`
+              `Uploaded file: ${attachment.filename} (${attachment.size} bytes)`
             );
-
-            // Upload to Cloudinary
-            const result = await cloudinary.uploader.upload(file.path, {
-              resource_type: "auto",
-              folder: "email-attachments",
-              public_id: `${Date.now()}-${file.originalname}`,
-            });
-
-            console.log(`✅ File uploaded: ${result.secure_url}`);
-
-            attachments.push({
-              filename: file.originalname,
-              path: result.secure_url,
-            });
+            console.log(`✅ File uploaded: ${attachment.cloudinaryUrl}`);
           }
         } catch (uploadError) {
           console.error("❌ Error uploading attachments:", uploadError);
@@ -1273,7 +1238,10 @@ class EmailController {
 
       // Add attachments if any
       if (attachments.length > 0) {
-        emailData.attachments = attachments;
+        emailData.attachments = attachments.map((attachment) => ({
+          filename: attachment.filename,
+          path: attachment.cloudinaryUrl,
+        }));
       }
 
       // Send email using Resend

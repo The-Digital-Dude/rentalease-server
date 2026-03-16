@@ -1,7 +1,6 @@
 import { createServer } from 'http';
 import app from "./app.js";
 import connectDB from "../config/database.js";
-import { testCloudinaryConnection } from "../config/cloudinary.js";
 import ComplianceCronJob from "../services/complianceCronJob.js";
 import websocketService from "../services/websocket.service.js";
 import { ensureDefaultTemplates } from "../services/inspectionTemplate.service.js";
@@ -13,9 +12,6 @@ const startServer = async () => {
   try {
     // Connect to MongoDB
     await connectDB();
-
-    // Test Cloudinary connection
-    await testCloudinaryConnection();
 
     // Ensure inspection templates are seeded
     await ensureDefaultTemplates();

@@ -1,7 +1,5 @@
 import multer from "multer";
-import { cloudinary } from "../config/cloudinary.js";
 import { bucket, isGCSConfigured } from "../config/gcs.js";
-import { Readable } from "stream";
 import sharp from "sharp";
 
 export const CLOUDINARY_UPLOAD_LIMIT_BYTES = 10 * 1024 * 1024;
@@ -40,7 +38,7 @@ const fileFilter = (req, file, cb) => {
 };
 
 // Configure multer for memory storage
-// No fileSize limit here — PDFs go to GCS (no size cap), images are validated inside uploadToCloudinary
+// No fileSize limit here. PDFs are stored in GCS and images are validated before upload.
 const upload = multer({
   storage: multer.memoryStorage(),
   fileFilter: fileFilter,
@@ -140,67 +138,37 @@ const tryCompressImageBuffer = async (buffer) => {
   return buffer;
 };
 
-const createCloudinaryUpload = (buffer, options) =>
-  new Promise((resolve, reject) => {
-    const uploadStream = cloudinary.uploader.upload_stream(
-      options,
-      (error, result) => {
-        if (error) {
-          reject(error);
-        } else {
-          resolve(result);
-        }
-      }
-    );
-
-    Readable.from(buffer).pipe(uploadStream);
-  });
-
-// Helper function to upload buffer to Cloudinary
+// Legacy alias kept so existing callers still route image uploads through GCS.
 const uploadToCloudinary = async (buffer, options = {}) => {
   let uploadBuffer = buffer;
+  const {
+    folder,
+    fileName,
+    contentType = "image/jpeg",
+  } = options;
 
   if (uploadBuffer?.length > CLOUDINARY_UPLOAD_LIMIT_BYTES) {
     uploadBuffer = await tryCompressImageBuffer(uploadBuffer);
   }
 
-  return new Promise((resolve, reject) => {
-    if (uploadBuffer?.length > CLOUDINARY_UPLOAD_LIMIT_BYTES) {
-      const error = new Error(
-        `File size too large after processing. Maximum allowed size is ${CLOUDINARY_UPLOAD_LIMIT_BYTES} bytes.`
-      );
-      error.status = 413;
-      error.code = "FILE_TOO_LARGE";
-      return reject(error);
-    }
-    createCloudinaryUpload(uploadBuffer, {
-      resource_type: "auto", // Automatically detect file type
-      folder: "technician-documents", // Organize files in folders
-      use_filename: true,
-      unique_filename: true,
-      ...options,
-    }).then(resolve).catch(reject);
-  });
-};
+  if (uploadBuffer?.length > CLOUDINARY_UPLOAD_LIMIT_BYTES) {
+    const error = new Error(
+      `File size too large after processing. Maximum allowed size is ${CLOUDINARY_UPLOAD_LIMIT_BYTES} bytes.`
+    );
+    error.status = 413;
+    error.code = "FILE_TOO_LARGE";
+    throw error;
+  }
 
-const uploadPdfToCloudinary = async (buffer, { folder, fileName }) => {
-  const publicId = fileName.replace(/\.pdf$/i, "");
-  const result = await createCloudinaryUpload(buffer, {
-    resource_type: "raw",
+  if (!folder || !fileName) {
+    throw new Error("folder and fileName are required for storage uploads");
+  }
+
+  return uploadToGCS(uploadBuffer, {
     folder,
-    public_id: publicId,
-    use_filename: false,
-    unique_filename: false,
-    overwrite: true,
-    format: "pdf",
+    fileName,
+    contentType,
   });
-
-  return {
-    url: result.secure_url,
-    cloudinaryId: result.public_id,
-    gcsPath: null,
-    storageProvider: "cloudinary",
-  };
 };
 
 const isGCSAuthOrConfigError = (error) => {
@@ -267,33 +235,44 @@ const resolveBackendUrl = () => {
     : "https://server.rentalease.com.au";
 };
 
-// Helper function to delete file from Cloudinary
+const getGCSProxyPath = (contentType) => {
+  return contentType?.startsWith("image/")
+    ? "/api/v1/files/object"
+    : "/api/v1/files/pdf";
+};
+
 const deleteFromCloudinary = async (publicId) => {
-  try {
-    const result = await cloudinary.uploader.destroy(publicId);
-    if (result?.result === "not found") {
-      return cloudinary.uploader.destroy(publicId, { resource_type: "raw" });
-    }
-    return result;
-  } catch (error) {
-    console.error("Error deleting file from Cloudinary:", error);
-    throw error;
+  if (publicId) {
+    console.warn(
+      "Skipping Cloudinary delete for legacy record because Cloudinary support has been removed.",
+      { publicId }
+    );
   }
+  return null;
+};
+
+const createGCSResponse = (objectName, contentType) => {
+  const backendUrl = resolveBackendUrl();
+  const url = `${backendUrl}${getGCSProxyPath(
+    contentType
+  )}?path=${encodeURIComponent(objectName)}`;
+
+  return {
+    url,
+    secure_url: url,
+    cloudinaryId: null,
+    public_id: null,
+    gcsPath: objectName,
+    storageProvider: "gcs",
+  };
 };
 
 // Helper function to upload a buffer to Google Cloud Storage
-const uploadToGCS = async (buffer, { folder, fileName, contentType = "application/octet-stream" }) => {
-  const canFallbackToCloudinary = contentType === "application/pdf";
-
+const uploadToGCS = async (
+  buffer,
+  { folder, fileName, contentType = "application/octet-stream" }
+) => {
   if (!isGCSConfigured()) {
-    if (canFallbackToCloudinary) {
-      console.warn("GCS is not configured. Falling back to Cloudinary for PDF upload.", {
-        folder,
-        fileName,
-      });
-      return uploadPdfToCloudinary(buffer, { folder, fileName });
-    }
-
     throw new Error("GCS is not configured for file uploads");
   }
 
@@ -305,26 +284,34 @@ const uploadToGCS = async (buffer, { folder, fileName, contentType = "applicatio
       metadata: { contentType },
     });
   } catch (error) {
-    if (canFallbackToCloudinary && isGCSAuthOrConfigError(error)) {
-      console.warn("GCS upload failed. Falling back to Cloudinary for PDF upload.", {
+    if (isGCSAuthOrConfigError(error)) {
+      console.error("GCS upload failed due to configuration or auth error.", {
         folder,
         fileName,
+        contentType,
         error: error.message,
       });
-      return uploadPdfToCloudinary(buffer, { folder, fileName });
     }
     throw error;
   }
 
-  // Return a permanent backend proxy URL so the file is always accessible
-  const backendUrl = resolveBackendUrl();
-  const url = `${backendUrl}/api/v1/files/pdf?path=${encodeURIComponent(objectName)}`;
-  return {
-    url,
-    cloudinaryId: null,
-    gcsPath: objectName,
-    storageProvider: "gcs",
-  };
+  return createGCSResponse(objectName, contentType);
+};
+
+const uploadImageToGCS = async (buffer, options = {}) => {
+  const uploadBuffer = await tryCompressImageBuffer(buffer);
+  return uploadToGCS(uploadBuffer, options);
+};
+
+const uploadToStorage = async (
+  buffer,
+  { folder, fileName, contentType = "application/octet-stream" }
+) => {
+  if (contentType.startsWith("image/")) {
+    return uploadImageToGCS(buffer, { folder, fileName, contentType });
+  }
+
+  return uploadToGCS(buffer, { folder, fileName, contentType });
 };
 
 // Helper function to delete a file from Google Cloud Storage
@@ -335,6 +322,18 @@ const deleteFromGCS = async (gcsPath) => {
     console.error("Error deleting file from GCS:", error);
     throw error;
   }
+};
+
+const deleteStoredFile = async ({ gcsPath, cloudinaryId } = {}) => {
+  if (gcsPath) {
+    return deleteFromGCS(gcsPath);
+  }
+
+  if (cloudinaryId) {
+    return deleteFromCloudinary(cloudinaryId);
+  }
+
+  return null;
 };
 
 // Helper function to batch delete GCS files
@@ -350,7 +349,7 @@ const deleteFilesFromGCS = async (documents) => {
   }
 };
 
-// Helper function to process uploaded files and upload to Cloudinary
+// Helper function to process uploaded files and upload to storage
 const processUploadedFiles = async (files, technicianId) => {
   const result = {};
 
@@ -360,28 +359,28 @@ const processUploadedFiles = async (files, technicianId) => {
 
       for (const file of files[fieldName]) {
         try {
-          // Upload to Cloudinary
-          const cloudinaryResult = await uploadToCloudinary(file.buffer, {
+          const fileName = `technician-${technicianId}-${fieldName}-${Date.now()}-${file.originalname}`;
+          const uploadResult = await uploadToStorage(file.buffer, {
+            folder: "technician-documents",
+            fileName,
+            contentType: file.mimetype,
             public_id: `technician-${technicianId}-${fieldName}-${Date.now()}`,
-            tags: [fieldName, `technician-${technicianId}`], // Add tags for organization
+            tags: [fieldName, `technician-${technicianId}`],
           });
 
-          // Store Cloudinary metadata
           result[fieldName].push({
             filename: file.originalname,
             originalName: file.originalname,
             mimetype: file.mimetype,
             size: file.size,
-            cloudinaryId: cloudinaryResult.public_id,
-            cloudinaryUrl: cloudinaryResult.secure_url,
-            cloudinaryVersion: cloudinaryResult.version,
+            cloudinaryId: uploadResult.public_id,
+            cloudinaryUrl: uploadResult.secure_url || uploadResult.url,
+            gcsPath: uploadResult.gcsPath || null,
+            cloudinaryVersion: uploadResult.version,
             uploadDate: new Date(),
           });
         } catch (error) {
-          console.error(
-            `Error uploading ${file.originalname} to Cloudinary:`,
-            error
-          );
+          console.error(`Error uploading ${file.originalname} to GCS:`, error);
           // You might want to handle this error differently
           throw new Error(
             `Failed to upload ${file.originalname}: ${error.message}`
@@ -405,12 +404,11 @@ const getFileInfo = (file) => {
   };
 };
 
-// Helper function to delete multiple files from Cloudinary
 const deleteFiles = async (documents) => {
   const deletePromises = documents
     .map((doc) => {
-      if (doc.cloudinaryId) {
-        return deleteFromCloudinary(doc.cloudinaryId);
+      if (doc.gcsPath || doc.cloudinaryId) {
+        return deleteStoredFile(doc);
       }
     })
     .filter(Boolean);
@@ -418,10 +416,10 @@ const deleteFiles = async (documents) => {
   try {
     await Promise.all(deletePromises);
     console.log(
-      `Successfully deleted ${deletePromises.length} files from Cloudinary`
+      `Successfully processed deletion for ${deletePromises.length} stored files`
     );
   } catch (error) {
-    console.error("Error deleting some files from Cloudinary:", error);
+    console.error("Error deleting some stored files:", error);
     // Don't throw here - we don't want to fail the entire operation if some deletes fail
   }
 };
@@ -455,8 +453,10 @@ export default {
   // Chat-specific upload configurations
   chatAttachment: () => chatUpload.single('attachment'),
 
-  // Cloudinary helper functions
+  // Legacy aliases kept for backward compatibility
   uploadToCloudinary,
+  uploadToStorage,
+  uploadImageToGCS,
   deleteFromCloudinary,
   processUploadedFiles,
   deleteFiles,
@@ -465,14 +465,14 @@ export default {
   uploadToGCS,
   deleteFromGCS,
   deleteFilesFromGCS,
+  deleteStoredFile,
 
   // Legacy helper functions
   getFileInfo,
 
   // Deprecated - kept for backward compatibility
   deleteFile: async (filePath) => {
-    console.warn("deleteFile is deprecated. Use deleteFromCloudinary instead.");
-    // Extract public_id from path if needed
-    throw new Error("Legacy deleteFile not supported with Cloudinary");
+    console.warn("deleteFile is deprecated. Use deleteStoredFile instead.");
+    throw new Error("Legacy deleteFile is no longer supported");
   },
 };

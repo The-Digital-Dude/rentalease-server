@@ -516,13 +516,13 @@ router.post("/profile/image", authenticate, fileUpload.single('profileImage'), a
 
     try {
       // Delete old profile image if exists
-      if (technician.profileImage && technician.profileImage.cloudinaryId) {
-        await fileUpload.deleteFromCloudinary(technician.profileImage.cloudinaryId);
+      if (technician.profileImage && (technician.profileImage.cloudinaryId || technician.profileImage.gcsPath)) {
+        await fileUpload.deleteStoredFile(technician.profileImage);
       }
 
-      // Upload new image to Cloudinary
-      const cloudinaryResult = await fileUpload.uploadToCloudinary(req.file.buffer, {
-        public_id: `technician-${req.user.id}-profile-${Date.now()}`,
+      const uploadResult = await fileUpload.uploadToStorage(req.file.buffer, {
+        fileName: `technician-${req.user.id}-profile-${Date.now()}.jpg`,
+        contentType: req.file.mimetype,
         folder: "technician-profiles",
         transformation: [
           { width: 400, height: 400, crop: "fill", gravity: "face" },
@@ -533,8 +533,10 @@ router.post("/profile/image", authenticate, fileUpload.single('profileImage'), a
 
       // Update technician with new profile image
       technician.profileImage = {
-        cloudinaryId: cloudinaryResult.public_id,
-        cloudinaryUrl: cloudinaryResult.secure_url,
+        cloudinaryId: uploadResult.public_id,
+        gcsPath: uploadResult.gcsPath || null,
+        url: uploadResult.secure_url || uploadResult.url,
+        cloudinaryUrl: uploadResult.secure_url || uploadResult.url,
         uploadDate: new Date()
       };
       
@@ -549,7 +551,7 @@ router.post("/profile/image", authenticate, fileUpload.single('profileImage'), a
         }
       });
     } catch (uploadError) {
-      console.error("Cloudinary upload error:", uploadError);
+      console.error("Storage upload error:", uploadError);
       res.status(500).json({
         status: "error",
         message: "Failed to upload image. Please try again later.",
@@ -583,7 +585,10 @@ router.delete("/profile/image", authenticate, async (req, res) => {
       });
     }
 
-    if (!technician.profileImage || !technician.profileImage.cloudinaryId) {
+    if (
+      !technician.profileImage ||
+      (!technician.profileImage.cloudinaryId && !technician.profileImage.gcsPath)
+    ) {
       return res.status(400).json({
         status: "error",
         message: "No profile image to delete",
@@ -591,12 +596,13 @@ router.delete("/profile/image", authenticate, async (req, res) => {
     }
 
     try {
-      // Delete image from Cloudinary
-      await fileUpload.deleteFromCloudinary(technician.profileImage.cloudinaryId);
+      await fileUpload.deleteStoredFile(technician.profileImage);
       
       // Remove profile image from technician
       technician.profileImage = {
         cloudinaryId: null,
+        gcsPath: null,
+        url: null,
         cloudinaryUrl: null,
         uploadDate: null
       };
@@ -609,7 +615,7 @@ router.delete("/profile/image", authenticate, async (req, res) => {
         message: "Profile image deleted successfully",
       });
     } catch (deleteError) {
-      console.error("Cloudinary delete error:", deleteError);
+      console.error("Stored file delete error:", deleteError);
       res.status(500).json({
         status: "error",
         message: "Failed to delete image. Please try again later.",
