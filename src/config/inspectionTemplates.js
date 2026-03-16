@@ -4747,6 +4747,9 @@ const createGasSmokeTemplate = () => ({
           label: "Next Service Due Date",
           type: "date",
           required: true,
+          defaultValue: new Date(Date.now() + 2 * 365 * 24 * 60 * 60 * 1000)
+            .toISOString()
+            .split("T")[0],
           helpText:
             "Gas safety checks are required every 24 months, smoke alarms annually",
         },

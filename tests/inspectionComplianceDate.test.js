@@ -122,4 +122,31 @@ describe("Inspection next compliance date resolution", () => {
 
     expect(resolvedDate).toBe("2028-12-31");
   });
+
+  test("supports the gas template next-service-due default when the field is omitted", () => {
+    const { resolveNextComplianceDate } = loadInspectionComplianceDateUtils();
+
+    const resolvedDate = resolveNextComplianceDate(
+      {
+        sections: [
+          {
+            id: "compliance-overview",
+            fields: [
+              {
+                id: "next-service-due",
+                defaultValue: "2028-08-01",
+              },
+            ],
+          },
+        ],
+      },
+      {
+        "property-details": {
+          "inspection-date": "2026-03-16",
+        },
+      }
+    );
+
+    expect(resolvedDate).toBe("2028-08-01");
+  });
 });
