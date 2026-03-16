@@ -167,6 +167,14 @@ const technicianSchema = new mongoose.Schema(
         type: String,
         default: null,
       },
+      gcsPath: {
+        type: String,
+        default: null,
+      },
+      url: {
+        type: String,
+        default: null,
+      },
       cloudinaryUrl: {
         type: String,
         default: null,

@@ -9,6 +9,7 @@ import buildInspectionReportPdf from "./inspectionReportPdf.service.js";
 import notificationService from "./notification.service.js";
 import complianceService from "./compliance.service.js";
 import { validateNextComplianceDate } from "../utils/complianceValidation.js";
+import { resolveNextComplianceDate } from "../utils/inspectionComplianceDate.js";
 
 const normalizeFormData = (formData) => {
   if (!formData) {
@@ -38,37 +39,6 @@ const parseMediaMeta = (meta) => {
     }
   }
   return meta;
-};
-
-const NEXT_COMPLIANCE_FIELD_IDS = [
-  "next-inspection-date",
-  "certification-next-inspection-due",
-  "next-service-due",
-];
-
-const resolveNextComplianceDate = (template, formData = {}, nextComplianceDate) => {
-  if (nextComplianceDate) {
-    return nextComplianceDate;
-  }
-
-  if (!template?.sections?.length) {
-    return nextComplianceDate;
-  }
-
-  for (const section of template.sections) {
-    const sectionResponses = formData[section.id];
-    if (!sectionResponses || typeof sectionResponses !== "object") {
-      continue;
-    }
-
-    for (const fieldId of NEXT_COMPLIANCE_FIELD_IDS) {
-      if (sectionResponses[fieldId]) {
-        return sectionResponses[fieldId];
-      }
-    }
-  }
-
-  return nextComplianceDate;
 };
 
 const buildSectionsSummary = (template, formData = {}) => {
@@ -117,11 +87,12 @@ const uploadInspectionMedia = async (files = {}, mediaMeta = {}, context = {}) =
     const label = mediaMeta[fieldId]?.label;
 
     for (const file of fileArray) {
-      const publicId = `inspection-reports/job-${context.jobId}-${fieldId}-${Date.now()}`;
-      const uploadResult = await fileUploadService.uploadToCloudinary(file.buffer, {
+      const fileName = `job-${context.jobId}-${fieldId}-${Date.now()}-${file.originalname}`;
+      const uploadResult = await fileUploadService.uploadToStorage(file.buffer, {
         folder: "inspection-reports",
-        public_id: publicId,
-        resource_type: "auto",
+        fileName,
+        contentType: file.mimetype,
+        public_id: `inspection-reports/job-${context.jobId}-${fieldId}-${Date.now()}`,
         tags: [
           `job-${context.jobId}`,
           `property-${context.propertyId}`,
@@ -133,8 +104,9 @@ const uploadInspectionMedia = async (files = {}, mediaMeta = {}, context = {}) =
       uploads.push({
         fieldId,
         label: label || file.originalname,
-        url: uploadResult.secure_url,
+        url: uploadResult.secure_url || uploadResult.url,
         cloudinaryId: uploadResult.public_id,
+        gcsPath: uploadResult.gcsPath,
         mimeType: file.mimetype,
         size: file.size,
         metadata: mediaMeta[fieldId]?.metadata,

@@ -2173,35 +2173,20 @@ router.post(
         });
       }
 
-      let documentUrl, documentCloudinaryId, documentGcsPath;
-      if (req.file.mimetype === "application/pdf") {
-        const gcsResult = await fileUploadService.uploadToGCS(req.file.buffer, {
-          folder: `properties/${id}/documents`,
-          fileName: `${Date.now()}-${req.file.originalname}`,
-          contentType: "application/pdf",
-        });
-        documentUrl = gcsResult.url;
-        documentCloudinaryId = gcsResult.cloudinaryId;
-        documentGcsPath = gcsResult.gcsPath;
-      } else {
-        const cloudinaryResult = await fileUploadService.uploadToCloudinary(
-          req.file.buffer,
-          {
-            folder: `properties/${id}/documents`,
-            public_id: req.file.originalname,
-          }
-        );
-        documentUrl = cloudinaryResult.secure_url;
-        documentCloudinaryId = cloudinaryResult.public_id;
-      }
+      const uploadResult = await fileUploadService.uploadToStorage(req.file.buffer, {
+        folder: `properties/${id}/documents`,
+        fileName: `${Date.now()}-${req.file.originalname}`,
+        contentType: req.file.mimetype,
+        public_id: req.file.originalname,
+      });
 
       const document = {
         name: req.file.originalname,
         type: req.file.mimetype,
         size: req.file.size,
-        url: documentUrl,
-        cloudinaryId: documentCloudinaryId,
-        gcsPath: documentGcsPath,
+        url: uploadResult.secure_url || uploadResult.url,
+        cloudinaryId: uploadResult.public_id,
+        gcsPath: uploadResult.gcsPath,
         uploadDate: new Date(),
       };
 
@@ -2278,18 +2263,11 @@ router.delete(
       const documentToDelete = property.documents[documentIndex];
 
       // Delete from GCS or Cloudinary depending on where it was stored
-      if (documentToDelete.gcsPath) {
+      if (documentToDelete.gcsPath || documentToDelete.cloudinaryId) {
         try {
-          await fileUploadService.deleteFromGCS(documentToDelete.gcsPath);
-        } catch (gcsError) {
-          console.warn("Failed to delete from GCS:", gcsError);
-        }
-      } else if (documentToDelete.cloudinaryId) {
-        try {
-          await fileUploadService.deleteFromCloudinary(documentToDelete.cloudinaryId);
-        } catch (cloudinaryError) {
-          console.warn("Failed to delete from Cloudinary:", cloudinaryError);
-          // Continue with database deletion even if Cloudinary deletion fails
+          await fileUploadService.deleteStoredFile(documentToDelete);
+        } catch (storageError) {
+          console.warn("Failed to delete stored file:", storageError);
         }
       }
 

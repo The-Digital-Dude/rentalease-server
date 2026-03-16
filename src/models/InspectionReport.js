@@ -20,6 +20,10 @@ const inspectionMediaSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    gcsPath: {
+      type: String,
+      trim: true,
+    },
     mimeType: {
       type: String,
     },

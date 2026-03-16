@@ -750,31 +750,19 @@ router.post(
         });
       }
 
-      // Upload file to GCS (PDF) or Cloudinary (other types)
       let uploadedFileUrl, uploadedCloudinaryId, uploadedGcsPath;
       try {
-        if (file.mimetype === "application/pdf") {
-          const gcsResult = await fileUploadService.uploadToGCS(file.buffer, {
-            folder: "chat-attachments",
-            fileName: `${Date.now()}-${file.originalname}`,
-            contentType: "application/pdf",
-          });
-          uploadedFileUrl = gcsResult.url;
-          uploadedCloudinaryId = gcsResult.cloudinaryId;
-          uploadedGcsPath = gcsResult.gcsPath;
-        } else {
-          const cloudinaryResult = await fileUploadService.uploadToCloudinary(
-            file.buffer,
-            {
-              folder: "chat-attachments",
-              resource_type: "auto",
-              use_filename: true,
-              unique_filename: true,
-            }
-          );
-          uploadedFileUrl = cloudinaryResult.secure_url;
-          uploadedCloudinaryId = cloudinaryResult.public_id;
-        }
+        const uploadResult = await fileUploadService.uploadToStorage(file.buffer, {
+          folder: "chat-attachments",
+          fileName: `${Date.now()}-${file.originalname}`,
+          contentType: file.mimetype,
+          resource_type: "auto",
+          use_filename: true,
+          unique_filename: true,
+        });
+        uploadedFileUrl = uploadResult.secure_url || uploadResult.url;
+        uploadedCloudinaryId = uploadResult.public_id;
+        uploadedGcsPath = uploadResult.gcsPath;
       } catch (uploadError) {
         console.error("Error uploading file:", uploadError);
         return res.status(500).json({

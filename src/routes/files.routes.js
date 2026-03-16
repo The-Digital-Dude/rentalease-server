@@ -3,9 +3,7 @@ import { bucket } from "../config/gcs.js";
 
 const router = express.Router();
 
-// GET /api/v1/files/pdf?path=inspection-reports/job-xxx-report-yyy.pdf
-// Streams a private GCS file to the client — no expiry, always available.
-router.get("/pdf", async (req, res) => {
+const streamGCSFile = async (req, res) => {
   const { path: gcsPath } = req.query;
 
   if (!gcsPath) {
@@ -32,6 +30,10 @@ router.get("/pdf", async (req, res) => {
     res.setHeader("Content-Type", contentType);
     res.setHeader("Content-Length", contentLength);
     res.setHeader("Cache-Control", "private, max-age=3600");
+    res.setHeader(
+      "Content-Disposition",
+      contentType.startsWith("image/") ? "inline" : "inline"
+    );
 
     // Stream the file directly to the response
     file.createReadStream().pipe(res);
@@ -39,6 +41,12 @@ router.get("/pdf", async (req, res) => {
     console.error("Error serving GCS file:", error);
     res.status(500).json({ status: "error", message: "Failed to retrieve file" });
   }
-});
+};
+
+// Backward-compatible PDF route for previously stored URLs.
+router.get("/pdf", streamGCSFile);
+
+// Generic object route for images and other files stored in GCS.
+router.get("/object", streamGCSFile);
 
 export default router;

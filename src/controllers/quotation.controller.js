@@ -116,37 +116,22 @@ export const createQuotationRequest = async (req, res) => {
 
       for (const file of req.files) {
         try {
-          let fileUrl, fileCloudinaryId, fileGcsPath;
-          if (file.mimetype === "application/pdf") {
-            const gcsResult = await fileUploadService.uploadToGCS(file.buffer, {
-              folder: "quotation-attachments",
-              fileName: `quotation-${Date.now()}-${file.originalname}`,
-              contentType: "application/pdf",
-            });
-            fileUrl = gcsResult.url;
-            fileCloudinaryId = gcsResult.cloudinaryId;
-            fileGcsPath = gcsResult.gcsPath;
-          } else {
-            const cloudinaryResult = await fileUploadService.uploadToCloudinary(
-              file.buffer,
-              {
-                folder: "quotation-attachments",
-                resource_type: "auto",
-                public_id: `quotation-${Date.now()}-${file.originalname.replace(/\.[^/.]+$/, "")}`,
-                tags: ["quotation", userInfo?.userType || "unknown"],
-              }
-            );
-            fileUrl = cloudinaryResult.secure_url;
-            fileCloudinaryId = cloudinaryResult.public_id;
-          }
+          const uploadResult = await fileUploadService.uploadToStorage(file.buffer, {
+            folder: "quotation-attachments",
+            fileName: `quotation-${Date.now()}-${file.originalname}`,
+            contentType: file.mimetype,
+            resource_type: "auto",
+            public_id: `quotation-${Date.now()}-${file.originalname.replace(/\.[^/.]+$/, "")}`,
+            tags: ["quotation", userInfo?.userType || "unknown"],
+          });
 
           uploadedAttachments.push({
             fileName: file.originalname,
-            fileUrl,
+            fileUrl: uploadResult.secure_url || uploadResult.url,
             fileSize: file.size,
             mimeType: file.mimetype,
-            cloudinaryId: fileCloudinaryId,
-            gcsPath: fileGcsPath,
+            cloudinaryId: uploadResult.public_id,
+            gcsPath: uploadResult.gcsPath,
           });
         } catch (uploadError) {
           console.error(`Error uploading file ${file.originalname}:`, uploadError);
@@ -1062,37 +1047,22 @@ export const uploadQuotationAttachments = async (req, res) => {
     // Upload each file to GCS (PDF) or Cloudinary (other types)
     for (const file of req.files) {
       try {
-        let fileUrl, fileCloudinaryId, fileGcsPath;
-        if (file.mimetype === "application/pdf") {
-          const gcsResult = await fileUploadService.uploadToGCS(file.buffer, {
-            folder: "quotation-attachments",
-            fileName: `quotation-${Date.now()}-${file.originalname}`,
-            contentType: "application/pdf",
-          });
-          fileUrl = gcsResult.url;
-          fileCloudinaryId = gcsResult.cloudinaryId;
-          fileGcsPath = gcsResult.gcsPath;
-        } else {
-          const cloudinaryResult = await fileUploadService.uploadToCloudinary(
-            file.buffer,
-            {
-              folder: "quotation-attachments",
-              resource_type: "auto",
-              public_id: `quotation-${Date.now()}-${file.originalname.replace(/\.[^/.]+$/, "")}`,
-              tags: ["quotation", userInfo.userType],
-            }
-          );
-          fileUrl = cloudinaryResult.secure_url;
-          fileCloudinaryId = cloudinaryResult.public_id;
-        }
+        const uploadResult = await fileUploadService.uploadToStorage(file.buffer, {
+          folder: "quotation-attachments",
+          fileName: `quotation-${Date.now()}-${file.originalname}`,
+          contentType: file.mimetype,
+          resource_type: "auto",
+          public_id: `quotation-${Date.now()}-${file.originalname.replace(/\.[^/.]+$/, "")}`,
+          tags: ["quotation", userInfo.userType],
+        });
 
         uploadedFiles.push({
           fileName: file.originalname,
-          fileUrl,
+          fileUrl: uploadResult.secure_url || uploadResult.url,
           fileSize: file.size,
           mimeType: file.mimetype,
-          cloudinaryId: fileCloudinaryId,
-          gcsPath: fileGcsPath,
+          cloudinaryId: uploadResult.public_id,
+          gcsPath: uploadResult.gcsPath,
         });
       } catch (uploadError) {
         console.error(`Error uploading file ${file.originalname}:`, uploadError);
