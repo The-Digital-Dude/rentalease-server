@@ -63,4 +63,33 @@ describe("Inspection template prefill", () => {
     expect(diffDays).toBeLessThanOrEqual(1);
     expect(actual.getFullYear()).toBeGreaterThanOrEqual(now.getFullYear() + 1);
   });
+
+  test("prefills electrical certification-next-inspection-due to about two years from now", () => {
+    const prefillTemplateWithJobData = loadPrefillTemplateWithJobData();
+
+    const template = {
+      jobType: "Electrical",
+      sections: [
+        {
+          id: "certification",
+          fields: [
+            {
+              id: "certification-next-inspection-due",
+              type: "date",
+            },
+          ],
+        },
+      ],
+    };
+
+    const result = prefillTemplateWithJobData(
+      template,
+      { jobType: "Electrical", job_id: "JOB-2" },
+      {},
+      {}
+    );
+
+    const field = result.sections[0].fields[0];
+    expect(field.defaultValue).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
 });

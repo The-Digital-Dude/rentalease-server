@@ -172,7 +172,7 @@ export const submitInspectionReport = async ({
   }
 
   const normalizedFormData = normalizeFormData(formData);
-  const resolvedNextComplianceDate = resolveNextComplianceDate(
+  let resolvedNextComplianceDate = resolveNextComplianceDate(
     template,
     normalizedFormData,
     nextComplianceDate
@@ -187,6 +187,16 @@ export const submitInspectionReport = async ({
   ];
 
   if (complianceJobTypes.includes(template.jobType)) {
+    if (!resolvedNextComplianceDate) {
+      const suggestedComplianceDate =
+        complianceService.getSuggestedComplianceDate?.(template.jobType);
+      if (suggestedComplianceDate) {
+        resolvedNextComplianceDate = suggestedComplianceDate
+          .toISOString()
+          .split("T")[0];
+      }
+    }
+
     if (!resolvedNextComplianceDate) {
       throw new Error(`Next compliance date is required for ${template.jobType} inspections`);
     }
