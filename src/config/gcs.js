@@ -35,6 +35,9 @@ const isGCSConfigured = () =>
       (process.env.GCS_KEY_FILE || process.env.GCS_KEY_JSON)
   );
 
+const isGCSConfiguredWithExplicitCredentials = () =>
+  Boolean(process.env.GCS_BUCKET_NAME && process.env.GCS_KEY_JSON);
+
 const testGCSConnection = async () => {
   try {
     const [exists] = await bucket.exists();
@@ -50,5 +53,11 @@ const testGCSConnection = async () => {
   }
 };
 
-export { storage, bucket, testGCSConnection, isGCSConfigured };
+export {
+  storage,
+  bucket,
+  testGCSConnection,
+  isGCSConfigured,
+  isGCSConfiguredWithExplicitCredentials,
+};
 export default bucket;

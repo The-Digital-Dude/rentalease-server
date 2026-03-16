@@ -1,6 +1,7 @@
 import { createServer } from 'http';
 import app from "./app.js";
 import connectDB from "../config/database.js";
+import { isGCSConfigured, testGCSConnection } from "../config/gcs.js";
 import ComplianceCronJob from "../services/complianceCronJob.js";
 import websocketService from "../services/websocket.service.js";
 import { ensureDefaultTemplates } from "../services/inspectionTemplate.service.js";
@@ -12,6 +13,12 @@ const startServer = async () => {
   try {
     // Connect to MongoDB
     await connectDB();
+
+    if (isGCSConfigured()) {
+      await testGCSConnection();
+    } else {
+      console.warn("GCS is not configured. Report and file uploads will fail until valid GCS credentials are provided.");
+    }
 
     // Ensure inspection templates are seeded
     await ensureDefaultTemplates();

@@ -190,6 +190,10 @@ const isGCSAuthOrConfigError = (error) => {
 
   return [
     "invalid_grant",
+    "invalid_rapt",
+    "invalid rap t",
+    "reauth",
+    "rapt",
     "could not refresh access token",
     "error fetching access token",
     "could not load the default credentials",
@@ -199,6 +203,16 @@ const isGCSAuthOrConfigError = (error) => {
     "bucket name",
     "credentials",
   ].some((fragment) => combinedMessage.includes(fragment));
+};
+
+const createGCSCredentialError = (error) => {
+  const storageError = new Error(
+    "Google Cloud Storage credentials are invalid or require reauthentication. Configure GCS with a service account key via GCS_KEY_JSON or a valid GCS_KEY_FILE."
+  );
+  storageError.status = 503;
+  storageError.code = "STORAGE_AUTH_INVALID";
+  storageError.details = error?.message;
+  return storageError;
 };
 
 const normalizeBaseUrl = (value) => {
@@ -298,6 +312,7 @@ const uploadToGCS = async (
         contentType,
         error: error.message,
       });
+      throw createGCSCredentialError(error);
     }
     throw error;
   }

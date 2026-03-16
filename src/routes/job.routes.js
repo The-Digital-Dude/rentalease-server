@@ -2039,37 +2039,28 @@ router.patch(
         // Handle report file upload if provided
         if (!reportFileUrl && req.file) {
           try {
-            if (req.file.mimetype === "application/pdf") {
-              const gcsResult = await fileUploadService.uploadToGCS(
-                req.file.buffer,
-                {
-                  folder: "job-reports",
-                  fileName: `job-${job._id}-${Date.now()}.pdf`,
-                  contentType: "application/pdf",
-                }
-              );
-              reportFileUrl = gcsResult.url;
-            } else {
-              const cloudinaryResult = await fileUploadService.uploadToCloudinary(
-                req.file.buffer,
-                {
-                  public_id: `job-reports/job-${job._id}-${Date.now()}`,
-                  resource_type: "auto",
-                  folder: "job-reports",
-                  tags: [`job-${job._id}`, "report"],
-                }
-              );
-              reportFileUrl = cloudinaryResult.secure_url;
-            }
+            const uploadResult = await fileUploadService.uploadToStorage(
+              req.file.buffer,
+              {
+                folder: "job-reports",
+                fileName: `job-${job._id}-${Date.now()}-${req.file.originalname}`,
+                contentType: req.file.mimetype,
+                public_id: `job-reports/job-${job._id}-${Date.now()}`,
+                resource_type: "auto",
+                tags: [`job-${job._id}`, "report"],
+              }
+            );
+            reportFileUrl = uploadResult.secure_url || uploadResult.url;
           } catch (uploadError) {
             console.error("Failed to upload report file:", uploadError);
             return res.status(uploadError.status || 500).json({
               status: "error",
               message:
-                uploadError.code === "FILE_TOO_LARGE"
+                uploadError.code === "FILE_TOO_LARGE" ||
+                uploadError.code === "STORAGE_AUTH_INVALID"
                   ? uploadError.message
                   : "Failed to upload report file",
-              details: uploadError.message,
+              details: uploadError.details || uploadError.message,
             });
           }
         }
