@@ -2,6 +2,7 @@ import PDFDocument from "pdfkit";
 import fetch from "node-fetch";
 import path from "path";
 import { fileURLToPath } from "url";
+import { bucket } from "../config/gcs.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -2403,8 +2404,10 @@ const renderGasSmokeReport = async (
       ensurePageSpace(doc, 240);
 
       try {
-        const response = await fetch(mediaItem.url);
-        const imageBuffer = await response.buffer();
+        const imageBuffer = await loadImageBuffer({
+          imageUrl: mediaItem.url,
+          gcsPath: mediaItem.gcsPath,
+        });
         doc.image(imageBuffer, {
           fit: [(PAGE.content?.width || 595.28 - PAGE.margin * 2) * 0.4, 200],
           align: "left",
@@ -2895,8 +2898,10 @@ const renderElectricalReport = async (
       ensurePageSpace(doc, 240);
 
       try {
-        const response = await fetch(mediaItem.url);
-        const imageBuffer = await response.buffer();
+        const imageBuffer = await loadImageBuffer({
+          imageUrl: mediaItem.url,
+          gcsPath: mediaItem.gcsPath,
+        });
         doc.image(imageBuffer, {
           fit: [(PAGE.content?.width || 595.28 - PAGE.margin * 2) * 0.4, 200],
           align: "left",
@@ -4623,33 +4628,49 @@ const drawComplianceDeclaration = (
   } */
 };
 
-const processImageForPdf = async (imageUrl, doc, x, y, maxWidth, maxHeight) => {
+const loadImageBuffer = async ({ imageUrl, gcsPath }) => {
+  if (gcsPath) {
+    const [imageBuffer] = await bucket.file(gcsPath).download();
+    return imageBuffer;
+  }
+
+  if (!imageUrl) {
+    throw new Error("No image URL provided");
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
+
   try {
-    if (!imageUrl) {
+    const response = await fetch(imageUrl, {
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Image fetch failed with status ${response.status}`);
+    }
+
+    return await response.buffer();
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+
+const processImageForPdf = async (
+  imageSource,
+  doc,
+  x,
+  y,
+  maxWidth,
+  maxHeight
+) => {
+  try {
+    if (!imageSource?.imageUrl && !imageSource?.gcsPath) {
       return { success: false, height: 30, message: "[No image URL provided]" };
     }
 
-    // Add timeout to fetch request (10 seconds)
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
-
     try {
-      const response = await fetch(imageUrl, {
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        return {
-          success: false,
-          height: 30,
-          message: "[Image could not be loaded]",
-        };
-      }
-
-      const imageBuffer = await response.buffer();
-
-      // Add image to PDF
+      const imageBuffer = await loadImageBuffer(imageSource);
       doc.image(imageBuffer, x, y, {
         fit: [maxWidth, maxHeight],
         align: "left",
@@ -4657,9 +4678,8 @@ const processImageForPdf = async (imageUrl, doc, x, y, maxWidth, maxHeight) => {
 
       return { success: true, height: maxHeight + 20 };
     } catch (fetchError) {
-      clearTimeout(timeoutId);
       if (fetchError.name === "AbortError") {
-        console.error("Image fetch timeout:", imageUrl);
+        console.error("Image fetch timeout:", imageSource);
         return {
           success: false,
           height: 30,
@@ -4669,7 +4689,7 @@ const processImageForPdf = async (imageUrl, doc, x, y, maxWidth, maxHeight) => {
       throw fetchError;
     }
   } catch (error) {
-    console.error("Error loading image for PDF:", error, { imageUrl });
+    console.error("Error loading image for PDF:", error, imageSource);
     return { success: false, height: 30, message: "[Error loading image]" };
   }
 };
@@ -5246,7 +5266,10 @@ export const buildInspectionReportPdf = async ({
       doc.y += 20;
 
       const result = await processImageForPdf(
-        item.url,
+        {
+          imageUrl: item.url,
+          gcsPath: item.gcsPath,
+        },
         doc,
         PAGE.margin + 10,
         doc.y,
