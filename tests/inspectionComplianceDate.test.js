@@ -95,4 +95,31 @@ describe("Inspection next compliance date resolution", () => {
 
     expect(resolvedDate).toBe("2028-11-05");
   });
+
+  test("falls back to the template default when the client omits the compliance field", () => {
+    const { resolveNextComplianceDate } = loadInspectionComplianceDateUtils();
+
+    const resolvedDate = resolveNextComplianceDate(
+      {
+        sections: [
+          {
+            id: "certificate",
+            fields: [
+              {
+                id: "certification-next-inspection-due",
+                defaultValue: "2028-12-31",
+              },
+            ],
+          },
+        ],
+      },
+      {
+        certificate: {
+          "certification-inspection-date": "2026-03-16",
+        },
+      }
+    );
+
+    expect(resolvedDate).toBe("2028-12-31");
+  });
 });

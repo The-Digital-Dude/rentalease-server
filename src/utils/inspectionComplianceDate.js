@@ -53,6 +53,21 @@ const findFieldValueDeep = (node, fieldId, visited = new Set()) => {
   return null;
 };
 
+const findTemplateFieldDefaultValue = (template, fieldId) => {
+  if (!template?.sections?.length) {
+    return null;
+  }
+
+  for (const section of template.sections) {
+    const matchingField = section?.fields?.find((field) => field?.id === fieldId);
+    if (hasMeaningfulValue(matchingField?.defaultValue)) {
+      return matchingField.defaultValue;
+    }
+  }
+
+  return null;
+};
+
 export const resolveNextComplianceDate = (
   template,
   formData = {},
@@ -90,6 +105,13 @@ export const resolveNextComplianceDate = (
     }
   }
 
+  for (const fieldId of NEXT_COMPLIANCE_FIELD_IDS) {
+    const defaultValue = findTemplateFieldDefaultValue(template, fieldId);
+    if (hasMeaningfulValue(defaultValue)) {
+      return defaultValue;
+    }
+  }
+
   return null;
 };
 
@@ -97,4 +119,5 @@ export const inspectionComplianceDateTestUtils = {
   NEXT_COMPLIANCE_FIELD_IDS,
   hasMeaningfulValue,
   findFieldValueDeep,
+  findTemplateFieldDefaultValue,
 };
