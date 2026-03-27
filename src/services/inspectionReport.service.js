@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import sharp from "sharp";
 import Job from "../models/Job.js";
 import Property from "../models/Property.js";
 import Technician from "../models/Technician.js";
@@ -65,6 +66,43 @@ const buildSectionsSummary = (template, formData = {}) => {
   return summary;
 };
 
+const getInspectionImageValidation = async (file) => {
+  if (!file?.mimetype?.startsWith("image/")) {
+    return { shouldUpload: true };
+  }
+
+  try {
+    const metadata = await sharp(file.buffer).metadata();
+    const width = metadata.width || 0;
+    const height = metadata.height || 0;
+
+    if (width <= 1 || height <= 1) {
+      return {
+        shouldUpload: false,
+        reason: "placeholder-image",
+        width,
+        height,
+      };
+    }
+
+    return {
+      shouldUpload: true,
+      width,
+      height,
+    };
+  } catch (error) {
+    console.warn("[Inspection Submit] Failed to inspect uploaded image metadata", {
+      fieldname: file?.fieldname,
+      originalname: file?.originalname,
+      mimetype: file?.mimetype,
+      size: file?.size,
+      error: error.message,
+    });
+
+    return { shouldUpload: true };
+  }
+};
+
 const uploadInspectionMedia = async (files = {}, mediaMeta = {}, context = {}) => {
   const uploads = [];
 
@@ -87,6 +125,22 @@ const uploadInspectionMedia = async (files = {}, mediaMeta = {}, context = {}) =
     const label = mediaMeta[fieldId]?.label;
 
     for (const file of fileArray) {
+      const imageValidation = await getInspectionImageValidation(file);
+      if (!imageValidation.shouldUpload) {
+        console.warn("[Inspection Submit] Skipping placeholder inspection image", {
+          fieldId,
+          label: label || file.originalname,
+          fieldname: file.fieldname,
+          originalname: file.originalname,
+          mimetype: file.mimetype,
+          size: file.size,
+          width: imageValidation.width,
+          height: imageValidation.height,
+          reason: imageValidation.reason,
+        });
+        continue;
+      }
+
       const fileName = `job-${context.jobId}-${fieldId}-${Date.now()}-${file.originalname}`;
       const uploadResult = await fileUploadService.uploadToStorage(file.buffer, {
         folder: "inspection-reports",

@@ -1,6 +1,7 @@
 import PDFDocument from "pdfkit";
 import fetch from "node-fetch";
 import path from "path";
+import sharp from "sharp";
 import { fileURLToPath } from "url";
 import { bucket } from "../config/gcs.js";
 
@@ -4629,6 +4630,10 @@ const drawComplianceDeclaration = (
 };
 
 const loadImageBuffer = async ({ imageUrl, gcsPath }) => {
+  if (Buffer.isBuffer(imageUrl)) {
+    return imageUrl;
+  }
+
   if (gcsPath) {
     const [imageBuffer] = await bucket.file(gcsPath).download();
     return imageBuffer;
@@ -4654,6 +4659,52 @@ const loadImageBuffer = async ({ imageUrl, gcsPath }) => {
   } finally {
     clearTimeout(timeoutId);
   }
+};
+
+const prepareRenderableMedia = async (mediaItems = []) => {
+  const preparedItems = [];
+
+  for (const item of mediaItems) {
+    try {
+      const imageBuffer = await loadImageBuffer({
+        imageUrl: item.imageBuffer || item.url,
+        gcsPath: item.gcsPath,
+      });
+      const metadata = await sharp(imageBuffer).metadata();
+      const width = metadata.width || 0;
+      const height = metadata.height || 0;
+
+      // Some uploads are 1x1 placeholder images, which render as blank pages.
+      if (width <= 1 || height <= 1) {
+        console.warn("Skipping placeholder image in PDF annex", {
+          fieldId: item.fieldId,
+          label: item.label,
+          width,
+          height,
+          gcsPath: item.gcsPath,
+          url: item.url,
+        });
+        continue;
+      }
+
+      preparedItems.push({
+        ...item,
+        imageBuffer,
+      });
+    } catch (error) {
+      console.error("Failed to prepare report media for PDF:", {
+        fieldId: item.fieldId,
+        label: item.label,
+        gcsPath: item.gcsPath,
+        url: item.url,
+        error: error.message,
+      });
+
+      preparedItems.push(item);
+    }
+  }
+
+  return preparedItems;
 };
 
 const processImageForPdf = async (
@@ -5113,6 +5164,9 @@ export const buildInspectionReportPdf = async ({
   property,
   technician,
 }) => {
+  const preparedReport = report?.toObject ? report.toObject() : { ...report };
+  preparedReport.media = await prepareRenderableMedia(report?.media || []);
+
   const doc = new PDFDocument({ margin: 0, size: "A4" });
   const chunks = [];
 
@@ -5131,7 +5185,7 @@ export const buildInspectionReportPdf = async ({
     property,
     job,
     technician,
-    report,
+    report: preparedReport,
     template,
   });
 
@@ -5140,16 +5194,22 @@ export const buildInspectionReportPdf = async ({
     property,
     job,
     technician,
-    report,
+    report: preparedReport,
     template,
   });
 
   if (template?.jobType === "Gas") {
-    await renderGasReport(doc, { template, report, job, property, technician });
+    await renderGasReport(doc, {
+      template,
+      report: preparedReport,
+      job,
+      property,
+      technician,
+    });
   } else if (template?.jobType === "GasSmoke") {
     await renderGasSmokeReport(doc, {
       template,
-      report,
+      report: preparedReport,
       job,
       property,
       technician,
@@ -5158,7 +5218,7 @@ export const buildInspectionReportPdf = async ({
     if ((template?.version ?? 1) >= 3) {
       await renderElectricalSmokeReport(doc, {
         template,
-        report,
+        report: preparedReport,
         job,
         property,
         technician,
@@ -5166,7 +5226,7 @@ export const buildInspectionReportPdf = async ({
     } else {
       await renderElectricalReport(doc, {
         template,
-        report,
+        report: preparedReport,
         job,
         property,
         technician,
@@ -5177,7 +5237,7 @@ export const buildInspectionReportPdf = async ({
     if (template.version >= 3) {
       await renderSmokeOnlyReport(doc, {
         template,
-        report,
+        report: preparedReport,
         job,
         property,
         technician,
@@ -5185,7 +5245,7 @@ export const buildInspectionReportPdf = async ({
     } else {
       await renderElectricalSmokeReport(doc, {
         template,
-        report,
+        report: preparedReport,
         job,
         property,
         technician,
@@ -5194,7 +5254,7 @@ export const buildInspectionReportPdf = async ({
   } else if (template?.jobType === "MinimumSafetyStandard") {
     await renderMinimumSafetyStandardReport(doc, {
       template,
-      report,
+      report: preparedReport,
       job,
       property,
       technician,
@@ -5202,7 +5262,7 @@ export const buildInspectionReportPdf = async ({
   } else {
     await renderGenericReport(doc, {
       template,
-      report,
+      report: preparedReport,
       job,
       property,
       technician,
@@ -5210,14 +5270,14 @@ export const buildInspectionReportPdf = async ({
   }
 
   // Technician notes
-  if (report.notes) {
+  if (preparedReport.notes) {
     ensurePageSpace(doc, 120);
     drawSectionHeader(doc, "Inspector Observations and Suggestions");
     doc
       .fillColor(COLORS.textSecondary)
       .fontSize(10)
       .font("Helvetica")
-      .text(report.notes, PAGE.margin, doc.y, {
+      .text(preparedReport.notes, PAGE.margin, doc.y, {
         width: doc.page.width - PAGE.margin * 2,
         lineGap: 3,
       });
@@ -5232,13 +5292,18 @@ export const buildInspectionReportPdf = async ({
   ) {
     drawGasHazardsSection(doc);
   }
-  await drawDeclarationSection(doc, { template, job, technician, report });
+  await drawDeclarationSection(doc, {
+    template,
+    job,
+    technician,
+    report: preparedReport,
+  });
 
   // Next Compliance Schedule
-  drawNextStepsSection(doc, { template, job, report });
+  drawNextStepsSection(doc, { template, job, report: preparedReport });
 
   // Photos section
-  if (report.media?.length) {
+  if (preparedReport.media?.length) {
     const photoSectionTitle = "Annex: Photos";
 
     doc.addPage();
@@ -5249,7 +5314,7 @@ export const buildInspectionReportPdf = async ({
 
     drawSectionHeader(doc, photoSectionTitle);
 
-    for (const [index, item] of report.media.entries()) {
+    for (const [index, item] of preparedReport.media.entries()) {
       const estimatedSpaceNeeded = 360; // Label + image + breathing room
       const startedNewPage = ensurePageSpace(doc, estimatedSpaceNeeded);
       if (startedNewPage) {
@@ -5267,7 +5332,7 @@ export const buildInspectionReportPdf = async ({
 
       const result = await processImageForPdf(
         {
-          imageUrl: item.url,
+          imageUrl: item.imageBuffer || item.url,
           gcsPath: item.gcsPath,
         },
         doc,

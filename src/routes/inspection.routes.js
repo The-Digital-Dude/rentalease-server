@@ -21,6 +21,24 @@ import Technician from "../models/Technician.js";
 
 const router = express.Router();
 
+const parseInspectionMediaMetaForLogging = (mediaMeta) => {
+  if (!mediaMeta) {
+    return {};
+  }
+
+  if (typeof mediaMeta === "string") {
+    try {
+      return JSON.parse(mediaMeta);
+    } catch (error) {
+      return {
+        __parseError: error.message,
+      };
+    }
+  }
+
+  return mediaMeta;
+};
+
 const ensureValidObjectId = (id, label) => {
   if (!mongoose.Types.ObjectId.isValid(id)) {
     const error = new Error(`${label || "ID"} is not valid`);
@@ -189,11 +207,49 @@ router.post(
     const { jobId } = req.params;
     
     try {
+      const parsedMediaMeta = parseInspectionMediaMetaForLogging(
+        req.body?.mediaMeta
+      );
+      const uploadedFiles = Array.isArray(req.files) ? req.files : [];
+
       console.log("[Inspection Submit] Request received", {
         jobId,
         timestamp: new Date().toISOString(),
         filesCount: req.files?.length || 0,
       });
+
+      if (uploadedFiles.length) {
+        console.log("[Inspection Submit] Incoming multipart files", {
+          jobId,
+          files: uploadedFiles.map((file, index) => {
+            const mediaMatch = file.fieldname?.match(/^media__(.+)$/);
+            const fieldId = mediaMatch?.[1] || null;
+            const mediaEntry = fieldId ? parsedMediaMeta?.[fieldId] : undefined;
+
+            return {
+              index,
+              fieldname: file.fieldname,
+              fieldId,
+              originalname: file.originalname,
+              mimetype: file.mimetype,
+              size: file.size,
+              label: mediaEntry?.label || null,
+              sectionId: mediaEntry?.metadata?.sectionId || null,
+              caption: mediaEntry?.metadata?.caption || null,
+            };
+          }),
+        });
+      }
+
+      if (req.body?.mediaMeta) {
+        console.log("[Inspection Submit] Incoming mediaMeta keys", {
+          jobId,
+          fieldIds: Object.keys(parsedMediaMeta).filter(
+            (key) => key !== "__parseError"
+          ),
+          parseError: parsedMediaMeta.__parseError || null,
+        });
+      }
 
       const technicianId = req.technician.id;
       const {
