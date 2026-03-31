@@ -1567,6 +1567,7 @@ const mapFieldValue = (field = {}, rawValue) => {
     case "yes-no-na":
       return mapYesNoValue(rawValue);
     case "pass-fail":
+    case "pass-fail-na":
       return mapTestingStatus(rawValue);
     case "select":
       return mapSelectOptionLabel(field, rawValue) || String(rawValue);
@@ -4771,7 +4772,10 @@ const renderGasApplianceV3 = async (doc, applianceSection, appliance = {}, index
     "no-scorching-overheating",
   ].map((fieldId) => {
     const field = applianceSection.fields.find((entry) => entry.id === fieldId);
-    return [field?.label || fieldId, mapFieldValue(field, appliance[fieldId])];
+    return {
+      label: field?.label || fieldId,
+      value: mapFieldValue(field, appliance[fieldId]),
+    };
   });
 
   drawSectionHeader(doc, "Installation & Safety Checks");
@@ -4785,7 +4789,10 @@ const renderGasApplianceV3 = async (doc, applianceSection, appliance = {}, index
     "operating-correctly",
   ].map((fieldId) => {
     const field = applianceSection.fields.find((entry) => entry.id === fieldId);
-    return [field?.label || fieldId, mapFieldValue(field, appliance[fieldId])];
+    return {
+      label: field?.label || fieldId,
+      value: mapFieldValue(field, appliance[fieldId]),
+    };
   });
 
   drawSectionHeader(doc, "Operational Checks");
@@ -4797,7 +4804,10 @@ const renderGasApplianceV3 = async (doc, applianceSection, appliance = {}, index
       "co-spillage-test",
     ].map((fieldId) => {
       const field = applianceSection.fields.find((entry) => entry.id === fieldId);
-      return [field?.label || fieldId, mapFieldValue(field, appliance[fieldId])];
+      return {
+        label: field?.label || fieldId,
+        value: mapFieldValue(field, appliance[fieldId]),
+      };
     });
 
     drawSectionHeader(doc, "Room Sealed Checks");
