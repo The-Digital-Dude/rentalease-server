@@ -25,6 +25,13 @@ export const cleanupOldTemplateVersions = async () => {
     );
   }
 
+  // Gas inspections now use version 3 with repeatable appliance entries.
+  // Keep older templates for historical reports only.
+  await InspectionTemplate.updateMany(
+    { jobType: "Gas", version: { $lt: 3 } },
+    { isActive: false }
+  );
+
   // The smoke inspection now has a dedicated smoke-only template at version 3.
   // Ensure any older smoke templates remain in the database for historical
   // reports but are hidden from technicians completing new jobs.
@@ -41,7 +48,7 @@ export const cleanupOldTemplateVersions = async () => {
   );
 
   console.log(
-    "Deactivated legacy inspection templates: version 1 for Gas/Electrical/Smoke, versions <3 for Smoke, versions <3 for Electrical"
+    "Deactivated legacy inspection templates: versions <3 for Gas, versions <3 for Smoke, versions <3 for Electrical"
   );
 };
 
@@ -117,9 +124,13 @@ export const prefillTemplateWithJobData = (template, job, property, technician) 
     'certification-licence-number': technician?.licenseNumber || '',
 
     // Property information
-    'property-address': property?.address || '',
-    'property-location': property?.address || '',
+    'property-address': property?.address?.fullAddress || property?.fullAddressString || '',
+    'property-location': property?.address?.fullAddress || property?.fullAddressString || '',
     'property-type': property?.propertyType || '',
+    'site-address': property?.address?.street || '',
+    suburb: property?.address?.suburb || '',
+    state: property?.address?.state || 'VIC',
+    postcode: property?.address?.postcode || '',
     'property-id': property?._id?.toString() || '',
     'bedroom-count': property?.bedroomCount || '',
     'bathroom-count': property?.bathroomCount || '',
@@ -131,6 +142,10 @@ export const prefillTemplateWithJobData = (template, job, property, technician) 
     'report-date': currentDate,
     'completion-date': currentDate,
     'signed-date': currentDate,
+    'technician-full-name': inspectorName,
+    'business-name': 'RentalEase Property Services Pty Ltd',
+    'licence-registration-number': technician?.licenseNumber || '',
+    'sign-off-date': currentDate,
 
     // Contact information
     'contact-email': property?.contactEmail || technician?.email || '',
@@ -151,9 +166,19 @@ export const prefillTemplateWithJobData = (template, job, property, technician) 
   const prefilledTemplate = JSON.parse(JSON.stringify(template));
 
   // Recursively prefill fields in all sections
+  const currentTime = new Date().toTimeString().slice(0, 5);
+  prefillMap["inspection-time"] = currentTime;
+  prefillMap["sign-off-time"] = currentTime;
+
+  if (property?.propertyType === "Rooming House") {
+    prefillMap["property-type"] = "rooming-house";
+  } else if (prefillMap["property-type"]) {
+    prefillMap["property-type"] = "rental-property";
+  }
+
   const prefillFields = (fields) => {
     return fields.map(field => {
-      if (prefillMap[field.id]) {
+      if (prefillMap[field.id] !== undefined && prefillMap[field.id] !== "") {
         return {
           ...field,
           defaultValue: prefillMap[field.id]

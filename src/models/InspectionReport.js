@@ -170,6 +170,10 @@ inspectionReportSchema.index({ property: 1, submittedAt: -1 });
 inspectionReportSchema.index({ technician: 1, submittedAt: -1 });
 
 inspectionReportSchema.methods.toSummary = function () {
+  const complianceOutcome =
+    this.formData?.["final-declaration"]?.["final-compliance-outcome"] ||
+    this.formData?.gasOutcome?.complianceOutcome;
+
   return {
     id: this.id,
     job: this.job,
@@ -180,6 +184,7 @@ inspectionReportSchema.methods.toSummary = function () {
     submittedAt: this.submittedAt,
     pdf: this.pdf,
     notes: this.notes,
+    complianceOutcome,
     sectionsSummary: this.sectionsSummary,
   };
 };

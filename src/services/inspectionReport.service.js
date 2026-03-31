@@ -42,6 +42,230 @@ const parseMediaMeta = (meta) => {
   return meta;
 };
 
+const LEGACY_GAS_SECTION_IDS = new Set([
+  "gas-installation",
+  "appliance-1",
+  "appliance-2",
+  "appliance-3",
+  "compliance-declaration",
+]);
+
+const GAS_V3_SECTION_IDS = new Set([
+  "property-details",
+  "technician-details",
+  "lp-gas-checklist",
+  "general-gas-checks",
+  "gas-appliances",
+  "rectification-works-required",
+  "final-declaration",
+]);
+
+const GAS_V3_APPLIANCE_SAFETY_FIELDS = [
+  "installation-gastight",
+  "accessible-for-servicing",
+  "isolation-valve-provided",
+  "electrically-safe",
+  "evidence-of-certification",
+  "adequately-restrained",
+  "adequate-room-ventilation",
+  "clearances-compliant",
+  "cowl-chimney-flue-good",
+  "flue-correctly-installed",
+  "no-scorching-overheating",
+];
+
+const GAS_V3_REQUIRED_APPLIANCE_FIELDS = [
+  "appliance-location",
+  "appliance-type",
+  "appliance-name",
+  "room-sealed-appliance",
+  "appliance-photo",
+  ...GAS_V3_APPLIANCE_SAFETY_FIELDS,
+  "heat-exchanger-satisfactory",
+  "appliance-cleaned",
+  "gas-supply-burner-pressure-correct",
+  "burner-flame-normal",
+  "operating-correctly",
+];
+
+const isGasTemplateV3 = (template, formData = {}) => {
+  if (template?.jobType !== "Gas") {
+    return false;
+  }
+
+  if ((template?.version ?? 1) >= 3) {
+    return true;
+  }
+
+  return !Object.keys(formData || {}).some((sectionId) =>
+    LEGACY_GAS_SECTION_IDS.has(sectionId)
+  );
+};
+
+const ensureRequiredValue = (value, message) => {
+  const isEmptyArray = Array.isArray(value) && value.length === 0;
+  if (
+    value === undefined ||
+    value === null ||
+    value === "" ||
+    isEmptyArray
+  ) {
+    throw new Error(message);
+  }
+};
+
+const calculateGasComplianceOutcome = (formData = {}) => {
+  const generalChecks = formData["general-gas-checks"] || {};
+  const rectification = formData["rectification-works-required"] || {};
+  const appliances = Array.isArray(formData["gas-appliances"])
+    ? formData["gas-appliances"]
+    : [];
+
+  if (generalChecks["gas-pressure-test-result"] === "fail") {
+    return "unsafe";
+  }
+
+  if (rectification["risk-level"] === "immediate-unsafe") {
+    return "unsafe";
+  }
+
+  const hasUnsafeAppliance = appliances.some(
+    (appliance) => appliance?.["co-spillage-test"] === "fail"
+  );
+  if (hasUnsafeAppliance) {
+    return "unsafe";
+  }
+
+  const hasNonCompliantAppliance = appliances.some((appliance) =>
+    GAS_V3_APPLIANCE_SAFETY_FIELDS.some((fieldId) => appliance?.[fieldId] === "no")
+  );
+
+  if (hasNonCompliantAppliance) {
+    return "non-compliant";
+  }
+
+  return "compliant";
+};
+
+const validateGasReportV3 = (formData = {}, job) => {
+  if (job?.status !== "Completed") {
+    throw new Error("Gas inspection reports can only be submitted when the job status is Completed");
+  }
+
+  const propertyDetails = formData["property-details"] || {};
+  const technicianDetails = formData["technician-details"] || {};
+  const lpGasChecklist = formData["lp-gas-checklist"] || {};
+  const generalChecks = formData["general-gas-checks"] || {};
+  const rectification = formData["rectification-works-required"] || {};
+  const finalDeclaration = formData["final-declaration"] || {};
+  const appliances = Array.isArray(formData["gas-appliances"])
+    ? formData["gas-appliances"]
+    : [];
+
+  ["site-address", "suburb", "state", "postcode", "property-type"].forEach((fieldId) =>
+    ensureRequiredValue(propertyDetails[fieldId], `Property field "${fieldId}" is required`)
+  );
+  ["technician-full-name", "licence-registration-number", "business-name", "inspection-date", "inspection-time"].forEach((fieldId) =>
+    ensureRequiredValue(technicianDetails[fieldId], `Technician field "${fieldId}" is required`)
+  );
+  ["lp-gas-cylinders", "gas-leakage-test"].forEach((fieldId) =>
+    ensureRequiredValue(lpGasChecklist[fieldId], `LP gas checklist field "${fieldId}" is required`)
+  );
+  ensureRequiredValue(
+    generalChecks["gas-pressure-test-result"],
+    'General gas check field "gas-pressure-test-result" is required'
+  );
+
+  if (generalChecks["gas-pressure-test-result"] === "pass") {
+    ensureRequiredValue(
+      generalChecks["pressure-loss-5-min"],
+      'Pressure loss is required when gas pressure test result is "pass"'
+    );
+  }
+
+  if (!appliances.length) {
+    throw new Error("At least one gas appliance must be included in the report");
+  }
+
+  appliances.forEach((appliance, index) => {
+    GAS_V3_REQUIRED_APPLIANCE_FIELDS.forEach((fieldId) =>
+      ensureRequiredValue(
+        appliance?.[fieldId],
+        `Gas appliance ${index + 1} field "${fieldId}" is required`
+      )
+    );
+
+    if (appliance?.["appliance-location"] === "other") {
+      ensureRequiredValue(
+        appliance?.["appliance-location-other"],
+        `Gas appliance ${index + 1} other location is required`
+      );
+    }
+
+    if (appliance?.["appliance-type"] === "other") {
+      ensureRequiredValue(
+        appliance?.["appliance-type-other"],
+        `Gas appliance ${index + 1} other appliance type is required`
+      );
+    }
+
+    if (appliance?.["room-sealed-appliance"] === "yes") {
+      ensureRequiredValue(
+        appliance?.["negative-pressure-present"],
+        `Gas appliance ${index + 1} negative pressure result is required`
+      );
+      ensureRequiredValue(
+        appliance?.["co-spillage-test"],
+        `Gas appliance ${index + 1} CO spillage test result is required`
+      );
+    }
+  });
+
+  ensureRequiredValue(rectification["issues-identified"], 'Rectification field "issues-identified" is required');
+  if (rectification["issues-identified"] === "yes") {
+    ensureRequiredValue(rectification["issue-description"], "Issue description is required when issues are identified");
+    ensureRequiredValue(rectification["risk-level"], "Risk level is required when issues are identified");
+  }
+
+  ["technician-signature", "sign-off-date", "sign-off-time"].forEach((fieldId) =>
+    ensureRequiredValue(finalDeclaration[fieldId], `Final declaration field "${fieldId}" is required`)
+  );
+
+  return calculateGasComplianceOutcome(formData);
+};
+
+const validateGasReportMediaUploads = (formData = {}, mediaUploads = []) => {
+  const hasFieldMedia = (fieldId, itemIndex) =>
+    mediaUploads.some((item) => {
+      if (item.fieldId === fieldId) {
+        return itemIndex === undefined || item.metadata?.itemIndex === itemIndex;
+      }
+
+      if (item.fieldId === `${fieldId}-${itemIndex}`) {
+        return true;
+      }
+
+      return (
+        item.fieldId?.includes(fieldId) &&
+        (itemIndex === undefined || item.metadata?.itemIndex === itemIndex)
+      );
+    });
+
+  if (!hasFieldMedia("gas-meter-photo")) {
+    throw new Error('General gas checks require an uploaded "gas-meter-photo" image');
+  }
+
+  const appliances = Array.isArray(formData["gas-appliances"])
+    ? formData["gas-appliances"]
+    : [];
+
+  appliances.forEach((_, index) => {
+    if (!hasFieldMedia("appliance-photo", index)) {
+      throw new Error(`Gas appliance ${index + 1} requires an uploaded appliance photo`);
+    }
+  });
+};
+
 const buildSectionsSummary = (template, formData = {}) => {
   if (!template?.sections?.length) {
     return [];
@@ -49,16 +273,36 @@ const buildSectionsSummary = (template, formData = {}) => {
 
   const summary = [];
   template.sections.forEach((section) => {
-    const sectionResponses = formData[section.id] || {};
+    const sectionResponses = formData[section.id];
+
+    if (section.repeatable && Array.isArray(sectionResponses)) {
+      sectionResponses.forEach((itemResponses = {}, index) => {
+        section.fields.forEach((field) => {
+          if (itemResponses[field.id] !== undefined) {
+            summary.push({
+              sectionId: `${section.id}[${index}]`,
+              fieldId: field.id,
+              label: `${section.itemLabel || section.title || "Item"} ${index + 1}: ${field.question || field.label}`,
+              value: itemResponses[field.id],
+              flag:
+                field.type === "boolean" && itemResponses[field.id] === false,
+            });
+          }
+        });
+      });
+      return;
+    }
+
+    const normalizedSectionResponses = sectionResponses || {};
     section.fields.forEach((field) => {
-      if (sectionResponses[field.id] !== undefined) {
+      if (normalizedSectionResponses[field.id] !== undefined) {
         summary.push({
           sectionId: section.id,
           fieldId: field.id,
           label: field.question || field.label,
-          value: sectionResponses[field.id],
+          value: normalizedSectionResponses[field.id],
           flag:
-            field.type === "boolean" && sectionResponses[field.id] === false,
+            field.type === "boolean" && normalizedSectionResponses[field.id] === false,
         });
       }
     });
@@ -226,6 +470,16 @@ export const submitInspectionReport = async ({
   }
 
   const normalizedFormData = normalizeFormData(formData);
+  let gasComplianceOutcome = null;
+
+  if (isGasTemplateV3(template, normalizedFormData)) {
+    gasComplianceOutcome = validateGasReportV3(normalizedFormData, job);
+    normalizedFormData["final-declaration"] = {
+      ...(normalizedFormData["final-declaration"] || {}),
+      "final-compliance-outcome": gasComplianceOutcome,
+    };
+  }
+
   let resolvedNextComplianceDate = resolveNextComplianceDate(
     template,
     normalizedFormData,
@@ -276,6 +530,10 @@ export const submitInspectionReport = async ({
   console.log("[Inspection Submit] Media uploads completed", {
     uploadsCount: mediaUploads.length,
   });
+
+  if (gasComplianceOutcome) {
+    validateGasReportMediaUploads(normalizedFormData, mediaUploads);
+  }
 
   console.log("[Inspection Submit] Building sections summary");
   const sectionsSummary = buildSectionsSummary(template, normalizedFormData);

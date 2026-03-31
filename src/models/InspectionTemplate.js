@@ -117,6 +117,30 @@ const sectionSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    repeatable: {
+      type: Boolean,
+      default: false,
+    },
+    minItems: {
+      type: Number,
+      min: 0,
+    },
+    maxItems: {
+      type: Number,
+      min: 1,
+    },
+    addButtonLabel: {
+      type: String,
+      trim: true,
+    },
+    itemLabel: {
+      type: String,
+      trim: true,
+    },
+    metadata: {
+      type: Map,
+      of: mongoose.Schema.Types.Mixed,
+    },
     fields: {
       type: [fieldSchema],
       default: [],

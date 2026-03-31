@@ -1919,7 +1919,10 @@ const renderElectricalSmokeReport = async (
       ensurePageSpace(doc, totalPhotoSpace);
 
       const result = await processImageForPdf(
-        mediaItem.url,
+        {
+          imageUrl: mediaItem.imageBuffer || mediaItem.url,
+          gcsPath: mediaItem.gcsPath,
+        },
         doc,
         PAGE.margin,
         doc.y,
@@ -2222,6 +2225,21 @@ const renderGasReport = async (
   doc,
   { template, report, job, property, technician }
 ) => {
+  const isGasV3Template =
+    (template?.version ?? 1) >= 3 &&
+    template?.sections?.some((section) => section.id === "gas-appliances" && section.repeatable);
+
+  if (isGasV3Template) {
+    await renderGasReportV3(doc, {
+      template,
+      report,
+      job,
+      property,
+      technician,
+    });
+    return;
+  }
+
   const getSectionValues = (id) => report.formData?.[id] || {};
 
   const renderSectionPhotos = async (sectionId, heading) => {
@@ -4300,6 +4318,14 @@ const formatValue = (value, fieldType) => {
         : "—";
     case "pass-fail":
       return value === "pass" ? "Pass" : value === "fail" ? "Fail" : "—";
+    case "pass-fail-na":
+      return value === "pass"
+        ? "Pass"
+        : value === "fail"
+        ? "Fail"
+        : value === "na"
+        ? "N/A"
+        : "—";
     case "boolean":
       return value ? "Yes" : "No";
     case "date":
@@ -4571,7 +4597,8 @@ const drawComplianceDeclaration = (
 ) => {
   drawSectionHeader(doc, sectionHeader);
 
-  const overallAssessment = responses["overall-assessment"];
+  const overallAssessment =
+    responses["final-compliance-outcome"] || responses["overall-assessment"];
   const hasSignature = responses["technician-signature"];
 
   // Compliance status badge
@@ -4627,6 +4654,286 @@ const drawComplianceDeclaration = (
         }
       );
   } */
+};
+
+const buildSectionRows = (section, responses = {}, { excludeTypes = [] } = {}) =>
+  (section?.fields || [])
+    .filter((field) => !excludeTypes.includes(field.type))
+    .filter((field) => responses[field.id] !== undefined && responses[field.id] !== "")
+    .map((field) => ({
+      label: field.label,
+      value: mapFieldValue(field, responses[field.id]),
+    }));
+
+const getMediaItemsForSection = (report, sectionId) =>
+  (report.media || []).filter(
+    (item) =>
+      item.metadata?.sectionId === sectionId ||
+      item.fieldId?.includes(sectionId)
+  );
+
+const getMediaItemsForRepeatableItem = (report, sectionId, itemIndex) =>
+  (report.media || []).filter((item) => {
+    if (item.metadata?.sectionId === sectionId && item.metadata?.itemIndex === itemIndex) {
+      return true;
+    }
+
+    return item.fieldId?.includes(`${sectionId}-${itemIndex}`) || item.fieldId?.includes(`${sectionId}.${itemIndex}`);
+  });
+
+const renderMediaGallery = async (doc, mediaItems = [], heading) => {
+  if (!mediaItems.length) {
+    return;
+  }
+
+  ensurePageSpace(doc, 250);
+  drawSectionHeader(doc, heading);
+
+  for (const mediaItem of mediaItems) {
+    ensurePageSpace(doc, 240);
+
+    const label = mediaItem.label || mediaItem.metadata?.caption || "Inspection Photo";
+    doc
+      .fillColor(COLORS.text)
+      .fontSize(10)
+      .font("Helvetica-Bold")
+      .text(label, PAGE.margin, doc.y);
+    doc.y += 14;
+
+    const rendered = await processImageForPdf(
+      {
+        imageUrl: mediaItem.imageBuffer || mediaItem.url,
+        gcsPath: mediaItem.gcsPath,
+      },
+      doc,
+      PAGE.margin,
+      doc.y,
+      doc.page.width - PAGE.margin * 2,
+      200
+    );
+
+    if (!rendered.success) {
+      doc
+        .fillColor(COLORS.textSecondary)
+        .fontSize(10)
+        .font("Helvetica")
+        .text(rendered.message || "[Image unavailable]", PAGE.margin, doc.y);
+    }
+
+    doc.y += rendered.height + 8;
+  }
+};
+
+const renderGasApplianceV3 = async (doc, applianceSection, appliance = {}, index, report) => {
+  const applianceTypeField = applianceSection.fields.find(
+    (field) => field.id === "appliance-type"
+  );
+  const applianceLocationField = applianceSection.fields.find(
+    (field) => field.id === "appliance-location"
+  );
+
+  const applianceType = mapFieldValue(applianceTypeField, appliance["appliance-type"]);
+  const applianceLocation = appliance["appliance-location"] === "other"
+    ? appliance["appliance-location-other"] || "Other"
+    : mapFieldValue(applianceLocationField, appliance["appliance-location"]);
+
+  ensurePageSpace(doc, 120);
+  drawSectionHeader(doc, `Appliance ${index + 1}`);
+
+  const summaryRows = [
+    { label: "Appliance Name", value: appliance["appliance-name"] || "Not specified" },
+    {
+      label: "Appliance Type",
+      value:
+        appliance["appliance-type"] === "other"
+          ? appliance["appliance-type-other"] || "Other"
+          : applianceType,
+    },
+    { label: "Location", value: applianceLocation || "Not specified" },
+    {
+      label: "Room Sealed Appliance",
+      value: mapYesNoValue(appliance["room-sealed-appliance"]),
+    },
+  ];
+  drawRoomDetailTable(doc, null, summaryRows, { hideHeaders: true });
+
+  const installationRows = [
+    "installation-gastight",
+    "accessible-for-servicing",
+    "isolation-valve-provided",
+    "electrically-safe",
+    "evidence-of-certification",
+    "adequately-restrained",
+    "adequate-room-ventilation",
+    "clearances-compliant",
+    "cowl-chimney-flue-good",
+    "flue-correctly-installed",
+    "no-scorching-overheating",
+  ].map((fieldId) => {
+    const field = applianceSection.fields.find((entry) => entry.id === fieldId);
+    return [field?.label || fieldId, mapFieldValue(field, appliance[fieldId])];
+  });
+
+  drawSectionHeader(doc, "Installation & Safety Checks");
+  drawRoomDetailTable(doc, null, installationRows);
+
+  const operationalRows = [
+    "heat-exchanger-satisfactory",
+    "appliance-cleaned",
+    "gas-supply-burner-pressure-correct",
+    "burner-flame-normal",
+    "operating-correctly",
+  ].map((fieldId) => {
+    const field = applianceSection.fields.find((entry) => entry.id === fieldId);
+    return [field?.label || fieldId, mapFieldValue(field, appliance[fieldId])];
+  });
+
+  drawSectionHeader(doc, "Operational Checks");
+  drawRoomDetailTable(doc, null, operationalRows);
+
+  if (appliance["room-sealed-appliance"] === "yes") {
+    const roomSealedRows = [
+      "negative-pressure-present",
+      "co-spillage-test",
+    ].map((fieldId) => {
+      const field = applianceSection.fields.find((entry) => entry.id === fieldId);
+      return [field?.label || fieldId, mapFieldValue(field, appliance[fieldId])];
+    });
+
+    drawSectionHeader(doc, "Room Sealed Checks");
+    drawRoomDetailTable(doc, null, roomSealedRows);
+  }
+
+  if (appliance["appliance-comments"]) {
+    drawTextField(doc, "Comments", appliance["appliance-comments"]);
+  }
+
+  await renderMediaGallery(
+    doc,
+    getMediaItemsForRepeatableItem(report, "gas-appliances", index),
+    `Appliance ${index + 1} Photos`
+  );
+};
+
+const renderGasReportV3 = async (
+  doc,
+  { template, report, property, technician }
+) => {
+  const getSection = (sectionId) =>
+    template.sections.find((section) => section.id === sectionId);
+  const getSectionValues = (sectionId) => report.formData?.[sectionId] || {};
+
+  const propertySection = getSection("property-details");
+  const technicianSection = getSection("technician-details");
+  const lpGasSection = getSection("lp-gas-checklist");
+  const generalSection = getSection("general-gas-checks");
+  const applianceSection = getSection("gas-appliances");
+  const rectificationSection = getSection("rectification-works-required");
+  const finalSection = getSection("final-declaration");
+
+  const propertyDetails = getSectionValues("property-details");
+  const technicianDetails = getSectionValues("technician-details");
+  const lpGasChecklist = getSectionValues("lp-gas-checklist");
+  const generalChecks = getSectionValues("general-gas-checks");
+  const rectification = getSectionValues("rectification-works-required");
+  const finalDeclaration = getSectionValues("final-declaration");
+  const appliances = Array.isArray(report.formData?.["gas-appliances"])
+    ? report.formData["gas-appliances"]
+    : [];
+
+  if (propertySection) {
+    drawSectionHeader(doc, propertySection.title);
+    const rows = buildSectionRows(propertySection, propertyDetails);
+    drawRoomDetailTable(doc, null, rows, { hideHeaders: true });
+  }
+
+  if (technicianSection) {
+    drawSectionHeader(doc, technicianSection.title);
+    const rows = buildSectionRows(technicianSection, technicianDetails);
+    drawRoomDetailTable(doc, null, rows, { hideHeaders: true });
+  }
+
+  if (lpGasSection) {
+    drawSectionHeader(doc, lpGasSection.title);
+    const rows = buildSectionRows(lpGasSection, lpGasChecklist, {
+      excludeTypes: ["photo", "photo-multi"],
+    });
+    drawRoomDetailTable(doc, null, rows);
+    await renderMediaGallery(
+      doc,
+      getMediaItemsForSection(report, "lp-gas-checklist"),
+      "LP Gas Checklist Photos"
+    );
+  }
+
+  if (generalSection) {
+    drawSectionHeader(doc, generalSection.title);
+    const rows = buildSectionRows(generalSection, generalChecks, {
+      excludeTypes: ["photo", "photo-multi"],
+    });
+    drawRoomDetailTable(doc, null, rows);
+    await renderMediaGallery(
+      doc,
+      getMediaItemsForSection(report, "general-gas-checks"),
+      "General Gas Checks Photos"
+    );
+  }
+
+  for (const [index, appliance] of appliances.entries()) {
+    await renderGasApplianceV3(doc, applianceSection, appliance, index, report);
+  }
+
+  if (rectificationSection) {
+    drawSectionHeader(doc, rectificationSection.title);
+    const rows = buildSectionRows(rectificationSection, rectification, {
+      excludeTypes: ["photo", "photo-multi"],
+    });
+    drawRoomDetailTable(doc, null, rows);
+    await renderMediaGallery(
+      doc,
+      getMediaItemsForSection(report, "rectification-works-required"),
+      "Rectification Photos"
+    );
+  }
+
+  if (finalSection) {
+    drawComplianceDeclaration(
+      doc,
+      finalSection,
+      finalDeclaration,
+      report,
+      finalSection.title
+    );
+
+    const finalRows = [
+      {
+        label: "Technician Signature",
+        value: finalDeclaration["technician-signature"] ? "Captured" : "Not captured",
+      },
+      {
+        label: "Sign-Off Date",
+        value: finalDeclaration["sign-off-date"]
+          ? formatDisplayDate(finalDeclaration["sign-off-date"])
+          : "Not specified",
+      },
+      {
+        label: "Sign-Off Time",
+        value: finalDeclaration["sign-off-time"] || "Not specified",
+      },
+      {
+        label: "Technician",
+        value:
+          technicianDetails["technician-full-name"] ||
+          [technician?.firstName, technician?.lastName].filter(Boolean).join(" ") ||
+          "Not specified",
+      },
+      {
+        label: "Declaration",
+        value: finalDeclaration["declaration-text"] || "Not specified",
+      },
+    ];
+    drawRoomDetailTable(doc, null, finalRows, { hideHeaders: true });
+  }
 };
 
 const loadImageBuffer = async ({ imageUrl, gcsPath }) => {
