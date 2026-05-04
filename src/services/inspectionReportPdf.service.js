@@ -2291,9 +2291,7 @@ const renderElectricalSmokeReport = async (
     "N/A";
 
   const renderSectionPhotos = async (sectionId, heading) => {
-    const mediaItems = (report.media || []).filter(
-      (item) => item.metadata?.sectionId === sectionId
-    );
+    const mediaItems = getMediaItemsForSection(report, template, sectionId);
 
     if (!mediaItems.length) {
       return;
@@ -2641,11 +2639,7 @@ const renderGasReport = async (
   const getSectionValues = (id) => report.formData?.[id] || {};
 
   const renderSectionPhotos = async (sectionId, heading) => {
-    const mediaItems = (report.media || []).filter(
-      (item) =>
-        item.metadata?.sectionId === sectionId ||
-        item.fieldId?.includes(sectionId)
-    );
+    const mediaItems = getMediaItemsForSection(report, template, sectionId);
 
     if (!mediaItems.length) {
       return;
@@ -2799,11 +2793,7 @@ const renderGasSmokeReport = async (
   const getSectionValues = (id) => report.formData?.[id] || {};
 
   const renderSectionPhotos = async (sectionId, heading) => {
-    const mediaItems = (report.media || []).filter(
-      (item) =>
-        item.metadata?.sectionId === sectionId ||
-        item.fieldId?.includes(sectionId)
-    );
+    const mediaItems = getMediaItemsForSection(report, template, sectionId);
 
     if (!mediaItems.length) {
       return;
@@ -3293,11 +3283,7 @@ const renderElectricalReport = async (
   const getSectionValues = (id) => report.formData?.[id] || {};
 
   const renderSectionPhotos = async (sectionId, heading) => {
-    const mediaItems = (report.media || []).filter(
-      (item) =>
-        item.metadata?.sectionId === sectionId ||
-        item.fieldId?.includes(sectionId)
-    );
+    const mediaItems = getMediaItemsForSection(report, template, sectionId);
 
     if (!mediaItems.length) {
       return;
@@ -3764,9 +3750,7 @@ const renderMinimumSafetyStandardReport = async (
     value === "yes" ? "Yes" : value === "no" ? "No" : value || "N/A";
 
   const renderSectionPhotos = async (sectionId, heading) => {
-    const mediaItems = (report.media || []).filter(
-      (item) => item.metadata?.sectionId === sectionId
-    );
+    const mediaItems = getMediaItemsForSection(report, template, sectionId);
 
     if (!mediaItems.length) {
       return;
@@ -4538,11 +4522,7 @@ const renderGenericReport = async (
   const getSectionValues = (id) => report.formData?.[id] || {};
 
   const renderSectionPhotos = async (sectionId, heading) => {
-    const mediaItems = (report.media || []).filter(
-      (item) =>
-        item.metadata?.sectionId === sectionId ||
-        item.fieldId?.includes(sectionId)
-    );
+    const mediaItems = getMediaItemsForSection(report, template, sectionId);
 
     if (!mediaItems.length) {
       return;
@@ -5075,21 +5055,79 @@ const buildSectionRows = (section, responses = {}, { excludeTypes = [] } = {}) =
       value: mapFieldValue(field, responses[field.id]),
     }));
 
-const getMediaItemsForSection = (report, sectionId) =>
-  (report.media || []).filter(
-    (item) =>
-      item.metadata?.sectionId === sectionId ||
-      item.fieldId?.includes(sectionId)
-  );
+const getPhotoFieldIdsForSection = (template, sectionId) =>
+  (template?.sections || [])
+    .find((section) => section.id === sectionId)
+    ?.fields?.filter(
+      (field) => field.type === "photo" || field.type === "photo-multi"
+    )
+    .map((field) => field.id) || [];
 
-const getMediaItemsForRepeatableItem = (report, sectionId, itemIndex) =>
-  (report.media || []).filter((item) => {
-    if (item.metadata?.sectionId === sectionId && item.metadata?.itemIndex === itemIndex) {
-      return true;
-    }
+const mediaFieldMatchesSection = (fieldId = "", sectionId, photoFieldIds = []) => {
+  if (!fieldId) {
+    return false;
+  }
 
-    return item.fieldId?.includes(`${sectionId}-${itemIndex}`) || item.fieldId?.includes(`${sectionId}.${itemIndex}`);
+  const rawFieldId = String(fieldId);
+
+  if (rawFieldId === sectionId || rawFieldId.includes(sectionId)) {
+    return true;
+  }
+
+  return photoFieldIds.some((photoFieldId) => {
+    return (
+      rawFieldId === photoFieldId ||
+      rawFieldId.startsWith(`${photoFieldId}-`) ||
+      rawFieldId.startsWith(`${photoFieldId}.`) ||
+      rawFieldId.startsWith(`${photoFieldId}[`) ||
+      rawFieldId.endsWith(`.${photoFieldId}`) ||
+      rawFieldId.endsWith(`-${photoFieldId}`) ||
+      rawFieldId.includes(`.${photoFieldId}.`) ||
+      rawFieldId.includes(`.${photoFieldId}[`) ||
+      rawFieldId.includes(`-${photoFieldId}-`) ||
+      rawFieldId.includes(`[${photoFieldId}]`)
+    );
   });
+};
+
+const mediaMatchesSection = (item, sectionId, template) => {
+  const photoFieldIds = getPhotoFieldIdsForSection(template, sectionId);
+
+  return (
+    item?.metadata?.sectionId === sectionId ||
+    mediaFieldMatchesSection(item?.fieldId, sectionId, photoFieldIds)
+  );
+};
+
+const mediaMatchesRepeatableItem = (item, sectionId, itemIndex, template) => {
+  if (item?.metadata?.sectionId === sectionId && item?.metadata?.itemIndex === itemIndex) {
+    return true;
+  }
+
+  const photoFieldIds = getPhotoFieldIdsForSection(template, sectionId);
+  const rawFieldId = String(item?.fieldId || "");
+
+  if (!mediaFieldMatchesSection(rawFieldId, sectionId, photoFieldIds)) {
+    return false;
+  }
+
+  return (
+    rawFieldId.includes(`${sectionId}-${itemIndex}`) ||
+    rawFieldId.includes(`${sectionId}.${itemIndex}`) ||
+    rawFieldId.includes(`${sectionId}[${itemIndex}]`) ||
+    rawFieldId.includes(`-${itemIndex}-`) ||
+    rawFieldId.includes(`.${itemIndex}.`) ||
+    rawFieldId.includes(`[${itemIndex}]`)
+  );
+};
+
+const getMediaItemsForSection = (report, template, sectionId) =>
+  (report.media || []).filter((item) => mediaMatchesSection(item, sectionId, template));
+
+const getMediaItemsForRepeatableItem = (report, template, sectionId, itemIndex) =>
+  (report.media || []).filter((item) =>
+    mediaMatchesRepeatableItem(item, sectionId, itemIndex, template)
+  );
 
 const renderMediaGallery = async (doc, mediaItems = [], heading) => {
   if (!mediaItems.length) {
@@ -5229,7 +5267,7 @@ const renderGasApplianceV3 = async (doc, applianceSection, appliance = {}, index
 
   await renderMediaGallery(
     doc,
-    getMediaItemsForRepeatableItem(report, "gas-appliances", index),
+    getMediaItemsForRepeatableItem(report, template, "gas-appliances", index),
     `Appliance ${index + 1} Photos`
   );
 };
@@ -5280,7 +5318,7 @@ const renderGasReportV3 = async (
     drawRoomDetailTable(doc, null, rows);
     await renderMediaGallery(
       doc,
-      getMediaItemsForSection(report, "lp-gas-checklist"),
+      getMediaItemsForSection(report, template, "lp-gas-checklist"),
       "LP Gas Checklist Photos"
     );
   }
@@ -5293,7 +5331,7 @@ const renderGasReportV3 = async (
     drawRoomDetailTable(doc, null, rows);
     await renderMediaGallery(
       doc,
-      getMediaItemsForSection(report, "general-gas-checks"),
+      getMediaItemsForSection(report, template, "general-gas-checks"),
       "General Gas Checks Photos"
     );
   }
@@ -5310,7 +5348,7 @@ const renderGasReportV3 = async (
     drawRoomDetailTable(doc, null, rows);
     await renderMediaGallery(
       doc,
-      getMediaItemsForSection(report, "rectification-works-required"),
+      getMediaItemsForSection(report, template, "rectification-works-required"),
       "Rectification Photos"
     );
   }
@@ -5716,7 +5754,7 @@ const renderSmokeOnlyReport = async (
   drawRoomDetailTable(doc, null, reportDetailsData);
   await renderMediaGallery(
     doc,
-    getMediaItemsForSection(report, "inspection-photos"),
+    getMediaItemsForSection(report, template, "inspection-photos"),
     "Inspection Photos"
   );
 

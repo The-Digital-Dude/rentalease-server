@@ -42,6 +42,107 @@ const parseMediaMeta = (meta) => {
   return meta;
 };
 
+const buildPhotoFieldContextLookup = (template) => {
+  const lookup = new Map();
+
+  (template?.sections || []).forEach((section) => {
+    (section.fields || []).forEach((field) => {
+      if (field?.type !== "photo" && field?.type !== "photo-multi") {
+        return;
+      }
+
+      const entries = lookup.get(field.id) || [];
+      entries.push({
+        sectionId: section.id,
+        fieldId: field.id,
+        repeatable: Boolean(section.repeatable),
+        label: field.label,
+      });
+      lookup.set(field.id, entries);
+    });
+  });
+
+  return lookup;
+};
+
+const derivePhotoFieldContext = (lookup, rawFieldId) => {
+  if (!rawFieldId) {
+    return null;
+  }
+
+  if (lookup.has(rawFieldId)) {
+    return lookup.get(rawFieldId)[0];
+  }
+
+  const fieldIdMatchers = [
+    /^(.+)-(\d+)$/,
+    /^(.+)\.(\d+)$/,
+    /^(.+)\[(\d+)\]$/,
+    /^(.+?)-(\d+)-(.+)$/,
+    /^(.+?)\.(\d+)\.(.+)$/,
+  ];
+
+  for (const matcher of fieldIdMatchers) {
+    const match = rawFieldId.match(matcher);
+    if (!match) {
+      continue;
+    }
+
+    let candidateFieldIds = [];
+    let itemIndex;
+
+    if (match.length === 3) {
+      candidateFieldIds = [match[1]];
+      itemIndex = Number.parseInt(match[2], 10);
+    } else if (match.length === 4) {
+      candidateFieldIds = [match[3], `${match[1]}-${match[3]}`];
+      itemIndex = Number.parseInt(match[2], 10);
+    }
+
+    for (const candidateFieldId of candidateFieldIds) {
+      const matches = lookup.get(candidateFieldId);
+      if (!matches?.length) {
+        continue;
+      }
+
+      const preferredMatch =
+        matches.find((entry) => entry.repeatable) || matches[0];
+
+      return {
+        ...preferredMatch,
+        itemIndex: Number.isInteger(itemIndex) ? itemIndex : undefined,
+      };
+    }
+  }
+
+  return null;
+};
+
+const normalizeMediaMetadata = (mediaMeta = {}, template) => {
+  const lookup = buildPhotoFieldContextLookup(template);
+  const normalized = {};
+
+  Object.entries(mediaMeta || {}).forEach(([rawFieldId, entry = {}]) => {
+    const derivedContext = derivePhotoFieldContext(lookup, rawFieldId);
+    const metadata =
+      entry?.metadata && typeof entry.metadata === "object"
+        ? { ...entry.metadata }
+        : {};
+
+    normalized[rawFieldId] = {
+      ...entry,
+      label: entry?.label || derivedContext?.label || rawFieldId,
+      metadata: {
+        ...metadata,
+        sectionId: metadata.sectionId || derivedContext?.sectionId,
+        itemIndex: metadata.itemIndex ?? derivedContext?.itemIndex,
+      },
+    };
+  });
+
+  return normalized;
+};
+
 const LEGACY_GAS_SECTION_IDS = new Set([
   "gas-installation",
   "appliance-1",
@@ -366,7 +467,11 @@ const uploadInspectionMedia = async (files = {}, mediaMeta = {}, context = {}) =
       continue;
     }
     const fieldId = mediaMatch[1];
-    const label = mediaMeta[fieldId]?.label;
+    const derivedMeta =
+      mediaMeta[fieldId] ||
+      normalizeMediaMetadata({ [fieldId]: {} }, context.template)[fieldId] ||
+      {};
+    const label = derivedMeta.label;
 
     for (const file of fileArray) {
       const imageValidation = await getInspectionImageValidation(file);
@@ -407,7 +512,7 @@ const uploadInspectionMedia = async (files = {}, mediaMeta = {}, context = {}) =
         gcsPath: uploadResult.gcsPath,
         mimeType: file.mimetype,
         size: file.size,
-        metadata: mediaMeta[fieldId]?.metadata,
+        metadata: derivedMeta.metadata,
       });
     }
   }
@@ -518,7 +623,7 @@ export const submitInspectionReport = async ({
   }
 
   console.log("[Inspection Submit] Form data normalized and media metadata parsing started");
-  const mediaMetadata = parseMediaMeta(mediaMeta);
+  const mediaMetadata = normalizeMediaMetadata(parseMediaMeta(mediaMeta), template);
   
   console.log("[Inspection Submit] Uploading inspection media files", {
     filesCount: Array.isArray(files) ? files.length : Object.keys(files || {}).length,
@@ -526,6 +631,7 @@ export const submitInspectionReport = async ({
   const mediaUploads = await uploadInspectionMedia(files, mediaMetadata, {
     jobId: job._id,
     propertyId: property._id,
+    template,
   });
   console.log("[Inspection Submit] Media uploads completed", {
     uploadsCount: mediaUploads.length,
