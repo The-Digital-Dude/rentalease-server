@@ -8,18 +8,20 @@ import { bucket } from "../config/gcs.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const BRAND_PRIMARY = "#024974";
+const BRAND_PRIMARY = "#2F5D7C";
 const COLORS = {
   primary: BRAND_PRIMARY,
-  primaryAccent: "#0B5F86",
-  primarySoft: "#E4EFF5",
+  primaryAccent: "#5C86A5",
+  primarySoft: "#EEF4F7",
   text: "#1F2933",
-  textSecondary: "#4B5563",
-  border: "#D1D9E0",
-  success: "#10B981",
-  error: "#EF4444",
-  warning: "#F59E0B",
-  neutralBackground: "#F7FAFC",
+  textSecondary: "#52606D",
+  border: "#D7E2EA",
+  success: "#2F855A",
+  error: "#C0565B",
+  warning: "#D69E2E",
+  neutralBackground: "#F8FBFC",
+  successSoft: "#E8F6EE",
+  errorSoft: "#FCEBEC",
 };
 
 const PAGE = {
@@ -91,19 +93,19 @@ const drawRoomDetailTable = (doc, title, rows = [], options = {}) => {
     const headerY = doc.y;
     doc
       .rect(tableX, headerY, questionWidth, headerHeight)
-      .fill(COLORS.primary)
+      .fill(COLORS.primaryAccent)
       .stroke(COLORS.border);
 
     doc
       .rect(tableX + questionWidth, headerY, answerWidth, headerHeight)
-      .fill(COLORS.primary)
+      .fill(COLORS.primaryAccent)
       .stroke(COLORS.border);
 
     // Header text
     doc
       .fillColor("white")
       .font("Helvetica-Bold")
-      .fontSize(10)
+      .fontSize(9)
       .text("Item", tableX + 15, headerY + 8, {
         width: questionWidth - 30,
         align: "left",
@@ -181,7 +183,7 @@ const drawRoomDetailTable = (doc, title, rows = [], options = {}) => {
     doc.y = rowY + rowHeight;
   });
 
-  doc.y += 12; // Space after table
+  doc.y += 6; // Space after table
 };
 
 const getReportTitle = (template, job) => {
@@ -189,7 +191,7 @@ const getReportTitle = (template, job) => {
 
   const titleMap = {
     MinimumSafetyStandard: "Minimum Safety Standard Report",
-    Electrical: "Electrical and Smoke Compliance Report Summary",
+    Electrical: "Electrical and Smoke Alarm Report",
     Gas: "Gas Compliance Report",
     Smoke: "Smoke Compliance Report",
   };
@@ -259,6 +261,332 @@ const formatNumericDate = (value) => {
     month: "2-digit",
     day: "2-digit",
   });
+};
+
+const REPORT_STATUS_CANDIDATES = [
+  "overall-status",
+  "overall-compliance",
+  "combined-compliance-status",
+  "overall-property-compliance",
+  "overall-smoke-compliance",
+  "overall-gas-compliance",
+  "overall-assessment",
+  "electrical-outcome",
+  "smoke-outcome",
+  "compliance-status",
+];
+
+const stripMarkdownPrefix = (value = "") =>
+  String(value).replace(/^[\s>*\-•]+/, "").trim();
+
+const normalizeStatusLabel = (value) => {
+  if (!value && value !== false) {
+    return "Pending";
+  }
+
+  const raw = stripMarkdownPrefix(String(value));
+  const lower = raw.toLowerCase();
+
+  const statusLabelMap = {
+    compliant: "Compliant",
+    "fully-compliant": "Compliant",
+    "compliant-with-minor-issues": "Compliant",
+    "all-compliant": "Compliant",
+    satisfactory: "Compliant",
+    pass: "Compliant",
+    "no-faults": "Compliant",
+    "non-compliant": "Non-Compliant",
+    "non-compliant-work-required": "Non-Compliant",
+    "non-compliant-urgent": "Non-Compliant",
+    "issues-identified": "Non-Compliant",
+    "faults-identified": "Non-Compliant",
+    "repairs-required": "Non-Compliant",
+    "replacements-required": "Non-Compliant",
+    "urgent-work-required": "Non-Compliant",
+    unsafe: "Non-Compliant",
+    fail: "Non-Compliant",
+    meets: "Compliant",
+    does_not_meet: "Non-Compliant",
+    "does-not-meet": "Non-Compliant",
+    satisfactory: "Compliant",
+    unsatisfactory: "Non-Compliant",
+  };
+
+  if (statusLabelMap[lower]) {
+    return statusLabelMap[lower];
+  }
+
+  if (lower.includes("non-compliant") || lower.includes("unsafe")) {
+    return "Non-Compliant";
+  }
+
+  if (lower.includes("compliant") || lower.includes("satisfactory")) {
+    return "Compliant";
+  }
+
+  return raw;
+};
+
+const isNonCompliantStatus = (value) =>
+  normalizeStatusLabel(value).toLowerCase() === "non-compliant";
+
+const getPropertyAddress = (property) =>
+  property?.address?.fullAddress ||
+  property?.address?.street ||
+  property?.fullAddress ||
+  property?.address ||
+  "N/A";
+
+const humanizeKey = (value = "") =>
+  String(value)
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+
+const stringifySummaryValue = (value) => {
+  if (value === undefined || value === null || value === "") {
+    return "";
+  }
+
+  if (Array.isArray(value)) {
+    if (value.every((item) => typeof item !== "object")) {
+      return value.join(", ");
+    }
+
+    return value
+      .map((item) => {
+        if (!item || typeof item !== "object") {
+          return String(item || "");
+        }
+
+        return Object.entries(item)
+          .filter(([, entryValue]) => entryValue !== undefined && entryValue !== null && entryValue !== "")
+          .map(([key, entryValue]) => `${humanizeKey(key)}: ${entryValue}`)
+          .join(" | ");
+      })
+      .filter(Boolean)
+      .join("; ");
+  }
+
+  if (typeof value === "object") {
+    return Object.entries(value)
+      .filter(([, entryValue]) => entryValue !== undefined && entryValue !== null && entryValue !== "")
+      .map(([key, entryValue]) => `${humanizeKey(key)}: ${entryValue}`)
+      .join(" | ");
+  }
+
+  return String(value).trim();
+};
+
+const dedupeItems = (items = []) =>
+  [...new Set(items.map((item) => stripMarkdownPrefix(item)).filter(Boolean))];
+
+const extractSummaryInsights = ({ report, template, job, technician }) => {
+  const formData = report?.formData || {};
+  const sections = template?.sections || [];
+  const fieldDefinitions = new Map();
+
+  sections.forEach((section) => {
+    (section.fields || []).forEach((field) => {
+      fieldDefinitions.set(`${section.id}.${field.id}`, {
+        sectionTitle: section.title || humanizeKey(section.id),
+        fieldLabel: field.label || humanizeKey(field.id),
+        fieldType: field.type,
+      });
+    });
+  });
+
+  const foundStatuses = [];
+  const recommendations = [];
+  const urgentRectifications = [];
+  const ongoingIssues = [];
+  let hasExplicitNonCompliance = false;
+  let hasExplicitCompliance = false;
+
+  Object.entries(formData).forEach(([sectionId, sectionData]) => {
+    if (!sectionData || typeof sectionData !== "object") {
+      return;
+    }
+
+    Object.entries(sectionData).forEach(([fieldId, rawValue]) => {
+      const definition =
+        fieldDefinitions.get(`${sectionId}.${fieldId}`) || {};
+      const label = definition.fieldLabel || humanizeKey(fieldId);
+      const fieldType = definition.fieldType || "";
+      const lowerKey = `${sectionId}.${fieldId}`.toLowerCase();
+
+      if (REPORT_STATUS_CANDIDATES.includes(fieldId)) {
+        foundStatuses.push(rawValue);
+      }
+
+      if (
+        /(overall|compliance|outcome|status|assessment|result)/i.test(lowerKey)
+      ) {
+        const normalized = normalizeStatusLabel(rawValue);
+        if (normalized === "Non-Compliant") {
+          hasExplicitNonCompliance = true;
+        }
+        if (normalized === "Compliant") {
+          hasExplicitCompliance = true;
+        }
+      }
+
+      if (Array.isArray(rawValue) && rawValue.every((item) => item && typeof item === "object")) {
+        if (
+          lowerKey.includes("rectification") ||
+          lowerKey.includes("remedial") ||
+          lowerKey.includes("actions") ||
+          lowerKey.includes("work-order")
+        ) {
+          rawValue.forEach((row) => {
+            const issue = stringifySummaryValue(row);
+            if (!issue) {
+              return;
+            }
+            const priority = String(row.priority || row.severity || "").toLowerCase();
+            const issueText = priority
+              ? `${issue} (${humanizeKey(priority)})`
+              : issue;
+            if (priority.includes("urgent") || priority.includes("mandatory")) {
+              urgentRectifications.push(issueText);
+            } else {
+              recommendations.push(issueText);
+            }
+          });
+        }
+        return;
+      }
+
+      const value = stringifySummaryValue(rawValue);
+      if (!value) {
+        return;
+      }
+
+      if (
+        /(ongoing|tenant.*issue|pm.*issue|property.*issue)/i.test(lowerKey) &&
+        value.toLowerCase() !== "no"
+      ) {
+        ongoingIssues.push(`${label}: ${value}`);
+      }
+
+      if (
+        /(comment|comments|note|notes|recommendation|recommendations|follow-up|action)/i.test(
+          lowerKey
+        )
+      ) {
+        const itemText = `${label}: ${value}`;
+        if (
+          isNonCompliantStatus(value) ||
+          /urgent|mandatory|immediate|non-compliant|repair|required/i.test(value)
+        ) {
+          hasExplicitNonCompliance = true;
+          urgentRectifications.push(itemText);
+        } else {
+          recommendations.push(itemText);
+        }
+      }
+
+      if (
+        /(rectification|remedial|issue)/i.test(lowerKey) &&
+        /urgent|mandatory|immediate|non-compliant|repair|required/i.test(value)
+      ) {
+        hasExplicitNonCompliance = true;
+        urgentRectifications.push(`${label}: ${value}`);
+      }
+    });
+  });
+
+  (report?.sectionsSummary || []).forEach((item) => {
+    if (!item?.flag) {
+      return;
+    }
+
+    hasExplicitNonCompliance = true;
+    const summaryText = [item.label, item.value].filter(Boolean).join(": ");
+    if (summaryText) {
+      urgentRectifications.push(summaryText);
+    }
+  });
+
+  const statusSource = foundStatuses.find((entry) => entry !== undefined && entry !== null && entry !== "");
+  let reportStatus = normalizeStatusLabel(statusSource || job?.status);
+
+  if (reportStatus !== "Compliant" && reportStatus !== "Non-Compliant") {
+    if (hasExplicitNonCompliance || urgentRectifications.length) {
+      reportStatus = "Non-Compliant";
+    } else if (hasExplicitCompliance || recommendations.length) {
+      reportStatus = "Compliant";
+    } else {
+      reportStatus = "Compliant";
+    }
+  }
+
+  return {
+    reportStatus,
+    recommendations: dedupeItems(recommendations).slice(0, 8),
+    urgentRectifications: dedupeItems(urgentRectifications).slice(0, 8),
+    ongoingIssues: dedupeItems(ongoingIssues).slice(0, 4),
+    technicianName:
+      `${technician?.firstName || ""} ${technician?.lastName || ""}`.trim() ||
+      "N/A",
+    technicianLicense: technician?.licenseNumber || "N/A",
+  };
+};
+
+const drawSummaryList = (doc, title, items = [], options = {}) => {
+  if (!items.length) {
+    return;
+  }
+
+  const {
+    backgroundColor = COLORS.primarySoft,
+    titleColor = COLORS.primary,
+    bodyColor = COLORS.text,
+  } = options;
+  const boxX = PAGE.margin;
+  const boxWidth = doc.page.width - PAGE.margin * 2;
+  const titleOptions = {
+    width: boxWidth - 32,
+  };
+  const itemOptions = {
+    width: boxWidth - 36,
+    lineGap: 2,
+  };
+
+  doc.font("Helvetica-Bold").fontSize(11);
+  const titleHeight = doc.heightOfString(title, titleOptions);
+
+  doc.font("Helvetica").fontSize(10);
+  const itemHeights = items.map((item) =>
+    doc.heightOfString(`• ${item}`, itemOptions)
+  );
+  const itemsHeight = itemHeights.reduce((sum, height) => sum + height, 0);
+  const contentHeight = 14 + titleHeight + 8 + itemsHeight;
+  const boxHeight = Math.max(60, contentHeight + 14);
+
+  ensurePageSpace(doc, boxHeight + 16);
+  const boxY = doc.y;
+
+  doc.roundedRect(boxX, boxY, boxWidth, boxHeight, 12).fill(backgroundColor);
+  doc
+    .fillColor(titleColor)
+    .font("Helvetica-Bold")
+    .fontSize(11)
+    .text(title, boxX + 16, boxY + 14, titleOptions);
+
+  let lineY = boxY + 14 + titleHeight + 8;
+  items.forEach((item, index) => {
+    doc
+      .fillColor(bodyColor)
+      .font("Helvetica")
+      .fontSize(10)
+      .text(`• ${item}`, boxX + 18, lineY, itemOptions);
+    lineY += itemHeights[index];
+  });
+
+  doc.fillColor(COLORS.text);
+  doc.y = boxY + boxHeight + 8;
 };
 
 const drawPageHeader = (doc) => {
@@ -492,7 +820,7 @@ const drawProfessionalCoverPage = (
     // Add title
     doc
       .fillColor("white")
-      .fontSize(36)
+      .fontSize(30)
       .font("Helvetica-Bold")
       .text(reportTitle, 60, 250, {
         width: doc.page.width - 120,
@@ -515,75 +843,145 @@ const drawPropertyDetailsSection = (
   doc,
   { property, job, technician, report, template }
 ) => {
-  // Assume caller has already prepared the page header
   doc.fillColor(COLORS.text);
-
-  const propertyAddress =
-    property?.address?.fullAddress ||
-    property?.address?.street ||
-    "Property Address Not Available";
+  const propertyAddress = getPropertyAddress(property);
   const inspectionDate = formatDisplayDate(report?.submittedAt || job?.dueDate);
-  const inspectorName =
-    `${technician?.firstName || ""} ${technician?.lastName || ""}`.trim() ||
-    "Inspector Name Not Available";
+  const summaryInsights = extractSummaryInsights({
+    report,
+    template,
+    job,
+    technician,
+  });
   const reportTitle = getReportTitle(template, job);
+  const statusColor = isNonCompliantStatus(summaryInsights.reportStatus)
+    ? COLORS.error
+    : COLORS.success;
+  const statusBackground = isNonCompliantStatus(summaryInsights.reportStatus)
+    ? COLORS.errorSoft
+    : COLORS.successSoft;
 
-  // Add spacing after header
-  doc.y += 20;
-
-  // Main header with report title
+  doc.y += 8;
   doc
     .fillColor(COLORS.primary)
-    .fontSize(24)
+    .fontSize(20)
     .font("Helvetica-Bold")
-    .text(`${reportTitle} Summary`, PAGE.margin, doc.y, {
+    .text(reportTitle, PAGE.margin, doc.y, {
       width: doc.page.width - PAGE.margin * 2,
       align: "center",
     });
 
-  doc.y += 40;
+  doc.y += 10;
 
-  // Property Details Section
-  drawSectionHeader(doc, "Details");
+  const pillWidth = 170;
+  const pillHeight = 30;
+  const pillX = PAGE.margin + (doc.page.width - PAGE.margin * 2 - pillWidth) / 2;
+  const pillY = doc.y;
 
-  const detailsY = doc.y;
+  doc.roundedRect(pillX, pillY, pillWidth, pillHeight, 15).fill(statusBackground);
+  doc
+    .fillColor(statusColor)
+    .fontSize(11)
+    .font("Helvetica-Bold")
+    .text(summaryInsights.reportStatus, pillX, pillY + 9, {
+      width: pillWidth,
+      align: "center",
+    });
+
+  doc.y = pillY + pillHeight + 10;
+
   const tableWidth = doc.page.width - PAGE.margin * 2;
-  const labelWidth = Math.floor(tableWidth * 0.3);
+  const labelWidth = Math.floor(tableWidth * 0.34);
   const valueWidth = tableWidth - labelWidth;
 
   const details = [
-    { label: "Property Address:", value: propertyAddress },
-    { label: "Date:", value: inspectionDate },
+    { label: "Address", value: propertyAddress },
+    {
+      label: "Technician Details",
+      value: `${summaryInsights.technicianName} | Licence: ${summaryInsights.technicianLicense}`,
+    },
+    { label: "Assessment", value: summaryInsights.reportStatus },
+    { label: "Inspection Date", value: inspectionDate },
   ];
 
+  let rowY = doc.y;
   details.forEach((detail, index) => {
-    const rowY = detailsY + index * 30;
+    const labelOptions = {
+      width: labelWidth - 20,
+      lineGap: 2,
+    };
+    const valueOptions = {
+      width: valueWidth - 20,
+      lineGap: 2,
+    };
+    doc.font("Helvetica-Bold").fontSize(11);
+    const labelHeight = doc.heightOfString(`${detail.label}:`, labelOptions);
+    doc.font("Helvetica").fontSize(11);
+    const valueHeight = doc.heightOfString(String(detail.value), valueOptions);
+    const rowHeight = Math.max(28, Math.max(labelHeight, valueHeight) + 10);
 
-    // Row background
     if (index % 2 === 0) {
       doc
-        .rect(PAGE.margin, rowY - 5, tableWidth, 25)
+        .rect(PAGE.margin, rowY - 3, tableWidth, rowHeight)
         .fill(COLORS.neutralBackground);
     }
 
-    // Label
     doc
       .fillColor(COLORS.text)
       .fontSize(11)
       .font("Helvetica-Bold")
-      .text(detail.label, PAGE.margin + 10, rowY + 2);
+      .text(`${detail.label}:`, PAGE.margin + 10, rowY + 4, labelOptions);
 
-    // Value
     doc
       .fillColor(COLORS.textSecondary)
       .fontSize(11)
       .font("Helvetica")
-      .text(detail.value, PAGE.margin + labelWidth + 10, rowY + 2, {
-        width: valueWidth - 20,
-      });
+      .text(
+        detail.value,
+        PAGE.margin + labelWidth + 10,
+        rowY + 4,
+        valueOptions
+      );
+
+    rowY += rowHeight;
   });
 
-  doc.y = detailsY + details.length * 30 + 20;
+  doc.y = rowY + 4;
+
+  if (isNonCompliantStatus(summaryInsights.reportStatus)) {
+    drawSummaryList(
+      doc,
+      "Urgent / Mandatory Rectifications",
+      summaryInsights.urgentRectifications.length
+        ? summaryInsights.urgentRectifications
+        : ["Non-compliance recorded. Review technician comments below."],
+      {
+        backgroundColor: COLORS.errorSoft,
+        titleColor: COLORS.error,
+      }
+    );
+  }
+
+  drawSummaryList(
+    doc,
+    isNonCompliantStatus(summaryInsights.reportStatus)
+      ? "Recommendations From Tradie"
+      : "Recommendations",
+    summaryInsights.recommendations.length
+      ? summaryInsights.recommendations
+      : ["No additional recommendations recorded."],
+    {
+      backgroundColor: isNonCompliantStatus(summaryInsights.reportStatus)
+        ? "#FFF6E6"
+        : COLORS.successSoft,
+      titleColor: isNonCompliantStatus(summaryInsights.reportStatus)
+        ? COLORS.warning
+        : COLORS.success,
+    }
+  );
+
+  if (summaryInsights.ongoingIssues.length) {
+    drawSummaryList(doc, "Ongoing Issues Raised On Site", summaryInsights.ongoingIssues);
+  }
 };
 
 // New function to draw checks conducted and outcomes section
@@ -757,7 +1155,6 @@ const drawDeclarationSection = async (
   const inspectorName =
     `${technician?.firstName || ""} ${technician?.lastName || ""}`.trim() ||
     "Inspector";
-
   // Declaration text
   const declarationText = `This ${reportTitle.toLowerCase()} summarises the inspection findings and certifies that the attending technician has performed the required checks and recommendations recorded below.`;
 
@@ -781,7 +1178,7 @@ const drawDeclarationSection = async (
   doc.y += 10;
 
   // Professional certification statement
-  const certificationText = `I certify that this inspection has been conducted by a qualified inspector and the information contained in this report is true and accurate to the best of my knowledge.`;
+  const certificationText = `I certify that this inspection has been conducted by a qualified inspector and the information contained in this report is true and accurate to the best of my knowledge at the time of inspection.`;
 
   doc.fontSize(10).text(certificationText, PAGE.margin, doc.y, {
     width: doc.page.width - PAGE.margin * 2,
@@ -961,7 +1358,7 @@ const drawGasHazardsSection = (doc) => {
         width: doc.page.width - PAGE.margin * 2 - 15,
         lineGap: 3,
       });
-    doc.y += 18;
+    doc.y += 8;
   });
 
   const conclusionText =
@@ -1258,7 +1655,7 @@ const drawMinimumStandardStatusTable = (
     doc.y += rowHeight;
   });
 
-  doc.y += 16; // Add consistent spacing after table
+  doc.y += 8; // Add consistent spacing after table
 };
 
 const drawPresenceTable = (
@@ -1691,7 +2088,7 @@ const drawStatusList = (
     cursorY += rowHeight;
   });
 
-  doc.y = cursorY + 16;
+  doc.y = cursorY + 8;
 };
 
 const drawSmokeAlarmTable = (doc, alarms = []) => {
@@ -1910,7 +2307,7 @@ const renderElectricalSmokeReport = async (
       .fontSize(12)
       .font("Helvetica-Bold")
       .text(`${heading} Photos`, PAGE.margin, doc.y);
-    doc.y += 18;
+    doc.y += 8;
 
     for (const mediaItem of mediaItems) {
       // Check if we need space for this photo (220px height + spacing)
@@ -1931,7 +2328,7 @@ const renderElectricalSmokeReport = async (
         photoHeight
       );
 
-      doc.y += result.height + 15;
+      doc.y += result.height + 8;
 
       // Add photo caption if available
       if (mediaItem.metadata?.caption) {
@@ -1943,11 +2340,11 @@ const renderElectricalSmokeReport = async (
             width: 400,
             align: "left",
           });
-        doc.y += 10;
+        doc.y += 6;
       }
     }
 
-    doc.y += 5; // Extra spacing after photo section
+    doc.y += 2; // Extra spacing after photo section
   };
 
   const summaryRows = [
@@ -2017,7 +2414,7 @@ const renderElectricalSmokeReport = async (
         lineGap: 3,
       });
 
-    doc.y += 40;
+    doc.y += 16;
   }
 
   if (summarySection["contact-email"] || summarySection["contact-phone"]) {
@@ -2104,7 +2501,7 @@ const renderElectricalSmokeReport = async (
             width: doc.page.width - PAGE.margin * 2,
             lineGap: 2,
           });
-        doc.y += 40;
+        doc.y += 16;
       }
     });
   };
@@ -2174,7 +2571,7 @@ const renderElectricalSmokeReport = async (
         .text(String(rcdNotes), PAGE.margin, doc.y, {
           width: doc.page.width - PAGE.margin * 2,
         });
-      doc.y += 40;
+      doc.y += 16;
     }
   }
 
@@ -2215,7 +2612,7 @@ const renderElectricalSmokeReport = async (
         .text(String(smokeSection["smoke-notes"]), PAGE.margin, doc.y, {
           width: doc.page.width - PAGE.margin * 2,
         });
-      doc.y += 40;
+      doc.y += 16;
     }
   }
 
@@ -2272,7 +2669,10 @@ const renderGasReport = async (
       ensurePageSpace(doc, totalPhotoSpace);
 
       const result = await processImageForPdf(
-        mediaItem.url,
+        {
+          imageUrl: mediaItem.imageBuffer || mediaItem.url,
+          gcsPath: mediaItem.gcsPath,
+        },
         doc,
         PAGE.margin,
         doc.y,
@@ -2280,7 +2680,7 @@ const renderGasReport = async (
         photoHeight
       );
 
-      doc.y += result.height + 15;
+      doc.y += result.height + 8;
 
       // Add photo caption if available
       if (mediaItem.metadata?.caption || mediaItem.label) {
@@ -2297,11 +2697,11 @@ const renderGasReport = async (
               align: "left",
             }
           );
-        doc.y += 10;
+        doc.y += 6;
       }
     }
 
-    doc.y += 5; // Extra spacing after photo section
+    doc.y += 2; // Extra spacing after photo section
   };
 
   // Property Details Summary
@@ -3390,7 +3790,10 @@ const renderMinimumSafetyStandardReport = async (
       ensurePageSpace(doc, totalPhotoSpace);
 
       const result = await processImageForPdf(
-        mediaItem.url,
+        {
+          imageUrl: mediaItem.imageBuffer || mediaItem.url,
+          gcsPath: mediaItem.gcsPath,
+        },
         doc,
         PAGE.margin,
         doc.y,
@@ -3505,6 +3908,8 @@ const renderMinimumSafetyStandardReport = async (
     }))
   );
   await renderSectionPhotos("property-summary", "Property Exterior");
+
+  drawSummaryList(doc, "Disclaimer", ["This is only a visual check."]);
 
   const overallRows = [
     { id: "summary-recycle-general", label: "Recycle and General Waste" },
@@ -4269,15 +4674,15 @@ const renderGenericReport = async (
 
 const drawSectionHeader = (doc, title) => {
   const headerWidth = doc.page.width - PAGE.margin * 2;
-  const maxTextWidth = headerWidth - 36;
+  const maxTextWidth = headerWidth - 34;
 
-  doc.font("Helvetica-Bold").fontSize(13);
+  doc.font("Helvetica-Bold").fontSize(12);
   const textHeight = doc.heightOfString(title, {
     width: maxTextWidth,
     lineGap: 2,
   });
 
-  const headerHeight = Math.max(32, textHeight + 20);
+  const headerHeight = Math.max(28, textHeight + 16);
 
   ensurePageSpace(doc, headerHeight + 40);
 
@@ -4286,19 +4691,20 @@ const drawSectionHeader = (doc, title) => {
 
   doc
     .roundedRect(PAGE.margin, headerY, headerWidth, headerHeight, 10)
-    .fill(COLORS.primary);
+    .fill(COLORS.primarySoft)
+    .stroke(COLORS.border);
 
   doc
-    .fillColor("white")
-    .fontSize(13)
+    .fillColor(COLORS.primary)
+    .fontSize(12)
     .font("Helvetica-Bold")
-    .text(title, PAGE.margin + 18, textOffsetY, {
+    .text(title, PAGE.margin + 16, textOffsetY, {
       width: maxTextWidth,
       lineGap: 2,
     });
 
   doc.fillColor(COLORS.text);
-  doc.y = headerY + headerHeight + 16;
+  doc.y = headerY + headerHeight + 8;
 };
 
 const formatValue = (value, fieldType) => {
@@ -5229,7 +5635,7 @@ const renderSmokeOnlyReport = async (
       : "Non-Compliant";
 
   // Draw report header section (continue from current page position)
-  doc.y += 30; // Add some spacing after property details
+  doc.y += 12; // Add some spacing after property details
   drawSectionHeader(doc, "Smoke Alarm Inspection Summary");
 
   doc
@@ -5246,7 +5652,7 @@ const renderSmokeOnlyReport = async (
       }
     );
 
-  doc.y += 10;
+  doc.y += 6;
   doc.text(
     "Please review the information below for findings and recommendations.",
     PAGE.margin,
@@ -5257,7 +5663,7 @@ const renderSmokeOnlyReport = async (
     }
   );
 
-  doc.y += 20;
+  doc.y += 10;
 
   // Report Details section
   ensurePageSpace(doc, 120);
@@ -5270,27 +5676,12 @@ const renderSmokeOnlyReport = async (
 
   const reportDetailsData = [
     {
-      label: "Service Report Ref #",
-      value:
-        jobDetails["service-report-ref"] ||
-        report._id?.toString().slice(-8) ||
-        "N/A",
-    },
-    {
       label: "Report Date",
       value: new Date().toLocaleDateString("en-AU", {
         day: "numeric",
         month: "long",
         year: "numeric",
       }),
-    },
-    {
-      label: "Customer / Client",
-      value:
-        jobDetails["customer-client"] ||
-        property?.landlord?.name ||
-        property?.agency?.companyName ||
-        "N/A",
     },
     {
       label: "Inspection Address",
@@ -5312,10 +5703,6 @@ const renderSmokeOnlyReport = async (
     },
     { label: "Technician Name", value: technicianName },
     { label: "Technician Licence #", value: technicianLicense },
-    {
-      label: "Business / Vendor",
-      value: "RentalEase Property Services Pty Ltd",
-    },
     { label: "Inspection Type", value: "Smoke Alarm Safety Inspection" },
     {
       label: "Overall Status",
@@ -5324,6 +5711,11 @@ const renderSmokeOnlyReport = async (
   ];
 
   drawRoomDetailTable(doc, null, reportDetailsData);
+  await renderMediaGallery(
+    doc,
+    getMediaItemsForSection(report, "inspection-photos"),
+    "Inspection Photos"
+  );
 
   // Smoke Alarm Inspection Details section
   ensurePageSpace(doc, 150);
@@ -5336,9 +5728,9 @@ const renderSmokeOnlyReport = async (
 
       // Add some spacing between alarm tables
       if (index > 0) {
-        doc.y += 25;
+        doc.y += 12;
       } else {
-        doc.y += 15;
+        doc.y += 8;
       }
 
       // Create alarm title header
@@ -5352,7 +5744,7 @@ const renderSmokeOnlyReport = async (
           align: "left",
         });
 
-      doc.y += 20;
+      doc.y += 8;
 
       // Determine alarm type description
       let alarmTypeDesc = "Photoelectric (Mains 240V)";
@@ -5448,7 +5840,7 @@ const renderSmokeOnlyReport = async (
       // Draw the table using the same style as Report Details
       drawRoomDetailTable(doc, null, alarmDetailsData);
 
-      doc.y += 10; // Add spacing after each alarm table
+      doc.y += 4; // Add spacing after each alarm table
     });
   }
 
@@ -5469,7 +5861,7 @@ const renderSmokeOnlyReport = async (
       align: "left",
     });
 
-  doc.y += 20;
+  doc.y += 10;
 
   // Footer removed as requested
 };
@@ -5618,59 +6010,6 @@ export const buildInspectionReportPdf = async ({
 
   // Next Compliance Schedule
   drawNextStepsSection(doc, { template, job, report: preparedReport });
-
-  // Photos section
-  if (preparedReport.media?.length) {
-    const photoSectionTitle = "Annex: Photos";
-
-    doc.addPage();
-    currentPageNumber++;
-    const startY = drawPageHeader(doc);
-    doc.y = startY;
-    doc.fillColor(COLORS.text);
-
-    drawSectionHeader(doc, photoSectionTitle);
-
-    for (const [index, item] of preparedReport.media.entries()) {
-      const estimatedSpaceNeeded = 360; // Label + image + breathing room
-      const startedNewPage = ensurePageSpace(doc, estimatedSpaceNeeded);
-      if (startedNewPage) {
-        drawSectionHeader(doc, photoSectionTitle);
-      }
-
-      const labelX = PAGE.margin + 10;
-      doc
-        .fillColor(COLORS.text)
-        .fontSize(12)
-        .font("Helvetica-Bold")
-        .text(item.label || `Photo ${index + 1}`, labelX, doc.y);
-
-      doc.y += 20;
-
-      const result = await processImageForPdf(
-        {
-          imageUrl: item.imageBuffer || item.url,
-          gcsPath: item.gcsPath,
-        },
-        doc,
-        PAGE.margin + 10,
-        doc.y,
-        400,
-        300
-      );
-
-      if (result.success) {
-        doc.y += result.height;
-      } else {
-        doc
-          .fillColor(COLORS.textSecondary)
-          .fontSize(10)
-          .font("Helvetica")
-          .text(result.message, labelX, doc.y);
-        doc.y += result.height;
-      }
-    }
-  }
 
   // Add footer to final content page
   drawPageFooter(doc, currentPageNumber);

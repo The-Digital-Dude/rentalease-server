@@ -6,8 +6,15 @@ import Technician from "../models/Technician.js";
 import emailService from "../services/email.service.js";
 import notificationService from "../services/notification.service.js";
 import { sanitizeInput } from "../middleware/sanitizer.middleware.js";
+import resolveFrontendUrl from "../utils/frontendUrl.js";
 
 const router = express.Router();
+
+const encodeBookingToken = (value) =>
+  Buffer.from(value, "utf-8").toString("base64url");
+
+const decodeBookingToken = (value) =>
+  Buffer.from(value, "base64url").toString("utf-8");
 
 /**
  * Send time selection email to tenant for compliance inspection
@@ -62,8 +69,10 @@ router.post("/send-booking-request", sanitizeInput(), async (req, res) => {
     dueDate.setDate(dueDate.getDate() + 30);
 
     // Generate booking link with token for security
-    const bookingToken = Buffer.from(`${propertyId}:${tenantEmail}:${Date.now()}`).toString('base64');
-    const bookingLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/booking/${bookingToken}`;
+    const bookingToken = encodeBookingToken(
+      `${propertyId}:${tenantEmail}:${Date.now()}`
+    );
+    const bookingLink = `${resolveFrontendUrl()}/booking/${bookingToken}`;
 
     // Send email to tenant
     await notificationService.sendEmailNotification(tenantEmail, {
@@ -116,7 +125,7 @@ router.get("/available-slots/:bookingToken", async (req, res) => {
     // Decode booking token
     let decodedToken;
     try {
-      decodedToken = Buffer.from(bookingToken, 'base64').toString('utf-8');
+      decodedToken = decodeBookingToken(bookingToken);
     } catch (error) {
       return res.status(400).json({
         status: "error",
@@ -220,7 +229,7 @@ router.post("/book-appointment", async (req, res) => {
     // Decode booking token
     let decodedToken;
     try {
-      decodedToken = Buffer.from(bookingToken, 'base64').toString('utf-8');
+      decodedToken = decodeBookingToken(bookingToken);
     } catch (error) {
       return res.status(400).json({
         status: "error",

@@ -1141,7 +1141,7 @@ class EmailController {
       console.log("📧 Received send-general request");
       console.log("Files:", req.files ? req.files.length : 0);
 
-      let { to, subject, html } = req.body;
+      let { to, cc, subject, html } = req.body;
 
       // Parse JSON fields from multipart form data (when attachments are sent)
       if (typeof to === "string") {
@@ -1150,6 +1150,13 @@ class EmailController {
         } catch (e) {
           // If parsing fails, treat as single email string
           // It's already a string, so we can use it as-is
+        }
+      }
+      if (typeof cc === "string") {
+        try {
+          cc = JSON.parse(cc);
+        } catch (e) {
+          // Keep single cc string as-is if it was not JSON encoded
         }
       }
 
@@ -1184,6 +1191,17 @@ class EmailController {
         }
       }
 
+      if (cc) {
+        const ccEmails = Array.isArray(cc) ? cc : [cc];
+        const emailRegex = /^\w+([-.]?\w+)*@\w+([-.]?\w+)*(\.\w{2,3})+$/;
+        const invalidCcEmails = ccEmails.filter(
+          (email) => email && !emailRegex.test(email)
+        );
+        if (invalidCcEmails.length > 0) {
+          errors.cc = `Invalid CC email format: ${invalidCcEmails.join(", ")}`;
+        }
+      }
+
       if (Object.keys(errors).length > 0) {
         return res.status(400).json({
           status: "error",
@@ -1203,6 +1221,11 @@ class EmailController {
 
       // Normalize to array for consistent handling
       const recipients = Array.isArray(to) ? to : [to];
+      const ccRecipients = cc
+        ? Array.isArray(cc)
+          ? cc.filter(Boolean)
+          : [cc].filter(Boolean)
+        : [];
 
       // Handle attachments if any
       let attachments = [];
@@ -1232,6 +1255,7 @@ class EmailController {
       const emailData = {
         from: emailService.defaultFrom,
         to: recipients,
+        cc: ccRecipients,
         subject: subject.trim(),
         html: html.trim(),
       };
@@ -1252,6 +1276,7 @@ class EmailController {
         message: "Email sent successfully",
         data: {
           recipients: recipients,
+          cc: ccRecipients,
           subject: subject.trim(),
           attachmentCount: attachments.length,
         },

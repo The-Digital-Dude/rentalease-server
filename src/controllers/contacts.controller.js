@@ -324,13 +324,25 @@ export const deleteContact = async (req, res) => {
 export const sendEmailToContact = async (req, res) => {
   try {
     const { id } = req.params;
-    const { subject, html } = req.body;
+    let { subject, html, cc } = req.body;
     if (!subject || !html) {
       return res.status(400).json({
         status: "error",
         message: "Subject and message body are required",
       });
     }
+    if (typeof cc === "string") {
+      try {
+        cc = JSON.parse(cc);
+      } catch (error) {
+        cc = cc.trim() ? [cc.trim()] : [];
+      }
+    }
+    const ccRecipients = Array.isArray(cc)
+      ? cc.filter(Boolean)
+      : cc
+        ? [cc]
+        : [];
     const contact = await Contact.findById(id);
     if (!contact) {
       return res
@@ -362,6 +374,7 @@ export const sendEmailToContact = async (req, res) => {
     await emailService.resend.emails.send({
       from: emailService.defaultFrom,
       to: [contact.email],
+      cc: ccRecipients,
       subject,
       html,
     });
