@@ -4566,7 +4566,10 @@ const renderGenericReport = async (
       ensurePageSpace(doc, totalPhotoSpace);
 
       const result = await processImageForPdf(
-        mediaItem.url,
+        {
+          imageUrl: mediaItem.imageBuffer || mediaItem.url,
+          gcsPath: mediaItem.gcsPath,
+        },
         doc,
         PAGE.margin,
         doc.y,
