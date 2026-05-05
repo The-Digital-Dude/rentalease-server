@@ -5055,6 +5055,24 @@ const buildSectionRows = (section, responses = {}, { excludeTypes = [] } = {}) =
       value: mapFieldValue(field, responses[field.id]),
     }));
 
+const normalizeMediaMetadata = (metadata) => {
+  if (!metadata) {
+    return {};
+  }
+
+  if (metadata instanceof Map) {
+    return Object.fromEntries(metadata.entries());
+  }
+
+  if (typeof metadata?.toObject === "function") {
+    return metadata.toObject();
+  }
+
+  return { ...metadata };
+};
+
+const getMediaItemMetadata = (item) => normalizeMediaMetadata(item?.metadata);
+
 const getPhotoFieldIdsForSection = (template, sectionId) =>
   (template?.sections || [])
     .find((section) => section.id === sectionId)
@@ -5092,15 +5110,24 @@ const mediaFieldMatchesSection = (fieldId = "", sectionId, photoFieldIds = []) =
 
 const mediaMatchesSection = (item, sectionId, template) => {
   const photoFieldIds = getPhotoFieldIdsForSection(template, sectionId);
+  const metadata = getMediaItemMetadata(item);
 
   return (
-    item?.metadata?.sectionId === sectionId ||
+    metadata.sectionId === sectionId ||
     mediaFieldMatchesSection(item?.fieldId, sectionId, photoFieldIds)
   );
 };
 
 const mediaMatchesRepeatableItem = (item, sectionId, itemIndex, template) => {
-  if (item?.metadata?.sectionId === sectionId && item?.metadata?.itemIndex === itemIndex) {
+  const metadata = getMediaItemMetadata(item);
+  const normalizedItemIndex = Number.parseInt(itemIndex, 10);
+  const metadataItemIndex = Number.parseInt(metadata.itemIndex, 10);
+
+  if (
+    metadata.sectionId === sectionId &&
+    Number.isInteger(metadataItemIndex) &&
+    metadataItemIndex === normalizedItemIndex
+  ) {
     return true;
   }
 
@@ -5138,9 +5165,10 @@ const renderMediaGallery = async (doc, mediaItems = [], heading) => {
   drawSectionHeader(doc, heading);
 
   for (const mediaItem of mediaItems) {
+    const metadata = getMediaItemMetadata(mediaItem);
     ensurePageSpace(doc, 240);
 
-    const label = mediaItem.label || mediaItem.metadata?.caption || "Inspection Photo";
+    const label = mediaItem.label || metadata.caption || "Inspection Photo";
     doc
       .fillColor(COLORS.text)
       .fontSize(10)
@@ -5443,10 +5471,17 @@ const prepareRenderableMedia = async (mediaItems = []) => {
   const preparedItems = [];
 
   for (const item of mediaItems) {
+    const normalizedItem = {
+      ...(typeof item?.toObject === "function"
+        ? item.toObject({ flattenMaps: true })
+        : item),
+      metadata: getMediaItemMetadata(item),
+    };
+
     try {
       const imageBuffer = await loadImageBuffer({
-        imageUrl: item.imageBuffer || item.url,
-        gcsPath: item.gcsPath,
+        imageUrl: normalizedItem.imageBuffer || normalizedItem.url,
+        gcsPath: normalizedItem.gcsPath,
       });
       const metadata = await sharp(imageBuffer).metadata();
       const width = metadata.width || 0;
@@ -5455,30 +5490,30 @@ const prepareRenderableMedia = async (mediaItems = []) => {
       // Some uploads are 1x1 placeholder images, which render as blank pages.
       if (width <= 1 || height <= 1) {
         console.warn("Skipping placeholder image in PDF annex", {
-          fieldId: item.fieldId,
-          label: item.label,
+          fieldId: normalizedItem.fieldId,
+          label: normalizedItem.label,
           width,
           height,
-          gcsPath: item.gcsPath,
-          url: item.url,
+          gcsPath: normalizedItem.gcsPath,
+          url: normalizedItem.url,
         });
         continue;
       }
 
       preparedItems.push({
-        ...item,
+        ...normalizedItem,
         imageBuffer,
       });
     } catch (error) {
       console.error("Failed to prepare report media for PDF:", {
-        fieldId: item.fieldId,
-        label: item.label,
-        gcsPath: item.gcsPath,
-        url: item.url,
+        fieldId: normalizedItem.fieldId,
+        label: normalizedItem.label,
+        gcsPath: normalizedItem.gcsPath,
+        url: normalizedItem.url,
         error: error.message,
       });
 
-      preparedItems.push(item);
+      preparedItems.push(normalizedItem);
     }
   }
 
