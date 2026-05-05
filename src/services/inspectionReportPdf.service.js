@@ -2275,6 +2275,46 @@ const drawCertificationBlock = (doc, certification = {}) => {
   }
 };
 
+const renderInlinePhoto = async (doc, mediaItem) => {
+  if (!mediaItem) {
+    return 0;
+  }
+
+  const photoHeight = 220;
+  ensurePageSpace(doc, photoHeight + 25);
+
+  const result = await processImageForPdf(
+    {
+      imageUrl: mediaItem.imageBuffer || mediaItem.url,
+      gcsPath: mediaItem.gcsPath,
+    },
+    doc,
+    PAGE.margin,
+    doc.y,
+    400,
+    photoHeight
+  );
+
+  let height = result.height;
+  doc.y += height;
+
+  const metadata = getMediaItemMetadata(mediaItem);
+  if (metadata.caption) {
+    doc
+      .fillColor(COLORS.textSecondary)
+      .fontSize(9)
+      .font("Helvetica")
+      .text(metadata.caption, PAGE.margin, doc.y, {
+        width: 400,
+        align: "left",
+      });
+    height += doc.heightOfString(metadata.caption, { width: 400 }) + 6;
+    doc.y += 6;
+  }
+
+  return height;
+};
+
 const renderElectricalSmokeReport = async (
   doc,
   { report, template, job, property, technician }
@@ -2379,7 +2419,6 @@ const renderElectricalSmokeReport = async (
       value: row.value,
     }))
   );
-  await renderSectionPhotos("inspection-summary", "Property Overview");
 
   const outcomeBadges = [];
   if (summarySection["electrical-outcome"]) {
@@ -2434,10 +2473,9 @@ const renderElectricalSmokeReport = async (
       })),
       { hideHeaders: true }
     );
-    await renderSectionPhotos("contact", "Contact Details");
   }
 
-  const renderStatusSection = (sectionId, mapper, noteFieldIds = []) => {
+  const renderStatusSection = async (sectionId, mapper, noteFieldIds = []) => {
     const sectionDefinition = findSectionDefinition(sectionId);
     if (!sectionDefinition) {
       return;
@@ -2479,6 +2517,12 @@ const renderElectricalSmokeReport = async (
       );
     }
 
+    // Render photos for the section
+    const mediaItems = getMediaItemsForSection(report, template, sectionId);
+    for (const mediaItem of mediaItems) {
+      await renderInlinePhoto(doc, mediaItem);
+      doc.y += 10;
+    }
     noteFieldIds.forEach((noteId) => {
       const noteValue = responses[noteId];
       const noteField = (sectionDefinition.fields || []).find(
@@ -2503,42 +2547,35 @@ const renderElectricalSmokeReport = async (
     });
   };
 
-  renderStatusSection(
+  await renderStatusSection(
     "electrical-installations",
     (value, item) => mapFieldValue(item.field, value),
     ["installation-comments"]
   );
-  await renderSectionPhotos(
-    "electrical-installations",
-    "Electrical Installations"
-  );
-  renderStatusSection(
+  await renderStatusSection(
     "safety-testing",
     (value, item) => mapFieldValue(item.field, value),
     ["testing-comments"]
   );
-  await renderSectionPhotos("safety-testing", "Safety Testing");
-  renderStatusSection(
+  await renderStatusSection(
     "compliance-assessment",
     (value, item) => mapFieldValue(item.field, value),
     ["compliance-comments"]
   );
-  await renderSectionPhotos("compliance-assessment", "Compliance Assessment");
-  renderStatusSection(
+  await renderStatusSection(
     "remedial-actions",
     (value, item) => mapFieldValue(item.field, value),
     ["actions-description", "follow-up-details"]
   );
-  await renderSectionPhotos("remedial-actions", "Remedial Actions");
 
-  renderStatusSection("extent-of-installation", mapCoverageValue, [
+  await renderStatusSection("extent-of-installation", mapCoverageValue, [
     "extent-notes",
   ]);
-  renderStatusSection("visual-inspection", mapInspectionStatus, [
+  await renderStatusSection("visual-inspection", mapInspectionStatus, [
     "visual-notes",
   ]);
-  renderStatusSection("testing-polarity", mapTestingStatus, ["polarity-notes"]);
-  renderStatusSection("testing-earth", mapTestingStatus, [
+  await renderStatusSection("testing-polarity", mapTestingStatus, ["polarity-notes"]);
+  await renderStatusSection("testing-earth", mapTestingStatus, [
     "earth-continuity-notes",
   ]);
 
@@ -5770,7 +5807,7 @@ const renderSmokeOnlyReport = async (
 
   if (alarmRecords.length > 0) {
     // Create individual "Report Details" style tables for each smoke alarm
-    alarmRecords.forEach((alarm, index) => {
+    for (const [index, alarm] of alarmRecords.entries()) {
       ensurePageSpace(doc, 200); // Ensure space for each individual table
 
       // Add some spacing between alarm tables
@@ -5887,8 +5924,15 @@ const renderSmokeOnlyReport = async (
       // Draw the table using the same style as Report Details
       drawRoomDetailTable(doc, null, alarmDetailsData);
 
+      // Render photos for this alarm
+      const mediaItems = getMediaItemsForRepeatableItem(report, template, 'smoke-alarm-inventory', index);
+      for (const mediaItem of mediaItems) {
+        await renderInlinePhoto(doc, mediaItem);
+        doc.y += 10;
+      }
+
       doc.y += 4; // Add spacing after each alarm table
-    });
+    }
   }
 
   // General Comments section
