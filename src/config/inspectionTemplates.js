@@ -171,6 +171,30 @@ const createSmokeTableColumns = () => [
   { id: "location", label: "Location", type: "text", required: true },
   { id: "level", label: "Level", type: "text", placeholder: "e.g. G, 1" },
   { id: "expiration", label: "Expiration", type: "date" },
+  {
+    id: "photo-context",
+    label: "Photo: Installed location context",
+    type: "photo",
+    helpText: "Wide shot showing this alarm in its installed location",
+  },
+  {
+    id: "photo-label",
+    label: "Photo: Manufacturer label",
+    type: "photo",
+    helpText: "Close-up of brand, model, manufacture date, and expiry details",
+  },
+  {
+    id: "photo-test",
+    label: "Photo: Test result",
+    type: "photo",
+    helpText: "Photo of tester, dB reading, or test in progress",
+  },
+  {
+    id: "photo-replaced",
+    label: "Photo: Replacement work",
+    type: "photo",
+    helpText: "Photo of replacement work if this alarm was replaced",
+  },
 ];
 
 const buildSmokeAlarmsSection = () => ({
@@ -343,6 +367,33 @@ const createElectricalSmokeSections = () => [
         label: "Visual inspection notes",
         type: "textarea",
       },
+      {
+        id: "switchboard-photos",
+        label: "Switchboard photos",
+        type: "photo-multi",
+        helpText: "Take photos of the electrical switchboard and components",
+      },
+      {
+        id: "aircon-photos",
+        label: "Air conditioning photos",
+        type: "photo-multi",
+        helpText:
+          "Take photos of air conditioning units and electrical connections",
+      },
+      {
+        id: "oven-photos",
+        label: "Oven photos",
+        type: "photo-multi",
+        helpText:
+          "Take photos of oven and cooking equipment electrical connections",
+      },
+      {
+        id: "rangehood-photos",
+        label: "Rangehood photos",
+        type: "photo-multi",
+        helpText:
+          "Take photos of rangehood and exhaust fan electrical connections",
+      },
     ],
   },
   {
@@ -362,6 +413,31 @@ const createElectricalSmokeSections = () => [
       {
         id: "polarity-notes",
         label: "Testing notes",
+        type: "textarea",
+      },
+      {
+        id: "gpo-tester-photos",
+        label: "GPO test evidence photos",
+        type: "photo-multi",
+        helpText:
+          "Take photos of GPO outlets with electrical tester showing results",
+      },
+    ],
+  },
+  {
+    id: "meter-supply",
+    title: "Meter & Supply Evidence",
+    description: "Document the supply meter and service fuse where visible.",
+    fields: [
+      {
+        id: "meter-photos",
+        label: "Supply meter photos",
+        type: "photo-multi",
+        helpText: "Document the supply meter and service fuse",
+      },
+      {
+        id: "meter-supply-notes",
+        label: "Meter / supply notes",
         type: "textarea",
       },
     ],
@@ -412,55 +488,15 @@ const createElectricalSmokeSections = () => [
   buildSmokeAlarmsSection(),
   {
     id: "inspection-photos",
-    title: "Inspection Photos",
+    title: "Additional Photos",
     description:
-      "Upload photos taken during the electrical and smoke alarm inspection.",
+      "Upload only general photos that do not belong to a specific inspection section.",
     fields: [
-      {
-        id: "switchboard-photos",
-        label: "Switchboard",
-        type: "photo-multi",
-        helpText: "Take photos of the electrical switchboard and components",
-      },
-      {
-        id: "smoke-alarm-photos",
-        label: "Smoke Alarm",
-        type: "photo-multi",
-        helpText: "Take photos of smoke alarms showing location and details",
-      },
-      {
-        id: "aircon-photos",
-        label: "Aircon",
-        type: "photo-multi",
-        helpText:
-          "Take photos of air conditioning units and electrical connections",
-      },
-      {
-        id: "gpo-tester-photos",
-        label: "GPO with tester lit up",
-        type: "photo-multi",
-        helpText:
-          "Take photos of GPO outlets with electrical tester showing results",
-      },
-      {
-        id: "oven-photos",
-        label: "Oven",
-        type: "photo-multi",
-        helpText:
-          "Take photos of oven and cooking equipment electrical connections",
-      },
-      {
-        id: "rangehood-photos",
-        label: "Rangehood",
-        type: "photo-multi",
-        helpText:
-          "Take photos of rangehood and exhaust fan electrical connections",
-      },
       {
         id: "additional-photos",
         label: "Additional Photos",
         type: "photo-multi",
-        helpText: "Upload any additional photos relevant to the inspection",
+        helpText: "Upload any extra photos not tied to a specific component",
       },
     ],
   },
@@ -1139,6 +1175,33 @@ const createElectricalSections = () => [
         type: "textarea",
         placeholder: "Add any additional context for the visual assessment",
       },
+      {
+        id: "switchboard-photos",
+        label: "Switchboard photos",
+        type: "photo-multi",
+        helpText: "Capture the main switchboard and safety devices",
+      },
+      {
+        id: "aircon-photos",
+        label: "Air conditioning photos",
+        type: "photo-multi",
+        helpText:
+          "Take photos of air conditioning units and electrical connections",
+      },
+      {
+        id: "oven-photos",
+        label: "Oven photos",
+        type: "photo-multi",
+        helpText:
+          "Take photos of oven and cooking equipment electrical connections",
+      },
+      {
+        id: "rangehood-photos",
+        label: "Rangehood photos",
+        type: "photo-multi",
+        helpText:
+          "Take photos of rangehood and exhaust fan electrical connections",
+      },
     ],
   },
   {
@@ -1160,6 +1223,31 @@ const createElectricalSections = () => [
         label: "Testing notes",
         type: "textarea",
         placeholder: "Add any additional notes captured during testing",
+      },
+      {
+        id: "gpo-tester-photos",
+        label: "GPO test evidence photos",
+        type: "photo-multi",
+        helpText:
+          "Take photos of GPO outlets with electrical tester showing results",
+      },
+    ],
+  },
+  {
+    id: "meter-supply",
+    title: "Meter & Supply Evidence",
+    description: "Document the supply meter and service fuse where visible.",
+    fields: [
+      {
+        id: "meter-photos",
+        label: "Supply meter photos",
+        type: "photo-multi",
+        helpText: "Document the supply meter and service fuse",
+      },
+      {
+        id: "meter-supply-notes",
+        label: "Meter / supply notes",
+        type: "textarea",
       },
     ],
   },
@@ -1209,33 +1297,15 @@ const createElectricalSections = () => [
   buildSmokeAlarmsSection(),
   {
     id: "inspection-photos",
-    title: "Inspection Photos",
-    description: "Upload photos taken during the electrical safety inspection.",
+    title: "Additional Photos",
+    description:
+      "Upload only general photos that do not belong to a specific inspection section.",
     fields: [
-      {
-        id: "switchboard-photos",
-        label: "Switchboard",
-        type: "photo-multi",
-        helpText: "Capture the main switchboard and safety devices",
-      },
-      {
-        id: "gpo-tester-photos",
-        label: "GPO Test Evidence",
-        type: "photo-multi",
-        helpText:
-          "Take photos of GPO outlets with electrical tester showing results",
-      },
-      {
-        id: "meter-photos",
-        label: "Supply Meter",
-        type: "photo-multi",
-        helpText: "Document the supply meter and service fuse",
-      },
       {
         id: "additional-photos",
         label: "Additional Photos",
         type: "photo-multi",
-        helpText: "Upload any additional photos relevant to the inspection",
+        helpText: "Upload any extra photos not tied to a specific component",
       },
     ],
   },
@@ -4725,8 +4795,9 @@ const createSmokeOnlySections = () => [
   },
   {
     id: "inspection-photos",
-    title: "Inspection Photos",
-    description: "Photographic evidence of smoke alarm inspection and testing.",
+    title: "Additional Photos",
+    description:
+      "General smoke alarm photos that are not tied to one alarm record.",
     fields: [
       {
         id: "property-overview-photos",
@@ -4734,48 +4805,6 @@ const createSmokeOnlySections = () => [
         type: "photo-multi",
         helpText: "General photos showing property layout and alarm locations",
         metadata: { max: 4 },
-      },
-      {
-        id: "alarm-context-photos",
-        label: "Alarm Installation Context",
-        type: "photo-multi",
-        required: true,
-        helpText:
-          "Wide shots showing each alarm's installation location and context",
-        metadata: { max: 8 },
-      },
-      {
-        id: "alarm-label-photos",
-        label: "Manufacturer Labels",
-        type: "photo-multi",
-        required: true,
-        helpText:
-          "Close-up photos of manufacturer labels showing brand, model, and manufacture date",
-        metadata: { max: 8 },
-      },
-      {
-        id: "test-procedure-photos",
-        label: "Testing in Progress",
-        type: "photo-multi",
-        required: true,
-        helpText:
-          "Photos showing test button being pressed or dB meter readings",
-        metadata: { max: 8 },
-      },
-      {
-        id: "replacement-photos",
-        label: "Replacement Work",
-        type: "photo-multi",
-        helpText: "Before and after photos if any alarms were replaced",
-        metadata: { max: 6 },
-      },
-      {
-        id: "defect-photos",
-        label: "Defects or Issues",
-        type: "photo-multi",
-        helpText:
-          "Photos documenting any defects, damage, or non-compliance issues",
-        metadata: { max: 6 },
       },
       {
         id: "additional-photos",

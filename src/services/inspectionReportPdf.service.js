@@ -2575,6 +2575,9 @@ const renderElectricalSmokeReport = async (
     "visual-notes",
   ]);
   await renderStatusSection("testing-polarity", mapTestingStatus, ["polarity-notes"]);
+  await renderStatusSection("meter-supply", (value, item) =>
+    mapFieldValue(item.field, value)
+  );
   await renderStatusSection("testing-earth", mapTestingStatus, [
     "earth-continuity-notes",
   ]);
@@ -2652,8 +2655,8 @@ const renderElectricalSmokeReport = async (
 
   await renderMediaGallery(
     doc,
-    getMediaItemsForSection(report, template, "inspection-photos"),
-    "Inspection Photos"
+    getGeneralInspectionMediaItems(report),
+    "Additional Photos"
   );
 
   drawCertificationBlock(doc, certificationSection);
@@ -3739,8 +3742,8 @@ const renderElectricalReport = async (
 
   await renderMediaGallery(
     doc,
-    getMediaItemsForSection(report, template, "inspection-photos"),
-    "Inspection Photos"
+    getGeneralInspectionMediaItems(report),
+    "Additional Photos"
   );
 };
 
@@ -5089,13 +5092,24 @@ const normalizeMediaMetadata = (metadata) => {
 
 const getMediaItemMetadata = (item) => normalizeMediaMetadata(item?.metadata);
 
-const getPhotoFieldIdsForSection = (template, sectionId) =>
-  (template?.sections || [])
-    .find((section) => section.id === sectionId)
-    ?.fields?.filter(
-      (field) => field.type === "photo" || field.type === "photo-multi"
-    )
-    .map((field) => field.id) || [];
+const getPhotoFieldIdsForSection = (template, sectionId) => {
+  return (
+    (template?.sections || []).find((section) => section.id === sectionId)
+      ?.fields || []
+  ).flatMap((field) => {
+    if (field.type === "photo" || field.type === "photo-multi") {
+      return [field.id];
+    }
+
+    if (field.type === "table") {
+      return (field.columns || []).filter(
+        (column) => column.type === "photo" || column.type === "photo-multi"
+      ).map((column) => column.id);
+    }
+
+    return [];
+  });
+};
 
 const mediaFieldMatchesSection = (fieldId = "", sectionId, photoFieldIds = []) => {
   if (!fieldId) {
@@ -5170,6 +5184,32 @@ const getMediaItemsForSection = (report, template, sectionId) =>
 const getMediaItemsForRepeatableItem = (report, template, sectionId, itemIndex) =>
   (report.media || []).filter((item) =>
     mediaMatchesRepeatableItem(item, sectionId, itemIndex, template)
+  );
+
+const mediaMatchesAnyFieldId = (item, fieldIds = []) =>
+  fieldIds.some((fieldId) => {
+    const rawFieldId = String(item?.fieldId || "");
+
+    return (
+      rawFieldId === fieldId ||
+      rawFieldId.startsWith(`${fieldId}-`) ||
+      rawFieldId.startsWith(`${fieldId}.`) ||
+      rawFieldId.startsWith(`${fieldId}[`) ||
+      rawFieldId.endsWith(`.${fieldId}`) ||
+      rawFieldId.endsWith(`-${fieldId}`) ||
+      rawFieldId.includes(`.${fieldId}.`) ||
+      rawFieldId.includes(`.${fieldId}[`) ||
+      rawFieldId.includes(`-${fieldId}-`) ||
+      rawFieldId.includes(`[${fieldId}]`)
+    );
+  });
+
+const getGeneralInspectionMediaItems = (report) =>
+  (report.media || []).filter((item) =>
+    mediaMatchesAnyFieldId(item, [
+      "additional-photos",
+      "property-overview-photos",
+    ])
   );
 
 const renderMediaGallery = async (doc, mediaItems = [], heading) => {
@@ -5797,8 +5837,8 @@ const renderSmokeOnlyReport = async (
   drawRoomDetailTable(doc, null, reportDetailsData);
   await renderMediaGallery(
     doc,
-    getMediaItemsForSection(report, template, "inspection-photos"),
-    "Inspection Photos"
+    getGeneralInspectionMediaItems(report),
+    "Additional Photos"
   );
 
   // Smoke Alarm Inspection Details section
