@@ -2329,12 +2329,13 @@ const renderElectricalSmokeReport = async (
       doc.y += result.height + 8;
 
       // Add photo caption if available
-      if (mediaItem.metadata?.caption) {
+      const metadata = getMediaItemMetadata(mediaItem);
+      if (metadata.caption) {
         doc
           .fillColor(COLORS.textSecondary)
           .fontSize(9)
           .font("Helvetica")
-          .text(mediaItem.metadata.caption, PAGE.margin, doc.y, {
+          .text(metadata.caption, PAGE.margin, doc.y, {
             width: 400,
             align: "left",
           });
@@ -2614,6 +2615,12 @@ const renderElectricalSmokeReport = async (
     }
   }
 
+  await renderMediaGallery(
+    doc,
+    getMediaItemsForSection(report, template, "inspection-photos"),
+    "Inspection Photos"
+  );
+
   drawCertificationBlock(doc, certificationSection);
 };
 
@@ -2677,13 +2684,14 @@ const renderGasReport = async (
       doc.y += result.height + 8;
 
       // Add photo caption if available
-      if (mediaItem.metadata?.caption || mediaItem.label) {
+      const metadata = getMediaItemMetadata(mediaItem);
+      if (metadata.caption || mediaItem.label) {
         doc
           .fillColor(COLORS.textSecondary)
           .fontSize(9)
           .font("Helvetica")
           .text(
-            mediaItem.metadata?.caption || mediaItem.label || "",
+            metadata.caption || mediaItem.label || "",
             PAGE.margin,
             doc.y,
             {
@@ -3274,6 +3282,12 @@ const renderGasSmokeReport = async (
 
     await renderSectionPhotos("certification", "Certification");
   }
+
+  await renderMediaGallery(
+    doc,
+    getMediaItemsForSection(report, template, "inspection-photos"),
+    "Inspection Photos"
+  );
 };
 
 const renderElectricalReport = async (
@@ -3704,6 +3718,12 @@ const renderElectricalReport = async (
 
     await renderSectionPhotos("certification", "Certification");
   }
+
+  await renderMediaGallery(
+    doc,
+    getMediaItemsForSection(report, template, "inspection-photos"),
+    "Inspection Photos"
+  );
 };
 
 const renderMinimumSafetyStandardReport = async (
@@ -3788,12 +3808,13 @@ const renderMinimumSafetyStandardReport = async (
       doc.y += result.height + 15;
 
       // Add photo caption if available
-      if (mediaItem.metadata?.caption) {
+      const metadata = getMediaItemMetadata(mediaItem);
+      if (metadata.caption) {
         doc
           .fillColor(COLORS.textSecondary)
           .fontSize(9)
           .font("Helvetica")
-          .text(mediaItem.metadata.caption, PAGE.margin, doc.y, {
+          .text(metadata.caption, PAGE.margin, doc.y, {
             width: 400,
             align: "left",
           });
@@ -4560,13 +4581,14 @@ const renderGenericReport = async (
       doc.y += result.height + 15;
 
       // Add photo caption if available
-      if (mediaItem.metadata?.caption || mediaItem.label) {
+      const metadata = getMediaItemMetadata(mediaItem);
+      if (metadata.caption || mediaItem.label) {
         doc
           .fillColor(COLORS.textSecondary)
           .fontSize(9)
           .font("Helvetica")
           .text(
-            mediaItem.metadata?.caption || mediaItem.label || "",
+            metadata.caption || mediaItem.label || "",
             PAGE.margin,
             doc.y,
             {

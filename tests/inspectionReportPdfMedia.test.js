@@ -86,4 +86,83 @@ describe("Inspection report PDF media matching", () => {
       mediaMatchesRepeatableItem(item, "gas-appliances", 0, template)
     ).toBe(true);
   });
+
+  test("renders the dedicated inspection photos section for electrical reports", () => {
+    const servicePath = path.resolve(
+      __dirname,
+      "../src/services/inspectionReportPdf.service.js"
+    );
+    const source = fs.readFileSync(servicePath, "utf8");
+    const electricalSmokeStart = source.indexOf(
+      "const renderElectricalSmokeReport = async"
+    );
+    const gasStart = source.indexOf("const renderGasReport = async");
+    const electricalStart = source.indexOf("const renderElectricalReport = async");
+    const minimumSafetyStart = source.indexOf(
+      "const renderMinimumSafetyStandardReport = async"
+    );
+    const electricalSmokeSource = source.slice(electricalSmokeStart, gasStart);
+    const electricalSource = source.slice(electricalStart, minimumSafetyStart);
+
+    expect(electricalSmokeSource).toMatch(
+      /getMediaItemsForSection\(report,\s*template,\s*"inspection-photos"\)/
+    );
+    expect(electricalSmokeSource).toMatch(/"Inspection Photos"/);
+    expect(electricalSource).toMatch(
+      /getMediaItemsForSection\(report,\s*template,\s*"inspection-photos"\)/
+    );
+    expect(electricalSource).toMatch(/"Inspection Photos"/);
+  });
+
+  test("renders smoke-only inspection photos", () => {
+    const servicePath = path.resolve(
+      __dirname,
+      "../src/services/inspectionReportPdf.service.js"
+    );
+    const source = fs.readFileSync(servicePath, "utf8");
+    const smokeStart = source.indexOf("const renderSmokeOnlyReport = async");
+    const buildPdfStart = source.indexOf("export const buildInspectionReportPdf");
+    const smokeSource = source.slice(smokeStart, buildPdfStart);
+
+    expect(smokeSource).toMatch(
+      /getMediaItemsForSection\(report,\s*template,\s*"inspection-photos"\)/
+    );
+    expect(smokeSource).toMatch(/"Inspection Photos"/);
+  });
+
+  test("minimum safety standard renderer visits photo-bearing sections", () => {
+    const servicePath = path.resolve(
+      __dirname,
+      "../src/services/inspectionReportPdf.service.js"
+    );
+    const source = fs.readFileSync(servicePath, "utf8");
+    const minimumSafetyStart = source.indexOf(
+      "const renderMinimumSafetyStandardReport = async"
+    );
+    const genericStart = source.indexOf("const renderGenericReport = async");
+    const minimumSafetySource = source.slice(minimumSafetyStart, genericStart);
+
+    [
+      "property-summary",
+      "front-entrance",
+      "electrical-safety",
+      "bin-facilities",
+    ].forEach((sectionId) => {
+      expect(minimumSafetySource).toContain(
+        `await renderSectionPhotos("${sectionId}"`
+      );
+    });
+    expect(minimumSafetySource).toMatch(
+      /const additionalDetailSections = new Set\(\[\s*"living-room",\s*"kitchen",\s*"laundry"/
+    );
+    expect(minimumSafetySource).toMatch(
+      /const isBedroom = section\.id\.startsWith\("bedroom-"\)/
+    );
+    expect(minimumSafetySource).toMatch(
+      /const isBathroom = section\.id\.startsWith\("bathroom-"\)/
+    );
+    expect(minimumSafetySource).toMatch(
+      /await renderSectionPhotos\(section\.id,\s*roomTitle\)/
+    );
+  });
 });
