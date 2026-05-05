@@ -87,33 +87,7 @@ describe("Inspection report PDF media matching", () => {
     ).toBe(true);
   });
 
-  test("matches repeatable table row media for nested photo columns", () => {
-    const { mediaMatchesRepeatableItem } = loadMediaHelpers();
-    const template = {
-      sections: [
-        {
-          id: "smoke-alarm-inventory",
-          fields: [
-            {
-              id: "alarm-records",
-              type: "table",
-              columns: [{ id: "photo-context", type: "photo" }],
-            },
-          ],
-        },
-      ],
-    };
-    const item = {
-      fieldId: "smoke-alarm-inventory[0][photo-context]",
-      metadata: new Map(),
-    };
-
-    expect(
-      mediaMatchesRepeatableItem(item, "smoke-alarm-inventory", 0, template)
-    ).toBe(true);
-  });
-
-  test("electrical reports render only additional generic gallery photos", () => {
+  test("renders the dedicated inspection photos section for electrical reports", () => {
     const servicePath = path.resolve(
       __dirname,
       "../src/services/inspectionReportPdf.service.js"
@@ -130,13 +104,17 @@ describe("Inspection report PDF media matching", () => {
     const electricalSmokeSource = source.slice(electricalSmokeStart, gasStart);
     const electricalSource = source.slice(electricalStart, minimumSafetyStart);
 
-    expect(electricalSmokeSource).toMatch(/getGeneralInspectionMediaItems\(report\)/);
-    expect(electricalSmokeSource).toMatch(/"Additional Photos"/);
-    expect(electricalSource).toMatch(/getGeneralInspectionMediaItems\(report\)/);
-    expect(electricalSource).toMatch(/"Additional Photos"/);
+    expect(electricalSmokeSource).toMatch(
+      /getMediaItemsForSection\(report,\s*template,\s*"inspection-photos"\)/
+    );
+    expect(electricalSmokeSource).toMatch(/"Inspection Photos"/);
+    expect(electricalSource).toMatch(
+      /getMediaItemsForSection\(report,\s*template,\s*"inspection-photos"\)/
+    );
+    expect(electricalSource).toMatch(/"Inspection Photos"/);
   });
 
-  test("smoke-only reports render only additional generic gallery photos", () => {
+  test("renders smoke-only inspection photos", () => {
     const servicePath = path.resolve(
       __dirname,
       "../src/services/inspectionReportPdf.service.js"
@@ -146,8 +124,10 @@ describe("Inspection report PDF media matching", () => {
     const buildPdfStart = source.indexOf("export const buildInspectionReportPdf");
     const smokeSource = source.slice(smokeStart, buildPdfStart);
 
-    expect(smokeSource).toMatch(/getGeneralInspectionMediaItems\(report\)/);
-    expect(smokeSource).toMatch(/"Additional Photos"/);
+    expect(smokeSource).toMatch(
+      /getMediaItemsForSection\(report,\s*template,\s*"inspection-photos"\)/
+    );
+    expect(smokeSource).toMatch(/"Inspection Photos"/);
   });
 
   test("minimum safety standard renderer visits photo-bearing sections", () => {

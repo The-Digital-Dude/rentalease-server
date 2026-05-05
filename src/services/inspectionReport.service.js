@@ -47,26 +47,18 @@ const buildPhotoFieldContextLookup = (template) => {
 
   (template?.sections || []).forEach((section) => {
     (section.fields || []).forEach((field) => {
-      const photoFields =
-        field?.type === "table"
-          ? field.columns?.filter(
-              (column) =>
-                column?.type === "photo" || column?.type === "photo-multi"
-            ) || []
-          : field?.type === "photo" || field?.type === "photo-multi"
-          ? [field]
-          : [];
+      if (field?.type !== "photo" && field?.type !== "photo-multi") {
+        return;
+      }
 
-      photoFields.forEach((photoField) => {
-        const entries = lookup.get(photoField.id) || [];
-        entries.push({
-          sectionId: section.id,
-          fieldId: photoField.id,
-          repeatable: Boolean(section.repeatable || field?.type === "table"),
-          label: photoField.label,
-        });
-        lookup.set(photoField.id, entries);
+      const entries = lookup.get(field.id) || [];
+      entries.push({
+        sectionId: section.id,
+        fieldId: field.id,
+        repeatable: Boolean(section.repeatable),
+        label: field.label,
       });
+      lookup.set(field.id, entries);
     });
   });
 
