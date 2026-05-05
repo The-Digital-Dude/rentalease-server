@@ -27,11 +27,15 @@ describe("Inspection report PDF media matching", () => {
     const executableSource = [
       extractConst(source, "normalizeMediaMetadata"),
       extractConst(source, "getMediaItemMetadata"),
+      extractConst(source, "getPhotoFieldsForSection"),
       extractConst(source, "getPhotoFieldIdsForSection"),
+      extractConst(source, "mediaFieldMatchesPhotoField"),
       extractConst(source, "mediaFieldMatchesSection"),
       extractConst(source, "mediaMatchesSection"),
       extractConst(source, "mediaMatchesRepeatableItem"),
-      "return { mediaMatchesSection, mediaMatchesRepeatableItem, getMediaItemMetadata };",
+      extractConst(source, "findPhotoFieldForMedia"),
+      extractConst(source, "buildPhotoCaption"),
+      "return { mediaMatchesSection, mediaMatchesRepeatableItem, getMediaItemMetadata, buildPhotoCaption };",
     ].join("\n\n");
 
     return new Function(executableSource)();
@@ -85,6 +89,73 @@ describe("Inspection report PDF media matching", () => {
     expect(
       mediaMatchesRepeatableItem(item, "gas-appliances", 0, template)
     ).toBe(true);
+  });
+
+  test("builds photo captions from the matching template field label", () => {
+    const { buildPhotoCaption } = loadMediaHelpers();
+    const template = {
+      sections: [
+        {
+          id: "inspection-photos",
+          fields: [
+            {
+              id: "switchboard-photos",
+              label: "Switchboard",
+              type: "photo-multi",
+            },
+          ],
+        },
+      ],
+    };
+    const item = {
+      fieldId: "switchboard-photos",
+      metadata: new Map([
+        ["sectionId", "inspection-photos"],
+        ["caption", "Main switchboard before testing"],
+      ]),
+    };
+
+    expect(
+      buildPhotoCaption(item, {
+        template,
+        sectionId: "inspection-photos",
+      })
+    ).toBe("Switchboard - Main switchboard before testing");
+  });
+
+  test("builds photo captions from nested table photo field labels", () => {
+    const { buildPhotoCaption } = loadMediaHelpers();
+    const template = {
+      sections: [
+        {
+          id: "smoke-alarm-inventory",
+          fields: [
+            {
+              id: "alarm-records",
+              type: "table",
+              columns: [
+                {
+                  id: "photo-label",
+                  label: "Photo: Label showing brand/MFD/expiry",
+                  type: "photo",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const item = {
+      fieldId: "photo-label",
+      metadata: new Map([["sectionId", "smoke-alarm-inventory"]]),
+    };
+
+    expect(
+      buildPhotoCaption(item, {
+        template,
+        sectionId: "smoke-alarm-inventory",
+      })
+    ).toBe("Photo: Label showing brand/MFD/expiry");
   });
 
   test("renders the dedicated inspection photos section for electrical reports", () => {

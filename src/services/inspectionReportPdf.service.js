@@ -2303,7 +2303,29 @@ const drawCertificationBlock = (doc, certification = {}) => {
   }
 };
 
-const renderInlinePhoto = async (doc, mediaItem) => {
+const renderPhotoCaption = (doc, mediaItem, options = {}) => {
+  const caption = buildPhotoCaption(mediaItem, options);
+
+  if (!caption) {
+    return 0;
+  }
+
+  doc
+    .fillColor(COLORS.textSecondary)
+    .fontSize(9)
+    .font("Helvetica")
+    .text(caption, PAGE.margin, doc.y, {
+      width: 400,
+      align: "left",
+    });
+
+  const height = doc.heightOfString(caption, { width: 400 }) + 6;
+  doc.y += 6;
+
+  return height;
+};
+
+const renderInlinePhoto = async (doc, mediaItem, options = {}) => {
   if (!mediaItem) {
     return 0;
   }
@@ -2326,19 +2348,7 @@ const renderInlinePhoto = async (doc, mediaItem) => {
   let height = result.height;
   doc.y += height;
 
-  const metadata = getMediaItemMetadata(mediaItem);
-  if (metadata.caption) {
-    doc
-      .fillColor(COLORS.textSecondary)
-      .fontSize(9)
-      .font("Helvetica")
-      .text(metadata.caption, PAGE.margin, doc.y, {
-        width: 400,
-        align: "left",
-      });
-    height += doc.heightOfString(metadata.caption, { width: 400 }) + 6;
-    doc.y += 6;
-  }
+  height += renderPhotoCaption(doc, mediaItem, options);
 
   return height;
 };
@@ -2402,19 +2412,7 @@ const renderElectricalSmokeReport = async (
 
       doc.y += result.height + 8;
 
-      // Add photo caption if available
-      const metadata = getMediaItemMetadata(mediaItem);
-      if (metadata.caption) {
-        doc
-          .fillColor(COLORS.textSecondary)
-          .fontSize(9)
-          .font("Helvetica")
-          .text(metadata.caption, PAGE.margin, doc.y, {
-            width: 400,
-            align: "left",
-          });
-        doc.y += 6;
-      }
+      renderPhotoCaption(doc, mediaItem, { template, sectionId });
     }
 
     doc.y += 2; // Extra spacing after photo section
@@ -2548,7 +2546,7 @@ const renderElectricalSmokeReport = async (
     // Render photos for the section
     const mediaItems = getMediaItemsForSection(report, template, sectionId);
     for (const mediaItem of mediaItems) {
-      await renderInlinePhoto(doc, mediaItem);
+      await renderInlinePhoto(doc, mediaItem, { template, sectionId });
       doc.y += 10;
     }
     noteFieldIds.forEach((noteId) => {
@@ -2681,7 +2679,8 @@ const renderElectricalSmokeReport = async (
   await renderMediaGallery(
     doc,
     getMediaItemsForSection(report, template, "inspection-photos"),
-    "Inspection Photos"
+    "Inspection Photos",
+    { template, sectionId: "inspection-photos" }
   );
 
   drawCertificationBlock(doc, certificationSection);
@@ -2746,24 +2745,7 @@ const renderGasReport = async (
 
       doc.y += result.height + 8;
 
-      // Add photo caption if available
-      const metadata = getMediaItemMetadata(mediaItem);
-      if (metadata.caption || mediaItem.label) {
-        doc
-          .fillColor(COLORS.textSecondary)
-          .fontSize(9)
-          .font("Helvetica")
-          .text(
-            metadata.caption || mediaItem.label || "",
-            PAGE.margin,
-            doc.y,
-            {
-              width: 400,
-              align: "left",
-            }
-          );
-        doc.y += 6;
-      }
+      renderPhotoCaption(doc, mediaItem, { template, sectionId });
     }
 
     doc.y += 2; // Extra spacing after photo section
@@ -2892,9 +2874,11 @@ const renderGasSmokeReport = async (
             `Image could not be loaded: ${mediaItem.filename || "Unknown"}`,
             PAGE.margin,
             doc.y
-          );
+        );
         doc.y += 15;
       }
+
+      renderPhotoCaption(doc, mediaItem, { template, sectionId });
     }
 
     doc.y += 10;
@@ -3338,7 +3322,8 @@ const renderGasSmokeReport = async (
   await renderMediaGallery(
     doc,
     getMediaItemsForSection(report, template, "inspection-photos"),
-    "Inspection Photos"
+    "Inspection Photos",
+    { template, sectionId: "inspection-photos" }
   );
 };
 
@@ -3388,9 +3373,11 @@ const renderElectricalReport = async (
             `Image could not be loaded: ${mediaItem.filename || "Unknown"}`,
             PAGE.margin,
             doc.y
-          );
+        );
         doc.y += 15;
       }
+
+      renderPhotoCaption(doc, mediaItem, { template, sectionId });
     }
 
     doc.y += 10;
@@ -3768,7 +3755,8 @@ const renderElectricalReport = async (
   await renderMediaGallery(
     doc,
     getMediaItemsForSection(report, template, "inspection-photos"),
-    "Inspection Photos"
+    "Inspection Photos",
+    { template, sectionId: "inspection-photos" }
   );
 };
 
@@ -3853,19 +3841,7 @@ const renderMinimumSafetyStandardReport = async (
 
       doc.y += result.height + 15;
 
-      // Add photo caption if available
-      const metadata = getMediaItemMetadata(mediaItem);
-      if (metadata.caption) {
-        doc
-          .fillColor(COLORS.textSecondary)
-          .fontSize(9)
-          .font("Helvetica")
-          .text(metadata.caption, PAGE.margin, doc.y, {
-            width: 400,
-            align: "left",
-          });
-        doc.y += 10;
-      }
+      renderPhotoCaption(doc, mediaItem, { template, sectionId });
     }
 
     doc.y += 5; // Extra spacing after photo section
@@ -4615,24 +4591,7 @@ const renderGenericReport = async (
 
       doc.y += result.height + 15;
 
-      // Add photo caption if available
-      const metadata = getMediaItemMetadata(mediaItem);
-      if (metadata.caption || mediaItem.label) {
-        doc
-          .fillColor(COLORS.textSecondary)
-          .fontSize(9)
-          .font("Helvetica")
-          .text(
-            metadata.caption || mediaItem.label || "",
-            PAGE.margin,
-            doc.y,
-            {
-              width: 400,
-              align: "left",
-            }
-          );
-        doc.y += 10;
-      }
+      renderPhotoCaption(doc, mediaItem, { template, sectionId });
     }
 
     doc.y += 5; // Extra spacing after photo section
@@ -5117,13 +5076,48 @@ const normalizeMediaMetadata = (metadata) => {
 
 const getMediaItemMetadata = (item) => normalizeMediaMetadata(item?.metadata);
 
+const getPhotoFieldsForSection = (template, sectionId) => {
+  return (
+    (template?.sections || []).find((section) => section.id === sectionId)
+      ?.fields || []
+  ).flatMap((field) => {
+    if (field.type === "photo" || field.type === "photo-multi") {
+      return [field];
+    }
+
+    if (field.type === "table") {
+      return (field.columns || []).filter(
+        (column) => column.type === "photo" || column.type === "photo-multi"
+      );
+    }
+
+    return [];
+  });
+};
+
 const getPhotoFieldIdsForSection = (template, sectionId) =>
-  (template?.sections || [])
-    .find((section) => section.id === sectionId)
-    ?.fields?.filter(
-      (field) => field.type === "photo" || field.type === "photo-multi"
-    )
-    .map((field) => field.id) || [];
+  getPhotoFieldsForSection(template, sectionId).map((field) => field.id);
+
+const mediaFieldMatchesPhotoField = (fieldId = "", photoFieldId = "") => {
+  if (!fieldId || !photoFieldId) {
+    return false;
+  }
+
+  const rawFieldId = String(fieldId);
+
+  return (
+    rawFieldId === photoFieldId ||
+    rawFieldId.startsWith(`${photoFieldId}-`) ||
+    rawFieldId.startsWith(`${photoFieldId}.`) ||
+    rawFieldId.startsWith(`${photoFieldId}[`) ||
+    rawFieldId.endsWith(`.${photoFieldId}`) ||
+    rawFieldId.endsWith(`-${photoFieldId}`) ||
+    rawFieldId.includes(`.${photoFieldId}.`) ||
+    rawFieldId.includes(`.${photoFieldId}[`) ||
+    rawFieldId.includes(`-${photoFieldId}-`) ||
+    rawFieldId.includes(`[${photoFieldId}]`)
+  );
+};
 
 const mediaFieldMatchesSection = (fieldId = "", sectionId, photoFieldIds = []) => {
   if (!fieldId) {
@@ -5136,20 +5130,48 @@ const mediaFieldMatchesSection = (fieldId = "", sectionId, photoFieldIds = []) =
     return true;
   }
 
-  return photoFieldIds.some((photoFieldId) => {
-    return (
-      rawFieldId === photoFieldId ||
-      rawFieldId.startsWith(`${photoFieldId}-`) ||
-      rawFieldId.startsWith(`${photoFieldId}.`) ||
-      rawFieldId.startsWith(`${photoFieldId}[`) ||
-      rawFieldId.endsWith(`.${photoFieldId}`) ||
-      rawFieldId.endsWith(`-${photoFieldId}`) ||
-      rawFieldId.includes(`.${photoFieldId}.`) ||
-      rawFieldId.includes(`.${photoFieldId}[`) ||
-      rawFieldId.includes(`-${photoFieldId}-`) ||
-      rawFieldId.includes(`[${photoFieldId}]`)
+  return photoFieldIds.some((photoFieldId) =>
+    mediaFieldMatchesPhotoField(rawFieldId, photoFieldId)
+  );
+};
+
+const findPhotoFieldForMedia = (mediaItem, template, sectionId) => {
+  const metadata = getMediaItemMetadata(mediaItem);
+  const preferredSectionIds = [
+    sectionId,
+    metadata.sectionId,
+    ...((template?.sections || []).map((section) => section.id)),
+  ].filter(Boolean);
+  const seenSectionIds = new Set();
+
+  for (const candidateSectionId of preferredSectionIds) {
+    if (seenSectionIds.has(candidateSectionId)) {
+      continue;
+    }
+    seenSectionIds.add(candidateSectionId);
+
+    const match = getPhotoFieldsForSection(template, candidateSectionId).find(
+      (field) => mediaFieldMatchesPhotoField(mediaItem?.fieldId, field.id)
     );
-  });
+
+    if (match) {
+      return match;
+    }
+  }
+
+  return null;
+};
+
+const buildPhotoCaption = (mediaItem, { template, sectionId } = {}) => {
+  const metadata = getMediaItemMetadata(mediaItem);
+  const photoField = findPhotoFieldForMedia(mediaItem, template, sectionId);
+  const fieldLabel = photoField?.label || mediaItem?.label || "Inspection Photo";
+
+  if (metadata.caption && metadata.caption !== fieldLabel) {
+    return `${fieldLabel} - ${metadata.caption}`;
+  }
+
+  return fieldLabel;
 };
 
 const mediaMatchesSection = (item, sectionId, template) => {
@@ -5200,7 +5222,7 @@ const getMediaItemsForRepeatableItem = (report, template, sectionId, itemIndex) 
     mediaMatchesRepeatableItem(item, sectionId, itemIndex, template)
   );
 
-const renderMediaGallery = async (doc, mediaItems = [], heading) => {
+const renderMediaGallery = async (doc, mediaItems = [], heading, options = {}) => {
   if (!mediaItems.length) {
     return;
   }
@@ -5209,10 +5231,9 @@ const renderMediaGallery = async (doc, mediaItems = [], heading) => {
   drawSectionHeader(doc, heading);
 
   for (const mediaItem of mediaItems) {
-    const metadata = getMediaItemMetadata(mediaItem);
     ensurePageSpace(doc, 240);
 
-    const label = mediaItem.label || metadata.caption || "Inspection Photo";
+    const label = buildPhotoCaption(mediaItem, options);
     doc
       .fillColor(COLORS.text)
       .fontSize(10)
@@ -5347,7 +5368,8 @@ const renderGasApplianceV3 = async (
   await renderMediaGallery(
     doc,
     getMediaItemsForRepeatableItem(report, template, "gas-appliances", index),
-    `Appliance ${index + 1} Photos`
+    `Appliance ${index + 1} Photos`,
+    { template, sectionId: "gas-appliances" }
   );
 };
 
@@ -5390,7 +5412,8 @@ const renderGasReportV3 = async (
     await renderMediaGallery(
       doc,
       getMediaItemsForSection(report, template, "lp-gas-checklist"),
-      "LP Gas Checklist Photos"
+      "LP Gas Checklist Photos",
+      { template, sectionId: "lp-gas-checklist" }
     );
   }
 
@@ -5403,7 +5426,8 @@ const renderGasReportV3 = async (
     await renderMediaGallery(
       doc,
       getMediaItemsForSection(report, template, "general-gas-checks"),
-      "General Gas Checks Photos"
+      "General Gas Checks Photos",
+      { template, sectionId: "general-gas-checks" }
     );
   }
 
@@ -5427,7 +5451,8 @@ const renderGasReportV3 = async (
     await renderMediaGallery(
       doc,
       getMediaItemsForSection(report, template, "rectification-works-required"),
-      "Rectification Photos"
+      "Rectification Photos",
+      { template, sectionId: "rectification-works-required" }
     );
   }
 
@@ -5826,7 +5851,8 @@ const renderSmokeOnlyReport = async (
   await renderMediaGallery(
     doc,
     getMediaItemsForSection(report, template, "inspection-photos"),
-    "Inspection Photos"
+    "Inspection Photos",
+    { template, sectionId: "inspection-photos" }
   );
 
   // Smoke Alarm Inspection Details section
@@ -5955,7 +5981,10 @@ const renderSmokeOnlyReport = async (
       // Render photos for this alarm
       const mediaItems = getMediaItemsForRepeatableItem(report, template, 'smoke-alarm-inventory', index);
       for (const mediaItem of mediaItems) {
-        await renderInlinePhoto(doc, mediaItem);
+        await renderInlinePhoto(doc, mediaItem, {
+          template,
+          sectionId: "smoke-alarm-inventory",
+        });
         doc.y += 10;
       }
 
