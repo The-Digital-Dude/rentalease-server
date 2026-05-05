@@ -404,6 +404,23 @@ const extractSummaryInsights = ({ report, template, job, technician }) => {
   let hasExplicitNonCompliance = false;
   let hasExplicitCompliance = false;
 
+  const findFirstFormValue = (fieldIds = []) => {
+    for (const sectionData of Object.values(formData)) {
+      if (!sectionData || typeof sectionData !== "object" || Array.isArray(sectionData)) {
+        continue;
+      }
+
+      for (const fieldId of fieldIds) {
+        const value = sectionData[fieldId];
+        if (value !== undefined && value !== null && value !== "") {
+          return value;
+        }
+      }
+    }
+
+    return "";
+  };
+
   Object.entries(formData).forEach(([sectionId, sectionData]) => {
     if (!sectionData || typeof sectionData !== "object") {
       return;
@@ -529,8 +546,27 @@ const extractSummaryInsights = ({ report, template, job, technician }) => {
     ongoingIssues: dedupeItems(ongoingIssues).slice(0, 4),
     technicianName:
       `${technician?.firstName || ""} ${technician?.lastName || ""}`.trim() ||
+      findFirstFormValue([
+        "technician-full-name",
+        "inspector-name",
+        "inspector-details-name",
+        "certification-electrician-name",
+      ]) ||
       "N/A",
-    technicianLicense: technician?.licenseNumber || "N/A",
+    technicianLicense:
+      technician?.licenseNumber ||
+      findFirstFormValue([
+        "licence-registration-number",
+        "license-number",
+        "certification-licence-number",
+        "technician-license",
+        "inspector-license",
+        "inspector-details-license",
+        "registration-number",
+        "gasfitter-license",
+        "electrical-license",
+      ]) ||
+      "N/A",
   };
 };
 
@@ -1852,12 +1888,6 @@ const drawPropertyDetails = (doc, { property, job, technician, report }) => {
       label: "Inspection Date",
       value: formatDisplayDate(report?.submittedAt || job?.dueDate),
     },
-    {
-      label: "Inspector",
-      value:
-        `${technician?.firstName || ""} ${technician?.lastName || ""}`.trim() ||
-        "N/A",
-    },
   ];
 
   drawRoomDetailTable(
@@ -2193,22 +2223,6 @@ const drawSmokeAlarmTable = (doc, alarms = []) => {
 const drawCertificationBlock = (doc, certification = {}) => {
   const rows = [
     {
-      label: "Electrical safety check completed by",
-      value:
-        certification["certification-electrician-name"] ||
-        certification["inspector-name"] ||
-        certification.technicianName ||
-        "—",
-    },
-    {
-      label: "Licence/registration number",
-      value:
-        certification["certification-licence-number"] ||
-        certification["license-number"] ||
-        certification.technicianLicense ||
-        "—",
-    },
-    {
       label: "Inspection date",
       value:
         formatDisplayDate(certification["certification-inspection-date"]) ||
@@ -2270,15 +2284,7 @@ const renderElectricalSmokeReport = async (
     template.sections?.find((section) => section.id === id);
 
   const summarySection = getSectionValues("inspection-summary");
-  const technicianFullName =
-    `${technician?.firstName || ""} ${technician?.lastName || ""}`.trim() ||
-    "Technician";
-  const technicianLicense =
-    technician?.licenseNumber || summarySection["license-number"];
-
   const certificationSection = {
-    technicianName: technicianFullName,
-    technicianLicense,
     ...summarySection,
     ...getSectionValues("certification"),
     ...getSectionValues("technician-signoff"),
@@ -2356,14 +2362,6 @@ const renderElectricalSmokeReport = async (
       value:
         formatDisplayDate(summarySection["inspection-date"]) ||
         formatDisplayDate(report.submittedAt),
-    },
-    {
-      label: "Inspector",
-      value: summarySection["inspector-name"] || technicianFullName || "N/A",
-    },
-    {
-      label: "Licence/registration number",
-      value: summarySection["license-number"] || technicianLicense || "N/A",
     },
     {
       label: "Previous safety check",
@@ -2711,9 +2709,6 @@ const renderGasReport = async (
   const propertyAddress =
     property?.address?.fullAddress || property?.address?.street || "N/A";
   const inspectionDate = formatDisplayDate(report?.submittedAt || job?.dueDate);
-  const inspectorName =
-    `${technician?.firstName || ""} ${technician?.lastName || ""}`.trim() ||
-    "Inspector Name Not Available";
 
   const summaryRows = [
     {
@@ -2723,14 +2718,6 @@ const renderGasReport = async (
     {
       label: "Inspection Date",
       value: inspectionDate,
-    },
-    {
-      label: "Inspector",
-      value: inspectorName,
-    },
-    {
-      label: "Inspector License",
-      value: propertyDetails["license-number"] || "N/A",
     },
     {
       label: "Gas Installation Type",
@@ -3362,12 +3349,6 @@ const renderElectricalReport = async (
         "Previous Inspection",
         formatValue(inspectionSummary["previous-inspection-date"]),
       ],
-      ["Inspector Name", formatValue(inspectionSummary["inspector-name"])],
-      ["License Number", formatValue(inspectionSummary["license-number"])],
-      [
-        "Registration Number",
-        formatValue(inspectionSummary["registration-number"]),
-      ],
       [
         "Electrical Outcome",
         formatValue(inspectionSummary["electrical-outcome"]),
@@ -3870,17 +3851,6 @@ const renderMinimumSafetyStandardReport = async (
       value: formatDisplayDate(
         propertySummary["inspection-date"] || report?.submittedAt
       ),
-    },
-    {
-      label: "Inspector Name",
-      value:
-        propertySummary["inspector-name"] ||
-        `${technician?.firstName || ""} ${technician?.lastName || ""}`.trim() ||
-        "N/A",
-    },
-    {
-      label: "Inspector License",
-      value: propertySummary["inspector-license"] || "N/A",
     },
     {
       label: "Bedrooms Inspected",
@@ -4608,10 +4578,6 @@ const renderGenericReport = async (
   const propertyAddress =
     property?.address?.fullAddress || property?.address?.street || "N/A";
   const inspectionDate = formatDisplayDate(report?.submittedAt || job?.dueDate);
-  const inspectorName =
-    `${technician?.firstName || ""} ${technician?.lastName || ""}`.trim() ||
-    "Inspector Name Not Available";
-
   const summaryRows = [
     {
       label: "Property Address",
@@ -4620,15 +4586,6 @@ const renderGenericReport = async (
     {
       label: "Inspection Date",
       value: inspectionDate,
-    },
-    {
-      label: "Inspector",
-      value: inspectorName,
-    },
-    {
-      label: "Inspector License",
-      value:
-        propertyDetails["license-number"] || technician?.licenseNumber || "N/A",
     },
     {
       label: "Report Generated",
@@ -5338,7 +5295,6 @@ const renderGasReportV3 = async (
   const getSectionValues = (sectionId) => report.formData?.[sectionId] || {};
 
   const propertySection = getSection("property-details");
-  const technicianSection = getSection("technician-details");
   const lpGasSection = getSection("lp-gas-checklist");
   const generalSection = getSection("general-gas-checks");
   const applianceSection = getSection("gas-appliances");
@@ -5346,7 +5302,6 @@ const renderGasReportV3 = async (
   const finalSection = getSection("final-declaration");
 
   const propertyDetails = getSectionValues("property-details");
-  const technicianDetails = getSectionValues("technician-details");
   const lpGasChecklist = getSectionValues("lp-gas-checklist");
   const generalChecks = getSectionValues("general-gas-checks");
   const rectification = getSectionValues("rectification-works-required");
@@ -5358,12 +5313,6 @@ const renderGasReportV3 = async (
   if (propertySection) {
     drawSectionHeader(doc, propertySection.title);
     const rows = buildSectionRows(propertySection, propertyDetails);
-    drawRoomDetailTable(doc, null, rows, { hideHeaders: true });
-  }
-
-  if (technicianSection) {
-    drawSectionHeader(doc, technicianSection.title);
-    const rows = buildSectionRows(technicianSection, technicianDetails);
     drawRoomDetailTable(doc, null, rows, { hideHeaders: true });
   }
 
@@ -5440,13 +5389,6 @@ const renderGasReportV3 = async (
       {
         label: "Sign-Off Time",
         value: finalDeclaration["sign-off-time"] || "Not specified",
-      },
-      {
-        label: "Technician",
-        value:
-          technicianDetails["technician-full-name"] ||
-          [technician?.firstName, technician?.lastName].filter(Boolean).join(" ") ||
-          "Not specified",
       },
       {
         label: "Declaration",
@@ -5781,11 +5723,6 @@ const renderSmokeOnlyReport = async (
   ensurePageSpace(doc, 120);
   drawSectionHeader(doc, "Report Details");
 
-  const technicianName =
-    [technician?.firstName, technician?.lastName].filter(Boolean).join(" ") ||
-    "Technician Name Not Available";
-  const technicianLicense = technician?.licenseNumber || "Licence Not Recorded";
-
   const reportDetailsData = [
     {
       label: "Report Date",
@@ -5813,8 +5750,6 @@ const renderSmokeOnlyReport = async (
         year: "numeric",
       }),
     },
-    { label: "Technician Name", value: technicianName },
-    { label: "Technician Licence #", value: technicianLicense },
     { label: "Inspection Type", value: "Smoke Alarm Safety Inspection" },
     {
       label: "Overall Status",

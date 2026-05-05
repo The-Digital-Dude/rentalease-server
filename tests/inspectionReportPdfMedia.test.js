@@ -165,4 +165,55 @@ describe("Inspection report PDF media matching", () => {
       /await renderSectionPhotos\(section\.id,\s*roomTitle\)/
     );
   });
+
+  test("reports keep technician details only in the shared summary", () => {
+    const servicePath = path.resolve(
+      __dirname,
+      "../src/services/inspectionReportPdf.service.js"
+    );
+    const source = fs.readFileSync(servicePath, "utf8");
+    const electricalSmokeStart = source.indexOf(
+      "const renderElectricalSmokeReport = async"
+    );
+    const gasStart = source.indexOf("const renderGasReport = async");
+    const electricalStart = source.indexOf("const renderElectricalReport = async");
+    const minimumSafetyStart = source.indexOf(
+      "const renderMinimumSafetyStandardReport = async"
+    );
+    const genericStart = source.indexOf("const renderGenericReport = async");
+    const smokeStart = source.indexOf("const renderSmokeOnlyReport = async");
+    const buildPdfStart = source.indexOf("export const buildInspectionReportPdf");
+    const electricalSmokeSource = source.slice(electricalSmokeStart, gasStart);
+    const gasSource = source.slice(gasStart, electricalStart);
+    const electricalSource = source.slice(electricalStart, minimumSafetyStart);
+    const minimumSafetySource = source.slice(minimumSafetyStart, genericStart);
+    const genericSource = source.slice(genericStart, smokeStart);
+    const smokeSource = source.slice(smokeStart, buildPdfStart);
+
+    [
+      electricalSmokeSource,
+      gasSource,
+      electricalSource,
+      minimumSafetySource,
+      genericSource,
+      smokeSource,
+    ].forEach((rendererSource) => {
+      expect(rendererSource).not.toContain('label: "Inspector"');
+      expect(rendererSource).not.toContain('label: "Inspector Name"');
+      expect(rendererSource).not.toContain('label: "Inspector License"');
+      expect(rendererSource).not.toContain('"Technician Name"');
+      expect(rendererSource).not.toContain('"Technician Licence #"');
+      expect(rendererSource).not.toContain('"License Number"');
+      expect(rendererSource).not.toContain('"Registration Number"');
+      expect(rendererSource).not.toContain('label: "Licence/registration number"');
+    });
+
+    expect(source).toContain('"technician-full-name"');
+    expect(source).toContain('"licence-registration-number"');
+    expect(source).toContain('"license-number"');
+    expect(source).toContain('"inspector-license"');
+    expect(source).toContain('"inspector-details-license"');
+    expect(source).toContain('"technician-license"');
+    expect(source).toContain('"Technician Details"');
+  });
 });
