@@ -5172,7 +5172,14 @@ const renderMediaGallery = async (doc, mediaItems = [], heading) => {
   }
 };
 
-const renderGasApplianceV3 = async (doc, applianceSection, appliance = {}, index, report) => {
+const renderGasApplianceV3 = async (
+  doc,
+  applianceSection,
+  appliance = {},
+  index,
+  report,
+  template
+) => {
   const applianceTypeField = applianceSection.fields.find(
     (field) => field.id === "appliance-type"
   );
@@ -5337,7 +5344,14 @@ const renderGasReportV3 = async (
   }
 
   for (const [index, appliance] of appliances.entries()) {
-    await renderGasApplianceV3(doc, applianceSection, appliance, index, report);
+    await renderGasApplianceV3(
+      doc,
+      applianceSection,
+      appliance,
+      index,
+      report,
+      template
+    );
   }
 
   if (rectificationSection) {
