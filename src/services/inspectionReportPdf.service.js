@@ -1418,9 +1418,6 @@ const drawGasHazardsSection = (doc) => {
 const drawNextStepsSection = (doc, { template, job, report }) => {
   const jobType = template?.jobType || job?.jobType;
 
-  ensurePageSpace(doc, 180);
-  drawSectionHeader(doc, "Next Compliance Schedule");
-
   // Calculate next inspection dates based on job type
   const getNextInspectionDate = (jobType) => {
     const inspectionDate = new Date(report?.submittedAt || new Date());
@@ -1449,23 +1446,6 @@ const drawNextStepsSection = (doc, { template, job, report }) => {
     return formatDisplayDate(nextDate);
   };
 
-  const nextInspectionDate = getNextInspectionDate(jobType);
-
-  // Next inspection information
-  doc
-    .fillColor(COLORS.text)
-    .fontSize(11)
-    .font("Helvetica-Bold")
-    .text("Next Inspection Due:", PAGE.margin, doc.y);
-
-  doc
-    .fontSize(10)
-    .font("Helvetica")
-    .fillColor(COLORS.textSecondary)
-    .text(nextInspectionDate, PAGE.margin + 150, doc.y - 14);
-
-  doc.y += 25;
-
   const narrativeMap = {
     Electrical:
       "This electrical safety check has been completed in line with the Residential Tenancies Regulations 2021 and AS/NZS 3019: Electrical Installations — Periodic Verification. It ensures the property's electrical system is safe and free from damage or deterioration that could pose a risk. Any defects or safety concerns identified during the inspection are reported for corrective action.",
@@ -1478,23 +1458,71 @@ const drawNextStepsSection = (doc, { template, job, report }) => {
       "This minimum safety standards inspection has been carried out to satisfy the Residential Tenancies Regulations 2021 minimum housing standards. It confirms the property remains fit for occupancy and records any areas that require remedial action to maintain compliance.",
   };
 
-  const narrative = narrativeMap[jobType];
-  if (narrative) {
-    const movedToNewPage = ensurePageSpace(doc, 140);
-    if (movedToNewPage) {
-      drawSectionHeader(doc, "Next Compliance Schedule");
-    }
+  const standardsLabelMap = {
+    "rta-2021": "Residential Tenancies Regulations 2021",
+    "as-3786": "AS 3786 – Smoke Alarms",
+  };
+  const complianceNextSteps = report?.formData?.["compliance-next-steps"] || {};
+  const acknowledgedStandards = Array.isArray(
+    complianceNextSteps["standards-acknowledged"]
+  )
+    ? complianceNextSteps["standards-acknowledged"]
+        .map((standard) => standardsLabelMap[standard] || standard)
+        .filter(Boolean)
+    : [];
+  const nextInspectionDate =
+    formatDisplayDate(complianceNextSteps["next-service-due"]) !== "N/A"
+      ? formatDisplayDate(complianceNextSteps["next-service-due"])
+      : getNextInspectionDate(jobType);
+  const regulationsText =
+    jobType === "Smoke" && acknowledgedStandards.length
+      ? acknowledgedStandards.join("; ")
+      : narrativeMap[jobType] || getComplianceStandards(template, job).join("; ");
+  const labelWidth = 150;
+  const contentWidth = doc.page.width - PAGE.margin * 2 - labelWidth;
+  const regulationsHeight = doc.heightOfString(regulationsText, {
+    width: contentWidth,
+    lineGap: 3,
+  });
+
+  ensurePageSpace(doc, 75 + regulationsHeight);
+  drawSectionHeader(doc, "Next Compliance Schedule");
+
+  const rows = [
+    ["Next Inspection Date", nextInspectionDate],
+    ["Regulations", regulationsText],
+  ];
+
+  rows.forEach(([label, value]) => {
+    const rowHeight = Math.max(
+      18,
+      doc.heightOfString(String(value), {
+        width: contentWidth,
+        lineGap: 3,
+      }) + 6
+    );
+
     doc
       .fillColor(COLORS.text)
       .fontSize(10)
+      .font("Helvetica-Bold")
+      .text(label, PAGE.margin, doc.y, {
+        width: labelWidth,
+      });
+
+    doc
+      .fillColor(COLORS.textSecondary)
+      .fontSize(10)
       .font("Helvetica")
-      .text(narrative, PAGE.margin, doc.y, {
-        width: doc.page.width - PAGE.margin * 2,
+      .text(String(value), PAGE.margin + labelWidth, doc.y - 12, {
+        width: contentWidth,
         lineGap: 3,
       });
 
-    doc.y += 20;
-  }
+    doc.y += rowHeight;
+  });
+
+  doc.y += 14;
 };
 
 const drawMinimumStandardStatusTable = (
