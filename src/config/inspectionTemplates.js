@@ -1364,9 +1364,9 @@ const formatStatusFieldSet = (id, label, { helpText } = {}) => [
   },
   {
     id: `${id}-comments`,
-    label: `${label} Comments`,
+    label: `${label} Recommendations`,
     type: "textarea",
-    placeholder: "Provide details when standards are not met",
+    placeholder: "Provide recommendations when standards are not met",
     defaultValue: "N/A",
   },
 ];
@@ -1450,7 +1450,8 @@ const createBedroomSection = (bedroomNumber) => {
       },
       {
         id: fieldId("windows-can-open"),
-        label: "Can all openable windows be set to open and closed position?",
+        label:
+          "Are all openable external windows able to be set in both an open and closed position?",
         type: "yes-no",
         defaultValue: "yes",
       },
@@ -1464,7 +1465,8 @@ const createBedroomSection = (bedroomNumber) => {
       },
       {
         id: fieldId("windows-locks"),
-        label: "Do all the openable windows have functioning latch or lock?",
+        label:
+          "Are all openable external windows secured with a functioning latch, lock, or bolt against external entry?",
         type: "yes-no",
         required: true,
         defaultValue: "yes",
@@ -1479,7 +1481,7 @@ const createBedroomSection = (bedroomNumber) => {
       },
       {
         id: fieldId("windows-standard"),
-        label: "MINIMUM STANDARDS: Do the windows meet the minimum standards?",
+        label: "Are minimum standards met for this section?",
         type: "yes-no",
         required: true,
         defaultValue: "yes",
@@ -1497,7 +1499,8 @@ const createBedroomSection = (bedroomNumber) => {
       },
       {
         id: fieldId("window-coverings-installed"),
-        label: "Do all the windows have window coverings?",
+        label:
+          "Does every window in a bedroom or living area have a curtain or blind that the renter can open and close to adequately block light and provide reasonable privacy?",
         type: "yes-no",
         defaultValue: "yes",
       },
@@ -1509,8 +1512,7 @@ const createBedroomSection = (bedroomNumber) => {
       },
       {
         id: fieldId("window-coverings-standard"),
-        label:
-          "MINIMUM STANDARDS: Do the window coverings meet the minimum standards?",
+        label: "Are minimum standards met for this section?",
         type: "yes-no",
         required: true,
         defaultValue: "yes",
@@ -1525,20 +1527,22 @@ const createBedroomSection = (bedroomNumber) => {
       },
       {
         id: fieldId("lighting-day"),
-        label: "Does the room have adequate lighting during daylight hours?",
+        label:
+          "Does each habitable room have access to natural light (including borrowed light from an adjoining room) during daylight hours?",
         type: "yes-no",
         defaultValue: "yes",
       },
       {
         id: fieldId("lighting-night"),
-        label: "Does the room have adequate lighting during nighttime hours?",
+        label:
+          "Does each habitable room have access to sufficient artificial light during non-daylight hours?",
         type: "yes-no",
         defaultValue: "yes",
       },
       {
         id: fieldId("lighting-standard"),
         label:
-          "MINIMUM STANDARDS: Does the lighting meet the minimum standards?",
+          "Do all interior rooms, corridors, and hallways have access to appropriate natural or artificial light suitable for their intended function?",
         type: "yes-no",
         required: true,
         defaultValue: "yes",
@@ -1586,14 +1590,14 @@ const createBedroomSection = (bedroomNumber) => {
       {
         id: fieldId("mould-standard"),
         label:
-          "MINIMUM STANDARDS: Does the mould and dampness meet the minimum standards?",
+          "Are all rooms in the premises free from mould or dampness caused by or related to the building structure?",
         type: "yes-no",
         required: true,
         defaultValue: "yes",
       },
       {
         id: fieldId("mould-comment"),
-        label: "Mould and dampness comments",
+        label: "Recommendations",
         type: "textarea",
         defaultValue: "N/A",
       },
@@ -1616,28 +1620,27 @@ const createBedroomSection = (bedroomNumber) => {
       {
         id: fieldId("ventilation-standard"),
         label:
-          "MINIMUM STANDARDS: Does the area ventilation meet the minimum standards?",
+          "Do all habitable rooms, bathrooms, shower rooms, toilets, and laundry areas have adequate ventilation in line with the required performance or deemed-to-satisfy standards?",
         type: "yes-no",
         required: true,
         defaultValue: "yes",
       },
       {
         id: fieldId("ventilation-comment"),
-        label: "Ventilation comments",
+        label: "Recommendations",
         type: "textarea",
         defaultValue: "N/A",
       },
       {
         id: fieldId("bowing"),
         label:
-          "Is there any severe bowing or leaning of walls in the property?",
+          "Is the rented premises structurally sound, weatherproof, and free from any significant risk of collapse, failure, or moisture ingress?",
         type: "yes-no",
         defaultValue: "no",
       },
       {
         id: fieldId("bowing-standard"),
-        label:
-          "MINIMUM STANDARDS: Does the room meet bowing and leaning standards?",
+        label: "Are minimum standards met for this section?",
         type: "yes-no",
         required: true,
         defaultValue: "yes",
@@ -1650,8 +1653,7 @@ const createBedroomSection = (bedroomNumber) => {
       },
       {
         id: fieldId("cracking-standard"),
-        label:
-          "MINIMUM STANDARDS: Does the area cracking meet the minimum standards?",
+        label: "Are minimum standards met for this section?",
         type: "yes-no",
         required: true,
         defaultValue: "yes",
@@ -1664,8 +1666,7 @@ const createBedroomSection = (bedroomNumber) => {
       },
       {
         id: fieldId("warping-standard"),
-        label:
-          "MINIMUM STANDARDS: Does the room meet warping or movement standards?",
+        label: "Are minimum standards met for this section?",
         type: "yes-no",
         required: true,
         defaultValue: "yes",
@@ -1740,14 +1741,16 @@ const createBathroomSection = (bathroomNumber) => {
       },
       {
         id: fieldId("cold-water-standard"),
-        label: "Does the cold water supply/flow meet minimum standards?",
+        label:
+          "Does the bathroom provide a reasonable supply of cold running water?",
         type: "yes-no",
         required: true,
         defaultValue: "yes",
       },
       {
         id: fieldId("hot-water-standard"),
-        label: "Does the hot water supply/flow meet minimum standards?",
+        label:
+          "Does the bathroom provide a reasonable supply of hot running water?",
         type: "yes-no",
         required: true,
         defaultValue: "yes",
@@ -1787,7 +1790,7 @@ const createBathroomSection = (bathroomNumber) => {
       {
         id: fieldId("ventilation-standard"),
         label:
-          "MINIMUM STANDARDS: Does the area ventilation meet the minimum standards?",
+          "Do all habitable rooms, bathrooms, shower rooms, toilets, and laundry areas have adequate ventilation in line with the required performance or deemed-to-satisfy standards?",
         type: "yes-no",
         required: true,
         defaultValue: "yes",
@@ -1800,7 +1803,7 @@ const createBathroomSection = (bathroomNumber) => {
       },
       {
         id: fieldId("ventilation-comment"),
-        label: "Ventilation comments",
+        label: "Recommendations",
         type: "textarea",
       },
       {
@@ -1821,7 +1824,7 @@ const createBathroomSection = (bathroomNumber) => {
       },
       {
         id: fieldId("shower-present"),
-        label: "Is there a shower in the bathroom?",
+        label: "Does the bathroom contain either a shower or bath?",
         type: "yes-no",
         required: true,
         defaultValue: "yes",
@@ -1844,13 +1847,14 @@ const createBathroomSection = (bathroomNumber) => {
       },
       {
         id: fieldId("showerhead-rating"),
-        label: "Is the energy rating of the shower head visible?",
+        label:
+          "If a shower is present, does it have a shower head with a 3-star WELS rating (or a lower-rated head where a 3-star cannot be installed or would not operate effectively)?",
         type: "yes-no",
         defaultValue: "no",
       },
       {
         id: fieldId("washbasin-present"),
-        label: "Is there a washbasin in the bathroom?",
+        label: "Does the bathroom contain a washbasin?",
         type: "yes-no",
         defaultValue: "yes",
       },
@@ -1867,7 +1871,7 @@ const createBathroomSection = (bathroomNumber) => {
       },
       {
         id: fieldId("toilet-present"),
-        label: "Is there a toilet in the room?",
+        label: "Is there at least one toilet in good working order on the rented premises?",
         type: "yes-no",
         defaultValue: "yes",
       },
@@ -1878,7 +1882,8 @@ const createBathroomSection = (bathroomNumber) => {
       },
       {
         id: fieldId("toilet-location"),
-        label: "Approved location of the toilet",
+        label:
+          "Is the toilet located in an enclosed room intended for use as a toilet area (either standalone or combined bathroom/laundry)?",
         type: "yes-no",
         helpText: "Confirm the toilet is located within an approved space.",
         defaultValue: "yes",
@@ -1898,14 +1903,15 @@ const createBathroomSection = (bathroomNumber) => {
       },
       {
         id: fieldId("toilet-connection"),
-        label: "Is the toilet connected to sewerage or waste treatment system?",
+        label:
+          "Is the toilet connected to a reticulated sewerage system, a wastewater treatment system permitted under the Code of Practice for Onsite Wastewater Management (Environment Protection Act 1970), or a system approved by the local council?",
         type: "yes-no",
         required: true,
         defaultValue: "yes",
       },
       {
         id: fieldId("toilet-standard"),
-        label: "MINIMUM STANDARDS: Does the toilet meet minimum standards?",
+        label: "Are minimum standards met for this section?",
         type: "yes-no",
         required: true,
         defaultValue: "yes",
@@ -1941,28 +1947,27 @@ const createBathroomSection = (bathroomNumber) => {
       {
         id: fieldId("mould-standard"),
         label:
-          "MINIMUM STANDARDS: Does the mould and dampness meet the minimum standards?",
+          "Are all rooms in the premises free from mould or dampness caused by or related to the building structure?",
         type: "yes-no",
         required: true,
         defaultValue: "yes",
       },
       {
         id: fieldId("mould-comment"),
-        label: "Mould and dampness comments",
+        label: "Recommendations",
         type: "textarea",
         defaultValue: "N/A",
       },
       {
         id: fieldId("bowing"),
         label:
-          "Is there any severe bowing or leaning of walls in the property?",
+          "Is the rented premises structurally sound, weatherproof, and free from any significant risk of collapse, failure, or moisture ingress?",
         type: "yes-no",
         defaultValue: "no",
       },
       {
         id: fieldId("bowing-standard"),
-        label:
-          "MINIMUM STANDARDS: Does the room meet bowing and leaning standards?",
+        label: "Are minimum standards met for this section?",
         type: "yes-no",
         required: true,
         defaultValue: "yes",
@@ -1975,8 +1980,7 @@ const createBathroomSection = (bathroomNumber) => {
       },
       {
         id: fieldId("cracking-standard"),
-        label:
-          "MINIMUM STANDARDS: Does the area cracking meet the minimum standards?",
+        label: "Are minimum standards met for this section?",
         type: "yes-no",
         required: true,
         defaultValue: "yes",
@@ -1989,8 +1993,7 @@ const createBathroomSection = (bathroomNumber) => {
       },
       {
         id: fieldId("warping-standard"),
-        label:
-          "MINIMUM STANDARDS: Does the room meet warping or movement standards?",
+        label: "Are minimum standards met for this section?",
         type: "yes-no",
         required: true,
         defaultValue: "yes",
@@ -2045,7 +2048,8 @@ const createLivingRoomSection = () => ({
     },
     {
       id: "living-room-window-coverings",
-      label: "Do all the windows have window coverings?",
+      label:
+        "Does every window in a bedroom or living area have a curtain or blind that the renter can open and close to adequately block light and provide reasonable privacy?",
       type: "yes-no",
       defaultValue: "yes",
     },
@@ -2057,14 +2061,14 @@ const createLivingRoomSection = () => ({
     },
     {
       id: "living-room-window-coverings-standard",
-      label:
-        "MINIMUM STANDARDS: Do the window coverings meet the minimum standards?",
+      label: "Are minimum standards met for this section?",
       type: "yes-no",
       defaultValue: "yes",
     },
     {
       id: "living-room-heater-fixed",
-      label: "Is there a fixed heater in the main living area?",
+      label:
+        "Is a fixed, energy-efficient heating system installed in the main living area?",
       type: "yes-no",
       defaultValue: "yes",
     },
@@ -2119,8 +2123,7 @@ const createLivingRoomSection = () => ({
     },
     {
       id: "living-room-heater-standard",
-      label:
-        "MINIMUM STANDARDS: Does the main living area heating meet the minimum standards?",
+      label: "Are minimum standards met for this section?",
       type: "yes-no",
       defaultValue: "yes",
     },
@@ -2150,15 +2153,16 @@ const createLivingRoomSection = () => ({
     },
     {
       id: "living-room-external-door-standard",
-      label: "Does the external door meet minimum standards?",
+      label:
+        "Are all external doors (excluding any screen doors) fitted with compliant deadlocks?",
       type: "yes-no",
       defaultValue: "yes",
     },
     {
       id: "living-room-external-door-comment",
-      label: "External door comments",
+      label: "Recommendations",
       type: "textarea",
-      placeholder: "Record reason if door does not meet the standard",
+      placeholder: "Record recommendations when the door does not meet the standard",
       defaultValue: "N/A",
     },
     {
@@ -2170,19 +2174,22 @@ const createLivingRoomSection = () => ({
     },
     {
       id: "living-room-lighting-day",
-      label: "Does the room have adequate lighting during daylight hours?",
+      label:
+        "Does each habitable room have access to natural light (including borrowed light from an adjoining room) during daylight hours?",
       type: "yes-no",
       defaultValue: "yes",
     },
     {
       id: "living-room-lighting-night",
-      label: "Does the room have adequate lighting during nighttime hours?",
+      label:
+        "Does each habitable room have access to sufficient artificial light during non-daylight hours?",
       type: "yes-no",
       defaultValue: "yes",
     },
     {
       id: "living-room-lighting-standard",
-      label: "MINIMUM STANDARDS: Does the lighting meet the minimum standards?",
+      label:
+        "Do all interior rooms, corridors, and hallways have access to appropriate natural or artificial light suitable for their intended function?",
       type: "yes-no",
       defaultValue: "yes",
     },
@@ -2205,14 +2212,14 @@ const createLivingRoomSection = () => ({
     },
     {
       id: "living-room-mould-comment",
-      label: "Mould comments",
+      label: "Recommendations",
       type: "textarea",
       defaultValue: "N/A",
     },
     {
       id: "living-room-mould-standard",
       label:
-        "MINIMUM STANDARDS: Does the mould and dampness meet the minimum standards?",
+        "Are all rooms in the premises free from mould or dampness caused by or related to the building structure?",
       type: "yes-no",
       defaultValue: "yes",
     },
@@ -2233,13 +2240,14 @@ const createLivingRoomSection = () => ({
     {
       id: "living-room-ventilation-standard",
       label:
-        "MINIMUM STANDARDS: Does the area ventilation meet the minimum standards?",
+        "Do all habitable rooms, bathrooms, shower rooms, toilets, and laundry areas have adequate ventilation in line with the required performance or deemed-to-satisfy standards?",
       type: "yes-no",
       defaultValue: "yes",
     },
     {
       id: "living-room-bowing",
-      label: "Is there any severe bowing or leaning of walls in the property?",
+      label:
+        "Is the rented premises structurally sound, weatherproof, and free from any significant risk of collapse, failure, or moisture ingress?",
       type: "yes-no",
       defaultValue: "no",
     },
@@ -2294,8 +2302,7 @@ const createKitchenSection = () => ({
     },
     {
       id: "kitchen-food-prep-standard",
-      label:
-        "MINIMUM STANDARDS: Does the food preparation area meet minimum standards?",
+      label: "Are minimum standards met for this section?",
       type: "yes-no",
       defaultValue: "yes",
     },
@@ -2318,7 +2325,8 @@ const createKitchenSection = () => ({
     },
     {
       id: "kitchen-oven-standard",
-      label: "Does the oven meet minimum standards?",
+      label:
+        "If an oven is present on the premises, is it in good working order?",
       type: "yes-no",
       defaultValue: "yes",
     },
@@ -2342,7 +2350,7 @@ const createKitchenSection = () => ({
     },
     {
       id: "kitchen-stovetop-burners",
-      label: "Are there at least 2 burners on the cooktop?",
+      label: "Is there a cooktop in good working order with at least two burners?",
       type: "yes-no",
       defaultValue: "yes",
     },
@@ -2354,7 +2362,7 @@ const createKitchenSection = () => ({
     },
     {
       id: "kitchen-stovetop-standard",
-      label: "Does the cooktop meet minimum standards?",
+      label: "Are minimum standards met for this section?",
       type: "yes-no",
       defaultValue: "yes",
     },
@@ -2371,13 +2379,14 @@ const createKitchenSection = () => ({
     },
     {
       id: "kitchen-sink-working",
-      label: "Is the sink in working order?",
+      label:
+        "Is there a kitchen sink in good working order connected to a reasonable supply of hot and cold water?",
       type: "yes-no",
       defaultValue: "yes",
     },
     {
       id: "kitchen-sink-standard",
-      label: "Does the sink meet minimum standards?",
+      label: "Are minimum standards met for this section?",
       type: "yes-no",
       defaultValue: "yes",
     },
@@ -2409,13 +2418,15 @@ const createKitchenSection = () => ({
     },
     {
       id: "kitchen-cold-water-standard",
-      label: "Does the cold water supply/flow meet minimum standards?",
+      label:
+        "Is there a kitchen sink in good working order connected to a reasonable supply of hot and cold water?",
       type: "yes-no",
       defaultValue: "yes",
     },
     {
       id: "kitchen-hot-water-standard",
-      label: "Does the hot water supply/flow meet minimum standards?",
+      label:
+        "Is there a kitchen sink in good working order connected to a reasonable supply of hot and cold water?",
       type: "yes-no",
       defaultValue: "yes",
     },
@@ -2434,19 +2445,22 @@ const createKitchenSection = () => ({
     },
     {
       id: "kitchen-lighting-day",
-      label: "Does the room have adequate lighting during daylight hours?",
+      label:
+        "Does each habitable room have access to natural light (including borrowed light from an adjoining room) during daylight hours?",
       type: "yes-no",
       defaultValue: "yes",
     },
     {
       id: "kitchen-lighting-night",
-      label: "Does the room have adequate lighting during nighttime hours?",
+      label:
+        "Does each habitable room have access to sufficient artificial light during non-daylight hours?",
       type: "yes-no",
       defaultValue: "yes",
     },
     {
       id: "kitchen-lighting-standard",
-      label: "MINIMUM STANDARDS: Does the lighting meet the minimum standards?",
+      label:
+        "Do all interior rooms, corridors, and hallways have access to appropriate natural or artificial light suitable for their intended function?",
       type: "yes-no",
       defaultValue: "yes",
     },
@@ -2469,14 +2483,14 @@ const createKitchenSection = () => ({
     },
     {
       id: "kitchen-mould-comment",
-      label: "Mould comments",
+      label: "Recommendations",
       type: "textarea",
       defaultValue: "N/A",
     },
     {
       id: "kitchen-mould-standard",
       label:
-        "MINIMUM STANDARDS: Does the mould and dampness meet the minimum standards?",
+        "Are all rooms in the premises free from mould or dampness caused by or related to the building structure?",
       type: "yes-no",
       defaultValue: "yes",
     },
@@ -2497,13 +2511,14 @@ const createKitchenSection = () => ({
     {
       id: "kitchen-ventilation-standard",
       label:
-        "MINIMUM STANDARDS: Does the area ventilation meet the minimum standards?",
+        "Do all habitable rooms, bathrooms, shower rooms, toilets, and laundry areas have adequate ventilation in line with the required performance or deemed-to-satisfy standards?",
       type: "yes-no",
       defaultValue: "yes",
     },
     {
       id: "kitchen-bowing",
-      label: "Is there any severe bowing or leaning of walls in the property?",
+      label:
+        "Is the rented premises structurally sound, weatherproof, and free from any significant risk of collapse, failure, or moisture ingress?",
       type: "yes-no",
       defaultValue: "no",
     },
@@ -2572,13 +2587,15 @@ const createLaundrySection = () => ({
     },
     {
       id: "laundry-cold-water-standard",
-      label: "Does the cold water supply/flow meet minimum standards?",
+      label:
+        "If laundry facilities are provided, are they connected to a reasonable supply of hot and cold water?",
       type: "yes-no",
       defaultValue: "yes",
     },
     {
       id: "laundry-hot-water-standard",
-      label: "Does the hot water supply/flow meet minimum standards?",
+      label:
+        "If laundry facilities are provided, are they connected to a reasonable supply of hot and cold water?",
       type: "yes-no",
       defaultValue: "yes",
     },
@@ -2602,7 +2619,8 @@ const createLaundrySection = () => ({
     },
     {
       id: "laundry-external-door-standard",
-      label: "Does the external door meet minimum standards?",
+      label:
+        "Are all external doors (excluding any screen doors) fitted with compliant deadlocks?",
       type: "yes-no",
       defaultValue: "yes",
     },
@@ -2621,19 +2639,22 @@ const createLaundrySection = () => ({
     },
     {
       id: "laundry-lighting-day",
-      label: "Does the room have adequate lighting during daylight hours?",
+      label:
+        "Does each habitable room have access to natural light (including borrowed light from an adjoining room) during daylight hours?",
       type: "yes-no",
       defaultValue: "yes",
     },
     {
       id: "laundry-lighting-night",
-      label: "Does the room have adequate lighting during nighttime hours?",
+      label:
+        "Does each habitable room have access to sufficient artificial light during non-daylight hours?",
       type: "yes-no",
       defaultValue: "yes",
     },
     {
       id: "laundry-lighting-standard",
-      label: "MINIMUM STANDARDS: Does the lighting meet the minimum standards?",
+      label:
+        "Do all interior rooms, corridors, and hallways have access to appropriate natural or artificial light suitable for their intended function?",
       type: "yes-no",
       defaultValue: "yes",
     },
@@ -2657,7 +2678,7 @@ const createLaundrySection = () => ({
     {
       id: "laundry-mould-standard",
       label:
-        "MINIMUM STANDARDS: Does the mould and dampness meet the minimum standards?",
+        "Are all rooms in the premises free from mould or dampness caused by or related to the building structure?",
       type: "yes-no",
       defaultValue: "yes",
     },
@@ -2678,13 +2699,14 @@ const createLaundrySection = () => ({
     {
       id: "laundry-ventilation-standard",
       label:
-        "MINIMUM STANDARDS: Does the area ventilation meet the minimum standards?",
+        "Do all habitable rooms, bathrooms, shower rooms, toilets, and laundry areas have adequate ventilation in line with the required performance or deemed-to-satisfy standards?",
       type: "yes-no",
       defaultValue: "yes",
     },
     {
       id: "laundry-bowing",
-      label: "Is there any severe bowing or leaning of walls in the property?",
+      label:
+        "Is the rented premises structurally sound, weatherproof, and free from any significant risk of collapse, failure, or moisture ingress?",
       type: "yes-no",
       defaultValue: "no",
     },
@@ -3002,7 +3024,7 @@ const createMinimumSafetyStandardTemplate = (
         },
         {
           id: "front-entrance-building-classification",
-          label: "Building classification",
+          label: "What is the designated building class of the rented premises?",
           type: "text",
           placeholder: "e.g. Class 1",
           defaultValue: "Class 1",
@@ -3087,7 +3109,8 @@ const createMinimumSafetyStandardTemplate = (
         },
         {
           id: "front-entrance-deadlock-standard",
-          label: "Does the external door meet minimum standards?",
+          label:
+            "Are all external doors (excluding any screen doors) fitted with compliant deadlocks?",
           type: "yes-no",
           defaultValue: "yes",
         },
@@ -3100,14 +3123,14 @@ const createMinimumSafetyStandardTemplate = (
         {
           id: "front-entrance-mould-standard",
           label:
-            "MINIMUM STANDARDS: Does the mould and dampness meet the minimum standards?",
+            "Are all rooms in the premises free from mould or dampness caused by or related to the building structure?",
           type: "yes-no",
           defaultValue: "yes",
         },
         {
           id: "front-entrance-ventilation-standard",
           label:
-            "MINIMUM STANDARDS: Does the area ventilation meet the minimum standards?",
+            "Do all habitable rooms, bathrooms, shower rooms, toilets, and laundry areas have adequate ventilation in line with the required performance or deemed-to-satisfy standards?",
           type: "yes-no",
           defaultValue: "yes",
         },
@@ -3120,7 +3143,7 @@ const createMinimumSafetyStandardTemplate = (
         },
         {
           id: "front-entrance-notes",
-          label: "Front Entrance Notes",
+          label: "Recommendations",
           type: "textarea",
           placeholder:
             "Record observations or maintenance items relating to the entrance",
@@ -3218,22 +3241,22 @@ const createMinimumSafetyStandardTemplate = (
         {
           id: "switchboard-circuit-breaker",
           label:
-            "Is it apparent there is a circuit breaker connected to all lighting and power circuits?",
+            "Are all power outlets and lighting circuits connected to a switchboard-type circuit breaker complying with AS/NZS 3000?",
           type: "yes-no",
           required: true,
           defaultValue: "yes",
         },
         {
           id: "rcd-present",
-          label: "RCD (Safety Switch) Present and Working",
+          label:
+            "Are all power outlets and lighting circuits connected to a switchboard-type residual current device (RCD) complying with the relevant AS/NZS standards?",
           type: "yes-no",
           required: true,
           defaultValue: "yes",
         },
         {
           id: "switchboard-meets-standard",
-          label:
-            "MINIMUM STANDARDS: Does the switchboard meet the minimum standards?",
+          label: "Are minimum standards met for this section?",
           type: "yes-no",
           required: true,
           defaultValue: "yes",
@@ -3248,9 +3271,9 @@ const createMinimumSafetyStandardTemplate = (
         },
         {
           id: "electrical-notes",
-          label: "Electrical Safety Notes",
+          label: "Recommendations",
           type: "textarea",
-          placeholder: "Record any specific electrical issues or observations",
+          placeholder: "Record recommendations for electrical safety",
         },
         {
           id: "electrical-photo",
@@ -3269,7 +3292,8 @@ const createMinimumSafetyStandardTemplate = (
       fields: [
         {
           id: "bin-general-present",
-          label: "Does the property have a council style GENERAL waste bin?",
+          label:
+            "Is a rubbish bin available for the renter's use - either council-supplied or vermin-proof and compatible with local collection services?",
           type: "yes-no",
           required: true,
           defaultValue: "yes",
@@ -3290,14 +3314,15 @@ const createMinimumSafetyStandardTemplate = (
         {
           id: "bin-general-standard",
           label:
-            "MINIMUM STANDARDS: Does the general waste bin meet the minimum standards?",
+            "Are both a rubbish bin and a recycling bin available for the renter's use - either council-supplied or vermin-proof and compatible with local collection services?",
           type: "yes-no",
           required: true,
           defaultValue: "yes",
         },
         {
           id: "bin-recycle-present",
-          label: "Does the property have a recycle council style waste bin?",
+          label:
+            "Is a recycling bin available for the renter's use - either council-supplied or vermin-proof and compatible with local collection services?",
           type: "yes-no",
           required: true,
           defaultValue: "yes",
@@ -3316,17 +3341,16 @@ const createMinimumSafetyStandardTemplate = (
         },
         {
           id: "bin-recycle-standard",
-          label:
-            "MINIMUM STANDARDS: Does the recycle bin meet the minimum standards?",
+          label: "Are minimum standards met for this section?",
           type: "yes-no",
           required: true,
           defaultValue: "yes",
         },
         {
           id: "bin-notes",
-          label: "Bin Facilities Notes",
+          label: "Recommendations",
           type: "textarea",
-          placeholder: "Record any issues with bin facilities",
+          placeholder: "Record recommendations for bin facilities",
           defaultValue: "N/A",
         },
       ],
