@@ -1257,7 +1257,7 @@ class EmailController {
         to: recipients,
         cc: ccRecipients,
         subject: subject.trim(),
-        html: html.trim(),
+        html: html.trim(), // Ensure HTML is trimmed
       };
 
       // Add attachments if any
@@ -1276,6 +1276,16 @@ class EmailController {
 
       // Log resend result
       console.log("Resend response:", JSON.stringify(resendResult, null, 2));
+
+      // Check for errors returned by Resend itself
+      if (resendResult.error) {
+        console.error("❌ Resend API error:", resendResult.error);
+        return res.status(resendResult.error.statusCode || 500).json({
+          status: "error",
+          message: "Failed to send email via Resend",
+          details: resendResult.error.message,
+        });
+      }
 
       res.json({
         status: "success",
