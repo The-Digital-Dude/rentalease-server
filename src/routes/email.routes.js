@@ -71,7 +71,7 @@ router.post(
   "/send",
   authenticate,
   upload.array("attachments", 5),
-  emailController.sendEmail
+  (req, res) => emailController.sendEmail(req, res)
 );
 
 /**
@@ -85,7 +85,7 @@ router.post(
   "/send-general",
   authenticate,
   upload.array("attachments", 5),
-  emailController.sendGeneralEmail
+  (req, res) => emailController.sendGeneralEmail(req, res)
 );
 
 /**
@@ -98,7 +98,7 @@ router.post(
   "/draft",
   authenticate,
   upload.array("attachments", 5),
-  emailController.saveDraft
+  (req, res) => emailController.saveDraft(req, res)
 );
 
 /**
@@ -110,7 +110,7 @@ router.post(
   "/:id/reply",
   authenticate,
   upload.array("attachments", 5),
-  emailController.replyToEmail
+  (req, res) => emailController.replyToEmail(req, res)
 );
 
 /**
@@ -228,7 +228,7 @@ router.put("/threads/:id/read", authenticate, async (req, res) => {
  * Handle incoming emails and status updates from Resend
  * This endpoint is called by Resend's webhook system
  */
-router.post("/webhook/resend", emailController.handleResendWebhook);
+router.post("/webhook/resend", (req, res) => emailController.handleResendWebhook(req, res));
 
 // ============================================
 // UTILITY ENDPOINTS

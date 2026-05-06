@@ -1140,25 +1140,23 @@ class EmailController {
     try {
       console.log("📧 Received send-general request");
       console.log("Files:", req.files ? req.files.length : 0);
-      console.log("Body:", req.body);
 
       let { to, cc, subject, html } = req.body;
 
       // Parse JSON fields from multipart form data (when attachments are sent)
       if (typeof to === "string") {
         try {
-          console.log("Attempting to parse 'to' field:", to);
           to = JSON.parse(to);
         } catch (e) {
-          console.log("Failed to parse 'to' field, treating as a string:", to);
+          // If parsing fails, treat as single email string
+          // It's already a string, so we can use it as-is
         }
       }
       if (typeof cc === "string") {
         try {
-          console.log("Attempting to parse 'cc' field:", cc);
           cc = JSON.parse(cc);
         } catch (e) {
-          console.log("Failed to parse 'cc' field, treating as a string:", cc);
+          // Keep single cc string as-is if it was not JSON encoded
         }
       }
 
@@ -1176,11 +1174,13 @@ class EmailController {
       if (!to) {
         errors.to = "Recipient email(s) required";
       } else {
+        // Handle both single email string and array of emails
         const emails = Array.isArray(to) ? to : [to];
 
         if (emails.length === 0) {
           errors.to = "At least one recipient email is required";
         } else {
+          // Validate email format
           const emailRegex = /^\w+([-.]?\w+)*@\w+([-.]?\w+)*(\.\w{2,3})+$/;
           const invalidEmails = emails.filter(
             (email) => !emailRegex.test(email)
@@ -1210,6 +1210,7 @@ class EmailController {
         });
       }
 
+      // Authorization check - only superuser and team member can access
       if (!req.superUser && !req.teamMember) {
         return res.status(403).json({
           status: "error",
@@ -1218,6 +1219,7 @@ class EmailController {
         });
       }
 
+      // Normalize to array for consistent handling
       const recipients = Array.isArray(to) ? to : [to];
       const ccRecipients = cc
         ? Array.isArray(cc)
@@ -1225,6 +1227,7 @@ class EmailController {
           : [cc].filter(Boolean)
         : [];
 
+      // Handle attachments if any
       let attachments = [];
       if (req.files && req.files.length > 0) {
         console.log(
@@ -1242,13 +1245,13 @@ class EmailController {
           }
         } catch (uploadError) {
           console.error("❌ Error uploading attachments:", uploadError);
-          console.error("Full upload error object:", JSON.stringify(uploadError, null, 2));
           throw new Error(
             `Failed to upload attachments: ${uploadError.message}`
           );
         }
       }
 
+      // Prepare email data
       const emailData = {
         from: emailService.defaultFrom,
         to: recipients,
@@ -1257,6 +1260,7 @@ class EmailController {
         html: html.trim(),
       };
 
+      // Add attachments if any
       if (attachments.length > 0) {
         emailData.attachments = attachments.map((attachment) => ({
           filename: attachment.filename,
@@ -1264,6 +1268,7 @@ class EmailController {
         }));
       }
 
+      // Send email using Resend
       await emailService.resend.emails.send(emailData);
 
       res.json({
@@ -1278,7 +1283,6 @@ class EmailController {
       });
     } catch (error) {
       console.error("❌ Send general email error:", error);
-      console.error("Full error object:", JSON.stringify(error, null, 2));
       console.error("Error stack:", error.stack);
       res.status(500).json({
         status: "error",
