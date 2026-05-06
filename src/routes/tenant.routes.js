@@ -16,6 +16,37 @@ const encodeBookingToken = (value) =>
 const decodeBookingToken = (value) =>
   Buffer.from(value, "base64url").toString("utf-8");
 
+const parseBookingToken = (bookingToken) => {
+  const decodedToken = decodeBookingToken(bookingToken);
+  const parts = decodedToken.split(":");
+
+  if (parts.length < 3) {
+    throw new Error("Invalid booking token");
+  }
+
+  const [propertyId, tenantEmail, ...rest] = parts;
+  const timestamp = rest.pop();
+  const complianceType = rest.length ? rest.join(":") : null;
+
+  if (!propertyId || !tenantEmail || !timestamp) {
+    throw new Error("Invalid booking token");
+  }
+
+  return {
+    propertyId,
+    tenantEmail,
+    complianceType,
+    timestamp,
+  };
+};
+
+const validateBookingTokenAge = (timestamp) => {
+  const tokenAge = Date.now() - parseInt(timestamp, 10);
+  const maxAge = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+  return tokenAge <= maxAge;
+};
+
 /**
  * Send time selection email to tenant for compliance inspection
  * POST /api/v1/tenant/send-booking-request
@@ -70,7 +101,7 @@ router.post("/send-booking-request", sanitizeInput(), async (req, res) => {
 
     // Generate booking link with token for security
     const bookingToken = encodeBookingToken(
-      `${propertyId}:${tenantEmail}:${Date.now()}`
+      `${propertyId}:${tenantEmail}:${complianceType}:${Date.now()}`
     );
     const bookingLink = `${resolveFrontendUrl()}/booking/${bookingToken}`;
 
@@ -123,9 +154,9 @@ router.get("/available-slots/:bookingToken", async (req, res) => {
     const { bookingToken } = req.params;
 
     // Decode booking token
-    let decodedToken;
+    let tokenData;
     try {
-      decodedToken = decodeBookingToken(bookingToken);
+      tokenData = parseBookingToken(bookingToken);
     } catch (error) {
       return res.status(400).json({
         status: "error",
@@ -133,12 +164,10 @@ router.get("/available-slots/:bookingToken", async (req, res) => {
       });
     }
 
-    const [propertyId, tenantEmail, timestamp] = decodedToken.split(':');
+    const { propertyId, tenantEmail, complianceType, timestamp } = tokenData;
 
     // Validate token age (7 days expiry)
-    const tokenAge = Date.now() - parseInt(timestamp);
-    const maxAge = 7 * 24 * 60 * 60 * 1000; // 7 days
-    if (tokenAge > maxAge) {
+    if (!validateBookingTokenAge(timestamp)) {
       return res.status(400).json({
         status: "error",
         message: "Booking token has expired. Please request a new booking link."
@@ -195,6 +224,7 @@ router.get("/available-slots/:bookingToken", async (req, res) => {
       data: {
         propertyAddress: property.address?.fullAddress,
         tenantEmail,
+        complianceType,
         availableSlots
       }
     });
@@ -216,20 +246,25 @@ router.get("/available-slots/:bookingToken", async (req, res) => {
  */
 router.post("/book-appointment", async (req, res) => {
   try {
-    const { bookingToken, selectedDate, selectedTime, complianceType } = req.body;
+    const {
+      bookingToken,
+      selectedDate,
+      selectedTime,
+      complianceType: requestedComplianceType,
+    } = req.body;
 
     // Validate required fields
-    if (!bookingToken || !selectedDate || !selectedTime || !complianceType) {
+    if (!bookingToken || !selectedDate || !selectedTime) {
       return res.status(400).json({
         status: "error",
-        message: "All fields are required: bookingToken, selectedDate, selectedTime, complianceType"
+        message: "All fields are required: bookingToken, selectedDate, selectedTime"
       });
     }
 
     // Decode booking token
-    let decodedToken;
+    let tokenData;
     try {
-      decodedToken = decodeBookingToken(bookingToken);
+      tokenData = parseBookingToken(bookingToken);
     } catch (error) {
       return res.status(400).json({
         status: "error",
@@ -237,12 +272,23 @@ router.post("/book-appointment", async (req, res) => {
       });
     }
 
-    const [propertyId, tenantEmail, timestamp] = decodedToken.split(':');
+    const {
+      propertyId,
+      tenantEmail,
+      complianceType: tokenComplianceType,
+      timestamp,
+    } = tokenData;
+    const complianceType = requestedComplianceType || tokenComplianceType;
+
+    if (!complianceType) {
+      return res.status(400).json({
+        status: "error",
+        message: "Compliance type is required. Please request a new booking link."
+      });
+    }
 
     // Validate token age
-    const tokenAge = Date.now() - parseInt(timestamp);
-    const maxAge = 7 * 24 * 60 * 60 * 1000; // 7 days
-    if (tokenAge > maxAge) {
+    if (!validateBookingTokenAge(timestamp)) {
       return res.status(400).json({
         status: "error",
         message: "Booking token has expired"

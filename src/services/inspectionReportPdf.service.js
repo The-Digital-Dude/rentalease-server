@@ -1902,32 +1902,6 @@ const drawPresenceTable = (
   doc.y += 16;
 };
 
-const drawPropertyDetails = (doc, { property, job, technician, report }) => {
-  const rows = [
-    {
-      label: "Property Address",
-      value:
-        property?.address?.fullAddress ||
-        property?.address?.street ||
-        property?.address ||
-        "N/A",
-    },
-    {
-      label: "Inspection Date",
-      value: formatDisplayDate(report?.submittedAt || job?.dueDate),
-    },
-  ];
-
-  drawRoomDetailTable(
-    doc,
-    "Property Report Summary",
-    rows.map((row) => ({
-      question: row.label,
-      answer: row.value,
-    }))
-  );
-};
-
 const mapCoverageValue = (value) => {
   const displayMap = {
     included: "Included",
@@ -2353,6 +2327,13 @@ const renderInlinePhoto = async (doc, mediaItem, options = {}) => {
   return height;
 };
 
+const renderInlinePhotos = async (doc, mediaItems = [], options = {}) => {
+  for (const mediaItem of mediaItems) {
+    await renderInlinePhoto(doc, mediaItem, options);
+    doc.y += 10;
+  }
+};
+
 const renderElectricalSmokeReport = async (
   doc,
   { report, template, job, property, technician }
@@ -2368,12 +2349,6 @@ const renderElectricalSmokeReport = async (
     ...getSectionValues("technician-signoff"),
   };
 
-  const propertyAddress =
-    property?.address?.fullAddress ||
-    property?.address?.street ||
-    property?.address ||
-    "N/A";
-
   const renderSectionPhotos = async (sectionId, heading) => {
     const mediaItems = getMediaItemsForSection(report, template, sectionId);
 
@@ -2381,70 +2356,8 @@ const renderElectricalSmokeReport = async (
       return;
     }
 
-    // Ensure space for photo section header and at least one photo
-    ensurePageSpace(doc, 250);
-
-    doc
-      .fillColor(COLORS.primary)
-      .fontSize(12)
-      .font("Helvetica-Bold")
-      .text(`${heading} Photos`, PAGE.margin, doc.y);
-    doc.y += 8;
-
-    for (const mediaItem of mediaItems) {
-      // Check if we need space for this photo (220px height + spacing)
-      const photoHeight = 220;
-      const totalPhotoSpace = photoHeight + 25;
-
-      ensurePageSpace(doc, totalPhotoSpace);
-
-      const result = await processImageForPdf(
-        {
-          imageUrl: mediaItem.imageBuffer || mediaItem.url,
-          gcsPath: mediaItem.gcsPath,
-        },
-        doc,
-        PAGE.margin,
-        doc.y,
-        400,
-        photoHeight
-      );
-
-      doc.y += result.height + 8;
-
-      renderPhotoCaption(doc, mediaItem, { template, sectionId });
-    }
-
-    doc.y += 2; // Extra spacing after photo section
+    await renderInlinePhotos(doc, mediaItems, { template, sectionId });
   };
-
-  const summaryRows = [
-    {
-      label: "Property Address",
-      value: propertyAddress,
-    },
-    {
-      label: "Inspection Date",
-      value:
-        formatDisplayDate(summarySection["inspection-date"]) ||
-        formatDisplayDate(report.submittedAt),
-    },
-    {
-      label: "Previous safety check",
-      value:
-        formatDisplayDate(summarySection["previous-inspection-date"]) ||
-        "Not recorded",
-    },
-  ];
-
-  drawRoomDetailTable(
-    doc,
-    "Property Report Summary",
-    summaryRows.map((row) => ({
-      label: row.label,
-      value: row.value,
-    }))
-  );
 
   const outcomeBadges = [];
   if (summarySection["electrical-outcome"]) {
@@ -2676,10 +2589,9 @@ const renderElectricalSmokeReport = async (
     }
   }
 
-  await renderMediaGallery(
+  await renderInlinePhotos(
     doc,
     getMediaItemsForSection(report, template, "inspection-photos"),
-    "Inspection Photos",
     { template, sectionId: "inspection-photos" }
   );
 
@@ -2714,71 +2626,18 @@ const renderGasReport = async (
       return;
     }
 
-    // Ensure space for photo section header and at least one photo
-    ensurePageSpace(doc, 250);
-
-    doc
-      .fillColor(COLORS.primary)
-      .fontSize(12)
-      .font("Helvetica-Bold")
-      .text(`${heading} Photos`, PAGE.margin, doc.y);
-    doc.y += 18;
-
-    for (const mediaItem of mediaItems) {
-      // Check if we need space for this photo (220px height + spacing)
-      const photoHeight = 220;
-      const totalPhotoSpace = photoHeight + 25;
-
-      ensurePageSpace(doc, totalPhotoSpace);
-
-      const result = await processImageForPdf(
-        {
-          imageUrl: mediaItem.imageBuffer || mediaItem.url,
-          gcsPath: mediaItem.gcsPath,
-        },
-        doc,
-        PAGE.margin,
-        doc.y,
-        400,
-        photoHeight
-      );
-
-      doc.y += result.height + 8;
-
-      renderPhotoCaption(doc, mediaItem, { template, sectionId });
-    }
-
-    doc.y += 2; // Extra spacing after photo section
+    await renderInlinePhotos(doc, mediaItems, { template, sectionId });
   };
-
-  // Property Details Summary
-  const propertyDetails = getSectionValues("property-details") || {};
-  const propertyAddress =
-    property?.address?.fullAddress || property?.address?.street || "N/A";
-  const inspectionDate = formatDisplayDate(report?.submittedAt || job?.dueDate);
-
-  const summaryRows = [
-    {
-      label: "Property Address",
-      value: propertyAddress,
-    },
-    {
-      label: "Inspection Date",
-      value: inspectionDate,
-    },
-    {
-      label: "Gas Installation Type",
-      value: propertyDetails["installation-type"] || "N/A",
-    },
-  ];
-
-  await renderSectionPhotos("property-details", "Property Overview");
 
   if (!template?.sections?.length) {
     return;
   }
 
   for (const section of template.sections) {
+    if (section.id === "property-details") {
+      continue;
+    }
+
     const responses = report.formData?.[section.id] || {};
 
     ensurePageSpace(doc, 120);
@@ -2841,47 +2700,7 @@ const renderGasSmokeReport = async (
       return;
     }
 
-    // Ensure space for photo section header and at least one photo
-    ensurePageSpace(doc, 250);
-
-    doc
-      .fillColor(COLORS.primary)
-      .fontSize(12)
-      .font("Helvetica-Bold")
-      .text(`${heading} Photos`, PAGE.margin, doc.y);
-    doc.y += 18;
-
-    for (const mediaItem of mediaItems) {
-      // Check if we need space for this photo (220px height + spacing)
-      ensurePageSpace(doc, 240);
-
-      try {
-        const imageBuffer = await loadImageBuffer({
-          imageUrl: mediaItem.url,
-          gcsPath: mediaItem.gcsPath,
-        });
-        doc.image(imageBuffer, {
-          fit: [(PAGE.content?.width || 595.28 - PAGE.margin * 2) * 0.4, 200],
-          align: "left",
-        });
-        doc.y += 220;
-      } catch (error) {
-        console.error("Error loading image:", error);
-        doc
-          .fillColor(COLORS.text)
-          .fontSize(10)
-          .text(
-            `Image could not be loaded: ${mediaItem.filename || "Unknown"}`,
-            PAGE.margin,
-            doc.y
-        );
-        doc.y += 15;
-      }
-
-      renderPhotoCaption(doc, mediaItem, { template, sectionId });
-    }
-
-    doc.y += 10;
+    await renderInlinePhotos(doc, mediaItems, { template, sectionId });
   };
 
   // Section 1: Inspection Details
@@ -3319,10 +3138,9 @@ const renderGasSmokeReport = async (
     await renderSectionPhotos("certification", "Certification");
   }
 
-  await renderMediaGallery(
+  await renderInlinePhotos(
     doc,
     getMediaItemsForSection(report, template, "inspection-photos"),
-    "Inspection Photos",
     { template, sectionId: "inspection-photos" }
   );
 };
@@ -3340,47 +3158,7 @@ const renderElectricalReport = async (
       return;
     }
 
-    // Ensure space for photo section header and at least one photo
-    ensurePageSpace(doc, 250);
-
-    doc
-      .fillColor(COLORS.primary)
-      .fontSize(12)
-      .font("Helvetica-Bold")
-      .text(`${heading} Photos`, PAGE.margin, doc.y);
-    doc.y += 18;
-
-    for (const mediaItem of mediaItems) {
-      // Check if we need space for this photo (220px height + spacing)
-      ensurePageSpace(doc, 240);
-
-      try {
-        const imageBuffer = await loadImageBuffer({
-          imageUrl: mediaItem.url,
-          gcsPath: mediaItem.gcsPath,
-        });
-        doc.image(imageBuffer, {
-          fit: [(PAGE.content?.width || 595.28 - PAGE.margin * 2) * 0.4, 200],
-          align: "left",
-        });
-        doc.y += 220;
-      } catch (error) {
-        console.error("Error loading image:", error);
-        doc
-          .fillColor(COLORS.text)
-          .fontSize(10)
-          .text(
-            `Image could not be loaded: ${mediaItem.filename || "Unknown"}`,
-            PAGE.margin,
-            doc.y
-        );
-        doc.y += 15;
-      }
-
-      renderPhotoCaption(doc, mediaItem, { template, sectionId });
-    }
-
-    doc.y += 10;
+    await renderInlinePhotos(doc, mediaItems, { template, sectionId });
   };
 
   // Section 1: Inspection Summary
@@ -3752,10 +3530,9 @@ const renderElectricalReport = async (
     await renderSectionPhotos("certification", "Certification");
   }
 
-  await renderMediaGallery(
+  await renderInlinePhotos(
     doc,
     getMediaItemsForSection(report, template, "inspection-photos"),
-    "Inspection Photos",
     { template, sectionId: "inspection-photos" }
   );
 };
@@ -3810,41 +3587,7 @@ const renderMinimumSafetyStandardReport = async (
       return;
     }
 
-    // Ensure space for photo section header and at least one photo
-    ensurePageSpace(doc, 250);
-
-    doc
-      .fillColor(COLORS.primary)
-      .fontSize(12)
-      .font("Helvetica-Bold")
-      .text(`${heading} Photos`, PAGE.margin, doc.y);
-    doc.y += 18;
-
-    for (const mediaItem of mediaItems) {
-      // Check if we need space for this photo (220px height + spacing)
-      const photoHeight = 220;
-      const totalPhotoSpace = photoHeight + 25;
-
-      ensurePageSpace(doc, totalPhotoSpace);
-
-      const result = await processImageForPdf(
-        {
-          imageUrl: mediaItem.imageBuffer || mediaItem.url,
-          gcsPath: mediaItem.gcsPath,
-        },
-        doc,
-        PAGE.margin,
-        doc.y,
-        400,
-        photoHeight
-      );
-
-      doc.y += result.height + 15;
-
-      renderPhotoCaption(doc, mediaItem, { template, sectionId });
-    }
-
-    doc.y += 5; // Extra spacing after photo section
+    await renderInlinePhotos(doc, mediaItems, { template, sectionId });
   };
 
   // Helper function to format property address
@@ -3880,50 +3623,6 @@ const renderMinimumSafetyStandardReport = async (
 
     return "N/A";
   };
-
-  // Overall Property Summary Section
-  const summaryRows = [
-    {
-      label: "Property Address",
-      value: formatPropertyAddress(),
-    },
-    {
-      label: "Inspection Date",
-      value: formatDisplayDate(
-        propertySummary["inspection-date"] || report?.submittedAt
-      ),
-    },
-    {
-      label: "Bedrooms Inspected",
-      value: bedroomsInspected || "N/A",
-    },
-    {
-      label: "Bathrooms Inspected",
-      value: bathroomsInspected || "N/A",
-    },
-    {
-      label: "Property Owner/Manager",
-      value: propertySummary["owner-name"] || "N/A",
-    },
-    {
-      label: "Overall Compliance Status",
-      value: propertySummary["overall-compliance"] || "N/A",
-    },
-    {
-      label: "Next Inspection Due",
-      value: formatDisplayDate(executiveSummary["next-inspection-date"]),
-    },
-  ];
-
-  drawRoomDetailTable(
-    doc,
-    "Overall Property Summary",
-    summaryRows.map((row) => ({
-      label: row.label,
-      value: row.value,
-    }))
-  );
-  await renderSectionPhotos("property-summary", "Property Exterior");
 
   drawSummaryList(doc, "Disclaimer", ["This is only a visual check."]);
 
@@ -4560,78 +4259,18 @@ const renderGenericReport = async (
       return;
     }
 
-    // Ensure space for photo section header and at least one photo
-    ensurePageSpace(doc, 250);
-
-    doc
-      .fillColor(COLORS.primary)
-      .fontSize(12)
-      .font("Helvetica-Bold")
-      .text(`${heading} Photos`, PAGE.margin, doc.y);
-    doc.y += 18;
-
-    for (const mediaItem of mediaItems) {
-      // Check if we need space for this photo (220px height + spacing)
-      const photoHeight = 220;
-      const totalPhotoSpace = photoHeight + 25;
-
-      ensurePageSpace(doc, totalPhotoSpace);
-
-      const result = await processImageForPdf(
-        {
-          imageUrl: mediaItem.imageBuffer || mediaItem.url,
-          gcsPath: mediaItem.gcsPath,
-        },
-        doc,
-        PAGE.margin,
-        doc.y,
-        400,
-        photoHeight
-      );
-
-      doc.y += result.height + 15;
-
-      renderPhotoCaption(doc, mediaItem, { template, sectionId });
-    }
-
-    doc.y += 5; // Extra spacing after photo section
+    await renderInlinePhotos(doc, mediaItems, { template, sectionId });
   };
-
-  // Property Details Summary
-  const propertyDetails = getSectionValues("property-details") || {};
-  const propertyAddress =
-    property?.address?.fullAddress || property?.address?.street || "N/A";
-  const inspectionDate = formatDisplayDate(report?.submittedAt || job?.dueDate);
-  const summaryRows = [
-    {
-      label: "Property Address",
-      value: propertyAddress,
-    },
-    {
-      label: "Inspection Date",
-      value: inspectionDate,
-    },
-    {
-      label: "Report Generated",
-      value: formatDisplayDate(new Date()),
-    },
-  ];
-
-  drawRoomDetailTable(
-    doc,
-    "Inspection Summary",
-    summaryRows.map((row) => ({
-      label: row.label,
-      value: row.value,
-    }))
-  );
-  await renderSectionPhotos("property-details", "Property Overview");
 
   if (!template?.sections?.length) {
     return;
   }
 
   for (const section of template.sections) {
+    if (section.id === "property-details") {
+      continue;
+    }
+
     const responses = report.formData?.[section.id] || {};
 
     ensurePageSpace(doc, 120);
@@ -5365,10 +5004,9 @@ const renderGasApplianceV3 = async (
     drawTextField(doc, "Comments", appliance["appliance-comments"]);
   }
 
-  await renderMediaGallery(
+  await renderInlinePhotos(
     doc,
     getMediaItemsForRepeatableItem(report, template, "gas-appliances", index),
-    `Appliance ${index + 1} Photos`,
     { template, sectionId: "gas-appliances" }
   );
 };
@@ -5381,14 +5019,12 @@ const renderGasReportV3 = async (
     template.sections.find((section) => section.id === sectionId);
   const getSectionValues = (sectionId) => report.formData?.[sectionId] || {};
 
-  const propertySection = getSection("property-details");
   const lpGasSection = getSection("lp-gas-checklist");
   const generalSection = getSection("general-gas-checks");
   const applianceSection = getSection("gas-appliances");
   const rectificationSection = getSection("rectification-works-required");
   const finalSection = getSection("final-declaration");
 
-  const propertyDetails = getSectionValues("property-details");
   const lpGasChecklist = getSectionValues("lp-gas-checklist");
   const generalChecks = getSectionValues("general-gas-checks");
   const rectification = getSectionValues("rectification-works-required");
@@ -5397,22 +5033,15 @@ const renderGasReportV3 = async (
     ? report.formData["gas-appliances"]
     : [];
 
-  if (propertySection) {
-    drawSectionHeader(doc, propertySection.title);
-    const rows = buildSectionRows(propertySection, propertyDetails);
-    drawRoomDetailTable(doc, null, rows, { hideHeaders: true });
-  }
-
   if (lpGasSection) {
     drawSectionHeader(doc, lpGasSection.title);
     const rows = buildSectionRows(lpGasSection, lpGasChecklist, {
       excludeTypes: ["photo", "photo-multi"],
     });
     drawRoomDetailTable(doc, null, rows);
-    await renderMediaGallery(
+    await renderInlinePhotos(
       doc,
       getMediaItemsForSection(report, template, "lp-gas-checklist"),
-      "LP Gas Checklist Photos",
       { template, sectionId: "lp-gas-checklist" }
     );
   }
@@ -5423,10 +5052,9 @@ const renderGasReportV3 = async (
       excludeTypes: ["photo", "photo-multi"],
     });
     drawRoomDetailTable(doc, null, rows);
-    await renderMediaGallery(
+    await renderInlinePhotos(
       doc,
       getMediaItemsForSection(report, template, "general-gas-checks"),
-      "General Gas Checks Photos",
       { template, sectionId: "general-gas-checks" }
     );
   }
@@ -5448,10 +5076,9 @@ const renderGasReportV3 = async (
       excludeTypes: ["photo", "photo-multi"],
     });
     drawRoomDetailTable(doc, null, rows);
-    await renderMediaGallery(
+    await renderInlinePhotos(
       doc,
       getMediaItemsForSection(report, template, "rectification-works-required"),
-      "Rectification Photos",
       { template, sectionId: "rectification-works-required" }
     );
   }
@@ -5809,49 +5436,9 @@ const renderSmokeOnlyReport = async (
 
   doc.y += 10;
 
-  // Report Details section
-  ensurePageSpace(doc, 120);
-  drawSectionHeader(doc, "Report Details");
-
-  const reportDetailsData = [
-    {
-      label: "Report Date",
-      value: new Date().toLocaleDateString("en-AU", {
-        day: "numeric",
-        month: "long",
-        year: "numeric",
-      }),
-    },
-    {
-      label: "Inspection Address",
-      value:
-        jobDetails["inspection-address"] ||
-        property?.fullAddress ||
-        property?.address?.street ||
-        "N/A",
-    },
-    {
-      label: "Date of Inspection",
-      value: new Date(
-        jobDetails["inspection-date"] || report.submittedAt
-      ).toLocaleDateString("en-AU", {
-        day: "numeric",
-        month: "long",
-        year: "numeric",
-      }),
-    },
-    { label: "Inspection Type", value: "Smoke Alarm Safety Inspection" },
-    {
-      label: "Overall Status",
-      value: overallStatusDisplay,
-    },
-  ];
-
-  drawRoomDetailTable(doc, null, reportDetailsData);
-  await renderMediaGallery(
+  await renderInlinePhotos(
     doc,
     getMediaItemsForSection(report, template, "inspection-photos"),
-    "Inspection Photos",
     { template, sectionId: "inspection-photos" }
   );
 
