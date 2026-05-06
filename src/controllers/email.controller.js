@@ -1268,8 +1268,14 @@ class EmailController {
         }));
       }
 
+      // Log email data before sending
+      console.log("Sending email with data:", JSON.stringify(emailData, null, 2));
+
       // Send email using Resend
-      await emailService.resend.emails.send(emailData);
+      const resendResult = await emailService.resend.emails.send(emailData);
+
+      // Log resend result
+      console.log("Resend response:", JSON.stringify(resendResult, null, 2));
 
       res.json({
         status: "success",
@@ -1279,6 +1285,7 @@ class EmailController {
           cc: ccRecipients,
           subject: subject.trim(),
           attachmentCount: attachments.length,
+          resendMessageId: resendResult.id,
         },
       });
     } catch (error) {
