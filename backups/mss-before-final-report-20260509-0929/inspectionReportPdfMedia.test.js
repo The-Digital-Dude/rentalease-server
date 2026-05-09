@@ -220,40 +220,40 @@ describe("Inspection report PDF media matching", () => {
     expect(source).toContain('const hideInspectorIdentity = template?.jobType === "Smoke"');
   });
 
-  test("generic report renderer visits section-level photo fields", () => {
+  test("minimum safety standard renderer visits photo-bearing sections", () => {
     const servicePath = path.resolve(
       __dirname,
       "../src/services/inspectionReportPdf.service.js"
     );
     const source = fs.readFileSync(servicePath, "utf8");
+    const minimumSafetyStart = source.indexOf(
+      "const renderMinimumSafetyStandardReport = async"
+    );
     const genericStart = source.indexOf("const renderGenericReport = async");
-    const drawSectionHeaderStart = source.indexOf("const drawSectionHeader");
-    const genericSource = source.slice(genericStart, drawSectionHeaderStart);
+    const minimumSafetySource = source.slice(minimumSafetyStart, genericStart);
 
-    expect(source).toContain(
-      '} else if (template?.jobType === "MinimumSafetyStandard") {\n    await renderGenericReport'
+    [
+      "property-summary",
+      "front-entrance",
+      "electrical-safety",
+      "bin-facilities",
+    ].forEach((sectionId) => {
+      expect(minimumSafetySource).toContain(
+        `await renderSectionPhotos("${sectionId}"`
+      );
+    });
+    expect(minimumSafetySource).toMatch(
+      /const additionalDetailSections = new Set\(\[\s*"living-room",\s*"kitchen",\s*"laundry"/
     );
-    expect(genericSource).toContain("getMediaItemsForSection(report, template, sectionId)");
-    expect(genericSource).toMatch(/field\.type !== "photo" && field\.type !== "photo-multi"/);
-    expect(genericSource).toContain(
-      'await renderSectionPhotos(section.id, section.title || "Section")'
+    expect(minimumSafetySource).toMatch(
+      /const isBedroom = section\.id\.startsWith\("bedroom-"\)/
     );
-  });
-
-  test("inline report photos render in an aligned grid", () => {
-    const servicePath = path.resolve(
-      __dirname,
-      "../src/services/inspectionReportPdf.service.js"
+    expect(minimumSafetySource).toMatch(
+      /const isBathroom = section\.id\.startsWith\("bathroom-"\)/
     );
-    const source = fs.readFileSync(servicePath, "utf8");
-    const inlineStart = source.indexOf("const renderInlinePhotos = async");
-    const titledStart = source.indexOf("const renderTitledInlinePhotos = async");
-    const inlineSource = source.slice(inlineStart, titledStart);
-
-    expect(inlineSource).toContain("const columns = mediaItems.length === 1 ? 1 : 2");
-    expect(inlineSource).toContain("const itemWidth =");
-    expect(inlineSource).toContain("ensurePageSpace(doc, itemHeight + 14)");
-    expect(inlineSource).toContain("renderPhotoCaptionAt(");
+    expect(minimumSafetySource).toMatch(
+      /await renderSectionPhotos\(section\.id,\s*roomTitle\)/
+    );
   });
 
   test("reports keep technician details only in the shared summary", () => {

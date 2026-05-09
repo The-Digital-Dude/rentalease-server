@@ -2737,6 +2737,861 @@ const createLaundrySection = () => ({
   ],
 });
 
+const createLegacyMinimumSafetyStandardTemplate = (
+  bedroomCount = 1,
+  bathroomCount = 1
+) => {
+  const overallSummaryRows = [
+    { id: "summary-recycle-general", label: "Recycle and General Waste" },
+    { id: "summary-kitchen", label: "Kitchen" },
+    { id: "summary-laundry", label: "Laundry" },
+    { id: "summary-living-room", label: "Living Room" },
+    { id: "summary-front-entrance", label: "Front Entrance" },
+    { id: "summary-electrical", label: "Electrical Safety" },
+  ];
+
+  for (let i = 1; i <= bathroomCount; i++) {
+    overallSummaryRows.push({
+      id: `summary-bathroom-${i}`,
+      label: `Bathroom ${i}`,
+    });
+  }
+
+  for (let i = 1; i <= bedroomCount; i++) {
+    overallSummaryRows.push({
+      id: `summary-bedroom-${i}`,
+      label: `Bedroom ${i}`,
+    });
+  }
+
+  const lightingRows = [
+    { id: "lighting-front-entrance", label: "Front Entrance" },
+    { id: "lighting-living-room", label: "Living Room" },
+    { id: "lighting-kitchen", label: "Kitchen" },
+    { id: "lighting-laundry", label: "Laundry" },
+  ];
+
+  const mouldRows = [
+    { id: "mould-front-entrance", label: "Front Entrance" },
+    { id: "mould-living-room", label: "Living Room" },
+    { id: "mould-kitchen", label: "Kitchen" },
+    { id: "mould-laundry", label: "Laundry" },
+  ];
+
+  const ventilationRows = [
+    { id: "ventilation-front-entrance", label: "Front Entrance" },
+    { id: "ventilation-living-room", label: "Living Room" },
+    { id: "ventilation-kitchen", label: "Kitchen" },
+    { id: "ventilation-laundry", label: "Laundry" },
+  ];
+
+  const structuralBowingRows = [
+    { id: "struct-bowing-living-room", label: "Living Room" },
+    { id: "struct-bowing-laundry", label: "Laundry" },
+    { id: "struct-bowing-kitchen", label: "Kitchen" },
+    { id: "struct-bowing-front-entrance", label: "Front Entrance" },
+  ];
+
+  const structuralCrackingRows = [
+    { id: "struct-cracking-living-room", label: "Living Room" },
+    { id: "struct-cracking-laundry", label: "Laundry" },
+    { id: "struct-cracking-kitchen", label: "Kitchen" },
+    { id: "struct-cracking-front-entrance", label: "Front Entrance" },
+  ];
+
+  const structuralWarpingRows = [
+    { id: "struct-warping-living-room", label: "Living Room" },
+    { id: "struct-warping-laundry", label: "Laundry" },
+    { id: "struct-warping-kitchen", label: "Kitchen" },
+    { id: "struct-warping-front-entrance", label: "Front Entrance" },
+  ];
+
+  const windowCoveringRows = [
+    { id: "window-coverings-living-room", label: "Living Room" },
+  ];
+
+  const windowLatchRows = [];
+
+  const externalDoorRows = [
+    { id: "external-door-front-entrance", label: "Front Entrance" },
+    { id: "external-door-living-room", label: "Living Room" },
+    { id: "external-door-laundry", label: "Laundry" },
+  ];
+
+  const heatingRows = [{ id: "heating-living-room", label: "Living Room" }];
+
+  const coldWaterRows = [
+    { id: "cold-water-kitchen", label: "Kitchen" },
+    { id: "cold-water-laundry", label: "Laundry" },
+  ];
+
+  const hotWaterRows = [
+    { id: "hot-water-kitchen", label: "Kitchen" },
+    { id: "hot-water-laundry", label: "Laundry" },
+  ];
+
+  const kitchenFacilityRows = [
+    { id: "kitchen-stovetop", label: "Stovetop" },
+    { id: "kitchen-food-prep", label: "Food Preparation Area" },
+    { id: "kitchen-oven", label: "Oven" },
+    { id: "kitchen-sink", label: "Sink" },
+  ];
+
+  const toiletRows = [];
+
+  const executiveFixtureFields = [];
+  for (let i = 1; i <= bathroomCount; i++) {
+    executiveFixtureFields.push(
+      ...formatPresenceFieldSet(`bathroom-${i}-bath`, `Bathroom ${i} Bath`),
+      ...formatPresenceFieldSet(`bathroom-${i}-shower`, `Bathroom ${i} Shower`),
+      ...formatPresenceFieldSet(
+        `bathroom-${i}-washbasin`,
+        `Bathroom ${i} Washbasin`
+      )
+    );
+  }
+
+  for (let i = 1; i <= bedroomCount; i++) {
+    lightingRows.push({ id: `lighting-bedroom-${i}`, label: `Bedroom ${i}` });
+    mouldRows.push({ id: `mould-bedroom-${i}`, label: `Bedroom ${i}` });
+    ventilationRows.push({
+      id: `ventilation-bedroom-${i}`,
+      label: `Bedroom ${i}`,
+    });
+    structuralBowingRows.push({
+      id: `struct-bowing-bedroom-${i}`,
+      label: `Bedroom ${i}`,
+    });
+    structuralCrackingRows.push({
+      id: `struct-cracking-bedroom-${i}`,
+      label: `Bedroom ${i}`,
+    });
+    structuralWarpingRows.push({
+      id: `struct-warping-bedroom-${i}`,
+      label: `Bedroom ${i}`,
+    });
+    windowCoveringRows.push({
+      id: `window-coverings-bedroom-${i}`,
+      label: `Bedroom ${i}`,
+    });
+    windowLatchRows.push({ id: `windows-bedroom-${i}`, label: `Bedroom ${i}` });
+  }
+
+  for (let i = 1; i <= bathroomCount; i++) {
+    lightingRows.push({ id: `lighting-bathroom-${i}`, label: `Bathroom ${i}` });
+    mouldRows.push({ id: `mould-bathroom-${i}`, label: `Bathroom ${i}` });
+    ventilationRows.push({
+      id: `ventilation-bathroom-${i}`,
+      label: `Bathroom ${i}`,
+    });
+    structuralBowingRows.push({
+      id: `struct-bowing-bathroom-${i}`,
+      label: `Bathroom ${i}`,
+    });
+    structuralCrackingRows.push({
+      id: `struct-cracking-bathroom-${i}`,
+      label: `Bathroom ${i}`,
+    });
+    structuralWarpingRows.push({
+      id: `struct-warping-bathroom-${i}`,
+      label: `Bathroom ${i}`,
+    });
+    windowLatchRows.push({
+      id: `windows-bathroom-${i}`,
+      label: `Bathroom ${i}`,
+    });
+    coldWaterRows.push({
+      id: `cold-water-bathroom-${i}`,
+      label: `Bathroom ${i}`,
+    });
+    hotWaterRows.push({
+      id: `hot-water-bathroom-${i}`,
+      label: `Bathroom ${i}`,
+    });
+    toiletRows.push({ id: `toilet-bathroom-${i}`, label: `Bathroom ${i}` });
+  }
+
+  const baseSections = [
+    {
+      id: "property-setup",
+      title: "Property Configuration",
+      description:
+        "Configure the number of bedrooms and bathrooms for this property",
+      fields: [
+        {
+          id: "bedroom-count",
+          label: "Number of Bedrooms",
+          type: "number",
+          required: true,
+          min: 1,
+          max: 20,
+          defaultValue: bedroomCount,
+          helpText: "Enter the total number of bedrooms in the property",
+        },
+        {
+          id: "bathroom-count",
+          label: "Number of Bathrooms",
+          type: "number",
+          required: true,
+          min: 1,
+          max: 10,
+          defaultValue: bathroomCount,
+          helpText: "Enter the total number of bathrooms in the property",
+        },
+      ],
+    },
+    buildStatusSection(
+      "overall-summary",
+      "Overall Property Summary (Minimum Standards)",
+      overallSummaryRows,
+      "Capture whether each key area meets the minimum standards and record any remedial actions required."
+    ),
+    {
+      id: "property-summary",
+      title: "Overall Property Summary",
+      description: "Complete the overall property assessment summary",
+      fields: [
+        {
+          id: "inspection-date",
+          label: "Inspection Date",
+          type: "date",
+          required: true,
+          defaultValue: new Date().toISOString().split("T")[0],
+        },
+        {
+          id: "inspector-name",
+          label: "Inspector Name",
+          type: "text",
+          required: true,
+          placeholder: "Enter inspector's full name",
+        },
+        {
+          id: "inspector-license",
+          label: "Inspector License Number",
+          type: "text",
+          required: true,
+          placeholder: "Enter license/certification number",
+          defaultValue: "LIC-0000",
+        },
+        {
+          id: "property-address",
+          label: "Property Address",
+          type: "textarea",
+          required: true,
+          placeholder: "Enter complete property address",
+        },
+        {
+          id: "owner-name",
+          label: "Property Owner/Manager",
+          type: "text",
+          required: true,
+          placeholder: "Enter owner or property manager name",
+          defaultValue: "Auto Owner",
+        },
+        {
+          id: "overall-compliance",
+          label: "Overall Compliance Status",
+          type: "select",
+          required: true,
+          options: complianceStatusOptions,
+          defaultValue: "compliant",
+        },
+        {
+          id: "property-photo",
+          label: "Property Photo",
+          type: "photo",
+          required: true,
+          helpText: "Take a photo of the property exterior",
+          defaultValue: DEFAULT_PLACEHOLDER_IMAGE,
+        },
+      ],
+    },
+    {
+      id: "front-entrance",
+      title: "Front Entrance",
+      description:
+        "Assess the primary entry including doors, hardware, and weather protection",
+      fields: [
+        {
+          id: "front-entrance-house-photo",
+          label: "Photo of house from street",
+          type: "photo",
+        },
+        {
+          id: "front-entrance-detail-photo",
+          label: "Detailed photo of front entrance",
+          type: "photo",
+        },
+        {
+          id: "front-entrance-building-classification",
+          label: "What is the designated building class of the rented premises?",
+          type: "text",
+          placeholder: "e.g. Class 1",
+          defaultValue: "Class 1",
+        },
+        {
+          id: "front-entrance-condition",
+          label: "Front Entrance Condition",
+          type: "select",
+          required: true,
+          options: passFailOptions,
+          defaultValue: "pass",
+        },
+        {
+          id: "front-entrance-security",
+          label: "Is the entrance door secure and lockable?",
+          type: "yes-no",
+          required: true,
+          defaultValue: "yes",
+        },
+        {
+          id: "front-entrance-screen-door",
+          label: "Security/Screen Door Installed",
+          type: "yes-no",
+          required: true,
+          defaultValue: "yes",
+        },
+        {
+          id: "front-entrance-lighting",
+          label: "Entrance Lighting Functional",
+          type: "select",
+          required: true,
+          options: passFailOptions,
+          defaultValue: "pass",
+        },
+        {
+          id: "front-entrance-weather-protection",
+          label: "Adequate Weather Protection",
+          type: "select",
+          required: true,
+          options: passFailOptions,
+          defaultValue: "pass",
+          helpText:
+            "Assess awnings, verandas, or other protection from weather",
+        },
+        {
+          id: "front-entrance-external-door-present",
+          label: "Is there an external door present?",
+          type: "yes-no",
+          defaultValue: "yes",
+        },
+        {
+          id: "front-entrance-public-lobby",
+          label: "Is this a public lobby door that opens to common property?",
+          type: "yes-no",
+          defaultValue: "no",
+        },
+        {
+          id: "front-entrance-external-door-photo",
+          label: "Photo of external door (outside and inside)",
+          type: "photo-multi",
+          metadata: { max: 2 },
+        },
+        {
+          id: "front-entrance-deadlock-present",
+          label: "Does the external door have a deadlock/deadlatch function?",
+          type: "yes-no",
+          defaultValue: "yes",
+        },
+        {
+          id: "front-entrance-deadlock-photos",
+          label: "Close-up photos of deadlock/deadlatch",
+          type: "photo-multi",
+          metadata: { max: 3 },
+          helpText:
+            "Capture outside, inside, and engaged positions of the lock",
+        },
+        {
+          id: "front-entrance-deadlock-functional",
+          label: "Is the deadlock/deadlatch feature functioning?",
+          type: "yes-no",
+          defaultValue: "yes",
+        },
+        {
+          id: "front-entrance-deadlock-standard",
+          label:
+            "Are all external doors (excluding any screen doors) fitted with compliant deadlocks?",
+          type: "yes-no",
+          defaultValue: "yes",
+        },
+        {
+          id: "front-entrance-window-present",
+          label: "Are there windows in room?",
+          type: "yes-no",
+          defaultValue: "no",
+        },
+        {
+          id: "front-entrance-mould-standard",
+          label:
+            "Are all rooms in the premises free from mould or dampness caused by or related to the building structure?",
+          type: "yes-no",
+          defaultValue: "yes",
+        },
+        {
+          id: "front-entrance-ventilation-standard",
+          label:
+            "Do all habitable rooms, bathrooms, shower rooms, toilets, and laundry areas have adequate ventilation in line with the required performance or deemed-to-satisfy standards?",
+          type: "yes-no",
+          defaultValue: "yes",
+        },
+        {
+          id: "front-entrance-overall-standard",
+          label:
+            "ROOM OVERALL: Does the area overall meet the minimum standards?",
+          type: "yes-no",
+          defaultValue: "yes",
+        },
+        {
+          id: "front-entrance-notes",
+          label: "Recommendations",
+          type: "textarea",
+          placeholder:
+            "Record observations or maintenance items relating to the entrance",
+          defaultValue: "N/A",
+        },
+        {
+          id: "front-entrance-photo",
+          label: "Front Entrance Photo",
+          type: "photo",
+          required: true,
+          helpText: "Capture the condition of the primary entrance",
+          defaultValue: DEFAULT_PLACEHOLDER_IMAGE,
+        },
+      ],
+    },
+    {
+      id: "executive-summary",
+      title: "Executive Summary",
+      description: "Provide a comprehensive summary of the inspection findings",
+      fields: [
+        {
+          id: "inspection-summary",
+          label: "Inspection Summary",
+          type: "textarea",
+          required: true,
+          placeholder:
+            "Provide a detailed summary of the inspection findings, any issues identified, and recommended actions",
+          helpText:
+            "This summary will appear in the executive summary section of the report",
+        },
+        {
+          id: "key-findings",
+          label: "Key Findings",
+          type: "textarea",
+          required: true,
+          placeholder: "List the main findings from the inspection",
+        },
+        {
+          id: "recommendations",
+          label: "Recommendations",
+          type: "textarea",
+          required: true,
+          placeholder:
+            "Provide specific recommendations for addressing any issues found",
+        },
+        {
+          id: "next-inspection-date",
+          label: "Next Inspection Due",
+          type: "date",
+          required: true,
+          helpText:
+            "When should the next minimum safety standard inspection be conducted",
+          defaultValue: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
+            .toISOString()
+            .split("T")[0], // One year from now
+        },
+      ],
+    },
+    {
+      id: "electrical-safety",
+      title: "Electrical Safety",
+      description: "Assessment of electrical systems and safety",
+      fields: [
+        {
+          id: "switchboard-location",
+          label: "Location of switchboard",
+          type: "text",
+          required: true,
+          placeholder: "e.g. Front entrance of the home",
+          defaultValue: "Front entrance of the home",
+        },
+        {
+          id: "switchboard-photo",
+          label: "Photo of switchboard",
+          type: "photo",
+          required: true,
+          defaultValue: DEFAULT_PLACEHOLDER_IMAGE,
+        },
+        {
+          id: "electrical-compliance",
+          label: "Electrical System Compliance",
+          type: "select",
+          required: true,
+          options: complianceStatusOptions,
+          defaultValue: "compliant",
+        },
+        {
+          id: "switchboard-condition",
+          label: "Switchboard Condition",
+          type: "select",
+          required: true,
+          options: passFailOptions,
+          defaultValue: "pass",
+        },
+        {
+          id: "switchboard-circuit-breaker",
+          label:
+            "Are all power outlets and lighting circuits connected to a switchboard-type circuit breaker complying with AS/NZS 3000?",
+          type: "yes-no",
+          required: true,
+          defaultValue: "yes",
+        },
+        {
+          id: "rcd-present",
+          label:
+            "Are all power outlets and lighting circuits connected to a switchboard-type residual current device (RCD) complying with the relevant AS/NZS standards?",
+          type: "yes-no",
+          required: true,
+          defaultValue: "yes",
+        },
+        {
+          id: "switchboard-meets-standard",
+          label: "Are minimum standards met for this section?",
+          type: "yes-no",
+          required: true,
+          defaultValue: "yes",
+        },
+        {
+          id: "electrical-outlets",
+          label: "Power Outlets Condition",
+          type: "select",
+          required: true,
+          options: passFailOptions,
+          defaultValue: "pass",
+        },
+        {
+          id: "electrical-notes",
+          label: "Recommendations",
+          type: "textarea",
+          placeholder: "Record recommendations for electrical safety",
+        },
+        {
+          id: "electrical-photo",
+          label: "Electrical System Photo",
+          type: "photo",
+          required: true,
+          helpText: "Take a photo of the main switchboard",
+          defaultValue: DEFAULT_PLACEHOLDER_IMAGE,
+        },
+      ],
+    },
+    {
+      id: "bin-facilities",
+      title: "Bin Facilities",
+      description: "Assessment of waste disposal facilities",
+      fields: [
+        {
+          id: "bin-general-present",
+          label:
+            "Is a rubbish bin available for the renter's use - either council-supplied or vermin-proof and compatible with local collection services?",
+          type: "yes-no",
+          required: true,
+          defaultValue: "yes",
+        },
+        {
+          id: "bin-general-condition",
+          label:
+            "Is the general waste bin in good working condition/vermin proof?",
+          type: "yes-no",
+          required: true,
+          defaultValue: "yes",
+        },
+        {
+          id: "bin-general-photo",
+          label: "Photo of council style GENERAL waste bin",
+          type: "photo",
+        },
+        {
+          id: "bin-general-standard",
+          label:
+            "Are both a rubbish bin and a recycling bin available for the renter's use - either council-supplied or vermin-proof and compatible with local collection services?",
+          type: "yes-no",
+          required: true,
+          defaultValue: "yes",
+        },
+        {
+          id: "bin-recycle-present",
+          label:
+            "Is a recycling bin available for the renter's use - either council-supplied or vermin-proof and compatible with local collection services?",
+          type: "yes-no",
+          required: true,
+          defaultValue: "yes",
+        },
+        {
+          id: "bin-recycle-condition",
+          label: "Is the recycle bin in good working condition/vermin proof?",
+          type: "yes-no",
+          required: true,
+          defaultValue: "yes",
+        },
+        {
+          id: "bin-recycle-photo",
+          label: "Photo of recycle council style waste bin",
+          type: "photo",
+        },
+        {
+          id: "bin-recycle-standard",
+          label: "Are minimum standards met for this section?",
+          type: "yes-no",
+          required: true,
+          defaultValue: "yes",
+        },
+        {
+          id: "bin-notes",
+          label: "Recommendations",
+          type: "textarea",
+          placeholder: "Record recommendations for bin facilities",
+          defaultValue: "N/A",
+        },
+      ],
+    },
+  ];
+
+  if (executiveFixtureFields.length) {
+    baseSections.push({
+      id: "executive-summary-fixtures",
+      title: "Executive Summary – Fixtures",
+      description:
+        "Record the presence of key fixtures within each bathroom and note any required actions when items are absent.",
+      fields: executiveFixtureFields,
+    });
+  }
+
+  baseSections.push(
+    buildStatusSection(
+      "external-entry-doors",
+      "External Entry Doors",
+      externalDoorRows,
+      "Assess whether external entry doors across the property meet minimum standards."
+    )
+  );
+
+  baseSections.push(
+    buildStatusSection(
+      "heating-summary",
+      "Heating",
+      heatingRows,
+      "Confirm the main living area is provided with compliant fixed heating."
+    )
+  );
+
+  baseSections.push(
+    buildStatusSection(
+      "cold-water-supply",
+      "Cold Water Supply",
+      coldWaterRows,
+      "Confirm cold water supply meets minimum standards in all required areas."
+    )
+  );
+
+  baseSections.push(
+    buildStatusSection(
+      "hot-water-supply",
+      "Hot Water Supply",
+      hotWaterRows,
+      "Confirm hot water supply meets minimum standards in all required areas."
+    )
+  );
+
+  baseSections.push(
+    buildStatusSection(
+      "kitchen-facilities",
+      "Kitchen Facilities",
+      kitchenFacilityRows,
+      "Assess the essential kitchen facilities required under the minimum standards."
+    )
+  );
+
+  baseSections.push(
+    buildStatusSection(
+      "lighting-summary",
+      "Lighting",
+      lightingRows,
+      "Confirm each area has adequate lighting meeting minimum standards."
+    )
+  );
+
+  baseSections.push(
+    buildStatusSection(
+      "mould-dampness-summary",
+      "Mould and Dampness",
+      mouldRows,
+      "Record areas where mould or dampness impact compliance."
+    )
+  );
+
+  baseSections.push(
+    buildStatusSection(
+      "ventilation-summary",
+      "Ventilation",
+      ventilationRows,
+      "Confirm ventilation provisions meet minimum standards across the property."
+    )
+  );
+
+  baseSections.push(
+    buildStatusSection(
+      "structural-bowing-summary",
+      "Structural – Bowing and Leaning",
+      structuralBowingRows,
+      "Identify areas with structural bowing or leaning concerns."
+    )
+  );
+
+  baseSections.push(
+    buildStatusSection(
+      "structural-cracking-summary",
+      "Structural – Cracking",
+      structuralCrackingRows,
+      "Identify areas with cracking concerns."
+    )
+  );
+
+  baseSections.push(
+    buildStatusSection(
+      "structural-warping-summary",
+      "Structural – Warping",
+      structuralWarpingRows,
+      "Identify areas with floor warping or movement."
+    )
+  );
+
+  if (toiletRows.length) {
+    baseSections.push(
+      buildStatusSection(
+        "toilet-summary",
+        "Toilet Facilities",
+        toiletRows,
+        "Document whether each bathroom toilet meets minimum standards."
+      )
+    );
+  }
+
+  baseSections.push(
+    buildStatusSection(
+      "window-coverings-summary",
+      "Window Coverings",
+      windowCoveringRows,
+      "Confirm window coverings meet minimum standards in relevant rooms."
+    )
+  );
+
+  if (windowLatchRows.length) {
+    baseSections.push(
+      buildStatusSection(
+        "windows-latches-summary",
+        "Windows and Latches",
+        windowLatchRows,
+        "Document whether windows and associated latches meet minimum standards."
+      )
+    );
+  }
+
+  baseSections.push(createLivingRoomSection());
+  baseSections.push(createKitchenSection());
+  baseSections.push(createLaundrySection());
+
+  // Add dynamic bedroom sections
+  for (let i = 1; i <= bedroomCount; i++) {
+    baseSections.push(createBedroomSection(i));
+  }
+
+  // Add dynamic bathroom sections
+  for (let i = 1; i <= bathroomCount; i++) {
+    baseSections.push(createBathroomSection(i));
+  }
+
+  // Add technician signature section
+  baseSections.push({
+    id: "technician-signoff",
+    title: "Technician Sign-Off",
+    description: "Technician declaration and signature for Minimum Safety Standard inspection completion.",
+    fields: [
+      {
+        id: "technician-name",
+        label: "Inspection Completed By",
+        type: "text",
+        required: true,
+        placeholder: "Technician full name",
+      },
+      {
+        id: "technician-license",
+        label: "License/Registration Number",
+        type: "text",
+        required: true,
+        placeholder: "License or registration number",
+      },
+      {
+        id: "inspection-completion-date",
+        label: "Inspection Completion Date",
+        type: "date",
+        required: true,
+        defaultValue: new Date().toISOString().split("T")[0],
+      },
+      {
+        id: "technician-declaration",
+        label: "Technician Declaration",
+        type: "checkbox",
+        required: true,
+        defaultValue: false,
+        helpText:
+          "I conducted this inspection in accordance with the Residential Tenancies Regulations 2021 and applicable minimum safety standards.",
+      },
+      {
+        id: "declaration-statement",
+        label: "Declaration Statement",
+        type: "text",
+        defaultValue:
+          "I declare that this inspection has been completed in accordance with the Residential Tenancies Regulations 2021 and applicable minimum safety standards.",
+        required: true,
+      },
+      {
+        id: "technician-signature",
+        label: "Technician Signature",
+        type: "signature",
+        required: true,
+      },
+      {
+        id: "signature-date",
+        label: "Date Signed",
+        type: "date",
+        required: true,
+        defaultValue: new Date().toISOString().split("T")[0],
+      },
+      {
+        id: "inspection-notes",
+        label: "Final Inspection Notes",
+        type: "textarea",
+        placeholder: "Add any final remarks or recommendations",
+      },
+    ],
+  });
+
+  return {
+    jobType: "MinimumSafetyStandard",
+    title: "Minimum Safety Standard Inspection",
+    version: 2,
+    metadata: {
+      category: "compliance",
+      durationEstimateMins: 120,
+      requiresRoomCount: true,
+      bedroomCount,
+      bathroomCount,
+    },
+    sections: baseSections,
+  };
+};
+
 const createMinimumSafetyStandardTemplate = (
   bedroomCount = 1,
   bathroomCount = 1
@@ -2759,12 +3614,6 @@ const createMinimumSafetyStandardTemplate = (
     ...(options.metadata ? { metadata: options.metadata } : {}),
     ...(options.helpText ? { helpText: options.helpText } : {}),
   });
-  const sectionPhoto = (id, label = "Photos") =>
-    photo(id, label, {
-      type: "photo-multi",
-      required: true,
-      helpText: "Upload supporting photos for this section",
-    });
   const recommendations = (id) => ({
     id,
     label: "Recommendations",
@@ -2772,6 +3621,15 @@ const createMinimumSafetyStandardTemplate = (
     placeholder: "Record recommendations when standards are not met",
     defaultValue: "N/A",
   });
+  const bedroomFields = (suffix, factory) =>
+    Array.from({ length: bedroomCount }, (_, index) =>
+      factory(index + 1, createRoomFieldId("bedroom", index + 1, suffix))
+    );
+  const bathroomFields = (suffix, factory) =>
+    Array.from({ length: bathroomCount }, (_, index) =>
+      factory(index + 1, createRoomFieldId("bathroom", index + 1, suffix))
+    );
+
   const sections = [
     {
       id: "property-setup",
@@ -2845,7 +3703,7 @@ const createMinimumSafetyStandardTemplate = (
       title: "1. Electrical Safety",
       description: "Checklist questions from MSS_Checklist.docx.",
       fields: [
-        sectionPhoto("electrical-safety-photos"),
+        photo("switchboard-photo", "Photo of switchboard", { required: true }),
         question(
           "switchboard-circuit-breaker",
           "Are all power outlets and lighting circuits connected to a switchboard-type circuit breaker complying with AS/NZS 3000?"
@@ -2866,7 +3724,8 @@ const createMinimumSafetyStandardTemplate = (
       title: "2. Bin Facilities (Vermin-Proof Bins)",
       description: "Checklist questions from MSS_Checklist.docx.",
       fields: [
-        sectionPhoto("bin-facilities-photos"),
+        photo("bin-general-photo", "Photo of general waste bin"),
+        photo("bin-recycle-photo", "Photo of recycling bin"),
         question(
           "bin-general-standard",
           "Are both a rubbish bin and a recycling bin available for the renter's use - either council-supplied or vermin-proof and compatible with local collection services?"
@@ -2880,10 +3739,17 @@ const createMinimumSafetyStandardTemplate = (
     },
     {
       id: "external-entry-doors",
-      title: "3. Locks - External Doors",
+      title: "3. Locks - External Entry Doors",
       description: "Checklist questions from MSS_Checklist.docx.",
       fields: [
-        sectionPhoto("external-doors-photos"),
+        photo("front-entrance-external-door-photo", "Front entrance external door photos", {
+          type: "photo-multi",
+          metadata: { max: 2 },
+        }),
+        photo("front-entrance-deadlock-photos", "Front entrance deadlock/deadlatch photos", {
+          type: "photo-multi",
+          metadata: { max: 3 },
+        }),
         question(
           "living-room-external-door-standard",
           "Are all external doors (excluding any screen doors) fitted with compliant deadlocks?"
@@ -2900,7 +3766,7 @@ const createMinimumSafetyStandardTemplate = (
       title: "4. Heating - Main Living Area",
       description: "Checklist questions from MSS_Checklist.docx.",
       fields: [
-        sectionPhoto("heating-photos"),
+        photo("living-room-heater-photo", "Photo of the heating unit in the main living area"),
         question(
           "living-room-heater-fixed",
           "Is a fixed, energy-efficient heating system installed in the main living area?"
@@ -2914,17 +3780,22 @@ const createMinimumSafetyStandardTemplate = (
     },
     {
       id: "window-coverings-summary",
-      title: "5. Window Coverings",
+      title: "5. Window Coverings - Living & Sleeping Rooms",
       description: "Checklist questions from MSS_Checklist.docx.",
       fields: [
-        sectionPhoto("window-coverings-photos"),
+        photo("living-room-window-photo", "Photo of living room window area"),
+        ...bedroomFields("window-coverings-photo", (number, id) =>
+          photo(id, `Photo of Bedroom ${number} window area`)
+        ),
         question(
           "living-room-window-coverings",
           "Does every window in a bedroom or living area have a curtain or blind that the renter can open and close to adequately block light and provide reasonable privacy?"
         ),
-        question(
-          "openable-window-security",
-          "Are all openable external windows able to be set in both an open and closed position, and secured with a functioning latch, lock, or bolt against external entry?"
+        ...bedroomFields("window-coverings-installed", (number, id) =>
+          question(
+            id,
+            `Bedroom ${number}: Does every window in a bedroom or living area have a curtain or blind that the renter can open and close to adequately block light and provide reasonable privacy?`
+          )
         ),
         question(
           "window-coverings-standard",
@@ -2934,20 +3805,27 @@ const createMinimumSafetyStandardTemplate = (
       ],
     },
     {
-      id: "window-covering-anchors",
-      title: "6. Window covering anchors",
+      id: "windows-latches-summary",
+      title: "6. Windows & Latches",
       description: "Checklist questions from MSS_Checklist.docx.",
       fields: [
-        sectionPhoto("window-covering-anchors-photos"),
-        question(
-          "window-covering-anchor-installed",
-          "Are all windows which has coverings, such as blinds and curtains have an anchor installed to secure the cords and prevent them from forming loops?"
+        ...bedroomFields("windows-photo", (number, id) =>
+          photo(id, `Photos of Bedroom ${number} openable windows`, {
+            type: "photo-multi",
+            metadata: { max: 6 },
+          })
+        ),
+        ...bedroomFields("windows-can-open", (number, id) =>
+          question(
+            id,
+            `Bedroom ${number}: Are all openable external windows able to be set in both an open and closed position, and secured with a functioning latch, lock, or bolt against external entry?`
+          )
         ),
         question(
-          "window-covering-anchors-standard",
+          "windows-latches-standard",
           "Are minimum standards met for this section?"
         ),
-        recommendations("window-covering-anchors-recommendations"),
+        recommendations("windows-latches-recommendations"),
       ],
     },
     {
@@ -2955,7 +3833,6 @@ const createMinimumSafetyStandardTemplate = (
       title: "7. Lighting",
       description: "Checklist questions from MSS_Checklist.docx.",
       fields: [
-        sectionPhoto("lighting-photos"),
         question(
           "living-room-lighting-standard",
           "Do all interior rooms, corridors, and hallways have access to appropriate natural or artificial light suitable for their intended function?"
@@ -2980,7 +3857,12 @@ const createMinimumSafetyStandardTemplate = (
       title: "8. Mould and Dampness",
       description: "Checklist questions from MSS_Checklist.docx.",
       fields: [
-        sectionPhoto("mould-dampness-photos"),
+        ...bedroomFields("mould-photo", (number, id) =>
+          photo(id, `Bedroom ${number} mould or dampness photo`)
+        ),
+        ...bathroomFields("mould-photo", (number, id) =>
+          photo(id, `Bathroom ${number} mould or dampness photo`)
+        ),
         question(
           "living-room-mould-standard",
           "Are all rooms in the premises free from mould or dampness caused by or related to the building structure?"
@@ -2997,7 +3879,6 @@ const createMinimumSafetyStandardTemplate = (
       title: "9. Ventilation",
       description: "Checklist questions from MSS_Checklist.docx.",
       fields: [
-        sectionPhoto("ventilation-photos"),
         {
           id: "front-entrance-building-classification",
           label: "What is the designated building class of the rented premises?",
@@ -3021,7 +3902,6 @@ const createMinimumSafetyStandardTemplate = (
       title: "10. Structural Soundness",
       description: "Checklist questions from MSS_Checklist.docx.",
       fields: [
-        sectionPhoto("structural-soundness-photos"),
         question(
           "living-room-bowing",
           "Is the rented premises structurally sound, weatherproof, and free from any significant risk of collapse, failure, or moisture ingress?"
@@ -3038,7 +3918,10 @@ const createMinimumSafetyStandardTemplate = (
       title: "11. Kitchen",
       description: "Checklist questions from MSS_Checklist.docx.",
       fields: [
-        sectionPhoto("kitchen-photos"),
+        photo("kitchen-food-prep-photo", "Photo of dedicated food preparation area"),
+        photo("kitchen-sink-photo", "Photo of kitchen sink"),
+        photo("kitchen-stovetop-photo", "Photo of cooktop"),
+        photo("kitchen-oven-photo", "Photo of oven"),
         question("kitchen-food-prep", "Is there a dedicated food preparation area?"),
         question(
           "kitchen-sink-working",
@@ -3064,7 +3947,6 @@ const createMinimumSafetyStandardTemplate = (
       title: "12. Laundry",
       description: "Checklist questions from MSS_Checklist.docx.",
       fields: [
-        sectionPhoto("laundry-photos"),
         question(
           "laundry-cold-water-standard",
           "If laundry facilities are provided, are they connected to a reasonable supply of hot and cold water?"
@@ -3081,18 +3963,32 @@ const createMinimumSafetyStandardTemplate = (
       title: "13. Bathroom Facilities",
       description: "Checklist questions from MSS_Checklist.docx.",
       fields: [
-        sectionPhoto("bathroom-facilities-photos"),
-        question(
-          "bathroom-hot-water-standard",
-          "Does the bathroom provide a reasonable supply of hot and cold running water?"
+        ...bathroomFields("shower-photo", (number, id) =>
+          photo(id, `Bathroom ${number} shower photo`)
         ),
-        question(
-          "bathroom-fixtures-standard",
-          "Does the bathroom contain a washbasin and either a shower or bath?"
+        ...bathroomFields("bath-photo", (number, id) =>
+          photo(id, `Bathroom ${number} bath photo`)
         ),
-        question(
-          "bathroom-showerhead-rating",
-          "If a shower is present, does it have a shower head with a 3-star WELS rating (or a lower-rated head where a 3-star cannot be installed or would not operate effectively)?"
+        ...bathroomFields("washbasin-photo", (number, id) =>
+          photo(id, `Bathroom ${number} washbasin photo`)
+        ),
+        ...bathroomFields("hot-water-standard", (number, id) =>
+          question(
+            id,
+            `Bathroom ${number}: Does the bathroom provide a reasonable supply of hot and cold running water?`
+          )
+        ),
+        ...bathroomFields("shower-present", (number, id) =>
+          question(
+            id,
+            `Bathroom ${number}: Does the bathroom contain a washbasin and either a shower or bath?`
+          )
+        ),
+        ...bathroomFields("showerhead-rating", (number, id) =>
+          question(
+            id,
+            `Bathroom ${number}: If a shower is present, does it have a shower head with a 3-star WELS rating (or a lower-rated head where a 3-star cannot be installed or would not operate effectively)?`
+          )
         ),
         question(
           "bathroom-facilities-standard",
@@ -3106,18 +4002,26 @@ const createMinimumSafetyStandardTemplate = (
       title: "14. Toilets",
       description: "Checklist questions from MSS_Checklist.docx.",
       fields: [
-        sectionPhoto("toilets-photos"),
-        question(
-          "toilet-present",
-          "Is there at least one toilet in good working order?"
+        ...bathroomFields("toilet-photo", (number, id) =>
+          photo(id, `Bathroom ${number} toilet photo`)
         ),
-        question(
-          "toilet-connection",
-          "Is toilet connected to sewerage or septic system?"
+        ...bathroomFields("toilet-present", (number, id) =>
+          question(
+            id,
+            `Bathroom ${number}: Is there at least one toilet in good working order on the rented premises?`
+          )
         ),
-        question(
-          "toilet-location",
-          "Is the toilet located in an enclosed room intended for use as a toilet area (either standalone or combined bathroom/laundry)?"
+        ...bathroomFields("toilet-connection", (number, id) =>
+          question(
+            id,
+            `Bathroom ${number}: Is the toilet connected to a reticulated sewerage system, a wastewater treatment system permitted under the Code of Practice for Onsite Wastewater Management (Environment Protection Act 1970), or a system approved by the local council?`
+          )
+        ),
+        ...bathroomFields("toilet-location", (number, id) =>
+          question(
+            id,
+            `Bathroom ${number}: Is the toilet located in an enclosed room intended for use as a toilet area (either standalone or combined bathroom/laundry)?`
+          )
         ),
         question("toilet-standard", "Are minimum standards met for this section?"),
         recommendations("toilet-summary-recommendations"),
@@ -3185,14 +4089,6 @@ const createMinimumSafetyStandardTemplate = (
           label: "Final Inspection Notes",
           type: "textarea",
           placeholder: "Add any final remarks or recommendations",
-        },
-        {
-          id: "mss-disclaimer",
-          label: "Disclaimer",
-          type: "textarea",
-          required: true,
-          defaultValue:
-            "This property has been visually inspected by a compliance officer in accordance with applicable Australian Consumer and Competition Commission (ACCC) requirements and industry best practices.",
         },
       ],
     },

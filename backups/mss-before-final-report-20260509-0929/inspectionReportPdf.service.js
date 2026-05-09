@@ -2324,25 +2324,6 @@ const renderPhotoCaption = (doc, mediaItem, options = {}) => {
   return height;
 };
 
-const renderPhotoCaptionAt = (doc, mediaItem, x, y, width, options = {}) => {
-  const caption = buildPhotoCaption(mediaItem, options);
-
-  if (!caption) {
-    return 0;
-  }
-
-  doc
-    .fillColor(COLORS.textSecondary)
-    .fontSize(9)
-    .font("Helvetica")
-    .text(caption, x, y, {
-      width,
-      align: "left",
-    });
-
-  return doc.heightOfString(caption, { width }) + 6;
-};
-
 const renderInlinePhoto = async (doc, mediaItem, options = {}) => {
   if (!mediaItem) {
     return 0;
@@ -2372,60 +2353,9 @@ const renderInlinePhoto = async (doc, mediaItem, options = {}) => {
 };
 
 const renderInlinePhotos = async (doc, mediaItems = [], options = {}) => {
-  if (!mediaItems.length) {
-    return;
-  }
-
-  const gap = 14;
-  const columns = mediaItems.length === 1 ? 1 : 2;
-  const availableWidth = doc.page.width - PAGE.margin * 2;
-  const itemWidth = (availableWidth - gap * (columns - 1)) / columns;
-  const imageHeight = columns === 1 ? 220 : 150;
-  const captionReserve = 42;
-  const itemHeight = imageHeight + captionReserve;
-
-  for (let index = 0; index < mediaItems.length; index += columns) {
-    const rowItems = mediaItems.slice(index, index + columns);
-
-    ensurePageSpace(doc, itemHeight + 14);
-    const rowY = doc.y;
-
-    for (const [columnIndex, mediaItem] of rowItems.entries()) {
-      const x = PAGE.margin + columnIndex * (itemWidth + gap);
-
-      const rendered = await processImageForPdf(
-        {
-          imageUrl: mediaItem.imageBuffer || mediaItem.url,
-          gcsPath: mediaItem.gcsPath,
-        },
-        doc,
-        x,
-        rowY,
-        itemWidth,
-        imageHeight
-      );
-
-      if (!rendered.success) {
-        doc
-          .fillColor(COLORS.textSecondary)
-          .fontSize(10)
-          .font("Helvetica")
-          .text(rendered.message || "[Image unavailable]", x, rowY, {
-            width: itemWidth,
-          });
-      }
-
-      renderPhotoCaptionAt(
-        doc,
-        mediaItem,
-        x,
-        rowY + imageHeight + 8,
-        itemWidth,
-        options
-      );
-    }
-
-    doc.y = rowY + itemHeight + 10;
+  for (const mediaItem of mediaItems) {
+    await renderInlinePhoto(doc, mediaItem, options);
+    doc.y += 10;
   }
 };
 

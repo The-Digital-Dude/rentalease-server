@@ -53,7 +53,7 @@ describe("Minimum Safety Standard DOCX checklist template", () => {
       "external-entry-doors",
       "heating-summary",
       "window-coverings-summary",
-      "window-covering-anchors",
+      "windows-latches-summary",
       "lighting-summary",
       "mould-dampness-summary",
       "ventilation-summary",
@@ -67,10 +67,10 @@ describe("Minimum Safety Standard DOCX checklist template", () => {
     expect(checklistTitles).toEqual([
       "1. Electrical Safety",
       "2. Bin Facilities (Vermin-Proof Bins)",
-      "3. Locks - External Doors",
+      "3. Locks - External Entry Doors",
       "4. Heating - Main Living Area",
-      "5. Window Coverings",
-      "6. Window covering anchors",
+      "5. Window Coverings - Living & Sleeping Rooms",
+      "6. Windows & Latches",
       "7. Lighting",
       "8. Mould and Dampness",
       "9. Ventilation",
@@ -98,10 +98,8 @@ describe("Minimum Safety Standard DOCX checklist template", () => {
         "Is a fixed, energy-efficient heating system installed in the main living area?",
       "window-coverings-summary.living-room-window-coverings":
         "Does every window in a bedroom or living area have a curtain or blind that the renter can open and close to adequately block light and provide reasonable privacy?",
-      "window-coverings-summary.openable-window-security":
-        "Are all openable external windows able to be set in both an open and closed position, and secured with a functioning latch, lock, or bolt against external entry?",
-      "window-covering-anchors.window-covering-anchor-installed":
-        "Are all windows which has coverings, such as blinds and curtains have an anchor installed to secure the cords and prevent them from forming loops?",
+      "windows-latches-summary.bedroom-1-windows-can-open":
+        "Bedroom 1: Are all openable external windows able to be set in both an open and closed position, and secured with a functioning latch, lock, or bolt against external entry?",
       "lighting-summary.living-room-lighting-standard":
         "Do all interior rooms, corridors, and hallways have access to appropriate natural or artificial light suitable for their intended function?",
       "mould-dampness-summary.living-room-mould-standard":
@@ -116,89 +114,58 @@ describe("Minimum Safety Standard DOCX checklist template", () => {
         "Is there a cooktop in good working order with at least two burners?",
       "laundry.laundry-cold-water-standard":
         "If laundry facilities are provided, are they connected to a reasonable supply of hot and cold water?",
-      "bathroom-facilities.bathroom-showerhead-rating":
-        "If a shower is present, does it have a shower head with a 3-star WELS rating (or a lower-rated head where a 3-star cannot be installed or would not operate effectively)?",
-      "toilet-summary.toilet-location":
-        "Is the toilet located in an enclosed room intended for use as a toilet area (either standalone or combined bathroom/laundry)?",
-      "technician-signoff.mss-disclaimer":
-        "Disclaimer",
+      "bathroom-facilities.bathroom-1-showerhead-rating":
+        "Bathroom 1: If a shower is present, does it have a shower head with a 3-star WELS rating (or a lower-rated head where a 3-star cannot be installed or would not operate effectively)?",
+      "toilet-summary.bathroom-1-toilet-location":
+        "Bathroom 1: Is the toilet located in an enclosed room intended for use as a toilet area (either standalone or combined bathroom/laundry)?",
     };
 
     for (const [fieldKey, label] of Object.entries(expectedLabels)) {
       expect(fields.get(fieldKey)?.label).toBe(label);
     }
-
-    expect(fields.get("technician-signoff.mss-disclaimer")?.defaultValue).toBe(
-      "This property has been visually inspected by a compliance officer in accordance with applicable Australian Consumer and Competition Commission (ACCC) requirements and industry best practices."
-    );
   });
 
-  test("requires one unrestricted multi-photo field in each checklist section", () => {
+  test("keeps only relevant existing photo fields in the checklist body", () => {
     const template = getTemplate();
     const checklistSections = template.sections.filter((section) =>
       /^\d+\./.test(section.title)
     );
-
-    const photoFieldIds = checklistSections.map((section) => {
-      const photoFields = section.fields.filter(
-        (field) => field.type === "photo" || field.type === "photo-multi"
-      );
-
-      expect(photoFields).toHaveLength(1);
-      expect(photoFields[0]).toMatchObject({
-        type: "photo-multi",
-        required: true,
-      });
-      expect(photoFields[0].metadata?.max).toBeUndefined();
-
-      return photoFields[0].id;
-    });
-
-    expect(photoFieldIds).toEqual([
-      "electrical-safety-photos",
-      "bin-facilities-photos",
-      "external-doors-photos",
-      "heating-photos",
-      "window-coverings-photos",
-      "window-covering-anchors-photos",
-      "lighting-photos",
-      "mould-dampness-photos",
-      "ventilation-photos",
-      "structural-soundness-photos",
-      "kitchen-photos",
-      "laundry-photos",
-      "bathroom-facilities-photos",
-      "toilets-photos",
-    ]);
-  });
-
-  test("keeps property summary and technician certification sections", () => {
-    const fields = getFieldMap(getTemplate());
-
-    [
-      ["property-summary.inspection-date", "Inspection Date"],
-      ["property-summary.inspector-name", "Inspector Name"],
-      ["property-summary.inspector-license", "Inspector License Number"],
-      ["property-summary.property-address", "Property Address"],
-      ["property-summary.next-inspection-date", "Next Inspection Due"],
-      ["technician-signoff.technician-name", "Inspection Completed By"],
-      ["technician-signoff.technician-license", "License/Registration Number"],
-      ["technician-signoff.inspection-completion-date", "Inspection Completion Date"],
-      ["technician-signoff.technician-declaration", "Technician Declaration"],
-      ["technician-signoff.declaration-statement", "Declaration Statement"],
-      ["technician-signoff.technician-signature", "Technician Signature"],
-      ["technician-signoff.signature-date", "Date Signed"],
-      ["technician-signoff.inspection-notes", "Final Inspection Notes"],
-      ["technician-signoff.mss-disclaimer", "Disclaimer"],
-    ].forEach(([fieldKey, label]) => {
-      expect(fields.get(fieldKey)?.label).toBe(label);
-    });
-
-    expect(fields.get("technician-signoff.technician-signature")?.type).toBe(
-      "signature"
+    const photoFieldIds = checklistSections.flatMap((section) =>
+      section.fields
+        .filter((field) => field.type === "photo" || field.type === "photo-multi")
+        .map((field) => field.id)
     );
-    expect(fields.get("technician-signoff.technician-declaration")?.type).toBe(
-      "checkbox"
+
+    expect(new Set(photoFieldIds)).toEqual(
+      new Set([
+        "switchboard-photo",
+        "bin-general-photo",
+        "bin-recycle-photo",
+        "front-entrance-external-door-photo",
+        "front-entrance-deadlock-photos",
+        "living-room-heater-photo",
+        "living-room-window-photo",
+        "bedroom-1-window-coverings-photo",
+        "bedroom-2-window-coverings-photo",
+        "bedroom-1-windows-photo",
+        "bedroom-2-windows-photo",
+        "bedroom-1-mould-photo",
+        "bedroom-2-mould-photo",
+        "bathroom-1-mould-photo",
+        "bathroom-2-mould-photo",
+        "kitchen-food-prep-photo",
+        "kitchen-sink-photo",
+        "kitchen-stovetop-photo",
+        "kitchen-oven-photo",
+        "bathroom-1-shower-photo",
+        "bathroom-1-bath-photo",
+        "bathroom-1-washbasin-photo",
+        "bathroom-2-shower-photo",
+        "bathroom-2-bath-photo",
+        "bathroom-2-washbasin-photo",
+        "bathroom-1-toilet-photo",
+        "bathroom-2-toilet-photo",
+      ])
     );
   });
 
@@ -211,7 +178,6 @@ describe("Minimum Safety Standard DOCX checklist template", () => {
       "front-entrance.front-entrance-weather-protection",
       "electrical-safety.electrical-compliance",
       "living-room.living-room-heater-make-model",
-      "windows-latches-summary.bedroom-1-windows-can-open",
       "kitchen.kitchen-hot-water-seconds",
       "laundry.laundry-hot-water-seconds",
       "bedroom-1.bedroom-1-general-condition",
