@@ -143,6 +143,79 @@ const normalizeMediaMetadata = (mediaMeta = {}, template) => {
   return normalized;
 };
 
+const isRequiredPhotoField = (field = {}) =>
+  field.required && (field.type === "photo" || field.type === "photo-multi");
+
+const hasUploadedFieldMedia = (mediaUploads = [], fieldId, itemIndex) =>
+  mediaUploads.some((item) => {
+    const metadata = item?.metadata || {};
+    const metadataItemIndex =
+      metadata.itemIndex === undefined || metadata.itemIndex === null
+        ? undefined
+        : Number.parseInt(metadata.itemIndex, 10);
+    const itemIndexMatches =
+      itemIndex === undefined || metadataItemIndex === itemIndex;
+
+    if (metadata.fieldId === fieldId) {
+      return itemIndexMatches;
+    }
+
+    if (item.fieldId === fieldId) {
+      return itemIndexMatches;
+    }
+
+    if (itemIndex !== undefined && item.fieldId === `${fieldId}-${itemIndex}`) {
+      return true;
+    }
+
+    return (
+      item.fieldId?.includes(fieldId) &&
+      itemIndexMatches
+    );
+  });
+
+const validateRequiredPhotoUploads = (template, formData = {}, mediaUploads = []) => {
+  const missing = [];
+
+  (template?.sections || []).forEach((section) => {
+    const requiredPhotoFields = (section.fields || []).filter(isRequiredPhotoField);
+    if (!requiredPhotoFields.length) {
+      return;
+    }
+
+    if (section.repeatable) {
+      const sectionItems = Array.isArray(formData[section.id])
+        ? formData[section.id]
+        : [];
+
+      sectionItems.forEach((_, itemIndex) => {
+        requiredPhotoFields.forEach((field) => {
+          if (!hasUploadedFieldMedia(mediaUploads, field.id, itemIndex)) {
+            missing.push(
+              `${section.itemLabel || section.title || "Item"} ${itemIndex + 1}: ${field.label || field.id}`
+            );
+          }
+        });
+      });
+      return;
+    }
+
+    requiredPhotoFields.forEach((field) => {
+      if (!hasUploadedFieldMedia(mediaUploads, field.id)) {
+        missing.push(`${section.title || "Inspection"}: ${field.label || field.id}`);
+      }
+    });
+  });
+
+  if (missing.length) {
+    throw new Error(
+      `Required inspection photos missing: ${missing.slice(0, 8).join(", ")}${
+        missing.length > 8 ? "..." : ""
+      }`
+    );
+  }
+};
+
 const LEGACY_GAS_SECTION_IDS = new Set([
   "gas-installation",
   "appliance-1",
@@ -636,6 +709,8 @@ export const submitInspectionReport = async ({
   console.log("[Inspection Submit] Media uploads completed", {
     uploadsCount: mediaUploads.length,
   });
+
+  validateRequiredPhotoUploads(template, normalizedFormData, mediaUploads);
 
   if (gasComplianceOutcome) {
     validateGasReportMediaUploads(normalizedFormData, mediaUploads);

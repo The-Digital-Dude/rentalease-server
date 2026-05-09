@@ -420,12 +420,14 @@ const createElectricalSmokeSections = () => [
         id: "switchboard-photos",
         label: "Switchboard",
         type: "photo-multi",
+        required: true,
         helpText: "Take photos of the electrical switchboard and components",
       },
       {
         id: "smoke-alarm-photos",
         label: "Smoke Alarm",
         type: "photo-multi",
+        required: true,
         helpText: "Take photos of smoke alarms showing location and details",
       },
       {
@@ -439,6 +441,7 @@ const createElectricalSmokeSections = () => [
         id: "gpo-tester-photos",
         label: "GPO with tester lit up",
         type: "photo-multi",
+        required: true,
         helpText:
           "Take photos of GPO outlets with electrical tester showing results",
       },
@@ -1216,12 +1219,14 @@ const createElectricalSections = () => [
         id: "switchboard-photos",
         label: "Switchboard",
         type: "photo-multi",
+        required: true,
         helpText: "Capture the main switchboard and safety devices",
       },
       {
         id: "gpo-tester-photos",
         label: "GPO Test Evidence",
         type: "photo-multi",
+        required: true,
         helpText:
           "Take photos of GPO outlets with electrical tester showing results",
       },

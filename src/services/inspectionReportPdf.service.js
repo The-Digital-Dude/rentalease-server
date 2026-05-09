@@ -210,17 +210,18 @@ const getComplianceStandards = (template, job) => {
     ],
     Electrical: [
       "AS/NZS 3000 Wiring Rules",
-      "AS/NZS 3017:2022 Electrical Installations",
+      "AS/NZS 3019:2022 Electrical Installations - Periodic Verification",
+      "Energy Safe Victoria residential tenancy electrical safety check requirements",
       "Residential Tenancies Regulations 2021",
     ],
     Gas: [
-      "AS 4575 Gas installations",
-      "AS 3786:2014 Gas appliances",
+      "AS/NZS 5601.1 Gas Installations",
+      "Energy Safe Victoria residential tenancy gas safety check requirements",
       "Residential Tenancies Regulations 2021",
     ],
     Smoke: [
-      "AS/NZS 3017:2022 Smoke alarms",
-      "AS 3786:2014 Installation requirements",
+      "AS 3786 Smoke Alarms",
+      "Victorian rental smoke alarm annual check requirements",
       "Residential Tenancies Regulations 2021",
     ],
   };
@@ -382,6 +383,23 @@ const stringifySummaryValue = (value) => {
 const dedupeItems = (items = []) =>
   [...new Set(items.map((item) => stripMarkdownPrefix(item)).filter(Boolean))];
 
+const findFirstReportValue = (formData = {}, fieldIds = []) => {
+  for (const sectionData of Object.values(formData)) {
+    if (!sectionData || typeof sectionData !== "object" || Array.isArray(sectionData)) {
+      continue;
+    }
+
+    for (const fieldId of fieldIds) {
+      const value = sectionData[fieldId];
+      if (value !== undefined && value !== null && value !== "") {
+        return value;
+      }
+    }
+  }
+
+  return "";
+};
+
 const extractSummaryInsights = ({ report, template, job, technician }) => {
   const formData = report?.formData || {};
   const sections = template?.sections || [];
@@ -404,25 +422,42 @@ const extractSummaryInsights = ({ report, template, job, technician }) => {
   let hasExplicitNonCompliance = false;
   let hasExplicitCompliance = false;
 
-  const findFirstFormValue = (fieldIds = []) => {
-    for (const sectionData of Object.values(formData)) {
-      if (!sectionData || typeof sectionData !== "object" || Array.isArray(sectionData)) {
-        continue;
-      }
-
-      for (const fieldId of fieldIds) {
-        const value = sectionData[fieldId];
-        if (value !== undefined && value !== null && value !== "") {
-          return value;
-        }
-      }
-    }
-
-    return "";
-  };
-
   Object.entries(formData).forEach(([sectionId, sectionData]) => {
     if (!sectionData || typeof sectionData !== "object") {
+      return;
+    }
+
+    if (Array.isArray(sectionData)) {
+      sectionData.forEach((item, index) => {
+        if (!item || typeof item !== "object") {
+          return;
+        }
+
+        Object.entries(item).forEach(([fieldId, rawValue]) => {
+          const lowerKey = `${sectionId}.${fieldId}`.toLowerCase();
+          if (
+            !/(comment|comments|note|notes|recommendation|recommendations|follow-up|action)/i.test(
+              lowerKey
+            )
+          ) {
+            return;
+          }
+
+          const value = stringifySummaryValue(rawValue);
+          if (!value || value.toLowerCase() === "n/a") {
+            return;
+          }
+
+          const itemLabel =
+            sections.find((section) => section.id === sectionId)?.itemLabel ||
+            sections.find((section) => section.id === sectionId)?.title ||
+            humanizeKey(sectionId);
+          const label =
+            fieldDefinitions.get(`${sectionId}.${fieldId}`)?.fieldLabel ||
+            humanizeKey(fieldId);
+          recommendations.push(`${itemLabel} ${index + 1} ${label}: ${value}`);
+        });
+      });
       return;
     }
 
@@ -492,6 +527,10 @@ const extractSummaryInsights = ({ report, template, job, technician }) => {
           lowerKey
         )
       ) {
+        if (value.toLowerCase() === "n/a") {
+          return;
+        }
+
         const itemText = `${label}: ${value}`;
         if (
           isNonCompliantStatus(value) ||
@@ -546,16 +585,17 @@ const extractSummaryInsights = ({ report, template, job, technician }) => {
     ongoingIssues: dedupeItems(ongoingIssues).slice(0, 4),
     technicianName:
       `${technician?.firstName || ""} ${technician?.lastName || ""}`.trim() ||
-      findFirstFormValue([
+      findFirstReportValue(formData, [
         "technician-full-name",
         "inspector-name",
         "inspector-details-name",
         "certification-electrician-name",
+        "technician-name",
       ]) ||
       "N/A",
     technicianLicense:
       technician?.licenseNumber ||
-      findFirstFormValue([
+      findFirstReportValue(formData, [
         "licence-registration-number",
         "license-number",
         "certification-licence-number",
@@ -888,6 +928,24 @@ const drawPropertyDetailsSection = (
     job,
     technician,
   });
+  const nextComplianceDate = resolveNextComplianceDisplayDate({
+    template,
+    job,
+    report,
+  });
+  const standardsApplied = getComplianceStandards(template, job).join("; ");
+  const declarationCaptured = findFirstReportValue(report?.formData || {}, [
+    "technician-declaration",
+    "declaration-confirmed",
+    "declaration-text",
+    "certification-declaration",
+    "inspector-declaration",
+  ]);
+  const signatureCaptured = findFirstReportValue(report?.formData || {}, [
+    "technician-signature",
+    "inspector-signature",
+    "signature",
+  ]);
   const reportTitle = getReportTitle(template, job);
   const statusColor = isNonCompliantStatus(summaryInsights.reportStatus)
     ? COLORS.error
@@ -931,12 +989,22 @@ const drawPropertyDetailsSection = (
 
   const details = [
     { label: "Address", value: propertyAddress },
+    { label: "Inspection Date", value: inspectionDate },
+    { label: "Inspection Summary", value: summaryInsights.reportStatus },
+    { label: "Next Compliance Date", value: nextComplianceDate },
     {
       label: "Technician Details",
       value: `${summaryInsights.technicianName} | Licence: ${summaryInsights.technicianLicense}`,
     },
-    { label: "Assessment", value: summaryInsights.reportStatus },
-    { label: "Inspection Date", value: inspectionDate },
+    { label: "Regulations / Standards", value: standardsApplied },
+    {
+      label: "Declaration",
+      value: declarationCaptured ? "Captured" : "Not captured",
+    },
+    {
+      label: "Signature",
+      value: signatureCaptured ? "Captured" : "Not captured",
+    },
   ];
 
   let rowY = doc.y;
@@ -1443,34 +1511,6 @@ const drawGasHazardsSection = (doc) => {
 const drawNextStepsSection = (doc, { template, job, report }) => {
   const jobType = template?.jobType || job?.jobType;
 
-  // Calculate next inspection dates based on job type
-  const getNextInspectionDate = (jobType) => {
-    const inspectionDate = new Date(report?.submittedAt || new Date());
-    const nextDate = new Date(inspectionDate);
-
-    switch (jobType) {
-      case "Gas":
-        nextDate.setFullYear(nextDate.getFullYear() + 2); // 24 months
-        break;
-      case "GasSmoke":
-        nextDate.setFullYear(nextDate.getFullYear() + 1); // 12 months (smoke alarms need annual checks)
-        break;
-      case "Electrical":
-        nextDate.setFullYear(nextDate.getFullYear() + 2); // 24 months
-        break;
-      case "Smoke":
-        nextDate.setFullYear(nextDate.getFullYear() + 1); // 12 months
-        break;
-      case "MinimumSafetyStandard":
-        nextDate.setFullYear(nextDate.getFullYear() + 1); // 12 months
-        break;
-      default:
-        nextDate.setFullYear(nextDate.getFullYear() + 1);
-    }
-
-    return formatDisplayDate(nextDate);
-  };
-
   const narrativeMap = {
     Electrical:
       "This electrical safety check has been completed in line with the Residential Tenancies Regulations 2021 and AS/NZS 3019: Electrical Installations — Periodic Verification. It ensures the property's electrical system is safe and free from damage or deterioration that could pose a risk. Any defects or safety concerns identified during the inspection are reported for corrective action.",
@@ -1498,7 +1538,7 @@ const drawNextStepsSection = (doc, { template, job, report }) => {
   const nextInspectionDate =
     formatDisplayDate(complianceNextSteps["next-service-due"]) !== "N/A"
       ? formatDisplayDate(complianceNextSteps["next-service-due"])
-      : getNextInspectionDate(jobType);
+      : resolveNextComplianceDisplayDate({ template, job, report });
   const regulationsText =
     jobType === "Smoke" && acknowledgedStandards.length
       ? acknowledgedStandards.join("; ")
@@ -1548,6 +1588,38 @@ const drawNextStepsSection = (doc, { template, job, report }) => {
   });
 
   doc.y += 14;
+};
+
+const resolveNextComplianceDisplayDate = ({ template, job, report }) => {
+  const jobType = template?.jobType || job?.jobType;
+  const formData = report?.formData || {};
+  const directDate =
+    report?.nextComplianceDate ||
+    formData["property-summary"]?.["next-inspection-date"] ||
+    formData["certification"]?.["certification-next-inspection-due"] ||
+    formData["inspection-summary"]?.["next-service-due"] ||
+    formData["compliance-next-steps"]?.["next-service-due"];
+
+  if (formatDisplayDate(directDate) !== "N/A") {
+    return formatDisplayDate(directDate);
+  }
+
+  const inspectionDate = new Date(report?.submittedAt || new Date());
+  const nextDate = new Date(inspectionDate);
+
+  switch (jobType) {
+    case "Gas":
+    case "Electrical":
+      nextDate.setFullYear(nextDate.getFullYear() + 2);
+      break;
+    case "GasSmoke":
+    case "Smoke":
+    case "MinimumSafetyStandard":
+    default:
+      nextDate.setFullYear(nextDate.getFullYear() + 1);
+  }
+
+  return formatDisplayDate(nextDate);
 };
 
 const drawMinimumStandardStatusTable = (

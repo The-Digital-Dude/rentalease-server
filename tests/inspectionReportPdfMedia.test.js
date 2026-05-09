@@ -306,4 +306,33 @@ describe("Inspection report PDF media matching", () => {
     expect(source).toContain('"technician-license"');
     expect(source).toContain('"Technician Details"');
   });
+
+  test("shared report front includes MSS-style compliance details", () => {
+    const servicePath = path.resolve(
+      __dirname,
+      "../src/services/inspectionReportPdf.service.js"
+    );
+    const source = fs.readFileSync(servicePath, "utf8");
+    const detailsStart = source.indexOf("const drawPropertyDetailsSection");
+    const checksStart = source.indexOf("const drawChecksAndOutcomesSection");
+    const detailsSource = source.slice(detailsStart, checksStart);
+
+    [
+      '"Inspection Date"',
+      '"Inspection Summary"',
+      '"Next Compliance Date"',
+      '"Technician Details"',
+      '"Regulations / Standards"',
+      '"Declaration"',
+      '"Signature"',
+    ].forEach((label) => {
+      expect(detailsSource).toContain(label);
+    });
+
+    expect(source).toContain("resolveNextComplianceDisplayDate");
+    expect(source).toContain('"AS/NZS 5601.1 Gas Installations"');
+    expect(source).toContain('"AS 3786 Smoke Alarms"');
+    expect(source).not.toContain('"AS 3786:2014 Gas appliances"');
+    expect(source).not.toContain('"AS/NZS 3017:2022 Smoke alarms"');
+  });
 });

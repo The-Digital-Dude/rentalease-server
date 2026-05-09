@@ -13,7 +13,7 @@ describe("Gas report v3 validation and outcome", () => {
       .replace(/export const submitInspectionReport = async/g, "const submitInspectionReport = async")
       .replace(/export default submitInspectionReport;?/g, "")
       .concat(
-        "\nreturn { calculateGasComplianceOutcome, validateGasReportV3, isGasTemplateV3 };"
+        "\nreturn { calculateGasComplianceOutcome, validateGasReportV3, isGasTemplateV3, validateRequiredPhotoUploads };"
       );
 
     return new Function(executableSource)();
@@ -161,5 +161,73 @@ describe("Gas report v3 validation and outcome", () => {
     expect(() =>
       validateGasReportV3(createValidGasFormData(), { status: "Scheduled" })
     ).toThrow(/job status is Completed/i);
+  });
+
+  test("requires required photo uploads for normal and repeatable sections", () => {
+    const { validateRequiredPhotoUploads } = loadGasReportHelpers();
+    const template = {
+      sections: [
+        {
+          id: "inspection-photos",
+          title: "Inspection Photos",
+          fields: [
+            {
+              id: "switchboard-photos",
+              label: "Switchboard",
+              type: "photo-multi",
+              required: true,
+            },
+          ],
+        },
+        {
+          id: "gas-appliances",
+          title: "Gas Appliances",
+          itemLabel: "Appliance",
+          repeatable: true,
+          fields: [
+            {
+              id: "appliance-photo",
+              label: "Appliance Photo",
+              type: "photo",
+              required: true,
+            },
+          ],
+        },
+      ],
+    };
+    const formData = {
+      "inspection-photos": {},
+      "gas-appliances": [{}, {}],
+    };
+
+    expect(() =>
+      validateRequiredPhotoUploads(template, formData, [
+        {
+          fieldId: "switchboard-photos",
+          metadata: { sectionId: "inspection-photos", fieldId: "switchboard-photos" },
+        },
+        {
+          fieldId: "appliance-photo-0",
+          metadata: { sectionId: "gas-appliances", fieldId: "appliance-photo", itemIndex: 0 },
+        },
+      ])
+    ).toThrow(/Appliance 2: Appliance Photo/);
+
+    expect(() =>
+      validateRequiredPhotoUploads(template, formData, [
+        {
+          fieldId: "switchboard-photos",
+          metadata: { sectionId: "inspection-photos", fieldId: "switchboard-photos" },
+        },
+        {
+          fieldId: "appliance-photo-0",
+          metadata: { sectionId: "gas-appliances", fieldId: "appliance-photo", itemIndex: 0 },
+        },
+        {
+          fieldId: "appliance-photo-1",
+          metadata: { sectionId: "gas-appliances", fieldId: "appliance-photo", itemIndex: 1 },
+        },
+      ])
+    ).not.toThrow();
   });
 });
