@@ -269,12 +269,33 @@ describe("Inspection report PDF media matching", () => {
       '} else if (template?.jobType === "MinimumSafetyStandard") {\n    await renderGenericReport'
     );
     expect(genericSource).toContain("getMediaItemsForSection(report, template, sectionId)");
-    expect(genericSource).toMatch(/field\.type !== "photo" && field\.type !== "photo-multi"/);
+    expect(genericSource).toContain('field.type === "photo"');
+    expect(genericSource).toContain('field.type === "photo-multi"');
     expect(genericSource).toContain('template?.jobType === "MinimumSafetyStandard"');
     expect(genericSource).toContain('section.id === "property-summary"');
     expect(genericSource).toContain(
       'await renderSectionPhotos(section.id, section.title || "Section")'
     );
+  });
+
+  test("generic MSS signoff renderer hides declaration internals and draws signatures", () => {
+    const servicePath = path.resolve(
+      __dirname,
+      "../src/services/inspectionReportPdf.service.js"
+    );
+    const source = fs.readFileSync(servicePath, "utf8");
+    const genericStart = source.indexOf("const renderGenericReport = async");
+    const drawSectionHeaderStart = source.indexOf("const drawSectionHeader");
+    const genericSource = source.slice(genericStart, drawSectionHeaderStart);
+
+    expect(genericSource).toContain("hiddenMssSignoffFieldIds");
+    expect(genericSource).toContain('"technician-declaration"');
+    expect(genericSource).toContain('"declaration-statement"');
+    expect(genericSource).toContain('"mss-disclaimer"');
+    expect(genericSource).toContain('field.type === "signature"');
+    expect(genericSource).toContain('responses["technician-signature"]');
+    expect(genericSource).toContain("await drawSignatureFromData");
+    expect(genericSource).toContain("shouldSkipEmptyMssSignoffValue");
   });
 
   test("inline report photos render in an aligned grid", () => {

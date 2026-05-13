@@ -2848,7 +2848,6 @@ const createMinimumSafetyStandardTemplate = (
     {
       id: "electrical-safety",
       title: "1. Electrical Safety",
-      description: "Checklist questions from MSS_Checklist.docx.",
       fields: [
         sectionPhoto("electrical-safety-photos"),
         question(
@@ -2869,7 +2868,6 @@ const createMinimumSafetyStandardTemplate = (
     {
       id: "bin-facilities",
       title: "2. Bin Facilities (Vermin-Proof Bins)",
-      description: "Checklist questions from MSS_Checklist.docx.",
       fields: [
         sectionPhoto("bin-facilities-photos"),
         question(
@@ -2886,7 +2884,6 @@ const createMinimumSafetyStandardTemplate = (
     {
       id: "external-entry-doors",
       title: "3. Locks - External Doors",
-      description: "Checklist questions from MSS_Checklist.docx.",
       fields: [
         sectionPhoto("external-doors-photos"),
         question(
@@ -2903,7 +2900,6 @@ const createMinimumSafetyStandardTemplate = (
     {
       id: "heating-summary",
       title: "4. Heating - Main Living Area",
-      description: "Checklist questions from MSS_Checklist.docx.",
       fields: [
         sectionPhoto("heating-photos"),
         question(
@@ -2920,7 +2916,6 @@ const createMinimumSafetyStandardTemplate = (
     {
       id: "window-coverings-summary",
       title: "5. Window Coverings",
-      description: "Checklist questions from MSS_Checklist.docx.",
       fields: [
         sectionPhoto("window-coverings-photos"),
         question(
@@ -2941,7 +2936,6 @@ const createMinimumSafetyStandardTemplate = (
     {
       id: "window-covering-anchors",
       title: "6. Window covering anchors",
-      description: "Checklist questions from MSS_Checklist.docx.",
       fields: [
         sectionPhoto("window-covering-anchors-photos"),
         question(
@@ -2958,7 +2952,6 @@ const createMinimumSafetyStandardTemplate = (
     {
       id: "lighting-summary",
       title: "7. Lighting",
-      description: "Checklist questions from MSS_Checklist.docx.",
       fields: [
         sectionPhoto("lighting-photos"),
         question(
@@ -2983,7 +2976,6 @@ const createMinimumSafetyStandardTemplate = (
     {
       id: "mould-dampness-summary",
       title: "8. Mould and Dampness",
-      description: "Checklist questions from MSS_Checklist.docx.",
       fields: [
         sectionPhoto("mould-dampness-photos"),
         question(
@@ -3000,7 +2992,6 @@ const createMinimumSafetyStandardTemplate = (
     {
       id: "ventilation-summary",
       title: "9. Ventilation",
-      description: "Checklist questions from MSS_Checklist.docx.",
       fields: [
         sectionPhoto("ventilation-photos"),
         {
@@ -3024,7 +3015,6 @@ const createMinimumSafetyStandardTemplate = (
     {
       id: "structural-soundness",
       title: "10. Structural Soundness",
-      description: "Checklist questions from MSS_Checklist.docx.",
       fields: [
         sectionPhoto("structural-soundness-photos"),
         question(
@@ -3041,7 +3031,6 @@ const createMinimumSafetyStandardTemplate = (
     {
       id: "kitchen",
       title: "11. Kitchen",
-      description: "Checklist questions from MSS_Checklist.docx.",
       fields: [
         sectionPhoto("kitchen-photos"),
         question("kitchen-food-prep", "Is there a dedicated food preparation area?"),
@@ -3067,7 +3056,6 @@ const createMinimumSafetyStandardTemplate = (
     {
       id: "laundry",
       title: "12. Laundry",
-      description: "Checklist questions from MSS_Checklist.docx.",
       fields: [
         sectionPhoto("laundry-photos"),
         question(
@@ -3084,7 +3072,6 @@ const createMinimumSafetyStandardTemplate = (
     {
       id: "bathroom-facilities",
       title: "13. Bathroom Facilities",
-      description: "Checklist questions from MSS_Checklist.docx.",
       fields: [
         sectionPhoto("bathroom-facilities-photos"),
         question(
@@ -3109,7 +3096,6 @@ const createMinimumSafetyStandardTemplate = (
     {
       id: "toilet-summary",
       title: "14. Toilets",
-      description: "Checklist questions from MSS_Checklist.docx.",
       fields: [
         sectionPhoto("toilets-photos"),
         question(

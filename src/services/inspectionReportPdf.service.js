@@ -4322,6 +4322,11 @@ const renderGenericReport = async (
   { template, report, job, property, technician }
 ) => {
   const getSectionValues = (id) => report.formData?.[id] || {};
+  const hiddenMssSignoffFieldIds = new Set([
+    "technician-declaration",
+    "declaration-statement",
+    "mss-disclaimer",
+  ]);
 
   const renderSectionPhotos = async (sectionId, heading) => {
     const mediaItems = getMediaItemsForSection(report, template, sectionId);
@@ -4355,17 +4360,61 @@ const renderGenericReport = async (
     const sectionRows = [];
     for (const field of section.fields) {
       const value = responses[field.id];
-      if (field.type !== "photo" && field.type !== "photo-multi") {
-        const formattedValue = formatValue(value, field.type);
-        sectionRows.push({
-          label: field.label,
-          value: formattedValue || "N/A",
-        });
+      const isMediaField =
+        field.type === "photo" ||
+        field.type === "photo-multi" ||
+        field.type === "signature";
+      const isHiddenMssSignoffField =
+        template?.jobType === "MinimumSafetyStandard" &&
+        section.id === "technician-signoff" &&
+        hiddenMssSignoffFieldIds.has(field.id);
+
+      if (isMediaField || isHiddenMssSignoffField) {
+        continue;
       }
+
+      const formattedValue = formatValue(value, field.type);
+      const shouldSkipEmptyMssSignoffValue =
+        template?.jobType === "MinimumSafetyStandard" &&
+        section.id === "technician-signoff" &&
+        (!formattedValue || formattedValue === "—" || formattedValue === "N/A");
+
+      if (shouldSkipEmptyMssSignoffValue) {
+        continue;
+      }
+
+      sectionRows.push({
+        label: field.label,
+        value: formattedValue || "N/A",
+      });
     }
 
     if (sectionRows.length > 0) {
       drawRoomDetailTable(doc, null, sectionRows);
+    }
+
+    if (
+      template?.jobType === "MinimumSafetyStandard" &&
+      section.id === "technician-signoff" &&
+      responses["technician-signature"]
+    ) {
+      ensurePageSpace(doc, 120);
+      doc.moveDown(0.4);
+      doc
+        .fillColor(COLORS.text)
+        .fontSize(10)
+        .font("Helvetica-Bold")
+        .text("Technician Signature", PAGE.margin, doc.y);
+      doc.y += 8;
+      await drawSignatureFromData(
+        doc,
+        responses["technician-signature"],
+        PAGE.margin,
+        doc.y,
+        200,
+        60
+      );
+      doc.y += 72;
     }
 
     await renderSectionPhotos(section.id, section.title || "Section");
@@ -4434,7 +4483,10 @@ const formatValue = (value, fieldType) => {
         ? "N/A"
         : "—";
     case "boolean":
+    case "checkbox":
       return value ? "Yes" : "No";
+    case "signature":
+      return value ? "Captured" : "—";
     case "date":
       return value ? new Date(value).toLocaleDateString("en-AU") : "—";
     default:

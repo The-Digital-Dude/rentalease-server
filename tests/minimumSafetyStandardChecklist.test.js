@@ -133,6 +133,17 @@ describe("Minimum Safety Standard DOCX checklist template", () => {
     );
   });
 
+  test("does not show repeated checklist source helper text in app sections", () => {
+    const template = getTemplate();
+    const checklistSections = template.sections.filter((section) =>
+      /^\d+\./.test(section.title)
+    );
+
+    checklistSections.forEach((section) => {
+      expect(section.description).toBeUndefined();
+    });
+  });
+
   test("requires one unrestricted multi-photo field in each checklist section", () => {
     const template = getTemplate();
     const checklistSections = template.sections.filter((section) =>
