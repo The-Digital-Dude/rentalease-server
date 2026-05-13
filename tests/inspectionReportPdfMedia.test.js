@@ -273,6 +273,7 @@ describe("Inspection report PDF media matching", () => {
     expect(genericSource).toContain('field.type === "photo-multi"');
     expect(genericSource).toContain('template?.jobType === "MinimumSafetyStandard"');
     expect(genericSource).toContain('section.id === "property-summary"');
+    expect(genericSource).toContain('section.id === "technician-signoff"');
     expect(genericSource).toContain(
       'await renderSectionPhotos(section.id, section.title || "Section")'
     );

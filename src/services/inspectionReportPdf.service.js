@@ -4346,7 +4346,8 @@ const renderGenericReport = async (
     if (
       section.id === "property-details" ||
       (template?.jobType === "MinimumSafetyStandard" &&
-        section.id === "property-summary")
+        (section.id === "property-summary" ||
+          section.id === "technician-signoff"))
     ) {
       continue;
     }
