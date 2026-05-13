@@ -2814,13 +2814,21 @@ const createMinimumSafetyStandardTemplate = (
           type: "date",
           required: true,
           defaultValue: new Date().toISOString().split("T")[0],
+          metadata: {
+            readOnly: true,
+            serverPrefilled: true,
+          },
         },
         {
           id: "inspector-name",
           label: "Inspector Name",
           type: "text",
           required: true,
-          placeholder: "Enter inspector's full name",
+          placeholder: "Loaded from technician profile",
+          metadata: {
+            readOnly: true,
+            serverPrefilled: true,
+          },
         },
         {
           id: "inspector-license",
@@ -2834,14 +2842,11 @@ const createMinimumSafetyStandardTemplate = (
           label: "Property Address",
           type: "textarea",
           required: true,
-          placeholder: "Enter complete property address",
-        },
-        {
-          id: "next-inspection-date",
-          label: "Next Inspection Due",
-          type: "date",
-          required: true,
-          defaultValue: nextInspectionDate,
+          placeholder: "Loaded from property record",
+          metadata: {
+            readOnly: true,
+            serverPrefilled: true,
+          },
         },
       ],
     },
@@ -3121,20 +3126,6 @@ const createMinimumSafetyStandardTemplate = (
         "Technician declaration and signature for Minimum Safety Standard inspection completion.",
       fields: [
         {
-          id: "technician-name",
-          label: "Inspection Completed By",
-          type: "text",
-          required: true,
-          placeholder: "Technician full name",
-        },
-        {
-          id: "technician-license",
-          label: "License/Registration Number",
-          type: "text",
-          required: true,
-          placeholder: "License or registration number",
-        },
-        {
           id: "inspection-completion-date",
           label: "Inspection Completion Date",
           type: "date",
@@ -3180,10 +3171,14 @@ const createMinimumSafetyStandardTemplate = (
         {
           id: "mss-disclaimer",
           label: "Disclaimer",
-          type: "textarea",
-          required: true,
+          type: "static-text",
           defaultValue:
             "This property has been visually inspected by a compliance officer in accordance with applicable Australian Consumer and Competition Commission (ACCC) requirements and industry best practices.",
+          metadata: {
+            readOnly: true,
+            presentation: "plain-text",
+            staticText: true,
+          },
         },
       ],
     },

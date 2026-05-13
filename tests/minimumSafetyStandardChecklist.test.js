@@ -120,14 +120,21 @@ describe("Minimum Safety Standard DOCX checklist template", () => {
         "If a shower is present, does it have a shower head with a 3-star WELS rating (or a lower-rated head where a 3-star cannot be installed or would not operate effectively)?",
       "toilet-summary.toilet-location":
         "Is the toilet located in an enclosed room intended for use as a toilet area (either standalone or combined bathroom/laundry)?",
-      "technician-signoff.mss-disclaimer":
-        "Disclaimer",
+      "technician-signoff.mss-disclaimer": "Disclaimer",
     };
 
     for (const [fieldKey, label] of Object.entries(expectedLabels)) {
       expect(fields.get(fieldKey)?.label).toBe(label);
     }
 
+    expect(fields.get("technician-signoff.mss-disclaimer")?.type).toBe(
+      "static-text"
+    );
+    expect(fields.get("technician-signoff.mss-disclaimer")?.metadata).toMatchObject({
+      readOnly: true,
+      presentation: "plain-text",
+      staticText: true,
+    });
     expect(fields.get("technician-signoff.mss-disclaimer")?.defaultValue).toBe(
       "This property has been visually inspected by a compliance officer in accordance with applicable Australian Consumer and Competition Commission (ACCC) requirements and industry best practices."
     );
@@ -191,9 +198,6 @@ describe("Minimum Safety Standard DOCX checklist template", () => {
       ["property-summary.inspector-name", "Inspector Name"],
       ["property-summary.inspector-license", "Inspector License Number"],
       ["property-summary.property-address", "Property Address"],
-      ["property-summary.next-inspection-date", "Next Inspection Due"],
-      ["technician-signoff.technician-name", "Inspection Completed By"],
-      ["technician-signoff.technician-license", "License/Registration Number"],
       ["technician-signoff.inspection-completion-date", "Inspection Completion Date"],
       ["technician-signoff.technician-declaration", "Technician Declaration"],
       ["technician-signoff.declaration-statement", "Declaration Statement"],
@@ -211,6 +215,22 @@ describe("Minimum Safety Standard DOCX checklist template", () => {
     expect(fields.get("technician-signoff.technician-declaration")?.type).toBe(
       "checkbox"
     );
+    expect(fields.has("technician-signoff.technician-name")).toBe(false);
+    expect(fields.has("technician-signoff.technician-license")).toBe(false);
+    expect(fields.has("property-summary.next-inspection-date")).toBe(false);
+    expect(fields.get("property-summary.inspection-date")?.metadata).toMatchObject({
+      readOnly: true,
+      serverPrefilled: true,
+    });
+    expect(fields.get("property-summary.inspector-name")?.metadata).toMatchObject({
+      readOnly: true,
+      serverPrefilled: true,
+    });
+    expect(fields.get("property-summary.property-address")?.metadata).toMatchObject({
+      readOnly: true,
+      serverPrefilled: true,
+    });
+    expect(fields.get("property-summary.inspector-license")?.metadata).toBeUndefined();
   });
 
   test("removes non-DOCX legacy MSS detail fields", () => {

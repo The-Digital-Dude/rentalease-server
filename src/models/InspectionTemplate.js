@@ -69,6 +69,7 @@ const fieldSchema = new mongoose.Schema(
         "photo-multi",
         "rating",
         "signature",
+        "static-text",
         "checkbox-group",
         "checkbox",
         "yes-no",

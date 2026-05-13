@@ -4325,7 +4325,6 @@ const renderGenericReport = async (
   const hiddenMssSignoffFieldIds = new Set([
     "technician-declaration",
     "declaration-statement",
-    "mss-disclaimer",
   ]);
 
   const renderSectionPhotos = async (sectionId, heading) => {
@@ -4363,7 +4362,8 @@ const renderGenericReport = async (
       const isMediaField =
         field.type === "photo" ||
         field.type === "photo-multi" ||
-        field.type === "signature";
+        field.type === "signature" ||
+        field.type === "static-text";
       const isHiddenMssSignoffField =
         template?.jobType === "MinimumSafetyStandard" &&
         section.id === "technician-signoff" &&
@@ -4415,6 +4415,36 @@ const renderGenericReport = async (
         60
       );
       doc.y += 72;
+    }
+
+    const staticTextFields = section.fields.filter(
+      (field) => field.type === "static-text"
+    );
+
+    for (const field of staticTextFields) {
+      const value = responses[field.id] || field.defaultValue;
+
+      if (!value) {
+        continue;
+      }
+
+      ensurePageSpace(doc, 90);
+      doc.moveDown(0.4);
+      doc
+        .fillColor(COLORS.text)
+        .fontSize(10)
+        .font("Helvetica-Bold")
+        .text(field.label, PAGE.margin, doc.y);
+      doc.y += 6;
+      doc
+        .fillColor(COLORS.textSecondary)
+        .fontSize(9)
+        .font("Helvetica")
+        .text(String(value), PAGE.margin, doc.y, {
+          width: doc.page.width - PAGE.margin * 2,
+          lineGap: 2,
+        });
+      doc.y += 12;
     }
 
     await renderSectionPhotos(section.id, section.title || "Section");
@@ -4487,6 +4517,8 @@ const formatValue = (value, fieldType) => {
       return value ? "Yes" : "No";
     case "signature":
       return value ? "Captured" : "—";
+    case "static-text":
+      return value ? `${value}` : "—";
     case "date":
       return value ? new Date(value).toLocaleDateString("en-AU") : "—";
     default:

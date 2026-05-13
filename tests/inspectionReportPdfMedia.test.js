@@ -291,10 +291,11 @@ describe("Inspection report PDF media matching", () => {
     expect(genericSource).toContain("hiddenMssSignoffFieldIds");
     expect(genericSource).toContain('"technician-declaration"');
     expect(genericSource).toContain('"declaration-statement"');
-    expect(genericSource).toContain('"mss-disclaimer"');
     expect(genericSource).toContain('field.type === "signature"');
+    expect(genericSource).toContain('field.type === "static-text"');
     expect(genericSource).toContain('responses["technician-signature"]');
     expect(genericSource).toContain("await drawSignatureFromData");
+    expect(genericSource).toContain("const staticTextFields = section.fields.filter");
     expect(genericSource).toContain("shouldSkipEmptyMssSignoffValue");
   });
 

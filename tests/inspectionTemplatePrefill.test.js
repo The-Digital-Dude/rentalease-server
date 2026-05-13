@@ -92,4 +92,74 @@ describe("Inspection template prefill", () => {
     const field = result.sections[0].fields[0];
     expect(field.defaultValue).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
+
+  test("prefills MSS inspector name and property address from server data only", () => {
+    const prefillTemplateWithJobData = loadPrefillTemplateWithJobData();
+
+    const template = {
+      jobType: "MinimumSafetyStandard",
+      sections: [
+        {
+          id: "property-summary",
+          fields: [
+            {
+              id: "inspector-name",
+              type: "text",
+              metadata: {
+                readOnly: true,
+                serverPrefilled: true,
+              },
+            },
+            {
+              id: "inspector-license",
+              type: "text",
+            },
+            {
+              id: "property-address",
+              type: "textarea",
+              metadata: {
+                readOnly: true,
+                serverPrefilled: true,
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    const result = prefillTemplateWithJobData(
+      template,
+      { jobType: "MinimumSafetyStandard", job_id: "JOB-3" },
+      {
+        address: {
+          fullAddress: "3/581 Dohertys Road, Truganina VIC 3029",
+        },
+      },
+      {
+        firstName: "Sam",
+        lastName: "Inspector",
+        licenseNumber: "LIC-123",
+      }
+    );
+
+    const fields = result.sections[0].fields;
+
+    expect(fields.find((field) => field.id === "inspector-name")).toMatchObject({
+      defaultValue: "Sam Inspector",
+      metadata: {
+        readOnly: true,
+        serverPrefilled: true,
+      },
+    });
+    expect(fields.find((field) => field.id === "property-address")).toMatchObject({
+      defaultValue: "3/581 Dohertys Road, Truganina VIC 3029",
+      metadata: {
+        readOnly: true,
+        serverPrefilled: true,
+      },
+    });
+    expect(fields.find((field) => field.id === "inspector-license")).not.toHaveProperty(
+      "defaultValue"
+    );
+  });
 });
