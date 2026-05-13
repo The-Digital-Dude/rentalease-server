@@ -45,6 +45,7 @@ describe("Inspection template photo requirements", () => {
       type: "photo-multi",
       required: true,
     });
+    expect(fieldsBySection.get("smoke-alarms").has("next-smoke-check-due")).toBe(false);
     expect(fieldsBySection.get("visual-inspection").get("aircon-photos")).toMatchObject({
       type: "photo-multi",
     });
@@ -129,8 +130,17 @@ describe("Inspection template photo requirements", () => {
     expect(fieldsByTemplate.get("Smoke").has("inspection-summary.next-service-due")).toBe(false);
     expect(fieldsByTemplate.get("Smoke").has("certification-declaration.inspector-details-company")).toBe(false);
     expect(fieldsByTemplate.get("Smoke").has("certification-declaration.inspector-details-phone")).toBe(false);
+    expect(fieldsByTemplate.get("Smoke").has("certification-declaration.inspector-details-name")).toBe(false);
+    expect(fieldsByTemplate.get("Smoke").has("certification-declaration.inspector-details-license")).toBe(false);
     expect(fieldsByTemplate.get("Smoke").has("certification-declaration.report-version")).toBe(false);
+    expect(fieldsByTemplate.get("Electrical").has("inspection-summary.registration-number")).toBe(false);
     expect(fieldsByTemplate.get("Electrical").has("inspection-summary.summary-notes")).toBe(false);
+    expect(fieldsByTemplate.get("Electrical").has("smoke-alarms.next-smoke-check-due")).toBe(false);
+    expect(fieldsByTemplate.get("Electrical").has("certification.certification-electrician-name")).toBe(false);
+    expect(fieldsByTemplate.get("Electrical").has("certification.certification-licence-number")).toBe(false);
+    expect(fieldsByTemplate.get("Electrical").has("certification.certification-next-inspection-due")).toBe(false);
+    expect(fieldsByTemplate.get("Electrical").has("inspection-summary.contact-email")).toBe(false);
+    expect(fieldsByTemplate.get("Electrical").has("inspection-summary.contact-phone")).toBe(false);
     expect(fieldsByTemplate.get("MinimumSafetyStandard").has("technician-signoff.technician-declaration")).toBe(false);
     expect(fieldsByTemplate.get("MinimumSafetyStandard").has("technician-signoff.declaration-statement")).toBe(false);
   });
@@ -155,9 +165,7 @@ describe("Inspection template photo requirements", () => {
 
     [
       ["Electrical", "inspection-summary.inspector-name"],
-      ["Electrical", "certification.certification-electrician-name"],
       ["Smoke", "inspection-summary.inspector-name"],
-      ["Smoke", "certification-declaration.inspector-details-name"],
       ["Gas", "property-details.site-address"],
       ["Gas", "property-details.suburb"],
       ["Gas", "property-details.state"],
@@ -174,7 +182,6 @@ describe("Inspection template photo requirements", () => {
 
     [
       ["Electrical", "inspection-summary.license-number"],
-      ["Smoke", "certification-declaration.inspector-details-license"],
       ["Gas", "technician-details.licence-registration-number"],
     ].forEach(([jobType, fieldKey]) => {
       expect(fieldsByTemplate.get(jobType).get(fieldKey)?.metadata).toBeUndefined();

@@ -2233,12 +2233,6 @@ const drawCertificationBlock = (doc, certification = {}) => {
         formatDisplayDate(certification["inspection-date"]),
     },
     {
-      label: "Next inspection due",
-      value:
-        formatDisplayDate(certification["certification-next-inspection-due"]) ||
-        "—",
-    },
-    {
       label: "Signed at",
       value: certification["certification-signed-at"] || "—",
     },
@@ -2462,28 +2456,6 @@ const renderElectricalSmokeReport = async (
     drawOutcomeBadges(doc, outcomeBadges);
   }
 
-  if (summarySection["contact-email"] || summarySection["contact-phone"]) {
-    const contactRows = [
-      {
-        label: "Email",
-        value: summarySection["contact-email"] || "—",
-      },
-      {
-        label: "Phone",
-        value: summarySection["contact-phone"] || "—",
-      },
-    ];
-    drawRoomDetailTable(
-      doc,
-      "Contact Information",
-      contactRows.map((row) => ({
-        label: row.label,
-        value: row.value,
-      })),
-      { hideHeaders: true }
-    );
-  }
-
   const renderStatusSection = async (sectionId, mapper, noteFieldIds = []) => {
     const sectionDefinition = findSectionDefinition(sectionId);
     if (!sectionDefinition) {
@@ -2623,7 +2595,7 @@ const renderElectricalSmokeReport = async (
   if (smokeDefinition) {
     const smokeComplianceItems = smokeDefinition.fields
       .filter((field) =>
-        ["smoke-alarms-operational", "next-smoke-check-due"].includes(field.id)
+        ["smoke-alarms-operational"].includes(field.id)
       )
       .map((field) => ({ label: field.label, value: smokeSection[field.id] }));
 

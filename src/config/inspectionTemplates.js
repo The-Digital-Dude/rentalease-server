@@ -200,15 +200,6 @@ const buildSmokeAlarmsSection = () => ({
       defaultValue: "yes",
     },
     {
-      id: "next-smoke-check-due",
-      label: "Next smoke alarm check due",
-      type: "date",
-      required: true,
-      defaultValue: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
-        .toISOString()
-        .split("T")[0], // 1 year from now
-    },
-    {
       id: "smoke-alarm-records",
       label: "Smoke alarm records",
       type: "table",
@@ -268,11 +259,6 @@ const createElectricalSmokeSections = () => [
         required: true,
       },
       {
-        id: "registration-number",
-        label: "Additional registration number",
-        type: "text",
-      },
-      {
         id: "electrical-outcome",
         label: "Electrical safety check outcome",
         type: "select",
@@ -295,16 +281,6 @@ const createElectricalSmokeSections = () => [
         ],
         required: true,
         defaultValue: "no-faults",
-      },
-      {
-        id: "contact-email",
-        label: "Contact email",
-        type: "text",
-      },
-      {
-        id: "contact-phone",
-        label: "Contact phone",
-        type: "text",
       },
     ],
   },
@@ -465,33 +441,11 @@ const createElectricalSmokeSections = () => [
       "Confirm completion of the electrical and smoke alarm safety check.",
     fields: [
       {
-        id: "certification-electrician-name",
-        label: "Electrical safety check completed by",
-        type: "text",
-        required: true,
-        metadata: serverPrefilledFieldMetadata,
-      },
-      {
-        id: "certification-licence-number",
-        label: "Licence/registration number",
-        type: "text",
-        required: true,
-      },
-      {
         id: "certification-inspection-date",
         label: "Inspection date",
         type: "date",
         required: true,
         defaultValue: new Date().toISOString().split("T")[0],
-      },
-      {
-        id: "certification-next-inspection-due",
-        label: "Next inspection due by",
-        type: "date",
-        required: true,
-        defaultValue: new Date(Date.now() + 2 * 365 * 24 * 60 * 60 * 1000)
-          .toISOString()
-          .split("T")[0], // 2 years from now
       },
       {
         id: "certification-signed-at",
@@ -1068,12 +1022,6 @@ const createElectricalSections = () => [
         defaultValue: "A334455",
       },
       {
-        id: "registration-number",
-        label: "Additional registration number",
-        type: "text",
-        defaultValue: "REC002918",
-      },
-      {
         id: "electrical-outcome",
         label: "Electrical safety check outcome",
         type: "select",
@@ -1245,34 +1193,11 @@ const createElectricalSections = () => [
     description: "Confirm completion of the electrical safety check.",
     fields: [
       {
-        id: "certification-electrician-name",
-        label: "Electrical safety check completed by",
-        type: "text",
-        required: true,
-        metadata: serverPrefilledFieldMetadata,
-      },
-      {
-        id: "certification-licence-number",
-        label: "Licence/registration number",
-        type: "text",
-        required: true,
-        defaultValue: "A334455",
-      },
-      {
         id: "certification-inspection-date",
         label: "Inspection date",
         type: "date",
         required: true,
         defaultValue: new Date().toISOString().split("T")[0],
-      },
-      {
-        id: "certification-next-inspection-due",
-        label: "Next inspection due by",
-        type: "date",
-        required: true,
-        defaultValue: new Date(Date.now() + 2 * 365 * 24 * 60 * 60 * 1000)
-          .toISOString()
-          .split("T")[0],
       },
       {
         id: "certification-declaration",
@@ -4351,19 +4276,6 @@ const createSmokeOnlySections = () => [
     title: "Certification & Testing Status",
     description: "Inspector certification and legal declarations.",
     fields: [
-      {
-        id: "inspector-details-name",
-        label: "Inspector Full Name",
-        type: "text",
-        required: true,
-        metadata: serverPrefilledFieldMetadata,
-      },
-      {
-        id: "inspector-details-license",
-        label: "Licence/Registration Number",
-        type: "text",
-        required: true,
-      },
       {
         id: "inspection-standards-applied",
         label: "Standards and regulations applied",
