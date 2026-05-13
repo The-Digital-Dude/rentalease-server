@@ -2659,13 +2659,6 @@ const renderElectricalSmokeReport = async (
     }
   }
 
-  await renderTitledInlinePhotos(
-    doc,
-    "Inspection Photos",
-    getMediaItemsForSection(report, template, "inspection-photos"),
-    { template, sectionId: "inspection-photos" }
-  );
-
   // The shared declaration/certification block is rendered once at the end.
 };
 
@@ -3124,7 +3117,7 @@ const renderGasSmokeReport = async (
       drawRoomDetailTable(doc, null, summaryRows);
     }
 
-    if (complianceSummary["summary-comments"]) {
+  if (complianceSummary["summary-comments"]) {
       ensurePageSpace(doc, 60);
       doc.y += 10;
       doc
@@ -3478,12 +3471,6 @@ const renderElectricalReport = async (
     await renderSectionPhotos("remedial-actions", "Remedial Actions");
   }
 
-  await renderTitledInlinePhotos(
-    doc,
-    "Inspection Photos",
-    getMediaItemsForSection(report, template, "inspection-photos"),
-    { template, sectionId: "inspection-photos" }
-  );
 };
 
 const renderMinimumSafetyStandardReport = async (

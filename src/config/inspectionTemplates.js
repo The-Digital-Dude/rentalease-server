@@ -231,6 +231,13 @@ const buildSmokeAlarmsSection = () => ({
       label: "Smoke alarm notes",
       type: "textarea",
     },
+    {
+      id: "smoke-alarm-photos",
+      label: "Smoke Alarm Photos",
+      type: "photo-multi",
+      required: true,
+      helpText: "Take photos of smoke alarms showing location and details",
+    },
   ],
 });
 
@@ -355,6 +362,27 @@ const createElectricalSmokeSections = () => [
         label: "Visual inspection notes",
         type: "textarea",
       },
+      {
+        id: "aircon-photos",
+        label: "Aircon Photos",
+        type: "photo-multi",
+        helpText:
+          "Take photos of air conditioning units and electrical connections",
+      },
+      {
+        id: "oven-photos",
+        label: "Oven Photos",
+        type: "photo-multi",
+        helpText:
+          "Take photos of oven and cooking equipment electrical connections",
+      },
+      {
+        id: "rangehood-photos",
+        label: "Rangehood Photos",
+        type: "photo-multi",
+        helpText:
+          "Take photos of rangehood and exhaust fan electrical connections",
+      },
     ],
   },
   {
@@ -430,48 +458,6 @@ const createElectricalSmokeSections = () => [
     ],
   },
   buildSmokeAlarmsSection(),
-  {
-    id: "inspection-photos",
-    title: "Inspection Photos",
-    description:
-      "Upload photos taken during the electrical and smoke alarm inspection.",
-    fields: [
-      {
-        id: "smoke-alarm-photos",
-        label: "Smoke Alarm",
-        type: "photo-multi",
-        required: true,
-        helpText: "Take photos of smoke alarms showing location and details",
-      },
-      {
-        id: "aircon-photos",
-        label: "Aircon",
-        type: "photo-multi",
-        helpText:
-          "Take photos of air conditioning units and electrical connections",
-      },
-      {
-        id: "oven-photos",
-        label: "Oven",
-        type: "photo-multi",
-        helpText:
-          "Take photos of oven and cooking equipment electrical connections",
-      },
-      {
-        id: "rangehood-photos",
-        label: "Rangehood",
-        type: "photo-multi",
-        helpText:
-          "Take photos of rangehood and exhaust fan electrical connections",
-      },
-      {
-        id: "additional-photos",
-        label: "Additional Photos",
-        type: "photo-multi",
-        helpText: "Upload any additional photos relevant to the inspection",
-      },
-    ],
-  },
   {
     id: "certification",
     title: "Electrical Safety Check Certification",
@@ -1156,6 +1142,27 @@ const createElectricalSections = () => [
         type: "textarea",
         placeholder: "Add any additional context for the visual assessment",
       },
+      {
+        id: "aircon-photos",
+        label: "Aircon Photos",
+        type: "photo-multi",
+        helpText:
+          "Take photos of air conditioning units and electrical connections",
+      },
+      {
+        id: "oven-photos",
+        label: "Oven Photos",
+        type: "photo-multi",
+        helpText:
+          "Take photos of oven and cooking equipment electrical connections",
+      },
+      {
+        id: "rangehood-photos",
+        label: "Rangehood Photos",
+        type: "photo-multi",
+        helpText:
+          "Take photos of rangehood and exhaust fan electrical connections",
+      },
     ],
   },
   {
@@ -1232,19 +1239,6 @@ const createElectricalSections = () => [
     ],
   },
   buildSmokeAlarmsSection(),
-  {
-    id: "inspection-photos",
-    title: "Inspection Photos",
-    description: "Upload photos taken during the electrical safety inspection.",
-    fields: [
-      {
-        id: "additional-photos",
-        label: "Additional Photos",
-        type: "photo-multi",
-        helpText: "Upload any additional photos relevant to the inspection",
-      },
-    ],
-  },
   {
     id: "certification",
     title: "Technician Sign-Off",

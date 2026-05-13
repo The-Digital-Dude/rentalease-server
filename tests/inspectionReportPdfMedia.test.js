@@ -158,7 +158,7 @@ describe("Inspection report PDF media matching", () => {
     ).toBe("Photo: Label showing brand/MFD/expiry");
   });
 
-  test("renders the dedicated inspection photos section for electrical reports", () => {
+  test("electrical reports omit generic inspection photos section", () => {
     const servicePath = path.resolve(
       __dirname,
       "../src/services/inspectionReportPdf.service.js"
@@ -175,14 +175,14 @@ describe("Inspection report PDF media matching", () => {
     const electricalSmokeSource = source.slice(electricalSmokeStart, gasStart);
     const electricalSource = source.slice(electricalStart, minimumSafetyStart);
 
-    expect(electricalSmokeSource).toMatch(
+    expect(electricalSmokeSource).not.toMatch(
       /getMediaItemsForSection\(report,\s*template,\s*"inspection-photos"\)/
     );
-    expect(electricalSmokeSource).toMatch(/"Inspection Photos"/);
-    expect(electricalSource).toMatch(
+    expect(electricalSmokeSource).not.toMatch(/"Inspection Photos"/);
+    expect(electricalSource).not.toMatch(
       /getMediaItemsForSection\(report,\s*template,\s*"inspection-photos"\)/
     );
-    expect(electricalSource).toMatch(/"Inspection Photos"/);
+    expect(electricalSource).not.toMatch(/"Inspection Photos"/);
   });
 
   test("electrical and smoke reports omit comments on next steps section", () => {

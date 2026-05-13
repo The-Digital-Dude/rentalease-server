@@ -41,12 +41,20 @@ describe("Inspection template photo requirements", () => {
       type: "photo-multi",
       required: true,
     });
-    expect(fieldsBySection.get("inspection-photos").get("additional-photos")).toMatchObject({
+    expect(fieldsBySection.get("smoke-alarms").get("smoke-alarm-photos")).toMatchObject({
+      type: "photo-multi",
+      required: true,
+    });
+    expect(fieldsBySection.get("visual-inspection").get("aircon-photos")).toMatchObject({
       type: "photo-multi",
     });
-    expect(fieldsBySection.get("inspection-photos").has("switchboard-photos")).toBe(false);
-    expect(fieldsBySection.get("inspection-photos").has("gpo-tester-photos")).toBe(false);
-    expect(fieldsBySection.get("inspection-photos").has("meter-photos")).toBe(false);
+    expect(fieldsBySection.get("visual-inspection").get("oven-photos")).toMatchObject({
+      type: "photo-multi",
+    });
+    expect(fieldsBySection.get("visual-inspection").get("rangehood-photos")).toMatchObject({
+      type: "photo-multi",
+    });
+    expect(fieldsBySection.has("inspection-photos")).toBe(false);
   });
 
   test("active smoke report requires photos on each alarm record", () => {
