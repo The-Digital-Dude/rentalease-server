@@ -47,18 +47,33 @@ const buildPhotoFieldContextLookup = (template) => {
 
   (template?.sections || []).forEach((section) => {
     (section.fields || []).forEach((field) => {
-      if (field?.type !== "photo" && field?.type !== "photo-multi") {
-        return;
+      if (field?.type === "table") {
+        (field.columns || []).forEach((column) => {
+          if (column?.type !== "photo" && column?.type !== "photo-multi") {
+            return;
+          }
+
+          const entries = lookup.get(column.id) || [];
+          entries.push({
+            sectionId: section.id,
+            fieldId: column.id,
+            repeatable: true,
+            label: column.label,
+          });
+          lookup.set(column.id, entries);
+        });
       }
 
-      const entries = lookup.get(field.id) || [];
-      entries.push({
-        sectionId: section.id,
-        fieldId: field.id,
-        repeatable: Boolean(section.repeatable),
-        label: field.label,
-      });
-      lookup.set(field.id, entries);
+      if (field?.type === "photo" || field?.type === "photo-multi") {
+        const entries = lookup.get(field.id) || [];
+        entries.push({
+          sectionId: section.id,
+          fieldId: field.id,
+          repeatable: Boolean(section.repeatable),
+          label: field.label,
+        });
+        lookup.set(field.id, entries);
+      }
     });
   });
 
@@ -199,6 +214,31 @@ const validateRequiredPhotoUploads = (template, formData = {}, mediaUploads = []
       });
       return;
     }
+
+    (section.fields || []).forEach((field) => {
+      if (field.type !== "table") {
+        return;
+      }
+
+      const requiredColumnPhotoFields = (field.columns || []).filter(isRequiredPhotoField);
+      if (!requiredColumnPhotoFields.length) {
+        return;
+      }
+
+      const rows = Array.isArray(formData[section.id]?.[field.id])
+        ? formData[section.id][field.id]
+        : [];
+
+      rows.forEach((_, itemIndex) => {
+        requiredColumnPhotoFields.forEach((column) => {
+          if (!hasUploadedFieldMedia(mediaUploads, column.id, itemIndex)) {
+            missing.push(
+              `${field.label || section.title || "Item"} ${itemIndex + 1}: ${column.label || column.id}`
+            );
+          }
+        });
+      });
+    });
 
     requiredPhotoFields.forEach((field) => {
       if (!hasUploadedFieldMedia(mediaUploads, field.id)) {

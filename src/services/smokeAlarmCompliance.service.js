@@ -220,8 +220,8 @@ const assessOverallCompliance = (inspectionData) => {
   const coverageData = inspectionData;
 
   // Validate each individual alarm
-  const alarmResults = alarmRecords.map(alarm => ({
-    alarmId: alarm['alarm-id'],
+  const alarmResults = alarmRecords.map((alarm, index) => ({
+    alarmNumber: index + 1,
     location: alarm.location,
     ...validateAlarmCompliance(alarm),
   }));
@@ -283,7 +283,7 @@ const assessOverallCompliance = (inspectionData) => {
           location: result.location,
           priority: result.issues.includes('expired') || result.issues.includes('failed-test') ? 'urgent' : 'standard',
           category: 'alarm-specific',
-          alarmId: result.alarmId,
+          alarmNumber: result.alarmNumber,
         });
       });
     }

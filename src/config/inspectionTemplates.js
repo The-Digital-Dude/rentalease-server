@@ -3420,13 +3420,6 @@ const createSmokeOnlySections_OLD = () => [
         required: true,
         columns: [
           {
-            id: "alarm-id",
-            label: "Alarm ID",
-            type: "text",
-            required: true,
-            placeholder: "Auto-generated",
-          },
-          {
             id: "location",
             label: "Location",
             type: "select",
@@ -3746,7 +3739,6 @@ const createSmokeOnlySections_OLD = () => [
         ],
         defaultValue: [
           {
-            "alarm-id": "001",
             location: "hallway-bedrooms",
             mounting: "ceiling",
             brand: "Fire Tek",
@@ -4122,14 +4114,6 @@ const createSmokeOnlySections = () => [
         required: true,
         columns: [
           {
-            id: "alarm-id",
-            label: "Alarm ID",
-            type: "text",
-            required: true,
-            placeholder: "ALM-01",
-            helpText: "Unique identifier for this alarm",
-          },
-          {
             id: "location",
             label: "Location",
             type: "select",
@@ -4351,10 +4335,36 @@ const createSmokeOnlySections = () => [
             type: "textarea",
             placeholder: "Additional notes about this alarm",
           },
+          {
+            id: "photo-context",
+            label: "Photo: Installed location context",
+            type: "photo",
+            required: true,
+            helpText: "Wide shot showing this alarm in place",
+          },
+          {
+            id: "photo-label",
+            label: "Photo: Label showing brand/MFD/expiry",
+            type: "photo",
+            required: true,
+            helpText: "Close-up of this alarm's manufacturer label",
+          },
+          {
+            id: "photo-test",
+            label: "Photo: Test result or test in progress",
+            type: "photo",
+            required: true,
+            helpText: "Photo of dB meter reading or test button press",
+          },
+          {
+            id: "photo-replaced",
+            label: "Photo: Replaced unit",
+            type: "photo",
+            helpText: "Photo of the new unit if this alarm was replaced",
+          },
         ],
         defaultValue: [
           {
-            "alarm-id": "ALM-01",
             location: "hallway-bedrooms",
             "brand-model": "Clipsal 755SMA",
             "alarm-type": "photoelectric",
@@ -4372,69 +4382,6 @@ const createSmokeOnlySections = () => [
             "work-completed": ["tested-only"],
           },
         ],
-      },
-    ],
-  },
-  {
-    id: "inspection-photos",
-    title: "Inspection Photos",
-    description: "Photographic evidence of smoke alarm inspection and testing.",
-    fields: [
-      {
-        id: "property-overview-photos",
-        label: "Property Overview",
-        type: "photo-multi",
-        helpText: "General photos showing property layout and alarm locations",
-        metadata: { max: 4 },
-      },
-      {
-        id: "alarm-context-photos",
-        label: "Alarm Installation Context",
-        type: "photo-multi",
-        required: true,
-        helpText:
-          "Wide shots showing each alarm's installation location and context",
-        metadata: { max: 8 },
-      },
-      {
-        id: "alarm-label-photos",
-        label: "Manufacturer Labels",
-        type: "photo-multi",
-        required: true,
-        helpText:
-          "Close-up photos of manufacturer labels showing brand, model, and manufacture date",
-        metadata: { max: 8 },
-      },
-      {
-        id: "test-procedure-photos",
-        label: "Testing in Progress",
-        type: "photo-multi",
-        required: true,
-        helpText:
-          "Photos showing test button being pressed or dB meter readings",
-        metadata: { max: 8 },
-      },
-      {
-        id: "replacement-photos",
-        label: "Replacement Work",
-        type: "photo-multi",
-        helpText: "Before and after photos if any alarms were replaced",
-        metadata: { max: 6 },
-      },
-      {
-        id: "defect-photos",
-        label: "Defects or Issues",
-        type: "photo-multi",
-        helpText:
-          "Photos documenting any defects, damage, or non-compliance issues",
-        metadata: { max: 6 },
-      },
-      {
-        id: "additional-photos",
-        label: "Additional Photos",
-        type: "photo-multi",
-        helpText: "Any other relevant photos for the inspection report",
-        metadata: { max: 4 },
       },
     ],
   },
@@ -4800,13 +4747,6 @@ const createGasSmokeTemplate = () => ({
           type: "table",
           required: true,
           columns: [
-            {
-              id: "alarm-id",
-              label: "Alarm ID",
-              type: "text",
-              required: true,
-              placeholder: "001",
-            },
             {
               id: "location",
               label: "Location",

@@ -18,22 +18,18 @@ describe("Inspection report PDF gas v3 helpers", () => {
     );
   });
 
-  test("keeps next compliance schedule as one section with date and regulations", () => {
+  test("omits the next inspection schedule section from generated reports", () => {
     const servicePath = path.resolve(
       __dirname,
       "../src/services/inspectionReportPdf.service.js"
     );
     const source = fs.readFileSync(servicePath, "utf8");
-    const sectionStart = source.indexOf("const drawNextStepsSection =");
-    const nextSectionStart = source.indexOf(
-      "const drawMinimumStandardStatusTable",
-      sectionStart
-    );
-    const sectionSource = source.slice(sectionStart, nextSectionStart);
+    const buildPdfStart = source.indexOf("export const buildInspectionReportPdf");
+    const buildPdfSource = source.slice(buildPdfStart);
 
-    expect(sectionSource.match(/drawSectionHeader\(doc, "Next Compliance Schedule"\)/g)).toHaveLength(1);
-    expect(sectionSource).toContain('"Next Inspection Date"');
-    expect(sectionSource).toContain('"Regulations"');
-    expect(sectionSource).toContain('"standards-acknowledged"');
+    expect(source).not.toContain("const drawNextStepsSection");
+    expect(source).not.toContain('"Next Compliance Schedule"');
+    expect(source).not.toContain('"Next Inspection Date"');
+    expect(buildPdfSource).not.toContain("drawNextStepsSection");
   });
 });

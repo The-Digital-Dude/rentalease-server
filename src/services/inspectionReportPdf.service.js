@@ -593,20 +593,6 @@ const extractSummaryInsights = ({ report, template, job, technician }) => {
         "technician-name",
       ]) ||
       "N/A",
-    technicianLicense:
-      technician?.licenseNumber ||
-      findFirstReportValue(formData, [
-        "licence-registration-number",
-        "license-number",
-        "certification-licence-number",
-        "technician-license",
-        "inspector-license",
-        "inspector-details-license",
-        "registration-number",
-        "gasfitter-license",
-        "electrical-license",
-      ]) ||
-      "N/A",
   };
 };
 
@@ -994,7 +980,7 @@ const drawPropertyDetailsSection = (
     { label: "Next Compliance Date", value: nextComplianceDate },
     {
       label: "Technician Details",
-      value: `${summaryInsights.technicianName} | Licence: ${summaryInsights.technicianLicense}`,
+      value: summaryInsights.technicianName,
     },
     { label: "Regulations / Standards", value: standardsApplied },
     {
@@ -1506,88 +1492,6 @@ const drawGasHazardsSection = (doc) => {
     });
 
   doc.y += conclusionHeight + 30;
-};
-
-const drawNextStepsSection = (doc, { template, job, report }) => {
-  const jobType = template?.jobType || job?.jobType;
-
-  const narrativeMap = {
-    Electrical:
-      "This electrical safety check has been completed in line with the Residential Tenancies Regulations 2021 and AS/NZS 3019: Electrical Installations — Periodic Verification. It ensures the property's electrical system is safe and free from damage or deterioration that could pose a risk. Any defects or safety concerns identified during the inspection are reported for corrective action.",
-    Gas: "This gas safety check has been completed in line with the Residential Tenancies Regulations 2021 and AS/NZS 5601.1: Gas Installations. It confirms appliances, pipework, and ventilation are operating safely and documents any defects that require corrective action.",
-    GasSmoke:
-      "This combined gas and smoke safety inspection follows the Residential Tenancies Regulations 2021, AS/NZS 5601.1: Gas Installations, and AS 3786: Smoke Alarms. It verifies that both gas systems and smoke alarms remain safe, compliant, and supported by documented follow-up actions where required.",
-    Smoke:
-      "This smoke alarm safety inspection has been completed in accordance with the Residential Tenancies Regulations 2021 and AS 3786: Smoke Alarms. It confirms alarms are correctly installed, powered, and positioned to alert occupants in the event of a fire.",
-    MinimumSafetyStandard:
-      "This minimum safety standards inspection has been carried out to satisfy the Residential Tenancies Regulations 2021 minimum housing standards. It confirms the property remains fit for occupancy and records any areas that require remedial action to maintain compliance.",
-  };
-
-  const standardsLabelMap = {
-    "rta-2021": "Residential Tenancies Regulations 2021",
-    "as-3786": "AS 3786 – Smoke Alarms",
-  };
-  const complianceNextSteps = report?.formData?.["compliance-next-steps"] || {};
-  const acknowledgedStandards = Array.isArray(
-    complianceNextSteps["standards-acknowledged"]
-  )
-    ? complianceNextSteps["standards-acknowledged"]
-        .map((standard) => standardsLabelMap[standard] || standard)
-        .filter(Boolean)
-    : [];
-  const nextInspectionDate =
-    formatDisplayDate(complianceNextSteps["next-service-due"]) !== "N/A"
-      ? formatDisplayDate(complianceNextSteps["next-service-due"])
-      : resolveNextComplianceDisplayDate({ template, job, report });
-  const regulationsText =
-    jobType === "Smoke" && acknowledgedStandards.length
-      ? acknowledgedStandards.join("; ")
-      : narrativeMap[jobType] || getComplianceStandards(template, job).join("; ");
-  const labelWidth = 150;
-  const contentWidth = doc.page.width - PAGE.margin * 2 - labelWidth;
-  const regulationsHeight = doc.heightOfString(regulationsText, {
-    width: contentWidth,
-    lineGap: 3,
-  });
-
-  ensurePageSpace(doc, 75 + regulationsHeight);
-  drawSectionHeader(doc, "Next Compliance Schedule");
-
-  const rows = [
-    ["Next Inspection Date", nextInspectionDate],
-    ["Regulations", regulationsText],
-  ];
-
-  rows.forEach(([label, value]) => {
-    const rowHeight = Math.max(
-      18,
-      doc.heightOfString(String(value), {
-        width: contentWidth,
-        lineGap: 3,
-      }) + 6
-    );
-
-    doc
-      .fillColor(COLORS.text)
-      .fontSize(10)
-      .font("Helvetica-Bold")
-      .text(label, PAGE.margin, doc.y, {
-        width: labelWidth,
-      });
-
-    doc
-      .fillColor(COLORS.textSecondary)
-      .fontSize(10)
-      .font("Helvetica")
-      .text(String(value), PAGE.margin + labelWidth, doc.y - 12, {
-        width: contentWidth,
-        lineGap: 3,
-      });
-
-    doc.y += rowHeight;
-  });
-
-  doc.y += 14;
 };
 
 const resolveNextComplianceDisplayDate = ({ template, job, report }) => {
@@ -2557,22 +2461,6 @@ const renderElectricalSmokeReport = async (
     drawOutcomeBadges(doc, outcomeBadges);
   }
 
-  if (summarySection["summary-notes"]) {
-    ensurePageSpace(doc, 120);
-    drawSectionHeader(doc, "Comments on Next Steps");
-
-    doc
-      .fillColor(COLORS.textSecondary)
-      .font("Helvetica")
-      .fontSize(10)
-      .text(String(summarySection["summary-notes"]), PAGE.margin, doc.y, {
-        width: doc.page.width - PAGE.margin * 2,
-        lineGap: 3,
-      });
-
-    doc.y += 16;
-  }
-
   if (summarySection["contact-email"] || summarySection["contact-phone"]) {
     const contactRows = [
       {
@@ -3066,7 +2954,6 @@ const renderGasSmokeReport = async (
 
       // Create table headers
       const headers = [
-        "ID",
         "Location",
         "Brand",
         "Model",
@@ -3080,7 +2967,6 @@ const renderGasSmokeReport = async (
 
       // Create table data
       const tableData = records.map((record) => [
-        record["alarm-id"] || "",
         (record.location === "other"
           ? record["location-other"]
           : record.location) || "",
@@ -3096,7 +2982,7 @@ const renderGasSmokeReport = async (
 
       // Draw the table
       drawTable(doc, headers, tableData, {
-        columnWidths: [30, 60, 50, 50, 40, 50, 55, 55, 40, 60],
+        columnWidths: [70, 55, 55, 45, 55, 60, 60, 45, 70],
         headerFontSize: 8,
         cellFontSize: 7,
         rowHeight: 25,
@@ -3113,7 +2999,7 @@ const renderGasSmokeReport = async (
             .fontSize(9)
             .font("Helvetica-Bold")
             .text(
-              `Alarm ${record["alarm-id"] || index + 1} Comments:`,
+              `Alarm ${index + 1} Comments:`,
               PAGE.margin,
               doc.y
             );
@@ -4452,7 +4338,11 @@ const renderGenericReport = async (
   }
 
   for (const section of template.sections) {
-    if (section.id === "property-details") {
+    if (
+      section.id === "property-details" ||
+      (template?.jobType === "MinimumSafetyStandard" &&
+        section.id === "property-summary")
+    ) {
       continue;
     }
 
@@ -5728,13 +5618,6 @@ const renderSmokeOnlyReport = async (
 
   doc.y += 10;
 
-  await renderTitledInlinePhotos(
-    doc,
-    "Inspection Photos",
-    getMediaItemsForSection(report, template, "inspection-photos"),
-    { template, sectionId: "inspection-photos" }
-  );
-
   for (const section of template.sections || []) {
     if (section.id === "inspection-photos") {
       continue;
@@ -5794,11 +5677,21 @@ const renderSmokeOnlyReport = async (
       continue;
     }
 
+    const excludedFieldIds =
+      section.id === "certification-declaration"
+        ? [
+            "inspector-details-name",
+            "inspector-details-license",
+            "inspector-details-company",
+            "inspector-details-phone",
+            "report-version",
+          ]
+        : section.id === "inspection-summary"
+        ? ["previous-inspection-date"]
+        : [];
+
     renderTemplateSectionFields(doc, section, sectionData, {
-      excludedFieldIds:
-        section.id === "certification-declaration"
-          ? ["inspector-details-name", "inspector-details-license"]
-          : [],
+      excludedFieldIds,
     });
   }
 
@@ -5965,9 +5858,6 @@ export const buildInspectionReportPdf = async ({
     technician,
     report: preparedReport,
   });
-
-  // Next Compliance Schedule
-  drawNextStepsSection(doc, { template, job, report: preparedReport });
 
   // Add footer to final content page
   drawPageFooter(doc, currentPageNumber);

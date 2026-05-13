@@ -185,7 +185,23 @@ describe("Inspection report PDF media matching", () => {
     expect(electricalSource).toMatch(/"Inspection Photos"/);
   });
 
-  test("renders smoke-only inspection photos", () => {
+  test("electrical and smoke reports omit comments on next steps section", () => {
+    const servicePath = path.resolve(
+      __dirname,
+      "../src/services/inspectionReportPdf.service.js"
+    );
+    const source = fs.readFileSync(servicePath, "utf8");
+    const electricalSmokeStart = source.indexOf(
+      "const renderElectricalSmokeReport = async"
+    );
+    const gasStart = source.indexOf("const renderGasReport = async");
+    const electricalSmokeSource = source.slice(electricalSmokeStart, gasStart);
+
+    expect(electricalSmokeSource).not.toContain('"Comments on Next Steps"');
+    expect(electricalSmokeSource).not.toContain('summarySection["summary-notes"]');
+  });
+
+  test("smoke-only report renders alarm photos under each alarm record", () => {
     const servicePath = path.resolve(
       __dirname,
       "../src/services/inspectionReportPdf.service.js"
@@ -195,10 +211,12 @@ describe("Inspection report PDF media matching", () => {
     const buildPdfStart = source.indexOf("export const buildInspectionReportPdf");
     const smokeSource = source.slice(smokeStart, buildPdfStart);
 
-    expect(smokeSource).toMatch(
+    expect(smokeSource).not.toMatch(
       /getMediaItemsForSection\(report,\s*template,\s*"inspection-photos"\)/
     );
-    expect(smokeSource).toMatch(/"Inspection Photos"/);
+    expect(smokeSource).not.toMatch(/"Inspection Photos"/);
+    expect(smokeSource).toMatch(/getMediaItemsForRepeatableItem\(/);
+    expect(smokeSource).toContain('"smoke-alarm-inventory"');
   });
 
   test("smoke-only report renders template fields and omits duplicate final identity", () => {
@@ -217,7 +235,24 @@ describe("Inspection report PDF media matching", () => {
     expect(smokeSource).toContain('"certification-declaration"');
     expect(smokeSource).toContain('"inspector-details-name"');
     expect(smokeSource).toContain('"inspector-details-license"');
+    expect(smokeSource).toContain('"inspector-details-company"');
+    expect(smokeSource).toContain('"inspector-details-phone"');
+    expect(smokeSource).toContain('"report-version"');
     expect(source).toContain('const hideInspectorIdentity = template?.jobType === "Smoke"');
+  });
+
+  test("smoke-only report omits previous smoke alarm check date", () => {
+    const servicePath = path.resolve(
+      __dirname,
+      "../src/services/inspectionReportPdf.service.js"
+    );
+    const source = fs.readFileSync(servicePath, "utf8");
+    const smokeStart = source.indexOf("const renderSmokeOnlyReport = async");
+    const buildPdfStart = source.indexOf("export const buildInspectionReportPdf");
+    const smokeSource = source.slice(smokeStart, buildPdfStart);
+
+    expect(smokeSource).toContain('section.id === "inspection-summary"');
+    expect(smokeSource).toContain('"previous-inspection-date"');
   });
 
   test("generic report renderer visits section-level photo fields", () => {
@@ -235,6 +270,8 @@ describe("Inspection report PDF media matching", () => {
     );
     expect(genericSource).toContain("getMediaItemsForSection(report, template, sectionId)");
     expect(genericSource).toMatch(/field\.type !== "photo" && field\.type !== "photo-multi"/);
+    expect(genericSource).toContain('template?.jobType === "MinimumSafetyStandard"');
+    expect(genericSource).toContain('section.id === "property-summary"');
     expect(genericSource).toContain(
       'await renderSectionPhotos(section.id, section.title || "Section")'
     );
@@ -299,12 +336,10 @@ describe("Inspection report PDF media matching", () => {
     });
 
     expect(source).toContain('"technician-full-name"');
-    expect(source).toContain('"licence-registration-number"');
-    expect(source).toContain('"license-number"');
-    expect(source).toContain('"inspector-license"');
-    expect(source).toContain('"inspector-details-license"');
-    expect(source).toContain('"technician-license"');
     expect(source).toContain('"Technician Details"');
+    expect(source).toContain("value: summaryInsights.technicianName");
+    expect(source).not.toContain("summaryInsights.technicianLicense");
+    expect(source).not.toContain("Licence:");
   });
 
   test("shared report front includes MSS-style compliance details", () => {
