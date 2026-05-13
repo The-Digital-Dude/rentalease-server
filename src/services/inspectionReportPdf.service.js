@@ -2666,7 +2666,7 @@ const renderElectricalSmokeReport = async (
     { template, sectionId: "inspection-photos" }
   );
 
-  drawCertificationBlock(doc, certificationSection);
+  // The shared declaration/certification block is rendered once at the end.
 };
 
 const renderGasReport = async (
@@ -3144,69 +3144,6 @@ const renderGasSmokeReport = async (
     await renderSectionPhotos("compliance-summary", "Compliance Summary");
   }
 
-  // Section 7: Certification
-  const certification = getSectionValues("certification");
-  if (certification && Object.keys(certification).length > 0) {
-    ensurePageSpace(doc, 120);
-
-    doc
-      .fillColor(COLORS.primary)
-      .fontSize(14)
-      .font("Helvetica-Bold")
-      .text("TECHNICIAN CERTIFICATION", PAGE.margin, doc.y);
-    doc.y += 20;
-
-    const certRows = [
-      [
-        "Testing Status",
-        certification["technician-declaration"] ? "Yes" : "No",
-      ],
-      ["Gasfitter License", formatValue(certification["gasfitter-license"])],
-      ["Electrical License", formatValue(certification["electrical-license"])],
-      ["Completion Date", formatValue(certification["completion-date"])],
-    ].filter(([, value]) => value && value !== "N/A");
-
-    if (certRows.length > 0) {
-      drawRoomDetailTable(doc, null, certRows);
-    }
-
-    // Add signature if present
-    if (certification["technician-signature"]) {
-      ensurePageSpace(doc, 120);
-      doc.y += 15;
-      doc
-        .fillColor(COLORS.text)
-        .fontSize(10)
-        .font("Helvetica-Bold")
-        .text("Technician Signature:", PAGE.margin, doc.y);
-      doc.y += 10;
-
-      // Draw signature image if available, otherwise draw signature line
-      if (certification["technician-signature"].startsWith("data:")) {
-        await drawSignatureFromData(
-          doc,
-          certification["technician-signature"],
-          PAGE.margin,
-          doc.y,
-          200,
-          60
-        );
-        doc.y += 70;
-      } else {
-        // Draw signature line
-        doc
-          .strokeColor(COLORS.border)
-          .lineWidth(1)
-          .moveTo(PAGE.margin, doc.y + 20)
-          .lineTo(PAGE.margin + 200, doc.y + 20)
-          .stroke();
-        doc.y += 45;
-      }
-    }
-
-    await renderSectionPhotos("certification", "Certification");
-  }
-
   await renderTitledInlinePhotos(
     doc,
     "Inspection Photos",
@@ -3516,88 +3453,6 @@ const renderElectricalReport = async (
     }
 
     await renderSectionPhotos("remedial-actions", "Remedial Actions");
-  }
-
-  // Section 6: Certification
-  const certification = getSectionValues("certification");
-  if (certification && Object.keys(certification).length > 0) {
-    ensurePageSpace(doc, 120);
-
-    doc
-      .fillColor(COLORS.primary)
-      .fontSize(14)
-      .font("Helvetica-Bold")
-      .text("TECHNICIAN CERTIFICATION", PAGE.margin, doc.y);
-    doc.y += 20;
-
-    const certRows = [
-      [
-        "Certification Declaration",
-        certification["certification-declaration"] ? "Yes" : "No",
-      ],
-      [
-        "Technician Signature",
-        certification["certification-signature"] ? "Signed" : "Not Signed",
-      ],
-      ["Signed At", formatValue(certification["certification-signed-at"])],
-    ].filter(([, value]) => value && value !== "N/A");
-
-    if (certRows.length > 0) {
-      drawRoomDetailTable(doc, null, certRows);
-    }
-
-    if (certification["certification-notes"]) {
-      ensurePageSpace(doc, 60);
-      doc.y += 10;
-      doc
-        .fillColor(COLORS.text)
-        .fontSize(10)
-        .font("Helvetica-Bold")
-        .text("Certification Notes:", PAGE.margin, doc.y);
-      doc.y += 15;
-      doc
-        .font("Helvetica")
-        .text(certification["certification-notes"], PAGE.margin, doc.y, {
-          width: PAGE.content?.width || 595.28 - PAGE.margin * 2,
-        });
-      doc.y += 20;
-    }
-
-    // Add signature if present
-    if (certification["certification-signature"]) {
-      ensurePageSpace(doc, 120);
-      doc.y += 15;
-      doc
-        .fillColor(COLORS.text)
-        .fontSize(10)
-        .font("Helvetica-Bold")
-        .text("Technician Signature:", PAGE.margin, doc.y);
-      doc.y += 10;
-
-      // Draw signature image if available, otherwise draw signature line
-      if (certification["certification-signature"].startsWith("data:")) {
-        await drawSignatureFromData(
-          doc,
-          certification["certification-signature"],
-          PAGE.margin,
-          doc.y,
-          200,
-          60
-        );
-        doc.y += 70;
-      } else {
-        // Draw signature line
-        doc
-          .strokeColor(COLORS.border)
-          .lineWidth(1)
-          .moveTo(PAGE.margin, doc.y + 20)
-          .lineTo(PAGE.margin + 200, doc.y + 20)
-          .stroke();
-        doc.y += 45;
-      }
-    }
-
-    await renderSectionPhotos("certification", "Certification");
   }
 
   await renderTitledInlinePhotos(
@@ -4342,12 +4197,19 @@ const renderGenericReport = async (
     return;
   }
 
+  const sharedDeclarationSectionIds = new Set([
+    "certification",
+    "certification-declaration",
+    "final-declaration",
+    "technician-signoff",
+  ]);
+
   for (const section of template.sections) {
     if (
       section.id === "property-details" ||
+      sharedDeclarationSectionIds.has(section.id) ||
       (template?.jobType === "MinimumSafetyStandard" &&
-        (section.id === "property-summary" ||
-          section.id === "technician-signoff"))
+        section.id === "property-summary")
     ) {
       continue;
     }
@@ -5362,10 +5224,6 @@ const renderGasReportV3 = async (
 
     const finalRows = [
       {
-        label: "Technician Signature",
-        value: finalDeclaration["technician-signature"] ? "Captured" : "Not captured",
-      },
-      {
         label: "Sign-Off Date",
         value: finalDeclaration["sign-off-date"]
           ? formatDisplayDate(finalDeclaration["sign-off-date"])
@@ -5374,10 +5232,6 @@ const renderGasReportV3 = async (
       {
         label: "Sign-Off Time",
         value: finalDeclaration["sign-off-time"] || "Not specified",
-      },
-      {
-        label: "Declaration",
-        value: finalDeclaration["declaration-text"] || "Not specified",
       },
     ];
     drawRoomDetailTable(doc, null, finalRows, { hideHeaders: true });
@@ -5706,6 +5560,10 @@ const renderSmokeOnlyReport = async (
 
   for (const section of template.sections || []) {
     if (section.id === "inspection-photos") {
+      continue;
+    }
+
+    if (section.id === "certification-declaration") {
       continue;
     }
 

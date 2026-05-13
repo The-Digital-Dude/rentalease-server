@@ -65,17 +65,83 @@ describe("Inspection template photo requirements", () => {
     expect(columns.get("photo-context")).toMatchObject({
       type: "photo",
       required: true,
+      metadata: {
+        inputType: "photo",
+        upload: true,
+        repeatableItemPhoto: true,
+      },
     });
     expect(columns.get("photo-label")).toMatchObject({
       type: "photo",
       required: true,
+      metadata: {
+        inputType: "photo",
+        upload: true,
+        repeatableItemPhoto: true,
+      },
     });
     expect(columns.get("photo-test")).toMatchObject({
       type: "photo",
       required: true,
+      metadata: {
+        inputType: "photo",
+        upload: true,
+        repeatableItemPhoto: true,
+      },
     });
     expect(columns.get("photo-replaced")).toMatchObject({
       type: "photo",
+      metadata: {
+        inputType: "photo",
+        upload: true,
+        repeatableItemPhoto: true,
+      },
+    });
+  });
+
+  test("server-prefilled identity fields are read-only across active reports", () => {
+    const templates = loadDefaultInspectionTemplates();
+    const fieldsByTemplate = new Map(
+      templates
+        .filter((template) => template.jobType !== "Smoke" || template.version >= 3)
+        .map((template) => [
+          template.jobType,
+          new Map(
+            template.sections.flatMap((section) =>
+              (section.fields || []).map((field) => [
+                `${section.id}.${field.id}`,
+                field,
+              ])
+            )
+          ),
+        ])
+    );
+
+    [
+      ["Electrical", "inspection-summary.inspector-name"],
+      ["Electrical", "certification.certification-electrician-name"],
+      ["Smoke", "inspection-summary.inspector-name"],
+      ["Smoke", "certification-declaration.inspector-details-name"],
+      ["Gas", "property-details.site-address"],
+      ["Gas", "property-details.suburb"],
+      ["Gas", "property-details.state"],
+      ["Gas", "property-details.postcode"],
+      ["Gas", "property-details.property-type"],
+      ["Gas", "technician-details.technician-full-name"],
+      ["Gas", "technician-details.business-name"],
+    ].forEach(([jobType, fieldKey]) => {
+      expect(fieldsByTemplate.get(jobType).get(fieldKey)?.metadata).toMatchObject({
+        readOnly: true,
+        serverPrefilled: true,
+      });
+    });
+
+    [
+      ["Electrical", "inspection-summary.license-number"],
+      ["Smoke", "certification-declaration.inspector-details-license"],
+      ["Gas", "technician-details.licence-registration-number"],
+    ].forEach(([jobType, fieldKey]) => {
+      expect(fieldsByTemplate.get(jobType).get(fieldKey)?.metadata).toBeUndefined();
     });
   });
 });

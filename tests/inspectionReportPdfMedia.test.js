@@ -219,7 +219,7 @@ describe("Inspection report PDF media matching", () => {
     expect(smokeSource).toContain('"smoke-alarm-inventory"');
   });
 
-  test("smoke-only report renders template fields and omits duplicate final identity", () => {
+  test("smoke-only report renders alarm fields and skips duplicate certification body", () => {
     const servicePath = path.resolve(
       __dirname,
       "../src/services/inspectionReportPdf.service.js"
@@ -233,11 +233,8 @@ describe("Inspection report PDF media matching", () => {
     expect(smokeSource).toContain("buildTemplateRows");
     expect(smokeSource).toContain("alarmRecordsField?.columns");
     expect(smokeSource).toContain('"certification-declaration"');
-    expect(smokeSource).toContain('"inspector-details-name"');
-    expect(smokeSource).toContain('"inspector-details-license"');
-    expect(smokeSource).toContain('"inspector-details-company"');
-    expect(smokeSource).toContain('"inspector-details-phone"');
-    expect(smokeSource).toContain('"report-version"');
+    expect(smokeSource).toContain('section.id === "certification-declaration"');
+    expect(smokeSource).toContain("continue;");
     expect(source).toContain('const hideInspectorIdentity = template?.jobType === "Smoke"');
   });
 
@@ -272,11 +269,38 @@ describe("Inspection report PDF media matching", () => {
     expect(genericSource).toContain('field.type === "photo"');
     expect(genericSource).toContain('field.type === "photo-multi"');
     expect(genericSource).toContain('template?.jobType === "MinimumSafetyStandard"');
+    expect(genericSource).toContain("sharedDeclarationSectionIds");
+    expect(genericSource).toContain('"certification"');
+    expect(genericSource).toContain('"certification-declaration"');
+    expect(genericSource).toContain('"final-declaration"');
     expect(genericSource).toContain('section.id === "property-summary"');
-    expect(genericSource).toContain('section.id === "technician-signoff"');
+    expect(genericSource).toContain('"technician-signoff"');
     expect(genericSource).toContain(
       'await renderSectionPhotos(section.id, section.title || "Section")'
     );
+  });
+
+  test("specific report renderers leave signatures to the shared declaration block", () => {
+    const servicePath = path.resolve(
+      __dirname,
+      "../src/services/inspectionReportPdf.service.js"
+    );
+    const source = fs.readFileSync(servicePath, "utf8");
+    const electricalSmokeStart = source.indexOf(
+      "const renderElectricalSmokeReport = async"
+    );
+    const gasStart = source.indexOf("const renderGasReport = async");
+    const electricalStart = source.indexOf("const renderElectricalReport = async");
+    const minimumSafetyStart = source.indexOf(
+      "const renderMinimumSafetyStandardReport = async"
+    );
+    const electricalSmokeSource = source.slice(electricalSmokeStart, gasStart);
+    const electricalSource = source.slice(electricalStart, minimumSafetyStart);
+
+    expect(electricalSmokeSource).not.toContain("drawCertificationBlock");
+    expect(electricalSource).not.toContain('"TECHNICIAN CERTIFICATION"');
+    expect(electricalSource).not.toContain('"Technician Signature:"');
+    expect(source).toContain("await drawDeclarationSection");
   });
 
   test("generic MSS signoff renderer hides declaration internals and draws signatures", () => {

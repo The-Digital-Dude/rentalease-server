@@ -1,6 +1,17 @@
 // Default placeholder image URL for testing
 const DEFAULT_PLACEHOLDER_IMAGE = "https://picsum.photos/400/300";
 
+const serverPrefilledFieldMetadata = {
+  readOnly: true,
+  serverPrefilled: true,
+};
+
+const nestedRepeatablePhotoMetadata = {
+  inputType: "photo",
+  upload: true,
+  repeatableItemPhoto: true,
+};
+
 const coverageOptions = [
   { value: "included", label: "Included" },
   { value: "not-included", label: "Not Included" },
@@ -246,6 +257,7 @@ const createElectricalSmokeSections = () => [
         label: "Inspector name",
         type: "text",
         required: true,
+        metadata: serverPrefilledFieldMetadata,
       },
       {
         id: "license-number",
@@ -478,6 +490,7 @@ const createElectricalSmokeSections = () => [
         label: "Electrical safety check completed by",
         type: "text",
         required: true,
+        metadata: serverPrefilledFieldMetadata,
       },
       {
         id: "certification-licence-number",
@@ -549,12 +562,14 @@ const gasTemplate = {
           label: "Site Address",
           type: "text",
           required: true,
+          metadata: serverPrefilledFieldMetadata,
         },
         {
           id: "suburb",
           label: "Suburb",
           type: "text",
           required: true,
+          metadata: serverPrefilledFieldMetadata,
         },
         {
           id: "state",
@@ -572,6 +587,7 @@ const gasTemplate = {
             { value: "ACT", label: "ACT" },
           ],
           defaultValue: "VIC",
+          metadata: serverPrefilledFieldMetadata,
         },
         {
           id: "postcode",
@@ -580,6 +596,7 @@ const gasTemplate = {
           required: true,
           min: 1000,
           max: 9999,
+          metadata: serverPrefilledFieldMetadata,
         },
         {
           id: "property-type",
@@ -591,6 +608,7 @@ const gasTemplate = {
             { value: "rooming-house", label: "Rooming House" },
           ],
           defaultValue: "rental-property",
+          metadata: serverPrefilledFieldMetadata,
         },
       ],
     },
@@ -604,6 +622,7 @@ const gasTemplate = {
           label: "Technician Full Name",
           type: "text",
           required: true,
+          metadata: serverPrefilledFieldMetadata,
         },
         {
           id: "licence-registration-number",
@@ -617,6 +636,7 @@ const gasTemplate = {
           type: "text",
           required: true,
           defaultValue: "RentalEase Property Services Pty Ltd",
+          metadata: serverPrefilledFieldMetadata,
         },
         {
           id: "inspection-date",
@@ -1064,6 +1084,7 @@ const createElectricalSections = () => [
         label: "Inspector name",
         type: "text",
         required: true,
+        metadata: serverPrefilledFieldMetadata,
       },
       {
         id: "license-number",
@@ -1254,6 +1275,7 @@ const createElectricalSections = () => [
         label: "Electrical safety check completed by",
         type: "text",
         required: true,
+        metadata: serverPrefilledFieldMetadata,
       },
       {
         id: "certification-licence-number",
@@ -3629,6 +3651,7 @@ const createSmokeOnlySections_OLD = () => [
             type: "photo",
             required: true,
             helpText: "Wide shot showing alarm installation",
+            metadata: nestedRepeatablePhotoMetadata,
           },
           {
             id: "photo-label",
@@ -3636,6 +3659,7 @@ const createSmokeOnlySections_OLD = () => [
             type: "photo",
             required: true,
             helpText: "Close-up of manufacturer label",
+            metadata: nestedRepeatablePhotoMetadata,
           },
           {
             id: "photo-test",
@@ -3643,12 +3667,14 @@ const createSmokeOnlySections_OLD = () => [
             type: "photo",
             required: true,
             helpText: "Photo of dB meter reading or test button press",
+            metadata: nestedRepeatablePhotoMetadata,
           },
           {
             id: "photo-replaced",
             label: "Photo: Replaced unit (if applicable)",
             type: "photo",
             helpText: "Photo of new unit if replacement occurred",
+            metadata: nestedRepeatablePhotoMetadata,
           },
           {
             id: "compliance-status",
@@ -3928,6 +3954,7 @@ const createSmokeOnlySections = () => [
         label: "Inspector name",
         type: "text",
         required: true,
+        metadata: serverPrefilledFieldMetadata,
       },
       {
         id: "license-number",
@@ -4322,6 +4349,7 @@ const createSmokeOnlySections = () => [
             type: "photo",
             required: true,
             helpText: "Wide shot showing this alarm in place",
+            metadata: nestedRepeatablePhotoMetadata,
           },
           {
             id: "photo-label",
@@ -4329,6 +4357,7 @@ const createSmokeOnlySections = () => [
             type: "photo",
             required: true,
             helpText: "Close-up of this alarm's manufacturer label",
+            metadata: nestedRepeatablePhotoMetadata,
           },
           {
             id: "photo-test",
@@ -4336,12 +4365,14 @@ const createSmokeOnlySections = () => [
             type: "photo",
             required: true,
             helpText: "Photo of dB meter reading or test button press",
+            metadata: nestedRepeatablePhotoMetadata,
           },
           {
             id: "photo-replaced",
             label: "Photo: Replaced unit",
             type: "photo",
             helpText: "Photo of the new unit if this alarm was replaced",
+            metadata: nestedRepeatablePhotoMetadata,
           },
         ],
         defaultValue: [
@@ -4407,6 +4438,7 @@ const createSmokeOnlySections = () => [
         label: "Inspector Full Name",
         type: "text",
         required: true,
+        metadata: serverPrefilledFieldMetadata,
       },
       {
         id: "inspector-details-license",
