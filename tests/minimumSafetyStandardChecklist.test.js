@@ -199,8 +199,6 @@ describe("Minimum Safety Standard DOCX checklist template", () => {
       ["property-summary.inspector-license", "Inspector License Number"],
       ["property-summary.property-address", "Property Address"],
       ["technician-signoff.inspection-completion-date", "Inspection Completion Date"],
-      ["technician-signoff.technician-declaration", "Technician Declaration"],
-      ["technician-signoff.declaration-statement", "Declaration Statement"],
       ["technician-signoff.technician-signature", "Technician Signature"],
       ["technician-signoff.signature-date", "Date Signed"],
       ["technician-signoff.inspection-notes", "Final Inspection Notes"],
@@ -212,11 +210,10 @@ describe("Minimum Safety Standard DOCX checklist template", () => {
     expect(fields.get("technician-signoff.technician-signature")?.type).toBe(
       "signature"
     );
-    expect(fields.get("technician-signoff.technician-declaration")?.type).toBe(
-      "checkbox"
-    );
     expect(fields.has("technician-signoff.technician-name")).toBe(false);
     expect(fields.has("technician-signoff.technician-license")).toBe(false);
+    expect(fields.has("technician-signoff.technician-declaration")).toBe(false);
+    expect(fields.has("technician-signoff.declaration-statement")).toBe(false);
     expect(fields.has("property-summary.next-inspection-date")).toBe(false);
     expect(fields.get("property-summary.inspection-date")?.metadata).toMatchObject({
       readOnly: true,

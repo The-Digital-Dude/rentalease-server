@@ -248,11 +248,6 @@ const createElectricalSmokeSections = () => [
         defaultValue: new Date().toISOString().split("T")[0],
       },
       {
-        id: "previous-inspection-date",
-        label: "Date of previous safety check (if any)",
-        type: "date",
-      },
-      {
         id: "inspector-name",
         label: "Inspector name",
         type: "text",
@@ -293,14 +288,6 @@ const createElectricalSmokeSections = () => [
         ],
         required: true,
         defaultValue: "no-faults",
-      },
-      {
-        id: "summary-notes",
-        label: "Next steps / notes",
-        type: "textarea",
-        placeholder: "Record recommended follow-up actions for the client",
-        defaultValue:
-          "Good news! No electrical faults were found at this property.\nWe'll reach out in 2 years for your next compliance check. If you need any repairs or maintenance in the meantime, contact the RentalEase team for a free call-out and quote.",
       },
       {
         id: "contact-email",
@@ -1081,11 +1068,6 @@ const createElectricalSections = () => [
         defaultValue: new Date().toISOString().split("T")[0],
       },
       {
-        id: "previous-inspection-date",
-        label: "Date of previous safety check (if any)",
-        type: "date",
-      },
-      {
         id: "inspector-name",
         label: "Inspector name",
         type: "text",
@@ -1116,14 +1098,6 @@ const createElectricalSections = () => [
         ],
         required: true,
         defaultValue: "no-faults",
-      },
-      {
-        id: "summary-notes",
-        label: "Next steps / notes",
-        type: "textarea",
-        placeholder: "Record recommended follow-up actions for the client",
-        defaultValue:
-          "Electrical safety compliance confirmed. No remedial work required.",
       },
     ],
   },
@@ -3161,23 +3135,6 @@ const createMinimumSafetyStandardTemplate = (
           defaultValue: new Date().toISOString().split("T")[0],
         },
         {
-          id: "technician-declaration",
-          label: "Technician Declaration",
-          type: "checkbox",
-          required: true,
-          defaultValue: false,
-          helpText:
-            "I conducted this inspection in accordance with the Residential Tenancies Regulations 2021 and applicable minimum safety standards.",
-        },
-        {
-          id: "declaration-statement",
-          label: "Declaration Statement",
-          type: "text",
-          defaultValue:
-            "I declare that this inspection has been completed in accordance with the Residential Tenancies Regulations 2021 and applicable minimum safety standards.",
-          required: true,
-        },
-        {
           id: "technician-signature",
           label: "Technician Signature",
           type: "signature",
@@ -3869,15 +3826,6 @@ const createSmokeOnlySections_OLD = () => [
         ],
       },
       {
-        id: "next-service-due",
-        label: "Next smoke alarm service due",
-        type: "date",
-        required: true,
-        defaultValue: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
-          .toISOString()
-          .split("T")[0], // 1 year from now
-      },
-      {
         id: "standards-acknowledged",
         label: "Standards Acknowledged",
         type: "checkbox-group",
@@ -3901,23 +3849,6 @@ const createSmokeOnlySections_OLD = () => [
     title: "Technician Sign-Off",
     description: "Technician declaration and signature.",
     fields: [
-      {
-        id: "technician-declaration",
-        label: "Technician Declaration",
-        type: "checkbox",
-        required: true,
-        defaultValue: false,
-        helpText:
-          "I conducted this inspection in accordance with the Residential Tenancies Regulations 2021 and AS 3786 – Smoke Alarms.",
-      },
-      {
-        id: "declaration-text",
-        label: "Declaration Statement",
-        type: "text",
-        defaultValue:
-          "I conducted this inspection in accordance with the Residential Tenancies Regulations 2021 and AS 3786 – Smoke Alarms.",
-        required: true,
-      },
       {
         id: "technician-signature",
         label: "Technician Signature",
@@ -3950,12 +3881,6 @@ const createSmokeOnlySections = () => [
         defaultValue: new Date().toISOString().split("T")[0],
       },
       {
-        id: "previous-inspection-date",
-        label: "Date of previous smoke alarm check (if any)",
-        type: "date",
-        helpText: "Leave blank if unknown",
-      },
-      {
         id: "inspector-name",
         label: "Inspector name",
         type: "text",
@@ -3980,13 +3905,6 @@ const createSmokeOnlySections = () => [
         ],
         required: true,
         defaultValue: "all-compliant",
-      },
-      {
-        id: "next-service-due",
-        label: "Next service due",
-        type: "date",
-        required: true,
-        helpText: "Usually 12 months from inspection date",
       },
       {
         id: "access-notes",
@@ -4453,20 +4371,6 @@ const createSmokeOnlySections = () => [
         required: true,
       },
       {
-        id: "inspector-details-company",
-        label: "Company/Organization",
-        type: "text",
-        required: true,
-        defaultValue: "RentalEase Technical Services",
-      },
-      {
-        id: "inspector-details-phone",
-        label: "Contact Phone Number",
-        type: "text",
-        required: true,
-        defaultValue: "+61 3 9876 5432",
-      },
-      {
         id: "inspection-standards-applied",
         label: "Standards and regulations applied",
         type: "multi-select",
@@ -4540,13 +4444,6 @@ const createSmokeOnlySections = () => [
         required: true,
         defaultValue: new Date().toISOString().split("T")[0],
       },
-      {
-        id: "report-version",
-        label: "Report Template Version",
-        type: "text",
-        defaultValue: "3.0 - Smoke Only",
-        readOnly: true,
-      },
     ],
   },
 ];
@@ -4582,17 +4479,6 @@ const createGasSmokeTemplate = () => ({
           type: "time",
           required: true,
           defaultValue: "09:00",
-        },
-        {
-          id: "next-service-due",
-          label: "Next Service Due Date",
-          type: "date",
-          required: true,
-          defaultValue: new Date(Date.now() + 2 * 365 * 24 * 60 * 60 * 1000)
-            .toISOString()
-            .split("T")[0],
-          helpText:
-            "Gas safety checks are required every 24 months, smoke alarms annually",
         },
       ],
     },
@@ -5009,13 +4895,6 @@ const createGasSmokeTemplate = () => ({
       title: "Technician Certification",
       description: "Technician declaration and signature",
       fields: [
-        {
-          id: "technician-declaration",
-          label:
-            "I declare that this inspection has been carried out in accordance with relevant standards and regulations",
-          type: "checkbox",
-          required: true,
-        },
         {
           id: "gasfitter-license",
           label: "Gasfitter license number",

@@ -104,6 +104,29 @@ describe("Inspection template photo requirements", () => {
     });
   });
 
+  test("active templates omit report-only fields from app questions", () => {
+    const templates = loadDefaultInspectionTemplates();
+    const fieldsByTemplate = new Map(
+      templates.map((template) => [
+        template.jobType,
+        new Set(
+          template.sections.flatMap((section) =>
+            (section.fields || []).map((field) => `${section.id}.${field.id}`)
+          )
+        ),
+      ])
+    );
+
+    expect(fieldsByTemplate.get("Smoke").has("inspection-summary.previous-inspection-date")).toBe(false);
+    expect(fieldsByTemplate.get("Smoke").has("inspection-summary.next-service-due")).toBe(false);
+    expect(fieldsByTemplate.get("Smoke").has("certification-declaration.inspector-details-company")).toBe(false);
+    expect(fieldsByTemplate.get("Smoke").has("certification-declaration.inspector-details-phone")).toBe(false);
+    expect(fieldsByTemplate.get("Smoke").has("certification-declaration.report-version")).toBe(false);
+    expect(fieldsByTemplate.get("Electrical").has("inspection-summary.summary-notes")).toBe(false);
+    expect(fieldsByTemplate.get("MinimumSafetyStandard").has("technician-signoff.technician-declaration")).toBe(false);
+    expect(fieldsByTemplate.get("MinimumSafetyStandard").has("technician-signoff.declaration-statement")).toBe(false);
+  });
+
   test("server-prefilled identity fields are read-only across active reports", () => {
     const templates = loadDefaultInspectionTemplates();
     const fieldsByTemplate = new Map(
