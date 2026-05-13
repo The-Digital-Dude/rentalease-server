@@ -334,6 +334,19 @@ const createElectricalSmokeSections = () => [
         type: "textarea",
         placeholder: "Document any limitations encountered",
       },
+      {
+        id: "switchboard-photos",
+        label: "Switchboard",
+        type: "photo-multi",
+        required: true,
+        helpText: "Capture the main switchboard and safety devices",
+      },
+      {
+        id: "meter-photos",
+        label: "Supply Meter",
+        type: "photo-multi",
+        helpText: "Document the supply meter and service fuse",
+      },
     ],
   },
   {
@@ -375,6 +388,14 @@ const createElectricalSmokeSections = () => [
         id: "polarity-notes",
         label: "Testing notes",
         type: "textarea",
+      },
+      {
+        id: "gpo-tester-photos",
+        label: "GPO Test Evidence",
+        type: "photo-multi",
+        required: true,
+        helpText:
+          "Take photos of GPO outlets with electrical tester showing results",
       },
     ],
   },
@@ -429,13 +450,6 @@ const createElectricalSmokeSections = () => [
       "Upload photos taken during the electrical and smoke alarm inspection.",
     fields: [
       {
-        id: "switchboard-photos",
-        label: "Switchboard",
-        type: "photo-multi",
-        required: true,
-        helpText: "Take photos of the electrical switchboard and components",
-      },
-      {
         id: "smoke-alarm-photos",
         label: "Smoke Alarm",
         type: "photo-multi",
@@ -448,14 +462,6 @@ const createElectricalSmokeSections = () => [
         type: "photo-multi",
         helpText:
           "Take photos of air conditioning units and electrical connections",
-      },
-      {
-        id: "gpo-tester-photos",
-        label: "GPO with tester lit up",
-        type: "photo-multi",
-        required: true,
-        helpText:
-          "Take photos of GPO outlets with electrical tester showing results",
       },
       {
         id: "oven-photos",
@@ -1141,6 +1147,19 @@ const createElectricalSections = () => [
         type: "textarea",
         placeholder: "Document any limitations encountered",
       },
+      {
+        id: "switchboard-photos",
+        label: "Switchboard",
+        type: "photo-multi",
+        required: true,
+        helpText: "Capture the main switchboard and safety devices",
+      },
+      {
+        id: "meter-photos",
+        label: "Supply Meter",
+        type: "photo-multi",
+        helpText: "Document the supply meter and service fuse",
+      },
     ],
   },
   {
@@ -1184,6 +1203,14 @@ const createElectricalSections = () => [
         label: "Testing notes",
         type: "textarea",
         placeholder: "Add any additional notes captured during testing",
+      },
+      {
+        id: "gpo-tester-photos",
+        label: "GPO Test Evidence",
+        type: "photo-multi",
+        required: true,
+        helpText:
+          "Take photos of GPO outlets with electrical tester showing results",
       },
     ],
   },
@@ -1236,27 +1263,6 @@ const createElectricalSections = () => [
     title: "Inspection Photos",
     description: "Upload photos taken during the electrical safety inspection.",
     fields: [
-      {
-        id: "switchboard-photos",
-        label: "Switchboard",
-        type: "photo-multi",
-        required: true,
-        helpText: "Capture the main switchboard and safety devices",
-      },
-      {
-        id: "gpo-tester-photos",
-        label: "GPO Test Evidence",
-        type: "photo-multi",
-        required: true,
-        helpText:
-          "Take photos of GPO outlets with electrical tester showing results",
-      },
-      {
-        id: "meter-photos",
-        label: "Supply Meter",
-        type: "photo-multi",
-        helpText: "Document the supply meter and service fuse",
-      },
       {
         id: "additional-photos",
         label: "Additional Photos",

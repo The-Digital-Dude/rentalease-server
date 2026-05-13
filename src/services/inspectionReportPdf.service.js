@@ -3199,6 +3199,29 @@ const renderElectricalReport = async (
     await renderSectionPhotos("inspection-summary", "Inspection Summary");
   }
 
+  const isElectricalV3Template = template?.sections?.some((section) =>
+    [
+      "extent-of-installation",
+      "visual-inspection",
+      "testing-polarity",
+      "testing-earth",
+    ].includes(section.id)
+  );
+
+  if (isElectricalV3Template) {
+    for (const section of template.sections || []) {
+      if (["inspection-summary", "certification"].includes(section.id)) {
+        continue;
+      }
+
+      const sectionData = getSectionValues(section.id);
+      renderTemplateSectionFields(doc, section, sectionData);
+      await renderSectionPhotos(section.id, section.title || "Section");
+    }
+
+    return;
+  }
+
   // Section 2: Electrical Installations
   const electricalInstallations = getSectionValues("electrical-installations");
   if (

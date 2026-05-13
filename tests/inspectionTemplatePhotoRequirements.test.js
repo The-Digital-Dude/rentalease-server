@@ -23,25 +23,30 @@ describe("Inspection template photo requirements", () => {
   test("active electrical report requires key evidence photos", () => {
     const templates = loadDefaultInspectionTemplates();
     const electrical = templates.find((template) => template.jobType === "Electrical");
-    const inspectionPhotos = electrical.sections.find(
-      (section) => section.id === "inspection-photos"
-    );
-    const fields = new Map(
-      inspectionPhotos.fields.map((field) => [field.id, field])
+    const fieldsBySection = new Map(
+      electrical.sections.map((section) => [
+        section.id,
+        new Map((section.fields || []).map((field) => [field.id, field])),
+      ])
     );
 
-    expect(fields.get("switchboard-photos")).toMatchObject({
+    expect(fieldsBySection.get("extent-of-installation").get("switchboard-photos")).toMatchObject({
       type: "photo-multi",
       required: true,
     });
-    expect(fields.get("smoke-alarm-photos")).toMatchObject({
+    expect(fieldsBySection.get("extent-of-installation").get("meter-photos")).toMatchObject({
+      type: "photo-multi",
+    });
+    expect(fieldsBySection.get("testing-polarity").get("gpo-tester-photos")).toMatchObject({
       type: "photo-multi",
       required: true,
     });
-    expect(fields.get("gpo-tester-photos")).toMatchObject({
+    expect(fieldsBySection.get("inspection-photos").get("additional-photos")).toMatchObject({
       type: "photo-multi",
-      required: true,
     });
+    expect(fieldsBySection.get("inspection-photos").has("switchboard-photos")).toBe(false);
+    expect(fieldsBySection.get("inspection-photos").has("gpo-tester-photos")).toBe(false);
+    expect(fieldsBySection.get("inspection-photos").has("meter-photos")).toBe(false);
   });
 
   test("active smoke report requires photos on each alarm record", () => {

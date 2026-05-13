@@ -303,6 +303,27 @@ describe("Inspection report PDF media matching", () => {
     expect(source).toContain("await drawDeclarationSection");
   });
 
+  test("electrical v3 report renders component photos under their sections", () => {
+    const servicePath = path.resolve(
+      __dirname,
+      "../src/services/inspectionReportPdf.service.js"
+    );
+    const source = fs.readFileSync(servicePath, "utf8");
+    const electricalStart = source.indexOf("const renderElectricalReport = async");
+    const minimumSafetyStart = source.indexOf(
+      "const renderMinimumSafetyStandardReport = async"
+    );
+    const electricalSource = source.slice(electricalStart, minimumSafetyStart);
+
+    expect(electricalSource).toContain("isElectricalV3Template");
+    expect(electricalSource).toContain('"extent-of-installation"');
+    expect(electricalSource).toContain('"testing-polarity"');
+    expect(electricalSource).toContain("renderTemplateSectionFields(doc, section, sectionData)");
+    expect(electricalSource).toContain(
+      "await renderSectionPhotos(section.id, section.title || \"Section\")"
+    );
+  });
+
   test("generic MSS signoff renderer hides declaration internals and draws signatures", () => {
     const servicePath = path.resolve(
       __dirname,
