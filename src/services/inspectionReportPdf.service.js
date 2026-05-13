@@ -272,6 +272,7 @@ const REPORT_STATUS_CANDIDATES = [
   "overall-smoke-compliance",
   "overall-gas-compliance",
   "overall-assessment",
+  "final-compliance-outcome",
   "electrical-outcome",
   "smoke-outcome",
   "compliance-status",

@@ -361,6 +361,70 @@ const calculateGasComplianceOutcome = (formData = {}) => {
   return "compliant";
 };
 
+const normalizeMssStandardAnswer = (value) =>
+  String(value ?? "")
+    .trim()
+    .toLowerCase();
+
+const getMinimumSafetyStandardFieldIds = (template, formData = {}) => {
+  const fieldIds = new Set();
+
+  (template?.sections || []).forEach((section) => {
+    (section.fields || []).forEach((field) => {
+      if (!field?.id) {
+        return;
+      }
+
+      const label = String(field.label || "").toLowerCase();
+      const isStandardField =
+        field.id.endsWith("-standard") ||
+        label.includes("minimum standards met") ||
+        label.includes("minimum standards:");
+
+      if (isStandardField) {
+        fieldIds.add(`${section.id}.${field.id}`);
+      }
+    });
+  });
+
+  if (fieldIds.size > 0) {
+    return fieldIds;
+  }
+
+  Object.entries(formData || {}).forEach(([sectionId, sectionData]) => {
+    if (!sectionData || typeof sectionData !== "object" || Array.isArray(sectionData)) {
+      return;
+    }
+
+    Object.keys(sectionData).forEach((fieldId) => {
+      if (fieldId.endsWith("-standard")) {
+        fieldIds.add(`${sectionId}.${fieldId}`);
+      }
+    });
+  });
+
+  return fieldIds;
+};
+
+const calculateMinimumSafetyStandardOutcome = (formData = {}, template = null) => {
+  const standardFieldIds = getMinimumSafetyStandardFieldIds(template, formData);
+
+  if (standardFieldIds.size === 0) {
+    return "compliant";
+  }
+
+  for (const fieldKey of standardFieldIds) {
+    const [sectionId, fieldId] = fieldKey.split(".");
+    const answer = normalizeMssStandardAnswer(formData?.[sectionId]?.[fieldId]);
+
+    if (answer !== "yes") {
+      return "non-compliant";
+    }
+  }
+
+  return "compliant";
+};
+
 const validateGasReportV3 = (formData = {}, job) => {
   if (job?.status !== "Completed") {
     throw new Error("Gas inspection reports can only be submitted when the job status is Completed");
@@ -689,12 +753,24 @@ export const submitInspectionReport = async ({
 
   const normalizedFormData = normalizeFormData(formData);
   let gasComplianceOutcome = null;
+  let minimumSafetyStandardOutcome = null;
 
   if (isGasTemplateV3(template, normalizedFormData)) {
     gasComplianceOutcome = validateGasReportV3(normalizedFormData, job);
     normalizedFormData["final-declaration"] = {
       ...(normalizedFormData["final-declaration"] || {}),
       "final-compliance-outcome": gasComplianceOutcome,
+    };
+  }
+
+  if (template.jobType === "MinimumSafetyStandard") {
+    minimumSafetyStandardOutcome = calculateMinimumSafetyStandardOutcome(
+      normalizedFormData,
+      template
+    );
+    normalizedFormData["final-declaration"] = {
+      ...(normalizedFormData["final-declaration"] || {}),
+      "final-compliance-outcome": minimumSafetyStandardOutcome,
     };
   }
 

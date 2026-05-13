@@ -13,7 +13,7 @@ describe("Gas report v3 validation and outcome", () => {
       .replace(/export const submitInspectionReport = async/g, "const submitInspectionReport = async")
       .replace(/export default submitInspectionReport;?/g, "")
       .concat(
-        "\nreturn { calculateGasComplianceOutcome, validateGasReportV3, isGasTemplateV3, validateRequiredPhotoUploads };"
+        "\nreturn { calculateGasComplianceOutcome, calculateMinimumSafetyStandardOutcome, validateGasReportV3, isGasTemplateV3, validateRequiredPhotoUploads };"
       );
 
     return new Function(executableSource)();
@@ -141,6 +141,77 @@ describe("Gas report v3 validation and outcome", () => {
     formData["gas-appliances"][0]["electrically-safe"] = "no";
 
     expect(calculateGasComplianceOutcome(formData)).toBe("non-compliant");
+  });
+
+  test("returns compliant when every MSS minimum standard question is yes", () => {
+    const { calculateMinimumSafetyStandardOutcome } = loadGasReportHelpers();
+    const template = {
+      sections: [
+        {
+          id: "bin-facilities",
+          fields: [
+            { id: "bin-general-standard", label: "Are minimum standards met for this section?" },
+          ],
+        },
+        {
+          id: "lighting-summary",
+          fields: [
+            { id: "lighting-summary-standard", label: "Are minimum standards met for this section?" },
+          ],
+        },
+      ],
+    };
+    const formData = {
+      "bin-facilities": {
+        "bin-general-standard": "yes",
+      },
+      "lighting-summary": {
+        "lighting-summary-standard": "yes",
+      },
+    };
+
+    expect(calculateMinimumSafetyStandardOutcome(formData, template)).toBe(
+      "compliant"
+    );
+  });
+
+  test("returns non-compliant when any MSS minimum standard question is no or N/A", () => {
+    const { calculateMinimumSafetyStandardOutcome } = loadGasReportHelpers();
+    const template = {
+      sections: [
+        {
+          id: "bin-facilities",
+          fields: [
+            { id: "bin-general-standard", label: "Are minimum standards met for this section?" },
+            { id: "bin-recycle-standard", label: "Are minimum standards met for this section?" },
+          ],
+        },
+      ],
+    };
+
+    expect(
+      calculateMinimumSafetyStandardOutcome(
+        {
+          "bin-facilities": {
+            "bin-general-standard": "no",
+            "bin-recycle-standard": "yes",
+          },
+        },
+        template
+      )
+    ).toBe("non-compliant");
+
+    expect(
+      calculateMinimumSafetyStandardOutcome(
+        {
+          "bin-facilities": {
+            "bin-general-standard": "yes",
+            "bin-recycle-standard": "na",
+          },
+        },
+        template
+      )
+    ).toBe("non-compliant");
   });
 
   test("requires other appliance type text when appliance type is other", () => {

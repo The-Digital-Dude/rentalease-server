@@ -299,6 +299,19 @@ describe("Inspection report PDF media matching", () => {
     expect(genericSource).toContain("shouldSkipEmptyMssSignoffValue");
   });
 
+  test("PDF summary can use calculated final compliance outcomes", () => {
+    const servicePath = path.resolve(
+      __dirname,
+      "../src/services/inspectionReportPdf.service.js"
+    );
+    const source = fs.readFileSync(servicePath, "utf8");
+    const candidatesStart = source.indexOf("const REPORT_STATUS_CANDIDATES = [");
+    const normalizeStart = source.indexOf("const stripMarkdownPrefix");
+    const candidatesSource = source.slice(candidatesStart, normalizeStart);
+
+    expect(candidatesSource).toContain('"final-compliance-outcome"');
+  });
+
   test("inline report photos render in an aligned grid", () => {
     const servicePath = path.resolve(
       __dirname,
