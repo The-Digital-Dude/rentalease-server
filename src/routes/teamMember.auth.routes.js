@@ -10,9 +10,10 @@ const router = express.Router();
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
+    const normalizedEmail = String(email || '').trim().toLowerCase();
 
     // Input validation
-    if (!email || !password) {
+    if (!normalizedEmail || !password) {
       return res.status(400).json({
         status: 'error',
         message: 'Email and password are required',
@@ -21,7 +22,7 @@ router.post('/login', async (req, res) => {
     }
 
     // Find team member and include password for comparison
-    const teamMember = await TeamMember.findOne({ email }).select('+password');
+    const teamMember = await TeamMember.findOne({ email: normalizedEmail }).select('+password');
 
     if (!teamMember) {
       return res.status(401).json({
@@ -32,7 +33,7 @@ router.post('/login', async (req, res) => {
     }
 
     // Check if team member is active
-    if (teamMember.status !== 'Active') {
+    if (String(teamMember.status || '').toLowerCase() !== 'active') {
       return res.status(401).json({
         status: 'error',
         message: 'Account is inactive. Please contact administrator.',
