@@ -366,6 +366,19 @@ const normalizeMssStandardAnswer = (value) =>
     .trim()
     .toLowerCase();
 
+const isMssComplianceQuestion = (field) => {
+  if (!["yes-no", "yes-no-na"].includes(field?.type)) {
+    return false;
+  }
+
+  const label = String(field.label || "").trim().toLowerCase();
+  return (
+    !label.includes("are minimum standards met for this section") &&
+    !label.startsWith("minimum standards:") &&
+    !label.startsWith("room overall:")
+  );
+};
+
 const getMinimumSafetyStandardFieldIds = (template, formData = {}) => {
   const fieldIds = new Set();
 
@@ -375,13 +388,7 @@ const getMinimumSafetyStandardFieldIds = (template, formData = {}) => {
         return;
       }
 
-      const label = String(field.label || "").toLowerCase();
-      const isStandardField =
-        field.id.endsWith("-standard") ||
-        label.includes("minimum standards met") ||
-        label.includes("minimum standards:");
-
-      if (isStandardField) {
+      if (isMssComplianceQuestion(field)) {
         fieldIds.add(`${section.id}.${field.id}`);
       }
     });

@@ -230,6 +230,26 @@ describe("Minimum Safety Standard DOCX checklist template", () => {
     expect(fields.get("property-summary.inspector-license")?.metadata).toBeUndefined();
   });
 
+  test("does not prefill checklist answers or recommendation comments", () => {
+    const template = getTemplate();
+    const checklistSections = template.sections.filter((section) =>
+      /^\d+\./.test(section.title)
+    );
+
+    checklistSections.forEach((section) => {
+      section.fields.forEach((field) => {
+        if (field.type === "yes-no-na") {
+          expect(field.defaultValue).toBeUndefined();
+        }
+
+        if (field.label === "Recommendations") {
+          expect(field.defaultValue).toBeUndefined();
+          expect(field.placeholder).toBeUndefined();
+        }
+      });
+    });
+  });
+
   test("removes non-DOCX legacy MSS detail fields", () => {
     const fields = getFieldMap(getTemplate());
 
@@ -246,6 +266,20 @@ describe("Minimum Safety Standard DOCX checklist template", () => {
       "bathroom-1.bathroom-1-general-condition",
       "structural-cracking-summary.struct-cracking-living-room",
       "structural-warping-summary.struct-warping-living-room",
+      "electrical-safety.switchboard-meets-standard",
+      "bin-facilities.bin-recycle-standard",
+      "external-entry-doors.external-entry-doors-standard",
+      "heating-summary.living-room-heater-standard",
+      "window-coverings-summary.window-coverings-standard",
+      "window-covering-anchors.window-covering-anchors-standard",
+      "lighting-summary.lighting-summary-standard",
+      "mould-dampness-summary.mould-dampness-standard",
+      "ventilation-summary.ventilation-summary-standard",
+      "structural-soundness.structural-soundness-standard",
+      "kitchen.kitchen-overall-standard",
+      "laundry.laundry-overall-standard",
+      "bathroom-facilities.bathroom-facilities-standard",
+      "toilet-summary.toilet-standard",
     ].forEach((fieldKey) => {
       expect(fields.has(fieldKey)).toBe(false);
     });

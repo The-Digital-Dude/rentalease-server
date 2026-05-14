@@ -401,6 +401,78 @@ const findFirstReportValue = (formData = {}, fieldIds = []) => {
   return "";
 };
 
+const extractSignatureValue = (value) => {
+  if (!value) {
+    return "";
+  }
+
+  if (typeof value === "string") {
+    return value.trim();
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const signatureValue = extractSignatureValue(item);
+      if (signatureValue) {
+        return signatureValue;
+      }
+    }
+
+    return "";
+  }
+
+  if (typeof value === "object") {
+    const signatureKeys = [
+      "dataUrl",
+      "dataURL",
+      "base64",
+      "value",
+      "url",
+      "uri",
+      "path",
+      "signature",
+    ];
+
+    for (const key of signatureKeys) {
+      const signatureValue = extractSignatureValue(value[key]);
+      if (signatureValue) {
+        return signatureValue;
+      }
+    }
+  }
+
+  return "";
+};
+
+const resolveReportSignatureData = (formData = {}) => {
+  for (const [sectionId, sectionData] of Object.entries(formData || {})) {
+    if (!sectionData || typeof sectionData !== "object") {
+      continue;
+    }
+
+    const signatureValue = extractSignatureValue(sectionData);
+    if (
+      String(sectionId).toLowerCase().includes("signature") &&
+      signatureValue
+    ) {
+      return signatureValue;
+    }
+
+    for (const [fieldId, fieldValue] of Object.entries(sectionData)) {
+      if (!String(fieldId).toLowerCase().includes("signature")) {
+        continue;
+      }
+
+      const fieldSignatureValue = extractSignatureValue(fieldValue);
+      if (fieldSignatureValue) {
+        return fieldSignatureValue;
+      }
+    }
+  }
+
+  return "";
+};
+
 const extractSummaryInsights = ({ report, template, job, technician }) => {
   const formData = report?.formData || {};
   const sections = template?.sections || [];
@@ -920,19 +992,6 @@ const drawPropertyDetailsSection = (
     job,
     report,
   });
-  const standardsApplied = getComplianceStandards(template, job).join("; ");
-  const declarationCaptured = findFirstReportValue(report?.formData || {}, [
-    "technician-declaration",
-    "declaration-confirmed",
-    "declaration-text",
-    "certification-declaration",
-    "inspector-declaration",
-  ]);
-  const signatureCaptured = findFirstReportValue(report?.formData || {}, [
-    "technician-signature",
-    "inspector-signature",
-    "signature",
-  ]);
   const reportTitle = getReportTitle(template, job);
   const statusColor = isNonCompliantStatus(summaryInsights.reportStatus)
     ? COLORS.error
@@ -982,15 +1041,6 @@ const drawPropertyDetailsSection = (
     {
       label: "Technician Details",
       value: summaryInsights.technicianName,
-    },
-    { label: "Regulations / Standards", value: standardsApplied },
-    {
-      label: "Declaration",
-      value: declarationCaptured ? "Captured" : "Not captured",
-    },
-    {
-      label: "Signature",
-      value: signatureCaptured ? "Captured" : "Not captured",
     },
   ];
 
@@ -1210,10 +1260,24 @@ const drawSignatureFromData = async (
   }
 
   try {
+    const trimmedSignature = signatureData.trim();
+    const looksLikeImageData =
+      trimmedSignature.startsWith("data:") ||
+      /^[A-Za-z0-9+/]+={0,2}$/.test(trimmedSignature);
+
+    if (!looksLikeImageData) {
+      doc
+        .fillColor(COLORS.text)
+        .fontSize(10)
+        .font("Helvetica-Oblique")
+        .text("[Digital Signature]", x, y + maxHeight / 2);
+      return;
+    }
+
     // If it's a base64 data URL, extract the base64 part
-    const base64Data = signatureData.startsWith("data:")
-      ? signatureData.split(",")[1]
-      : signatureData;
+    const base64Data = trimmedSignature.startsWith("data:")
+      ? trimmedSignature.split(",")[1]
+      : trimmedSignature;
 
     // Convert base64 to buffer
     const imageBuffer = Buffer.from(base64Data, "base64");
@@ -1292,48 +1356,10 @@ const drawDeclarationSection = async (
 
   doc.y += 20;
 
-  // Look for signature data in form responses
+  // Look for signature data in form responses. Electrical and Smoke templates
+  // use different sign-off section/field ids, so this scans by field name.
   const formData = report?.formData || {};
-  let signatureData = null;
-
-  console.log(
-    "[PDF] Looking for signature data in formData:",
-    Object.keys(formData)
-  );
-
-  // Check all sections for signature fields
-  Object.keys(formData).forEach((sectionId) => {
-    const sectionData = formData[sectionId] || {};
-    Object.keys(sectionData).forEach((fieldId) => {
-      const fieldValue = sectionData[fieldId];
-      const fieldType = typeof fieldValue;
-      const fieldPreview =
-        fieldType === "string" ? fieldValue.substring(0, 50) : fieldValue;
-      console.log(
-        `[PDF] Checking field ${sectionId}.${fieldId}:`,
-        fieldType,
-        fieldPreview
-      );
-
-      if (
-        fieldId.includes("signature") &&
-        fieldType === "string" &&
-        fieldValue &&
-        fieldValue.startsWith("data:")
-      ) {
-        signatureData = fieldValue;
-        console.log(
-          "[PDF] Found signature data:",
-          signatureData.substring(0, 100)
-        );
-      }
-    });
-  });
-
-  console.log(
-    "[PDF] Final signatureData:",
-    signatureData ? "Found" : "Not found"
-  );
+  const signatureData = resolveReportSignatureData(formData);
 
   // Signature box
   const boxY = doc.y;
@@ -5509,39 +5535,8 @@ const renderSmokeOnlyReport = async (
       ? "Compliant"
       : "Non-Compliant";
 
-  // Draw report header section (continue from current page position)
-  doc.y += 12; // Add some spacing after property details
-  drawSectionHeader(doc, "Smoke Alarm Inspection Summary");
-
-  doc
-    .fillColor(COLORS.textSecondary)
-    .fontSize(11)
-    .font("Helvetica")
-    .text(
-      "Our inspection identified compliance status of smoke alarms at this property.",
-      PAGE.margin,
-      doc.y,
-      {
-        width: doc.page.width - PAGE.margin * 2,
-        align: "left",
-      }
-    );
-
-  doc.y += 6;
-  doc.text(
-    "Please review the information below for findings and recommendations.",
-    PAGE.margin,
-    doc.y,
-    {
-      width: doc.page.width - PAGE.margin * 2,
-      align: "left",
-    }
-  );
-
-  doc.y += 10;
-
   for (const section of template.sections || []) {
-    if (section.id === "inspection-photos") {
+    if (section.id === "inspection-photos" || section.id === "inspection-summary") {
       continue;
     }
 
@@ -5603,22 +5598,7 @@ const renderSmokeOnlyReport = async (
       continue;
     }
 
-    const excludedFieldIds =
-      section.id === "certification-declaration"
-        ? [
-            "inspector-details-name",
-            "inspector-details-license",
-            "inspector-details-company",
-            "inspector-details-phone",
-            "report-version",
-          ]
-        : section.id === "inspection-summary"
-        ? ["previous-inspection-date"]
-        : [];
-
-    renderTemplateSectionFields(doc, section, sectionData, {
-      excludedFieldIds,
-    });
+    renderTemplateSectionFields(doc, section, sectionData);
   }
 
   // General Comments section

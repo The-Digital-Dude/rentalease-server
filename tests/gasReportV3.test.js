@@ -143,20 +143,32 @@ describe("Gas report v3 validation and outcome", () => {
     expect(calculateGasComplianceOutcome(formData)).toBe("non-compliant");
   });
 
-  test("returns compliant when every MSS minimum standard question is yes", () => {
+  test("returns compliant when every MSS checklist yes/no question is yes", () => {
     const { calculateMinimumSafetyStandardOutcome } = loadGasReportHelpers();
     const template = {
       sections: [
         {
           id: "bin-facilities",
           fields: [
-            { id: "bin-general-standard", label: "Are minimum standards met for this section?" },
+            {
+              id: "bin-general-standard",
+              label:
+                "Are both a rubbish bin and a recycling bin available for the renter's use?",
+              type: "yes-no-na",
+            },
+            { id: "bin-notes", label: "Recommendations", type: "textarea" },
           ],
         },
         {
           id: "lighting-summary",
           fields: [
-            { id: "lighting-summary-standard", label: "Are minimum standards met for this section?" },
+            {
+              id: "living-room-lighting-standard",
+              label:
+                "Do all interior rooms, corridors, and hallways have access to appropriate natural or artificial light suitable for their intended function?",
+              type: "yes-no-na",
+            },
+            { id: "lighting-photos", label: "Photos", type: "photo-multi" },
           ],
         },
       ],
@@ -166,7 +178,7 @@ describe("Gas report v3 validation and outcome", () => {
         "bin-general-standard": "yes",
       },
       "lighting-summary": {
-        "lighting-summary-standard": "yes",
+        "living-room-lighting-standard": "yes",
       },
     };
 
@@ -175,15 +187,24 @@ describe("Gas report v3 validation and outcome", () => {
     );
   });
 
-  test("returns non-compliant when any MSS minimum standard question is no or N/A", () => {
+  test("returns non-compliant when any MSS checklist yes/no question is no or N/A", () => {
     const { calculateMinimumSafetyStandardOutcome } = loadGasReportHelpers();
     const template = {
       sections: [
         {
           id: "bin-facilities",
           fields: [
-            { id: "bin-general-standard", label: "Are minimum standards met for this section?" },
-            { id: "bin-recycle-standard", label: "Are minimum standards met for this section?" },
+            {
+              id: "bin-general-standard",
+              label:
+                "Are both a rubbish bin and a recycling bin available for the renter's use?",
+              type: "yes-no-na",
+            },
+            {
+              id: "bin-summary-standard",
+              label: "Are minimum standards met for this section?",
+              type: "yes-no-na",
+            },
           ],
         },
       ],
@@ -194,7 +215,7 @@ describe("Gas report v3 validation and outcome", () => {
         {
           "bin-facilities": {
             "bin-general-standard": "no",
-            "bin-recycle-standard": "yes",
+            "bin-summary-standard": "yes",
           },
         },
         template
@@ -205,8 +226,8 @@ describe("Gas report v3 validation and outcome", () => {
       calculateMinimumSafetyStandardOutcome(
         {
           "bin-facilities": {
-            "bin-general-standard": "yes",
-            "bin-recycle-standard": "na",
+            "bin-general-standard": "na",
+            "bin-summary-standard": "yes",
           },
         },
         template

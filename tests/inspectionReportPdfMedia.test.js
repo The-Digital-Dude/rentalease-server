@@ -238,7 +238,7 @@ describe("Inspection report PDF media matching", () => {
     expect(source).toContain('const hideInspectorIdentity = template?.jobType === "Smoke"');
   });
 
-  test("smoke-only report omits previous smoke alarm check date", () => {
+  test("smoke-only report omits redundant inspection summary section", () => {
     const servicePath = path.resolve(
       __dirname,
       "../src/services/inspectionReportPdf.service.js"
@@ -249,7 +249,8 @@ describe("Inspection report PDF media matching", () => {
     const smokeSource = source.slice(smokeStart, buildPdfStart);
 
     expect(smokeSource).toContain('section.id === "inspection-summary"');
-    expect(smokeSource).toContain('"previous-inspection-date"');
+    expect(smokeSource).not.toContain('"Smoke Alarm Inspection Summary"');
+    expect(smokeSource).not.toContain('"previous-inspection-date"');
   });
 
   test("generic report renderer visits section-level photo fields", () => {
@@ -301,6 +302,30 @@ describe("Inspection report PDF media matching", () => {
     expect(electricalSource).not.toContain('"TECHNICIAN CERTIFICATION"');
     expect(electricalSource).not.toContain('"Technician Signature:"');
     expect(source).toContain("await drawDeclarationSection");
+  });
+
+  test("shared declaration detects electrical and smoke signature payloads", () => {
+    const servicePath = path.resolve(
+      __dirname,
+      "../src/services/inspectionReportPdf.service.js"
+    );
+    const source = fs.readFileSync(servicePath, "utf8");
+    const signatureHelperStart = source.indexOf("const extractSignatureValue");
+    const summaryStart = source.indexOf("const extractSummaryInsights");
+    const declarationStart = source.indexOf("const drawDeclarationSection");
+    const gasHazardsStart = source.indexOf("const drawGasHazardsSection");
+    const signatureHelperSource = source.slice(signatureHelperStart, summaryStart);
+    const declarationSource = source.slice(declarationStart, gasHazardsStart);
+
+    expect(signatureHelperSource).toContain("extractSignatureValue");
+    expect(signatureHelperSource).toContain(".includes(\"signature\")");
+    expect(signatureHelperSource).toContain('"dataUrl"');
+    expect(signatureHelperSource).toContain('"base64"');
+    expect(signatureHelperSource).toContain('"url"');
+    expect(declarationSource).toContain(
+      "const signatureData = resolveReportSignatureData(formData)"
+    );
+    expect(declarationSource).not.toContain('fieldValue.startsWith("data:")');
   });
 
   test("electrical v3 report renders component photos under their sections", () => {
@@ -423,7 +448,7 @@ describe("Inspection report PDF media matching", () => {
     expect(source).not.toContain("Licence:");
   });
 
-  test("shared report front includes MSS-style compliance details", () => {
+  test("shared report front includes summary details without declaration metadata", () => {
     const servicePath = path.resolve(
       __dirname,
       "../src/services/inspectionReportPdf.service.js"
@@ -438,11 +463,16 @@ describe("Inspection report PDF media matching", () => {
       '"Inspection Summary"',
       '"Next Compliance Date"',
       '"Technician Details"',
+    ].forEach((label) => {
+      expect(detailsSource).toContain(label);
+    });
+
+    [
       '"Regulations / Standards"',
       '"Declaration"',
       '"Signature"',
     ].forEach((label) => {
-      expect(detailsSource).toContain(label);
+      expect(detailsSource).not.toContain(label);
     });
 
     expect(source).toContain("resolveNextComplianceDisplayDate");

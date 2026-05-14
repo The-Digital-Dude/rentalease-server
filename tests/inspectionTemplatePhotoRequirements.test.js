@@ -187,4 +187,50 @@ describe("Inspection template photo requirements", () => {
       expect(fieldsByTemplate.get(jobType).get(fieldKey)?.metadata).toBeUndefined();
     });
   });
+
+  test("active reports do not prefill technician judgement fields", () => {
+    const templates = loadDefaultInspectionTemplates();
+    const forbiddenDefaults = new Set([
+      "yes",
+      "no",
+      "pass",
+      "satisfactory",
+      "included",
+      "no-faults",
+      "all-compliant",
+      "compliant",
+      "none",
+      "N/A",
+    ]);
+
+    const allowedDefaultFieldIds = new Set([
+      "state",
+      "property-type",
+      "business-name",
+      "declaration-text",
+      "inspection-date",
+      "certification-inspection-date",
+      "signature-date",
+      "report-completion-date",
+      "inspection-standards-applied",
+      "dynamic-notice",
+    ]);
+
+    templates.forEach((template) => {
+      template.sections.forEach((section) => {
+        (section.fields || []).forEach((field) => {
+          if (!Object.prototype.hasOwnProperty.call(field, "defaultValue")) {
+            return;
+          }
+
+          if (allowedDefaultFieldIds.has(field.id)) {
+            return;
+          }
+
+          expect(forbiddenDefaults.has(field.defaultValue)).toBe(false);
+          expect(Array.isArray(field.defaultValue)).toBe(false);
+        });
+      });
+    });
+  });
 });
