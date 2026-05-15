@@ -1627,7 +1627,11 @@ router.get(
             },
             estimatedDuration: job.estimatedDuration,
             actualDuration: job.actualDuration,
-            completedAt: job.completedAt,
+            completedAt:
+              job.completedAt ||
+              (job.status === "Completed"
+                ? job.updatedAt || job.createdAt
+                : null),
             createdAt: job.createdAt,
           })),
           propertyManagers: propertyManagers.map((manager) => ({

@@ -616,6 +616,10 @@ router.get(
         // For aggregated results, we can't convert to full Mongoose documents
         // but we need to call getSummary() manually for each job
         jobs = jobs.map((job) => {
+          const resolvedCompletedAt =
+            job.completedAt ||
+            (job.status === "Completed" ? job.updatedAt || job.createdAt : null);
+
           // Create a mock job document for calling getSummary
           const mockJob = {
             _id: job._id,
@@ -628,6 +632,7 @@ router.get(
             scheduledEndTime: job.scheduledEndTime,
             assignedTechnician: job.assignedTechnician,
             status: job.status,
+            completedAt: resolvedCompletedAt,
             reportFile: job.reportFile,
             hasInvoice: job.hasInvoice,
             invoice: job.invoice,
@@ -656,6 +661,7 @@ router.get(
                 property: this.property,
                 jobType: this.jobType,
                 dueDate: this.dueDate,
+                completedAt: this.completedAt,
                 shift: this.shift,
                 scheduledStartTime: this.scheduledStartTime,
                 scheduledEndTime: this.scheduledEndTime,

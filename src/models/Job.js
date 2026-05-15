@@ -264,6 +264,18 @@ jobSchema.virtual("isOverdue").get(function () {
   return this.status !== "Completed" && this.dueDate < new Date();
 });
 
+jobSchema.methods.getResolvedCompletedAt = function () {
+  if (this.completedAt) {
+    return this.completedAt;
+  }
+
+  if (this.status === "Completed") {
+    return this.updatedAt || this.createdAt || null;
+  }
+
+  return null;
+};
+
 // Pre-save middleware to check for duplicates and update status
 jobSchema.pre("save", async function (next) {
   // Check for duplicate jobs (same property, job type, and date)
@@ -311,6 +323,8 @@ jobSchema.pre("save", async function (next) {
 
 // Method to get full job details with populated fields
 jobSchema.methods.getFullDetails = function () {
+  const resolvedCompletedAt = this.getResolvedCompletedAt();
+
   return {
     id: this._id,
     job_id: this.job_id,
@@ -328,7 +342,7 @@ jobSchema.methods.getFullDetails = function () {
     invoice: this.invoice,
     description: this.description,
     priority: this.priority,
-    completedAt: this.completedAt,
+    completedAt: resolvedCompletedAt,
     estimatedDuration: this.estimatedDuration,
     actualDuration: this.actualDuration,
     cost: this.cost,
@@ -345,6 +359,8 @@ jobSchema.methods.getFullDetails = function () {
 
 // Method to get summary details (for list views)
 jobSchema.methods.getSummary = function () {
+  const resolvedCompletedAt = this.getResolvedCompletedAt();
+
   // Transform assignedTechnician data for frontend compatibility
   let transformedTechnician = null;
   if (this.assignedTechnician) {
@@ -365,7 +381,7 @@ jobSchema.methods.getSummary = function () {
     property: this.property,
     jobType: this.jobType,
     dueDate: this.dueDate,
-    completedAt: this.completedAt,
+    completedAt: resolvedCompletedAt,
     shift: this.shift,
     scheduledStartTime: this.scheduledStartTime,
     scheduledEndTime: this.scheduledEndTime,
