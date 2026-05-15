@@ -4,6 +4,7 @@ import Invoice from "../models/Invoice.js";
 import Job from "../models/Job.js";
 import Technician from "../models/Technician.js";
 import Agency from "../models/Agency.js";
+import PropertyManager from "../models/PropertyManager.js";
 import {
   authenticateSuperUser,
   authenticateAgency,
@@ -12,6 +13,7 @@ import {
 } from "../middleware/auth.middleware.js";
 import emailService from "../services/email.service.js";
 import notificationService from "../services/notification.service.js";
+import { getAgencyServicePriceForJobType } from "../utils/agencyPricing.js";
 
 const router = express.Router();
 
@@ -41,6 +43,12 @@ const getUserInfo = (req) => {
       type: "PropertyManager",
       id: req.propertyManager.id,
       assignedProperties: req.propertyManager.assignedProperties,
+    };
+  } else if (req.teamMember) {
+    return {
+      name: req.teamMember.fullName || req.teamMember.name || req.teamMember.email,
+      type: "TeamMember",
+      id: req.teamMember.id,
     };
   }
   return null;
@@ -87,6 +95,25 @@ const calculateInvoiceTotals = (items, tax = 0) => {
   const totalCost = subtotal + (tax || 0);
 
   return { subtotal, totalCost };
+};
+
+const resolveAgencyForJob = async (job) => {
+  if (job.owner?.ownerType === "Agency") {
+    return Agency.findById(job.owner.ownerId);
+  }
+
+  if (job.property) {
+    const populatedJob = await job.populate({
+      path: "property",
+      select: "agency",
+    });
+
+    if (populatedJob.property?.agency) {
+      return Agency.findById(populatedJob.property.agency);
+    }
+  }
+
+  return null;
 };
 
 // POST - Create new invoice
@@ -216,6 +243,7 @@ router.post("/", authenticateUserTypes(['SuperUser', 'TeamMember']), async (req,
       tax,
       totalCost,
       notes,
+      status: "Draft",
     };
 
     const invoice = new Invoice(invoiceData);
@@ -358,7 +386,195 @@ router.get("/job/:jobId", authenticateUserTypes(['SuperUser', 'TeamMember', 'Age
   }
 });
 
-// PATCH - Send invoice to agency
+router.post(
+  "/job/:jobId/generate-draft",
+  authenticateUserTypes(["SuperUser", "TeamMember"]),
+  async (req, res) => {
+    try {
+      const { jobId } = req.params;
+
+      if (!mongoose.Types.ObjectId.isValid(jobId)) {
+        return res.status(400).json({
+          status: "error",
+          message: "Invalid job ID format",
+        });
+      }
+
+      const job = await Job.findById(jobId).populate(
+        "assignedTechnician",
+        "firstName lastName email phone"
+      );
+
+      if (!job) {
+        return res.status(404).json({
+          status: "error",
+          message: "Job not found",
+        });
+      }
+
+      if (job.status !== "Completed") {
+        return res.status(400).json({
+          status: "error",
+          message: "Draft invoices can only be generated for completed jobs",
+        });
+      }
+
+      const existingInvoice = await Invoice.findOne({ jobId });
+      if (existingInvoice) {
+        return res.status(409).json({
+          status: "error",
+          message: "Invoice already exists for this job",
+          data: {
+            invoice: existingInvoice.getFullDetails(),
+          },
+        });
+      }
+
+      if (!job.assignedTechnician?._id && !job.assignedTechnician) {
+        return res.status(400).json({
+          status: "error",
+          message:
+            "Cannot generate invoice because no technician is assigned to this job",
+        });
+      }
+
+      const agency = await resolveAgencyForJob(job);
+      if (!agency) {
+        return res.status(400).json({
+          status: "error",
+          message: "No agency is associated with this job",
+        });
+      }
+
+      const servicePrice = getAgencyServicePriceForJobType(agency, job.jobType);
+      if (!servicePrice) {
+        return res.status(400).json({
+          status: "error",
+          message:
+            "No agency service pricing is configured for this completed job type",
+        });
+      }
+
+      const items = [
+        {
+          name: servicePrice.serviceType,
+          quantity: 1,
+          rate: servicePrice.price,
+          amount: servicePrice.price,
+        },
+      ];
+
+      const { subtotal, totalCost } = calculateInvoiceTotals(items, 0);
+
+      const invoice = new Invoice({
+        jobId: job._id,
+        technicianId:
+          job.assignedTechnician._id || job.assignedTechnician,
+        agencyId: agency._id,
+        description: `${servicePrice.serviceType} for completed job ${job.job_id}`,
+        items,
+        subtotal,
+        tax: 0,
+        totalCost,
+        notes: `Manually generated draft invoice for completed job ${job.job_id}.`,
+        status: "Draft",
+      });
+
+      await invoice.save();
+
+      job.hasInvoice = true;
+      job.invoice = invoice._id;
+      await job.save();
+
+      await invoice.populate([
+        { path: "jobId", select: "job_id jobType property dueDate status" },
+        { path: "technicianId", select: "firstName lastName email phone" },
+        { path: "agencyId", select: "companyName contactPerson email phone" },
+      ]);
+
+      return res.status(201).json({
+        status: "success",
+        message: "Draft invoice generated successfully",
+        data: {
+          invoice: invoice.getFullDetails(),
+        },
+      });
+    } catch (error) {
+      console.error("Generate draft invoice error:", error);
+      return res.status(500).json({
+        status: "error",
+        message: "Failed to generate draft invoice",
+      });
+    }
+  }
+);
+
+router.patch("/:invoiceId", authenticateUserTypes(['SuperUser', 'TeamMember']), async (req, res) => {
+  try {
+    const { invoiceId } = req.params;
+    const { description, items, tax = 0, notes } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(invoiceId)) {
+      return res.status(400).json({
+        status: "error",
+        message: "Invalid invoice ID format",
+      });
+    }
+
+    const invoice = await Invoice.findById(invoiceId);
+    if (!invoice) {
+      return res.status(404).json({
+        status: "error",
+        message: "Invoice not found",
+      });
+    }
+
+    if (invoice.status === "Sent" || invoice.status === "Paid") {
+      return res.status(400).json({
+        status: "error",
+        message: "Sent or paid invoices cannot be edited",
+      });
+    }
+
+    const itemValidation = validateInvoiceItems(items);
+    if (!itemValidation.isValid) {
+      return res.status(400).json({
+        status: "error",
+        message: itemValidation.error,
+      });
+    }
+
+    const { subtotal, totalCost } = calculateInvoiceTotals(items, Number(tax || 0));
+
+    invoice.description = description;
+    invoice.items = items.map((item) => ({
+      ...item,
+      amount: (item.quantity || 0) * (item.rate || 0),
+    }));
+    invoice.tax = Number(tax || 0);
+    invoice.subtotal = subtotal;
+    invoice.totalCost = totalCost;
+    invoice.notes = notes || "";
+
+    await invoice.save();
+
+    return res.status(200).json({
+      status: "success",
+      message: "Invoice updated successfully",
+      data: {
+        invoice: invoice.getFullDetails(),
+      },
+    });
+  } catch (error) {
+    console.error("Update invoice error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Failed to update invoice",
+    });
+  }
+});
+
+// PATCH - Send invoice to agency and property managers
 router.patch("/:invoiceId/send", authenticate, async (req, res) => {
   try {
     const { invoiceId } = req.params;
@@ -384,16 +600,11 @@ router.patch("/:invoiceId/send", authenticate, async (req, res) => {
       });
     }
 
-    // Check access permissions (only super users and technicians can send invoices)
+    // Check access permissions (only super users and team members can send invoices)
     const userInfo = getUserInfo(req);
     let hasAccess = false;
 
-    if (userInfo.type === "SuperUser") {
-      hasAccess = true;
-    } else if (
-      userInfo.type === "Technician" &&
-      invoice.technicianId.toString() === userInfo.id
-    ) {
+    if (userInfo.type === "SuperUser" || userInfo.type === "TeamMember") {
       hasAccess = true;
     }
 
@@ -401,7 +612,7 @@ router.patch("/:invoiceId/send", authenticate, async (req, res) => {
       return res.status(403).json({
         status: "error",
         message:
-          "Access denied. Only super users and the assigned technician can send invoices.",
+          "Access denied. Only super users and team members can send invoices.",
       });
     }
 
@@ -412,7 +623,7 @@ router.patch("/:invoiceId/send", authenticate, async (req, res) => {
         message: `Invoice cannot be sent. Current status: ${invoice.status}`,
         details: {
           currentStatus: invoice.status,
-          allowedStatuses: ["Pending"],
+          allowedStatuses: ["Draft", "Pending"],
         },
       });
     }
@@ -422,11 +633,62 @@ router.patch("/:invoiceId/send", authenticate, async (req, res) => {
     invoice.sentAt = new Date();
     await invoice.save();
 
-    // Send email notification to agency
+    const job = await Job.findById(invoice.jobId).populate(
+      "property",
+      "address"
+    );
+    const propertyManagers = job?.property?._id
+      ? await PropertyManager.find({
+          "assignedProperties.propertyId": job.property._id,
+          "assignedProperties.status": "Active",
+        }).select("firstName lastName email")
+      : [];
+
+    // Send email notification to agency and property managers
     try {
       const agency = await Agency.findById(invoice.agencyId);
       if (agency) {
         await emailService.sendInvoiceEmail(invoice, agency);
+
+        const reportUrl = job?.reportFile || null;
+        const propertyAddress = job?.property?.address?.fullAddress || "Property";
+        const propertyManagerName = propertyManagers
+          .map((manager) => `${manager.firstName || ""} ${manager.lastName || ""}`.trim())
+          .filter(Boolean)
+          .join(", ");
+
+        await emailService.sendCompletedJobDocumentsEmail(
+          {
+            email: agency.email,
+            name: agency.contactPerson || agency.companyName,
+          },
+          {
+            propertyAddress,
+            jobType: job?.jobType,
+            invoice,
+            reportUrl,
+            agencyName: agency.companyName,
+            propertyManagerName,
+          }
+        );
+
+        for (const manager of propertyManagers) {
+          if (!manager.email) continue;
+          await emailService.sendCompletedJobDocumentsEmail(
+            {
+              email: manager.email,
+              name: `${manager.firstName || ""} ${manager.lastName || ""}`.trim(),
+            },
+            {
+              propertyAddress,
+              jobType: job?.jobType,
+              invoice,
+              reportUrl,
+              agencyName: agency.companyName,
+              propertyManagerName,
+            }
+          );
+        }
       }
     } catch (emailError) {
       console.error("Failed to send invoice email:", emailError);

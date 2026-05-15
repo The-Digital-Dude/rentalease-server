@@ -17,6 +17,7 @@ import emailService from "../services/email.service.js";
 import notificationService from "../services/notification.service.js";
 import fileUploadService from "../services/fileUpload.service.js";
 import { sanitizeJobInput } from "../middleware/sanitizer.middleware.js";
+import { getAgencyServicePriceForJobType } from "../utils/agencyPricing.js";
 
 const router = express.Router();
 
@@ -27,6 +28,20 @@ const getTechnicianMaxJobs = (technician) => {
 
   const { maxJobs } = technician;
   return typeof maxJobs === "number" && !Number.isNaN(maxJobs) ? maxJobs : 4;
+};
+
+const resolveAgencyForJob = async (job) => {
+  if (job.owner.ownerType === "Agency") {
+    return Agency.findById(job.owner.ownerId);
+  }
+
+  const property = await Property.findById(job.property).select("agency address");
+  if (!property?.agency) {
+    return null;
+  }
+
+  const agency = await Agency.findById(property.agency);
+  return agency;
 };
 
 // Helper function to get owner info based on user type
@@ -2065,8 +2080,58 @@ router.patch(
           }
         }
 
-        // Handle invoice creation if requested
-        if (hasInvoice === "true" && invoiceData) {
+        // Handle invoice creation. Compliance jobs use agency service pricing
+        if (job.jobCategory === "compliance") {
+          try {
+            const agency = await resolveAgencyForJob(job);
+            if (!agency) {
+              return res.status(400).json({
+                status: "error",
+                message:
+                  "Cannot create draft invoice: No agency associated with this job",
+              });
+            }
+
+            const servicePrice = getAgencyServicePriceForJobType(agency, job.jobType);
+            if (!servicePrice) {
+              return res.status(400).json({
+                status: "error",
+                message: `Cannot complete job because ${agency.companyName} does not have pricing configured for ${job.jobType}`,
+              });
+            }
+
+            const property = await Property.findById(job.property).select("address");
+            const propertyAddress = property?.address?.fullAddress || "Property";
+            const newInvoiceData = {
+              jobId: job._id,
+              technicianId: job.assignedTechnician,
+              agencyId: agency._id,
+              description: `${job.jobType} completed for ${propertyAddress}`,
+              items: [
+                {
+                  name: servicePrice.serviceType,
+                  quantity: 1,
+                  rate: servicePrice.price,
+                  amount: servicePrice.price,
+                },
+              ],
+              tax: 0,
+              notes: `Auto-generated draft invoice from agency pricing for ${job.jobType}.`,
+              status: "Draft",
+            };
+
+            const invoice = new Invoice(newInvoiceData);
+            await invoice.save();
+            invoiceId = invoice._id;
+          } catch (invoiceError) {
+            console.error("Failed to create invoice:", invoiceError);
+            return res.status(500).json({
+              status: "error",
+              message: "Failed to create invoice",
+              details: invoiceError.message,
+            });
+          }
+        } else if (hasInvoice === "true" && invoiceData) {
           try {
             let parsedInvoiceData;
             if (typeof invoiceData === "string") {
@@ -2075,7 +2140,6 @@ router.patch(
               parsedInvoiceData = invoiceData;
             }
 
-            // Validate invoice data
             if (
               !parsedInvoiceData.description ||
               !parsedInvoiceData.items ||
@@ -2088,29 +2152,19 @@ router.patch(
               });
             }
 
-            // Get agency ID from job owner
-            let agencyId;
-            if (job.owner.ownerType === "Agency") {
-              agencyId = job.owner.ownerId;
-            } else {
-              // If job is owned by SuperUser, we need to get the agency from the property
-              const property = await Property.findById(job.property);
-              if (property && property.agency) {
-                agencyId = property.agency;
-              } else {
-                return res.status(400).json({
-                  status: "error",
-                  message:
-                    "Cannot create invoice: No agency associated with this job",
-                });
-              }
+            const agency = await resolveAgencyForJob(job);
+            if (!agency) {
+              return res.status(400).json({
+                status: "error",
+                message:
+                  "Cannot create invoice: No agency associated with this job",
+              });
             }
 
-            // Create invoice
             const newInvoiceData = {
               jobId: job._id,
               technicianId: job.assignedTechnician,
-              agencyId: agencyId,
+              agencyId: agency._id,
               description: parsedInvoiceData.description,
               items: parsedInvoiceData.items.map((item) => ({
                 name: item.name,
@@ -2120,6 +2174,7 @@ router.patch(
               })),
               tax: parseFloat(parsedInvoiceData.tax || 0),
               notes: parsedInvoiceData.notes || "",
+              status: "Draft",
             };
 
             const invoice = new Invoice(newInvoiceData);
@@ -2141,7 +2196,7 @@ router.patch(
           completedAt: new Date(),
           lastUpdatedBy: getCreatorInfo(req),
           reportFile: reportFileUrl,
-          hasInvoice: hasInvoice === "true",
+          hasInvoice: !!invoiceId,
           invoice: invoiceId,
         };
 

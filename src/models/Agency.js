@@ -1,6 +1,10 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import emailService from "../services/email.service.js";
+import {
+  deriveComplianceSubscriptions,
+  deriveSubscriptionAmount,
+} from "../utils/agencyPricing.js";
 
 const agencySchema = new mongoose.Schema(
   {
@@ -71,6 +75,28 @@ const agencySchema = new mongoose.Schema(
             "Minimum Compliance",
           ],
           message: "Invalid compliance subscription type: {VALUE}",
+        },
+      },
+    ],
+    servicePricing: [
+      {
+        serviceType: {
+          type: String,
+          enum: {
+            values: [
+              "Smoke Alarm",
+              "Minimum Safety Standard",
+              "Electrical and Smoke Alarm",
+              "Gas Safety Check",
+            ],
+            message: "Invalid agency service type: {VALUE}",
+          },
+          required: true,
+        },
+        price: {
+          type: Number,
+          required: true,
+          min: [0, "Service price cannot be negative"],
         },
       },
     ],
@@ -220,6 +246,13 @@ const agencySchema = new mongoose.Schema(
 
 // Pre-save middleware to hash password
 agencySchema.pre("save", async function (next) {
+  if (Array.isArray(this.servicePricing)) {
+    this.complianceSubscriptions = deriveComplianceSubscriptions(
+      this.servicePricing
+    );
+    this.subscriptionAmount = deriveSubscriptionAmount(this.servicePricing);
+  }
+
   if (!this.isModified("password")) return next();
 
   try {

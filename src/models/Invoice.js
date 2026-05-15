@@ -122,10 +122,10 @@ const invoiceSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: {
-        values: ["Pending", "Sent", "Paid"],
-        message: "Status must be one of: Pending, Sent, Paid",
+        values: ["Draft", "Pending", "Sent", "Paid"],
+        message: "Status must be one of: Draft, Pending, Sent, Paid",
       },
-      default: "Pending",
+      default: "Draft",
     },
 
     // Timestamps

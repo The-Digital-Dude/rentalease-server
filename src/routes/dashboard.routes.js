@@ -48,6 +48,50 @@ router.get(
         Job.countDocuments({ status: "Overdue" }),
       ]);
 
+      const servicePricingBreakdown = await Agency.aggregate([
+        {
+          $project: {
+            status: 1,
+            servicePricing: { $ifNull: ["$servicePricing", []] },
+            subscriptionAmount: { $ifNull: ["$subscriptionAmount", 0] },
+          },
+        },
+        {
+          $facet: {
+            revenueMetrics: [
+              {
+                $group: {
+                  _id: null,
+                  totalConfiguredMonthlyRevenue: {
+                    $sum: "$subscriptionAmount",
+                  },
+                  averageAgencyPricing: {
+                    $avg: "$subscriptionAmount",
+                  },
+                  totalAgenciesWithPricing: {
+                    $sum: {
+                      $cond: [{ $gt: ["$subscriptionAmount", 0] }, 1, 0],
+                    },
+                  },
+                },
+              },
+            ],
+            serviceBreakdown: [
+              { $unwind: "$servicePricing" },
+              {
+                $group: {
+                  _id: "$servicePricing.serviceType",
+                  agenciesUsingService: { $sum: 1 },
+                  totalConfiguredRevenue: { $sum: "$servicePricing.price" },
+                  averagePrice: { $avg: "$servicePricing.price" },
+                },
+              },
+              { $sort: { totalConfiguredRevenue: -1, _id: 1 } },
+            ],
+          },
+        },
+      ]);
+
       // Get job status distribution
       const jobStatusDistribution = await Job.aggregate([
         { $group: { _id: "$status", count: { $sum: 1 } } },
@@ -200,6 +244,45 @@ router.get(
           "job_id jobType status dueDate createdAt assignedTechnician property"
         );
 
+      const pricingAggregation = servicePricingBreakdown[0] || {};
+      const pricingRevenueMetrics = pricingAggregation.revenueMetrics?.[0] || {
+        totalConfiguredMonthlyRevenue: 0,
+        averageAgencyPricing: 0,
+      };
+      const topServices = (pricingAggregation.serviceBreakdown || []).map(
+        (service) => ({
+          serviceType: service._id,
+          agenciesUsingService: service.agenciesUsingService,
+          totalConfiguredRevenue: service.totalConfiguredRevenue || 0,
+          averagePrice: parseFloat(
+            ((service.averagePrice || 0) * 1).toFixed(2)
+          ),
+          percentageOfAgencies:
+            totalAgencies > 0
+              ? ((service.agenciesUsingService / totalAgencies) * 100).toFixed(
+                  1
+                )
+              : "0.0",
+        })
+      );
+
+      const totalConfiguredServiceEntries = topServices.reduce(
+        (sum, service) => sum + service.agenciesUsingService,
+        0
+      );
+      const totalConfiguredRevenueFromServices = topServices.reduce(
+        (sum, service) => sum + service.totalConfiguredRevenue,
+        0
+      );
+      const averageServicePrice =
+        totalConfiguredServiceEntries > 0
+          ? parseFloat(
+              (
+                totalConfiguredRevenueFromServices / totalConfiguredServiceEntries
+              ).toFixed(2)
+            )
+          : 0;
+
       const dashboardData = {
         overview: {
           totalAgencies,
@@ -227,6 +310,17 @@ router.get(
           paidAmount: 0,
           pendingCount: 0,
           paidCount: 0,
+        },
+        pricingSummary: {
+          totalConfiguredMonthlyRevenue:
+            pricingRevenueMetrics.totalConfiguredMonthlyRevenue || 0,
+          averageAgencyPricing: parseFloat(
+            ((pricingRevenueMetrics.averageAgencyPricing || 0) * 1).toFixed(2)
+          ),
+          totalConfiguredServiceEntries,
+          serviceTypesInUse: topServices.length,
+          averageServicePrice,
+          topServices,
         },
         monthlyTrends: formattedMonthlyTrends,
         topTechnicians: topTechnicians.map((item) => ({
@@ -1355,7 +1449,8 @@ router.get(
         topAgenciesBySubscription,
         agenciesByRegion,
         subscriptionDistribution,
-        recentAgencies
+        recentAgencies,
+        servicePricingBreakdown
       ] = await Promise.all([
         // Agency counts by status
         Agency.aggregate([
@@ -1448,7 +1543,22 @@ router.get(
         Agency.find()
           .select("companyName email region subscriptionAmount status totalProperties createdAt")
           .sort({ createdAt: -1 })
-          .limit(10)
+          .limit(10),
+
+        Agency.aggregate([
+          { $unwind: "$servicePricing" },
+          {
+            $group: {
+              _id: "$servicePricing.serviceType",
+              agenciesUsingService: { $sum: 1 },
+              totalConfiguredRevenue: { $sum: "$servicePricing.price" },
+              averagePrice: { $avg: "$servicePricing.price" },
+              minimumPrice: { $min: "$servicePricing.price" },
+              maximumPrice: { $max: "$servicePricing.price" },
+            }
+          },
+          { $sort: { totalConfiguredRevenue: -1, _id: 1 } }
+        ])
       ]);
 
       // Calculate growth percentages
@@ -1569,6 +1679,18 @@ router.get(
         joinedDate: agency.createdAt
       }));
 
+      const serviceBreakdown = servicePricingBreakdown.map((service) => ({
+        serviceType: service._id,
+        agenciesUsingService: service.agenciesUsingService,
+        totalConfiguredRevenue: service.totalConfiguredRevenue,
+        averagePrice: parseFloat((service.averagePrice || 0).toFixed(2)),
+        minimumPrice: service.minimumPrice || 0,
+        maximumPrice: service.maximumPrice || 0,
+        percentageOfAgencies: statusBreakdown.total > 0
+          ? ((service.agenciesUsingService / statusBreakdown.total) * 100).toFixed(1)
+          : "0.0"
+      }));
+
       // Calculate additional metrics
       const churnRate = statusBreakdown.total > 0
         ? ((statusBreakdown.inactive / statusBreakdown.total) * 100).toFixed(1)
@@ -1638,6 +1760,13 @@ router.get(
         properties: {
           totalPropertiesManaged: propertyStats.totalProperties,
           avgPropertiesPerAgency: parseFloat(propertyStats.avgPropertiesPerAgency.toFixed(2))
+        },
+        services: {
+          totalConfiguredServices: serviceBreakdown.reduce(
+            (sum, service) => sum + service.agenciesUsingService,
+            0
+          ),
+          breakdown: serviceBreakdown
         },
         recentActivity: {
           newAgencies: formattedRecentAgencies

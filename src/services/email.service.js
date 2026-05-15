@@ -881,6 +881,54 @@ class EmailService {
     });
   }
 
+  async sendCompletedJobDocumentsEmail(recipient, payload) {
+    if (!recipient?.email) {
+      throw new Error("Recipient email is required for completed job documents");
+    }
+
+    const {
+      propertyAddress,
+      jobType,
+      invoice,
+      reportUrl,
+      agencyName,
+      propertyManagerName,
+    } = payload;
+
+    const subject = `Completed Job Documents - ${jobType} - ${propertyAddress}`;
+    const html = `
+      <div>
+        <h2>Completed Job Documents</h2>
+        <p>Hello ${recipient.name || "there"},</p>
+        <p>The completed job documents are ready for review.</p>
+        <p><strong>Agency:</strong> ${agencyName || "-"}</p>
+        <p><strong>Property:</strong> ${propertyAddress || "-"}</p>
+        <p><strong>Service:</strong> ${jobType || "-"}</p>
+        ${
+          propertyManagerName
+            ? `<p><strong>Property Manager:</strong> ${propertyManagerName}</p>`
+            : ""
+        }
+        <p><strong>Invoice #:</strong> ${invoice.invoiceNumber}</p>
+        <p><strong>Invoice Total:</strong> $${Number(
+          invoice.totalCost || 0
+        ).toFixed(2)}</p>
+        ${
+          reportUrl
+            ? `<p><strong>Inspection Report:</strong> <a href="${reportUrl}">Open report</a></p>`
+            : "<p><strong>Inspection Report:</strong> Not available</p>"
+        }
+      </div>
+    `;
+
+    return await this.sendUserEmail({
+      from: this.defaultFrom,
+      to: recipient.email,
+      subject,
+      bodyHtml: html,
+    });
+  }
+
   /**
    * Send technician credentials email with login information
    * @param {Object} technician - Technician object

@@ -18,6 +18,11 @@ import {
   authenticateAgency,
   authenticateUserTypes,
 } from "../middleware/auth.middleware.js";
+import {
+  deriveComplianceSubscriptions,
+  deriveSubscriptionAmount,
+  normalizeAgencyServicePricing,
+} from "../utils/agencyPricing.js";
 
 const router = express.Router();
 
@@ -58,6 +63,7 @@ router.post(
         password,
         subscriptionAmount,
         complianceSubscriptions,
+        servicePricing,
       } = req.body;
 
       // Validate required fields
@@ -100,23 +106,30 @@ router.post(
         });
       }
 
-      // Validate compliance subscriptions if provided
-      if (complianceSubscriptions && Array.isArray(complianceSubscriptions)) {
-        const validComplianceTypes = [
-          "Gas",
-          "Smoke Alarm",
-          "Smoke and Electricity",
-          "Minimum Compliance",
-        ];
-        const hasInvalidType = complianceSubscriptions.some(
-          (type) => !validComplianceTypes.includes(type)
-        );
-        if (hasInvalidType) {
-          return res.status(400).json({
-            status: "error",
-            message: "Invalid compliance subscription type",
-          });
+      let normalizedServicePricing = [];
+      try {
+        if (servicePricing !== undefined) {
+          normalizedServicePricing = normalizeAgencyServicePricing(servicePricing);
+        } else if (complianceSubscriptions && Array.isArray(complianceSubscriptions)) {
+          normalizedServicePricing = normalizeAgencyServicePricing(
+            complianceSubscriptions.map((serviceType) => ({
+              serviceType,
+              price: 0,
+            }))
+          );
         }
+      } catch (pricingError) {
+        return res.status(400).json({
+          status: "error",
+          message: pricingError.message || "Invalid service pricing",
+        });
+      }
+
+      if (normalizedServicePricing.length === 0) {
+        return res.status(400).json({
+          status: "error",
+          message: "At least one agency service with pricing is required",
+        });
       }
 
       // Check if agency already exists by email
@@ -147,15 +160,16 @@ router.post(
         email: email.toLowerCase(),
         phone,
         region,
-        complianceSubscriptions,
+        complianceSubscriptions:
+          deriveComplianceSubscriptions(normalizedServicePricing),
+        servicePricing: normalizedServicePricing,
         password,
         status: "Active",
+        subscriptionAmount:
+          numericSubscriptionAmount !== null
+            ? numericSubscriptionAmount
+            : deriveSubscriptionAmount(normalizedServicePricing),
       };
-
-      // Only set subscriptionAmount if provided
-      if (numericSubscriptionAmount !== null) {
-        agencyData.subscriptionAmount = numericSubscriptionAmount;
-      }
 
       const agency = new Agency(agencyData);
 
@@ -195,6 +209,7 @@ router.post(
             phone: agency.phone,
             region: agency.region,
             complianceSubscriptions: agency.complianceSubscriptions,
+            servicePricing: agency.servicePricing,
             status: agency.status,
             abn: agency.abn,
             subscriptionAmount: agency.subscriptionAmount,
@@ -284,6 +299,7 @@ router.post("/login", async (req, res) => {
           phone: agency.phone,
           region: agency.region,
           complianceSubscriptions: agency.complianceSubscriptions,
+          servicePricing: agency.servicePricing,
           status: agency.status,
           abn: agency.abn,
           subscriptionAmount: agency.subscriptionAmount,
@@ -610,6 +626,7 @@ router.get("/profile", authenticateAgency, async (req, res) => {
           phone: agency.phone,
           region: agency.region,
           complianceSubscriptions: agency.complianceSubscriptions,
+          servicePricing: agency.servicePricing,
           status: agency.status,
           abn: agency.abn,
           subscriptionAmount: agency.subscriptionAmount,
@@ -1065,6 +1082,7 @@ router.patch(
         status,
         outstandingAmount,
         complianceSubscriptions,
+        servicePricing,
         subscriptionAmount,
       } = req.body;
 
@@ -1193,42 +1211,41 @@ router.patch(
         agency.outstandingAmount = outstandingAmount;
       }
 
-      // Update compliance subscriptions
-      if (
-        complianceSubscriptions !== undefined &&
-        complianceSubscriptions !== null
-      ) {
-        // Handle empty array or array with values
-        if (Array.isArray(complianceSubscriptions)) {
-          const validComplianceTypes = [
-            "Gas",
-            "Smoke Alarm",
-            "Smoke and Electricity",
-            "Minimum Compliance",
-          ];
-          const hasInvalidType = complianceSubscriptions.some(
-            (type) => !validComplianceTypes.includes(type)
+      let normalizedServicePricing = null;
+      if (servicePricing !== undefined || complianceSubscriptions !== undefined) {
+        try {
+          normalizedServicePricing = normalizeAgencyServicePricing(
+            servicePricing !== undefined
+              ? servicePricing
+              : Array.isArray(complianceSubscriptions)
+              ? complianceSubscriptions.map((serviceType) => ({
+                  serviceType,
+                  price: 0,
+                }))
+              : []
           );
-          if (hasInvalidType) {
-            return res.status(400).json({
-              status: "error",
-              message: "Invalid compliance subscription type",
-            });
-          }
-          // Use set() method and markModified() to ensure Mongoose tracks the change
-          agency.set("complianceSubscriptions", complianceSubscriptions);
-          agency.markModified("complianceSubscriptions");
-        } else {
-          // If it's not an array, treat as invalid
+        } catch (pricingError) {
           return res.status(400).json({
             status: "error",
-            message: "complianceSubscriptions must be an array",
+            message: pricingError.message || "Invalid service pricing",
           });
         }
       }
 
+      if (normalizedServicePricing !== null) {
+        agency.set("servicePricing", normalizedServicePricing);
+        agency.markModified("servicePricing");
+        agency.set(
+          "complianceSubscriptions",
+          deriveComplianceSubscriptions(normalizedServicePricing)
+        );
+        agency.markModified("complianceSubscriptions");
+      }
+
       // Update subscription amount
-      if (subscriptionAmount !== undefined && subscriptionAmount !== null) {
+      if (normalizedServicePricing !== null) {
+        agency.subscriptionAmount = deriveSubscriptionAmount(normalizedServicePricing);
+      } else if (subscriptionAmount !== undefined && subscriptionAmount !== null) {
         const numericAmount =
           typeof subscriptionAmount === "string"
             ? parseFloat(subscriptionAmount)
@@ -1266,6 +1283,7 @@ router.patch(
             phone: savedAgency.phone,
             region: savedAgency.region,
             complianceSubscriptions: savedAgency.complianceSubscriptions,
+            servicePricing: savedAgency.servicePricing,
             status: savedAgency.status,
             abn: savedAgency.abn,
             subscriptionAmount: savedAgency.subscriptionAmount,
@@ -1366,6 +1384,7 @@ router.get(
             phone: agency.phone,
             region: agency.region,
             complianceSubscriptions: agency.complianceSubscriptions,
+            servicePricing: agency.servicePricing,
             status: agency.status,
             abn: agency.abn,
             subscriptionAmount: agency.subscriptionAmount,
@@ -1543,6 +1562,7 @@ router.get(
             phone: agency.phone,
             region: agency.region,
             complianceSubscriptions: agency.complianceSubscriptions,
+            servicePricing: agency.servicePricing,
             status: agency.status,
             abn: agency.abn,
             subscriptionAmount: agency.subscriptionAmount,
