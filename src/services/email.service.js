@@ -1229,7 +1229,19 @@ class EmailService {
       }
 
       if (attachments && attachments.length > 0) {
-        emailData.attachments = attachments;
+        emailData.attachments = attachments.map((attachment) => {
+          if (attachment.content) {
+            return {
+              filename: attachment.filename || "attachment",
+              content: attachment.content,
+              ...(attachment.contentType
+                ? { contentType: attachment.contentType }
+                : {}),
+            };
+          }
+
+          return attachment;
+        });
       }
 
       console.log(`📤 Sending email from ${from.email} to ${to.length} recipients`);
