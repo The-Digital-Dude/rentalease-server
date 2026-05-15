@@ -12,6 +12,8 @@ import PropertyManager from "../models/PropertyManager.js";
 import TeamMember from "../models/TeamMember.js";
 import TechnicianPayment from "../models/TechnicianPayment.js";
 import Quotation from "../models/Quotation.js";
+import Invoice from "../models/Invoice.js";
+import PropertyManagerInvoice from "../models/PropertyManagerInvoice.js";
 
 const router = express.Router();
 const JOB_STATUS_VALUES = [
@@ -393,6 +395,125 @@ router.get(
         },
       ]);
 
+      const [completedJobInvoiceStats, propertyManagerInvoiceStats] =
+        await Promise.all([
+          Invoice.aggregate([
+            {
+              $group: {
+                _id: null,
+                totalInvoices: { $sum: 1 },
+                totalAmount: { $sum: "$totalCost" },
+                draftAmount: {
+                  $sum: {
+                    $cond: [{ $eq: ["$status", "Draft"] }, "$totalCost", 0],
+                  },
+                },
+                draftCount: {
+                  $sum: {
+                    $cond: [{ $eq: ["$status", "Draft"] }, 1, 0],
+                  },
+                },
+                pendingAmount: {
+                  $sum: {
+                    $cond: [
+                      { $in: ["$status", ["Pending", "Sent"]] },
+                      "$totalCost",
+                      0,
+                    ],
+                  },
+                },
+                pendingCount: {
+                  $sum: {
+                    $cond: [{ $in: ["$status", ["Pending", "Sent"]] }, 1, 0],
+                  },
+                },
+                paidAmount: {
+                  $sum: {
+                    $cond: [{ $eq: ["$status", "Paid"] }, "$totalCost", 0],
+                  },
+                },
+                paidCount: {
+                  $sum: {
+                    $cond: [{ $eq: ["$status", "Paid"] }, 1, 0],
+                  },
+                },
+              },
+            },
+          ]),
+          PropertyManagerInvoice.aggregate([
+            {
+              $group: {
+                _id: null,
+                totalInvoices: { $sum: 1 },
+                totalAmount: { $sum: "$amount" },
+                draftAmount: { $sum: 0 },
+                draftCount: { $sum: 0 },
+                pendingAmount: {
+                  $sum: {
+                    $cond: [{ $eq: ["$status", "Pending"] }, "$amount", 0],
+                  },
+                },
+                pendingCount: {
+                  $sum: {
+                    $cond: [{ $eq: ["$status", "Pending"] }, 1, 0],
+                  },
+                },
+                paidAmount: {
+                  $sum: {
+                    $cond: [{ $eq: ["$status", "Accepted"] }, "$amount", 0],
+                  },
+                },
+                paidCount: {
+                  $sum: {
+                    $cond: [{ $eq: ["$status", "Accepted"] }, 1, 0],
+                  },
+                },
+                rejectedAmount: {
+                  $sum: {
+                    $cond: [{ $eq: ["$status", "Rejected"] }, "$amount", 0],
+                  },
+                },
+                rejectedCount: {
+                  $sum: {
+                    $cond: [{ $eq: ["$status", "Rejected"] }, 1, 0],
+                  },
+                },
+              },
+            },
+          ]),
+        ]);
+
+      const completedJobInvoiceSummary = completedJobInvoiceStats[0] || {};
+      const propertyManagerInvoiceSummary = propertyManagerInvoiceStats[0] || {};
+
+      const invoiceStats = {
+        totalInvoices:
+          (completedJobInvoiceSummary.totalInvoices || 0) +
+          (propertyManagerInvoiceSummary.totalInvoices || 0),
+        totalAmount:
+          (completedJobInvoiceSummary.totalAmount || 0) +
+          (propertyManagerInvoiceSummary.totalAmount || 0),
+        draftAmount: completedJobInvoiceSummary.draftAmount || 0,
+        draftCount: completedJobInvoiceSummary.draftCount || 0,
+        pendingAmount:
+          (completedJobInvoiceSummary.pendingAmount || 0) +
+          (propertyManagerInvoiceSummary.pendingAmount || 0),
+        pendingCount:
+          (completedJobInvoiceSummary.pendingCount || 0) +
+          (propertyManagerInvoiceSummary.pendingCount || 0),
+        paidAmount:
+          (completedJobInvoiceSummary.paidAmount || 0) +
+          (propertyManagerInvoiceSummary.paidAmount || 0),
+        paidCount:
+          (completedJobInvoiceSummary.paidCount || 0) +
+          (propertyManagerInvoiceSummary.paidCount || 0),
+        rejectedAmount: propertyManagerInvoiceSummary.rejectedAmount || 0,
+        rejectedCount: propertyManagerInvoiceSummary.rejectedCount || 0,
+        completedJobInvoices: completedJobInvoiceSummary.totalInvoices || 0,
+        propertyManagerInvoices:
+          propertyManagerInvoiceSummary.totalInvoices || 0,
+      };
+
       // Get monthly trends (last 6 months)
       const monthlyRangeStart = getDefaultRangeStart("monthly");
       const monthlyRangeEnd = new Date();
@@ -564,6 +685,7 @@ router.get(
           pendingCount: 0,
           paidCount: 0,
         },
+        invoiceStats,
         pricingSummary: {
           totalConfiguredMonthlyRevenue:
             pricingRevenueMetrics.totalConfiguredMonthlyRevenue || 0,

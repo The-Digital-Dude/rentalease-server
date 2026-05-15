@@ -11,7 +11,7 @@ const propertyManagerInvoiceSchema = new mongoose.Schema(
     propertyManagerId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "PropertyManager",
-      required: [true, "Property Manager ID is required"],
+      default: null,
     },
     agencyId: {
       type: mongoose.Schema.Types.ObjectId,

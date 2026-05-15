@@ -158,8 +158,34 @@ const resolveAgencyForJob = async (job) => {
   return null;
 };
 
+const buildInvoicePopulateConfig = () => [
+  {
+    path: "jobId",
+    select: "job_id jobType property dueDate status",
+    populate: {
+      path: "property",
+      select: "address assignedPropertyManager agency",
+      populate: [
+        {
+          path: "assignedPropertyManager",
+          select: "firstName lastName fullName email phone",
+        },
+        {
+          path: "agency",
+          select: "companyName contactPerson email phone",
+        },
+      ],
+    },
+  },
+  { path: "technicianId", select: "firstName lastName email phone" },
+  { path: "agencyId", select: "companyName contactPerson email phone" },
+];
+
 const buildInvoiceReviewData = async (invoice) => {
-  const job = await Job.findById(invoice.jobId).populate("property", "address reportFile");
+  const job = await Job.findById(invoice.jobId).populate(
+    "property",
+    "address reportFile"
+  );
   const agency = await Agency.findById(invoice.agencyId).select(
     "companyName contactPerson email"
   );
@@ -530,11 +556,7 @@ router.post("/", authenticateUserTypes(['SuperUser', 'TeamMember']), async (req,
     await job.save();
 
     // Populate references for response
-    await invoice.populate([
-      { path: "jobId", select: "job_id jobType property" },
-      { path: "technicianId", select: "firstName lastName email" },
-      { path: "agencyId", select: "companyName contactPerson email" },
-    ]);
+    await invoice.populate(buildInvoicePopulateConfig());
 
     // Send notification to agency about new invoice
     try {
@@ -606,11 +628,9 @@ router.get("/job/:jobId", authenticateUserTypes(['SuperUser', 'TeamMember', 'Age
     }
 
     // Find invoice for the job
-    const invoice = await Invoice.findOne({ jobId }).populate([
-      { path: "jobId", select: "job_id jobType property dueDate status" },
-      { path: "technicianId", select: "firstName lastName email phone" },
-      { path: "agencyId", select: "companyName contactPerson email phone" },
-    ]);
+    const invoice = await Invoice.findOne({ jobId }).populate(
+      buildInvoicePopulateConfig()
+    );
 
     if (!invoice) {
       return res.status(404).json({
@@ -767,11 +787,7 @@ router.post(
       job.invoice = invoice._id;
       await job.save();
 
-      await invoice.populate([
-        { path: "jobId", select: "job_id jobType property dueDate status" },
-        { path: "technicianId", select: "firstName lastName email phone" },
-        { path: "agencyId", select: "companyName contactPerson email phone" },
-      ]);
+      await invoice.populate(buildInvoicePopulateConfig());
 
       return res.status(201).json({
         status: "success",
@@ -855,6 +871,66 @@ router.patch("/:invoiceId", authenticateUserTypes(['SuperUser', 'TeamMember']), 
   }
 });
 
+router.patch(
+  "/:invoiceId/status",
+  authenticateUserTypes(["SuperUser", "TeamMember"]),
+  async (req, res) => {
+    try {
+      const { invoiceId } = req.params;
+      const { status, paymentMethod = null, paymentReference = "" } = req.body;
+
+      if (!mongoose.Types.ObjectId.isValid(invoiceId)) {
+        return res.status(400).json({
+          status: "error",
+          message: "Invalid invoice ID format",
+        });
+      }
+
+      if (!status || !["Draft", "Pending", "Sent", "Paid"].includes(status)) {
+        return res.status(400).json({
+          status: "error",
+          message: "Invalid invoice status",
+        });
+      }
+
+      const invoice = await Invoice.findById(invoiceId).populate(
+        buildInvoicePopulateConfig()
+      );
+
+      if (!invoice) {
+        return res.status(404).json({
+          status: "error",
+          message: "Invoice not found",
+        });
+      }
+
+      invoice.status = status;
+
+      if (status === "Paid") {
+        invoice.paymentMethod = paymentMethod || invoice.paymentMethod || "Other";
+        invoice.paymentReference = paymentReference || invoice.paymentReference || "";
+      }
+
+      await invoice.save();
+
+      return res.status(200).json({
+        status: "success",
+        message: `Invoice marked as ${status}`,
+        data: {
+          invoice: invoice.getFullDetails(),
+          reviewData: await buildInvoiceReviewData(invoice),
+        },
+      });
+    } catch (error) {
+      console.error("Update invoice status error:", error);
+      return res.status(500).json({
+        status: "error",
+        message: "Failed to update invoice status",
+      });
+    }
+  }
+);
+
 // PATCH - Send invoice to agency and property managers
 router.patch("/:invoiceId/send", authenticate, async (req, res) => {
   try {
@@ -876,11 +952,9 @@ router.patch("/:invoiceId/send", authenticate, async (req, res) => {
       });
     }
 
-    const invoice = await Invoice.findById(invoiceId).populate([
-      { path: "jobId", select: "job_id jobType property" },
-      { path: "technicianId", select: "firstName lastName email" },
-      { path: "agencyId", select: "companyName contactPerson email" },
-    ]);
+    const invoice = await Invoice.findById(invoiceId).populate(
+      buildInvoicePopulateConfig()
+    );
 
     if (!invoice) {
       return res.status(404).json({
@@ -1093,11 +1167,7 @@ router.get("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'Pro
 
     // Execute query
     const invoices = await Invoice.find(query)
-      .populate([
-        { path: "jobId", select: "job_id jobType property" },
-        { path: "technicianId", select: "firstName lastName email" },
-        { path: "agencyId", select: "companyName contactPerson" },
-      ])
+      .populate(buildInvoicePopulateConfig())
       .sort({ [sortBy]: sortOrder === "desc" ? -1 : 1 })
       .skip(skip)
       .limit(parseInt(limit));
@@ -1155,11 +1225,9 @@ router.get("/:id", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', '
       });
     }
 
-    const invoice = await Invoice.findById(id).populate([
-      { path: "jobId", select: "job_id jobType property dueDate status" },
-      { path: "technicianId", select: "firstName lastName email phone" },
-      { path: "agencyId", select: "companyName contactPerson email phone" },
-    ]);
+    const invoice = await Invoice.findById(id).populate(
+      buildInvoicePopulateConfig()
+    );
 
     if (!invoice) {
       return res.status(404).json({
@@ -1204,6 +1272,7 @@ router.get("/:id", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', '
       message: "Invoice retrieved successfully",
       data: {
         invoice: invoice.getFullDetails(),
+        reviewData: await buildInvoiceReviewData(invoice),
       },
     });
   } catch (error) {

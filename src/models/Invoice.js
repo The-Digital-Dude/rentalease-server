@@ -225,6 +225,20 @@ invoiceSchema.methods.getFullDetails = function () {
 
 // Method to get summary details (for list views)
 invoiceSchema.methods.getSummary = function () {
+  const job = this.jobId && typeof this.jobId === "object" ? this.jobId : null;
+  const property =
+    job?.property && typeof job.property === "object" ? job.property : null;
+  const propertyAddress =
+    property?.address?.fullAddress ||
+    [
+      property?.address?.street,
+      property?.address?.suburb,
+      property?.address?.state,
+      property?.address?.postcode,
+    ]
+      .filter(Boolean)
+      .join(", ");
+
   return {
     id: this._id,
     invoiceNumber: this.invoiceNumber,
@@ -234,8 +248,11 @@ invoiceSchema.methods.getSummary = function () {
     description: this.description,
     totalCost: this.totalCost,
     status: this.status,
+    propertyAddress: propertyAddress || "",
     createdAt: this.createdAt,
     sentAt: this.sentAt,
+    paidAt: this.paidAt,
+    updatedAt: this.updatedAt,
   };
 };
 

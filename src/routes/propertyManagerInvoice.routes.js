@@ -126,14 +126,6 @@ router.post(
         }
       }
 
-      // Ensure property has a property manager assigned
-      if (!property.assignedPropertyManager) {
-        return res.status(400).json({
-          status: "error",
-          message: "Property does not have a property manager assigned",
-        });
-      }
-
       // Ensure property has an agency assigned
       if (!property.agency) {
         return res.status(400).json({
@@ -142,7 +134,7 @@ router.post(
         });
       }
 
-      const propertyManagerId = property.assignedPropertyManager._id;
+      const propertyManagerId = property.assignedPropertyManager?._id || null;
       const agencyId = property.agency._id;
 
       // Create invoice
