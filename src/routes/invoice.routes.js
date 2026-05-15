@@ -130,14 +130,12 @@ router.post("/", authenticateUserTypes(['SuperUser', 'TeamMember']), async (req,
     } = req.body;
 
     // Validate required fields
-    if (!jobId || !technicianId || !agencyId || !description || !items) {
+    if (!jobId || !description || !items) {
       return res.status(400).json({
         status: "error",
         message: "Please provide all required fields",
         details: {
           jobId: !jobId ? "Job ID is required" : null,
-          technicianId: !technicianId ? "Technician ID is required" : null,
-          agencyId: !agencyId ? "Agency ID is required" : null,
           description: !description ? "Description is required" : null,
           items: !items ? "Items are required" : null,
         },
@@ -149,20 +147,6 @@ router.post("/", authenticateUserTypes(['SuperUser', 'TeamMember']), async (req,
       return res.status(400).json({
         status: "error",
         message: "Invalid job ID format",
-      });
-    }
-
-    if (!mongoose.Types.ObjectId.isValid(technicianId)) {
-      return res.status(400).json({
-        status: "error",
-        message: "Invalid technician ID format",
-      });
-    }
-
-    if (!mongoose.Types.ObjectId.isValid(agencyId)) {
-      return res.status(400).json({
-        status: "error",
-        message: "Invalid agency ID format",
       });
     }
 
@@ -195,8 +179,17 @@ router.post("/", authenticateUserTypes(['SuperUser', 'TeamMember']), async (req,
       });
     }
 
+    const resolvedTechnicianId =
+      technicianId || job.assignedTechnician?.toString?.() || job.assignedTechnician;
+    if (!resolvedTechnicianId || !mongoose.Types.ObjectId.isValid(resolvedTechnicianId)) {
+      return res.status(400).json({
+        status: "error",
+        message: "A valid technician is required to create an invoice for this job",
+      });
+    }
+
     // Check if technician exists
-    const technician = await Technician.findById(technicianId);
+    const technician = await Technician.findById(resolvedTechnicianId);
     if (!technician) {
       return res.status(404).json({
         status: "error",
@@ -204,12 +197,16 @@ router.post("/", authenticateUserTypes(['SuperUser', 'TeamMember']), async (req,
       });
     }
 
-    // Check if agency exists
-    const agency = await Agency.findById(agencyId);
+    const resolvedAgency =
+      agencyId && mongoose.Types.ObjectId.isValid(agencyId)
+        ? await Agency.findById(agencyId)
+        : await resolveAgencyForJob(job);
+
+    const agency = resolvedAgency;
     if (!agency) {
-      return res.status(404).json({
+      return res.status(400).json({
         status: "error",
-        message: "Agency not found",
+        message: "An agency is required to create an invoice for this job",
       });
     }
 
@@ -232,8 +229,8 @@ router.post("/", authenticateUserTypes(['SuperUser', 'TeamMember']), async (req,
     // Create invoice with calculated amounts
     const invoiceData = {
       jobId,
-      technicianId,
-      agencyId,
+      technicianId: technician._id,
+      agencyId: agency._id,
       description,
       items: items.map((item) => ({
         ...item,
@@ -248,6 +245,10 @@ router.post("/", authenticateUserTypes(['SuperUser', 'TeamMember']), async (req,
 
     const invoice = new Invoice(invoiceData);
     await invoice.save();
+
+    job.hasInvoice = true;
+    job.invoice = invoice._id;
+    await job.save();
 
     // Populate references for response
     await invoice.populate([
