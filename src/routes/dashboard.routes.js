@@ -14,6 +14,261 @@ import TechnicianPayment from "../models/TechnicianPayment.js";
 import Quotation from "../models/Quotation.js";
 
 const router = express.Router();
+const JOB_STATUS_VALUES = [
+  "Pending",
+  "Pending Quotation",
+  "Quotation Sent",
+  "Scheduled",
+  "Completed",
+  "Overdue",
+  "Cancelled",
+];
+const ACTIVE_JOB_STATUSES = JOB_STATUS_VALUES.filter(
+  (status) => !["Completed", "Cancelled"].includes(status)
+);
+const STATUS_FILTER_MAP = {
+  all: null,
+  active: ACTIVE_JOB_STATUSES,
+  completed: ["Completed"],
+  pending: ["Pending"],
+  pending_quotation: ["Pending Quotation"],
+  quotation_sent: ["Quotation Sent"],
+  scheduled: ["Scheduled"],
+  overdue: ["Overdue"],
+  cancelled: ["Cancelled"],
+};
+const MONTH_NAMES = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+
+const resolvedCompletedAtExpression = {
+  $ifNull: ["$completedAt", "$updatedAt"],
+};
+
+const parseDateInput = (value, endOfDay = false) => {
+  if (!value) return null;
+
+  const parsedDate = new Date(value);
+  if (Number.isNaN(parsedDate.getTime())) {
+    return null;
+  }
+
+  if (endOfDay) {
+    parsedDate.setHours(23, 59, 59, 999);
+  } else {
+    parsedDate.setHours(0, 0, 0, 0);
+  }
+
+  return parsedDate;
+};
+
+const getDefaultRangeStart = (viewType) => {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+
+  switch (viewType) {
+    case "daily":
+      start.setDate(start.getDate() - 29);
+      return start;
+    case "weekly":
+      start.setDate(start.getDate() - 7 * 11);
+      return start;
+    case "monthly":
+    default:
+      return new Date(start.getFullYear(), start.getMonth() - 5, 1);
+  }
+};
+
+const getTimeGrouping = (viewType, dateField) => {
+  switch (viewType) {
+    case "daily":
+      return {
+        year: { $year: dateField },
+        month: { $month: dateField },
+        day: { $dayOfMonth: dateField },
+      };
+    case "weekly":
+      return {
+        year: { $isoWeekYear: dateField },
+        week: { $isoWeek: dateField },
+      };
+    case "monthly":
+    default:
+      return {
+        year: { $year: dateField },
+        month: { $month: dateField },
+      };
+  }
+};
+
+const getBucketKey = (bucket, viewType) => {
+  switch (viewType) {
+    case "daily":
+      return `${bucket.year}-${bucket.month}-${bucket.day}`;
+    case "weekly":
+      return `${bucket.year}-W${bucket.week}`;
+    case "monthly":
+    default:
+      return `${bucket.year}-${bucket.month}`;
+  }
+};
+
+const formatBucketLabel = (bucket, viewType) => {
+  switch (viewType) {
+    case "daily":
+      return `${bucket.day}/${bucket.month}/${bucket.year}`;
+    case "weekly":
+      return `Week ${bucket.week}, ${bucket.year}`;
+    case "monthly":
+    default:
+      return `${MONTH_NAMES[bucket.month - 1]} ${bucket.year}`;
+  }
+};
+
+const buildTimeBuckets = (startDate, endDate, viewType) => {
+  const buckets = [];
+
+  if (viewType === "daily") {
+    const cursor = new Date(startDate);
+    while (cursor <= endDate) {
+      buckets.push({
+        key: getBucketKey(
+          {
+            year: cursor.getFullYear(),
+            month: cursor.getMonth() + 1,
+            day: cursor.getDate(),
+          },
+          viewType
+        ),
+        label: formatBucketLabel(
+          {
+            year: cursor.getFullYear(),
+            month: cursor.getMonth() + 1,
+            day: cursor.getDate(),
+          },
+          viewType
+        ),
+      });
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    return buckets;
+  }
+
+  if (viewType === "weekly") {
+    const cursor = new Date(startDate);
+    while (cursor <= endDate) {
+      const week = getIsoWeek(cursor);
+      const year = getIsoWeekYear(cursor);
+
+      buckets.push({
+        key: getBucketKey({ year, week }, viewType),
+        label: formatBucketLabel({ year, week }, viewType),
+      });
+      cursor.setDate(cursor.getDate() + 7);
+    }
+    return Array.from(new Map(buckets.map((bucket) => [bucket.key, bucket])).values());
+  }
+
+  const cursor = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+  const endCursor = new Date(endDate.getFullYear(), endDate.getMonth(), 1);
+  while (cursor <= endCursor) {
+    buckets.push({
+      key: getBucketKey(
+        {
+          year: cursor.getFullYear(),
+          month: cursor.getMonth() + 1,
+        },
+        viewType
+      ),
+      label: formatBucketLabel(
+        {
+          year: cursor.getFullYear(),
+          month: cursor.getMonth() + 1,
+        },
+        viewType
+      ),
+    });
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+
+  return buckets;
+};
+
+const getIsoWeekYear = (date) => {
+  const tempDate = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  tempDate.setUTCDate(tempDate.getUTCDate() + 4 - (tempDate.getUTCDay() || 7));
+  return tempDate.getUTCFullYear();
+};
+
+const getIsoWeek = (date) => {
+  const tempDate = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  tempDate.setUTCDate(tempDate.getUTCDate() + 4 - (tempDate.getUTCDay() || 7));
+  const yearStart = new Date(Date.UTC(tempDate.getUTCFullYear(), 0, 1));
+  return Math.ceil((((tempDate - yearStart) / 86400000) + 1) / 7);
+};
+
+const aggregateBucketCounts = async ({
+  match = {},
+  dateField = "$createdAt",
+  viewType = "monthly",
+}) => {
+  const results = await Job.aggregate([
+    { $match: match },
+    {
+      $group: {
+        _id: getTimeGrouping(viewType, dateField),
+        count: { $sum: 1 },
+      },
+    },
+    { $sort: { "_id.year": 1, "_id.month": 1, "_id.week": 1, "_id.day": 1 } },
+  ]);
+
+  return new Map(
+    results.map((item) => [getBucketKey(item._id, viewType), item.count])
+  );
+};
+
+const aggregateResolvedCompletedCount = async (startDate, endDate = null) => {
+  const resolvedCompletedAtMatch = endDate
+    ? { $gte: startDate, $lte: endDate }
+    : { $gte: startDate };
+
+  const result = await Job.aggregate([
+    { $match: { status: "Completed" } },
+    { $addFields: { resolvedCompletedAt: resolvedCompletedAtExpression } },
+    { $match: { resolvedCompletedAt: resolvedCompletedAtMatch } },
+    { $count: "count" },
+  ]);
+
+  return result[0]?.count || 0;
+};
+
+const aggregateStatusDistribution = async (match = {}) => {
+  const rows = await Job.aggregate([
+    { $match: match },
+    { $group: { _id: "$status", count: { $sum: 1 } } },
+  ]);
+
+  const countsByStatus = new Map(
+    rows.map((row) => [row._id || "Unknown", row.count])
+  );
+
+  return JOB_STATUS_VALUES.map((status) => ({
+    status,
+    count: countsByStatus.get(status) || 0,
+  }));
+};
 
 // GET - Super User/Team Member dashboard statistics
 router.get(
@@ -42,7 +297,7 @@ router.get(
         PropertyManager.countDocuments({ status: "Active" }),
         TeamMember.countDocuments({ status: "Active" }),
         Job.countDocuments(),
-        Job.countDocuments({ status: "In Progress" }),
+        Job.countDocuments({ status: { $in: ACTIVE_JOB_STATUSES } }),
         Job.countDocuments({ status: "Completed" }),
         Job.countDocuments({ status: "Pending" }),
         Job.countDocuments({ status: "Overdue" }),
@@ -93,10 +348,7 @@ router.get(
       ]);
 
       // Get job status distribution
-      const jobStatusDistribution = await Job.aggregate([
-        { $group: { _id: "$status", count: { $sum: 1 } } },
-        { $sort: { count: -1 } },
-      ]);
+      const jobStatusDistribution = await aggregateStatusDistribution();
 
       // Get recent activity (last 7 days)
       const sevenDaysAgo = new Date();
@@ -115,10 +367,7 @@ router.get(
         newJobs: await Job.countDocuments({
           createdAt: { $gte: sevenDaysAgo },
         }),
-        completedJobsWeek: await Job.countDocuments({
-          status: "Completed",
-          updatedAt: { $gte: sevenDaysAgo },
-        }),
+        completedJobsWeek: await aggregateResolvedCompletedCount(sevenDaysAgo),
       };
 
       // Get payment statistics
@@ -145,47 +394,46 @@ router.get(
       ]);
 
       // Get monthly trends (last 6 months)
-      const sixMonthsAgo = new Date();
-      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+      const monthlyRangeStart = getDefaultRangeStart("monthly");
+      const monthlyRangeEnd = new Date();
+      monthlyRangeEnd.setHours(23, 59, 59, 999);
 
-      const monthlyTrends = await Job.aggregate([
-        {
-          $match: { createdAt: { $gte: sixMonthsAgo } },
-        },
-        {
-          $group: {
-            _id: {
-              year: { $year: "$createdAt" },
-              month: { $month: "$createdAt" },
-            },
-            totalJobs: { $sum: 1 },
-            completedJobs: {
-              $sum: { $cond: [{ $eq: ["$status", "Completed"] }, 1, 0] },
-            },
+      const [totalJobsByMonth, completedJobsByMonth] = await Promise.all([
+        aggregateBucketCounts({
+          match: { createdAt: { $gte: monthlyRangeStart, $lte: monthlyRangeEnd } },
+          dateField: "$createdAt",
+          viewType: "monthly",
+        }),
+        aggregateBucketCounts({
+          match: {
+            status: "Completed",
+            completedAt: { $gte: monthlyRangeStart, $lte: monthlyRangeEnd },
           },
-        },
-        { $sort: { "_id.year": 1, "_id.month": 1 } },
+          dateField: "$completedAt",
+          viewType: "monthly",
+        }),
       ]);
 
-      // Format monthly trends data
-      const monthNames = [
-        "Jan",
-        "Feb",
-        "Mar",
-        "Apr",
-        "May",
-        "Jun",
-        "Jul",
-        "Aug",
-        "Sep",
-        "Oct",
-        "Nov",
-        "Dec",
-      ];
-      const formattedMonthlyTrends = monthlyTrends.map((item) => ({
-        month: `${monthNames[item._id.month - 1]} ${item._id.year}`,
-        totalJobs: item.totalJobs,
-        completedJobs: item.completedJobs,
+      const legacyCompletedJobsByMonth = await aggregateBucketCounts({
+        match: {
+          status: "Completed",
+          $or: [{ completedAt: null }, { completedAt: { $exists: false } }],
+          updatedAt: { $gte: monthlyRangeStart, $lte: monthlyRangeEnd },
+        },
+        dateField: "$updatedAt",
+        viewType: "monthly",
+      });
+
+      const formattedMonthlyTrends = buildTimeBuckets(
+        monthlyRangeStart,
+        monthlyRangeEnd,
+        "monthly"
+      ).map((bucket) => ({
+        month: bucket.label,
+        totalJobs: totalJobsByMonth.get(bucket.key) || 0,
+        completedJobs:
+          (completedJobsByMonth.get(bucket.key) || 0) +
+          (legacyCompletedJobsByMonth.get(bucket.key) || 0),
       }));
 
       // Get top performing technicians (by completed jobs this month)
@@ -196,9 +444,14 @@ router.get(
       );
       const topTechnicians = await Job.aggregate([
         {
+          $addFields: {
+            resolvedCompletedAt: resolvedCompletedAtExpression,
+          },
+        },
+        {
           $match: {
             status: "Completed",
-            updatedAt: { $gte: thisMonthStart },
+            resolvedCompletedAt: { $gte: thisMonthStart },
           },
         },
         {
@@ -297,10 +550,10 @@ router.get(
           overdueJobs,
         },
         jobStatusDistribution: jobStatusDistribution.map((item) => ({
-          status: item._id || "Unknown",
+          status: item.status,
           count: item.count,
           percentage:
-            totalJobs > 0 ? ((item.count / totalJobs) * 100).toFixed(1) : 0,
+            totalJobs > 0 ? ((item.count / totalJobs) * 100).toFixed(1) : "0.0",
         })),
         recentActivity,
         paymentStats: paymentStats[0] || {
@@ -486,128 +739,194 @@ router.get(
       const {
         startDate,
         endDate,
-        viewType = 'monthly', // daily, weekly, monthly
-        statusFilter = 'all'
+        viewType = "monthly",
+        statusFilter = "all",
       } = req.query;
 
-      let dateFilter = {};
-      if (startDate && endDate) {
-        dateFilter = {
-          createdAt: {
-            $gte: new Date(startDate),
-            $lte: new Date(endDate)
-          }
-        };
-      }
-
-      // Build status filter
-      let jobStatusFilter = {};
-      if (statusFilter && statusFilter !== 'all') {
-        jobStatusFilter.status = statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1).replace('_', ' ');
-      }
-
-      // Get filtered monthly/weekly/daily trends
-      const getTimeGrouping = () => {
-        switch (viewType) {
-          case 'daily':
-            return {
-              year: { $year: "$createdAt" },
-              month: { $month: "$createdAt" },
-              day: { $dayOfMonth: "$createdAt" }
-            };
-          case 'weekly':
-            return {
-              year: { $year: "$createdAt" },
-              week: { $week: "$createdAt" }
-            };
-          case 'monthly':
-          default:
-            return {
-              year: { $year: "$createdAt" },
-              month: { $month: "$createdAt" }
-            };
-        }
-      };
-
-      const timeGrouping = getTimeGrouping();
-      
-      const trendsData = await Job.aggregate([
-        {
-          $match: { ...dateFilter, ...jobStatusFilter }
-        },
-        {
-          $group: {
-            _id: timeGrouping,
-            totalJobs: { $sum: 1 },
-            completedJobs: {
-              $sum: { $cond: [{ $eq: ["$status", "Completed"] }, 1, 0] }
-            },
-            pendingJobs: {
-              $sum: { $cond: [{ $eq: ["$status", "Pending"] }, 1, 0] }
-            },
-            inProgressJobs: {
-              $sum: { $cond: [{ $eq: ["$status", "In Progress"] }, 1, 0] }
-            },
-            overdueJobs: {
-              $sum: { $cond: [{ $eq: ["$status", "Overdue"] }, 1, 0] }
-            }
-          }
-        },
-        { $sort: { "_id.year": 1, "_id.month": 1, "_id.week": 1, "_id.day": 1 } }
-      ]);
-
-      // Format trends data based on view type
-      const formatTrendsData = (data) => {
-        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-        
-        return data.map(item => {
-          let label = '';
-          
-          switch (viewType) {
-            case 'daily':
-              label = `${item._id.day}/${item._id.month}/${item._id.year}`;
-              break;
-            case 'weekly':
-              label = `Week ${item._id.week}, ${item._id.year}`;
-              break;
-            case 'monthly':
-            default:
-              label = `${monthNames[item._id.month - 1]} ${item._id.year}`;
-              break;
-          }
-          
-          return {
-            period: label,
-            totalJobs: item.totalJobs,
-            completedJobs: item.completedJobs,
-            pendingJobs: item.pendingJobs,
-            inProgressJobs: item.inProgressJobs,
-            overdueJobs: item.overdueJobs,
-            completionRate: item.totalJobs > 0 ? ((item.completedJobs / item.totalJobs) * 100).toFixed(1) : 0
-          };
+      if (!["daily", "weekly", "monthly"].includes(viewType)) {
+        return res.status(400).json({
+          status: "error",
+          message: "viewType must be one of: daily, weekly, monthly",
         });
+      }
+
+      if (!(statusFilter in STATUS_FILTER_MAP)) {
+        return res.status(400).json({
+          status: "error",
+          message: `statusFilter must be one of: ${Object.keys(
+            STATUS_FILTER_MAP
+          ).join(", ")}`,
+        });
+      }
+
+      const validatedStartDate = startDate
+        ? parseDateInput(startDate)
+        : getDefaultRangeStart(viewType);
+      const validatedEndDate = endDate
+        ? parseDateInput(endDate, true)
+        : parseDateInput(new Date().toISOString(), true);
+
+      if (!validatedStartDate || !validatedEndDate) {
+        return res.status(400).json({
+          status: "error",
+          message: "startDate and endDate must be valid dates",
+        });
+      }
+
+      if (validatedStartDate > validatedEndDate) {
+        return res.status(400).json({
+          status: "error",
+          message: "startDate cannot be later than endDate",
+        });
+      }
+
+      const selectedStatuses = STATUS_FILTER_MAP[statusFilter];
+      const createdDateMatch = {
+        createdAt: { $gte: validatedStartDate, $lte: validatedEndDate },
+      };
+      const completedBaseMatch = {
+        status: "Completed",
+        completedAt: { $gte: validatedStartDate, $lte: validatedEndDate },
+      };
+      const legacyCompletedBaseMatch = {
+        status: "Completed",
+        $or: [{ completedAt: null }, { completedAt: { $exists: false } }],
+        updatedAt: { $gte: validatedStartDate, $lte: validatedEndDate },
       };
 
-      const formattedTrendsData = formatTrendsData(trendsData);
+      const totalJobsMatch = {
+        ...createdDateMatch,
+        ...(selectedStatuses ? { status: { $in: selectedStatuses } } : {}),
+      };
+      const pendingJobsMatch = {
+        ...createdDateMatch,
+        status: "Pending",
+      };
+      const activeJobsMatch = {
+        ...createdDateMatch,
+        status: { $in: ACTIVE_JOB_STATUSES },
+      };
+      const overdueJobsMatch = {
+        ...createdDateMatch,
+        status: "Overdue",
+      };
 
-      // Get filtered job status distribution
-      const statusDistribution = await Job.aggregate([
-        { $match: { ...dateFilter } },
-        { $group: { _id: "$status", count: { $sum: 1 } } },
-        { $sort: { count: -1 } }
+      const shouldIncludeCompleted = !selectedStatuses || selectedStatuses.includes("Completed");
+      const shouldIncludePending = !selectedStatuses || selectedStatuses.includes("Pending");
+      const shouldIncludeActive =
+        !selectedStatuses || selectedStatuses.some((status) => ACTIVE_JOB_STATUSES.includes(status));
+      const shouldIncludeOverdue = !selectedStatuses || selectedStatuses.includes("Overdue");
+      const completedOnlyFilter =
+        Array.isArray(selectedStatuses) &&
+        selectedStatuses.length === 1 &&
+        selectedStatuses[0] === "Completed";
+
+      const [
+        totalJobsByBucket,
+        completedJobsByBucket,
+        legacyCompletedJobsByBucket,
+        pendingJobsByBucket,
+        activeJobsByBucket,
+        overdueJobsByBucket,
+        rawStatusDistribution,
+      ] = await Promise.all([
+        completedOnlyFilter
+          ? Promise.resolve(new Map())
+          : aggregateBucketCounts({
+              match: totalJobsMatch,
+              dateField: "$createdAt",
+              viewType,
+            }),
+        shouldIncludeCompleted
+          ? aggregateBucketCounts({
+              match: completedBaseMatch,
+              dateField: "$completedAt",
+              viewType,
+            })
+          : Promise.resolve(new Map()),
+        shouldIncludeCompleted
+          ? aggregateBucketCounts({
+              match: legacyCompletedBaseMatch,
+              dateField: "$updatedAt",
+              viewType,
+            })
+          : Promise.resolve(new Map()),
+        shouldIncludePending
+          ? aggregateBucketCounts({
+              match: pendingJobsMatch,
+              dateField: "$createdAt",
+              viewType,
+            })
+          : Promise.resolve(new Map()),
+        shouldIncludeActive
+          ? aggregateBucketCounts({
+              match: activeJobsMatch,
+              dateField: "$createdAt",
+              viewType,
+            })
+          : Promise.resolve(new Map()),
+        shouldIncludeOverdue
+          ? aggregateBucketCounts({
+              match: overdueJobsMatch,
+              dateField: "$createdAt",
+              viewType,
+            })
+          : Promise.resolve(new Map()),
+        completedOnlyFilter
+          ? aggregateResolvedCompletedCount(validatedStartDate, validatedEndDate).then(
+              (completedCount) =>
+                JOB_STATUS_VALUES.map((status) => ({
+                  status,
+                  count: status === "Completed" ? completedCount : 0,
+                }))
+            )
+          : aggregateStatusDistribution(totalJobsMatch),
       ]);
 
-      const totalFilteredJobs = statusDistribution.reduce((sum, item) => sum + item.count, 0);
+      const formattedTrendsData = buildTimeBuckets(
+        validatedStartDate,
+        validatedEndDate,
+        viewType
+      ).map((bucket) => {
+        const completedJobs =
+          (completedJobsByBucket.get(bucket.key) || 0) +
+          (legacyCompletedJobsByBucket.get(bucket.key) || 0);
+        const totalJobs = completedOnlyFilter
+          ? completedJobs
+          : totalJobsByBucket.get(bucket.key) || 0;
+        const pendingJobs = pendingJobsByBucket.get(bucket.key) || 0;
+        const activeJobs = activeJobsByBucket.get(bucket.key) || 0;
+        const overdueJobs = overdueJobsByBucket.get(bucket.key) || 0;
+
+        return {
+          period: bucket.label,
+          totalJobs,
+          completedJobs,
+          pendingJobs,
+          activeJobs,
+          overdueJobs,
+          completionRate:
+            totalJobs > 0 ? ((completedJobs / totalJobs) * 100).toFixed(1) : "0.0",
+        };
+      });
+
+      const totalFilteredJobs = rawStatusDistribution.reduce(
+        (sum, item) => sum + item.count,
+        0
+      );
 
       res.status(200).json({
         status: "success",
         message: "Filtered dashboard statistics retrieved successfully",
         data: {
           trends: formattedTrendsData,
-          statusDistribution: statusDistribution.map(item => ({
-            status: item._id || "Unknown",
+          statusDistribution: rawStatusDistribution.map((item) => ({
+            status: item.status,
             count: item.count,
-            percentage: totalFilteredJobs > 0 ? ((item.count / totalFilteredJobs) * 100).toFixed(1) : 0
+            percentage:
+              totalFilteredJobs > 0
+                ? ((item.count / totalFilteredJobs) * 100).toFixed(1)
+                : "0.0",
           })),
           totalJobs: totalFilteredJobs,
           dateRange: { startDate, endDate },
