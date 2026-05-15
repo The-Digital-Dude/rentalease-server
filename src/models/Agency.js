@@ -69,10 +69,10 @@ const agencySchema = new mongoose.Schema(
         type: String,
         enum: {
           values: [
-            "Gas",
+            "Gas Safety Check",
             "Smoke Alarm",
-            "Smoke and Electricity",
-            "Minimum Compliance",
+            "Electrical and Smoke Alarm",
+            "Minimum Safety Standard",
           ],
           message: "Invalid compliance subscription type: {VALUE}",
         },
