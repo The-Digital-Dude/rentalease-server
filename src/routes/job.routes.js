@@ -479,6 +479,25 @@ router.get(
         query.property = req.query.property;
       }
 
+      if (sortBy === "completedAt") {
+        await Job.updateMany(
+          {
+            ...baseQuery,
+            status: "Completed",
+            completedAt: null,
+          },
+          [
+            {
+              $set: {
+                completedAt: {
+                  $ifNull: ["$updatedAt", "$createdAt"],
+                },
+              },
+            },
+          ]
+        );
+      }
+
       // Calculate pagination
       const skip = (parseInt(page) - 1) * parseInt(limit);
 
