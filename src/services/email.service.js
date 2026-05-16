@@ -1,5 +1,5 @@
 import { Resend } from "resend";
-import emailConfig from "../config/email.js";
+import emailConfig, { isValidEmail } from "../config/email.js";
 import emailTemplates from "../utils/emailTemplates.js";
 import SuperUser from "../models/SuperUser.js";
 import Agency from "../models/Agency.js";
@@ -23,6 +23,106 @@ class EmailService {
     // Bind methods to preserve 'this' context
     this.sendTemplatedEmail = this.sendTemplatedEmail.bind(this);
     this.sendWelcomeEmail = this.sendWelcomeEmail.bind(this);
+  }
+
+  async resolveRecipientReference(recipient) {
+    if (!recipient) {
+      return null;
+    }
+
+    if (typeof recipient === "string") {
+      return { email: recipient.trim() };
+    }
+
+    if (recipient.email) {
+      return {
+        email: String(recipient.email).trim(),
+        name: recipient.name || recipient.fullName,
+      };
+    }
+
+    if (!recipient.recipientType || !recipient.recipientId) {
+      return null;
+    }
+
+    let record = null;
+
+    switch (recipient.recipientType) {
+      case "SuperUser":
+        record = await SuperUser.findById(recipient.recipientId).select(
+          "email fullName name"
+        );
+        break;
+      case "Agency":
+        record = await Agency.findById(recipient.recipientId).select(
+          "email contactPerson companyName"
+        );
+        break;
+      case "PropertyManager":
+        record = await PropertyManager.findById(recipient.recipientId).select(
+          "email firstName lastName fullName"
+        );
+        break;
+      case "TeamMember":
+        record = await TeamMember.findById(recipient.recipientId).select(
+          "email fullName name"
+        );
+        break;
+      case "Technician":
+        record = await Technician.findById(recipient.recipientId).select(
+          "email firstName lastName fullName"
+        );
+        break;
+      default:
+        return null;
+    }
+
+    if (!record?.email) {
+      return null;
+    }
+
+    const name =
+      record.fullName ||
+      record.name ||
+      record.contactPerson ||
+      record.companyName ||
+      `${record.firstName || ""} ${record.lastName || ""}`.trim() ||
+      undefined;
+
+    return {
+      email: String(record.email).trim(),
+      name,
+    };
+  }
+
+  async resolveRecipientsForDelivery(recipients) {
+    const recipientList = Array.isArray(recipients)
+      ? recipients
+      : recipients
+        ? [recipients]
+        : [];
+
+    const resolvedRecipients = await Promise.all(
+      recipientList.map((recipient) => this.resolveRecipientReference(recipient))
+    );
+
+    const deduped = [];
+    const seen = new Set();
+
+    for (const recipient of resolvedRecipients) {
+      const email = recipient?.email?.trim()?.toLowerCase();
+      if (!email || seen.has(email)) {
+        continue;
+      }
+
+      seen.add(email);
+      deduped.push({
+        email,
+        name: recipient.name,
+      });
+    }
+
+    return deduped;
   }
 
   /**
@@ -1206,26 +1306,51 @@ class EmailService {
         return { id: "mock-email-id", status: "skipped" };
       }
 
-      // Format recipients
-      const formatRecipient = (r) => {
-        if (typeof r === 'string') return r;
-        return r.name ? `${r.name} <${r.email}>` : r.email;
+      const formatRecipient = (recipient) => {
+        if (typeof recipient === "string") return recipient;
+        if (!recipient?.email) return "";
+        return recipient.name
+          ? `${recipient.name} <${recipient.email}>`
+          : recipient.email;
       };
 
-      const emailData = {
-        from: formatRecipient(from),
-        to: Array.isArray(to) ? to.map(formatRecipient) : [formatRecipient(to)],
-        subject,
-        html: bodyHtml || bodyText,
-        text: bodyText || this.stripHtml(bodyHtml)
+      const resolveSender = (sender) => {
+        if (typeof sender === "string" && isValidEmail(sender)) {
+          return sender.trim();
+        }
+
+        if (sender?.email && isValidEmail(sender.email)) {
+          const normalizedEmail = sender.email.trim();
+          return sender.name
+            ? `${sender.name} <${normalizedEmail}>`
+            : normalizedEmail;
+        }
+
+        return this.defaultFrom;
       };
 
-      if (cc && cc.length > 0) {
-        emailData.cc = Array.isArray(cc) ? cc.map(formatRecipient) : [formatRecipient(cc)];
+      const resolvedTo = await this.resolveRecipientsForDelivery(to);
+      const resolvedCc = await this.resolveRecipientsForDelivery(cc);
+      const resolvedBcc = await this.resolveRecipientsForDelivery(bcc);
+
+      if (resolvedTo.length === 0) {
+        throw new Error("No valid recipient emails could be resolved");
       }
 
-      if (bcc && bcc.length > 0) {
-        emailData.bcc = Array.isArray(bcc) ? bcc.map(formatRecipient) : [formatRecipient(bcc)];
+      const emailData = {
+        from: resolveSender(from),
+        to: resolvedTo.map(formatRecipient).filter(Boolean),
+        subject,
+        html: bodyHtml || bodyText,
+        text: bodyText || this.stripHtml(bodyHtml),
+      };
+
+      if (resolvedCc.length > 0) {
+        emailData.cc = resolvedCc.map(formatRecipient).filter(Boolean);
+      }
+
+      if (resolvedBcc.length > 0) {
+        emailData.bcc = resolvedBcc.map(formatRecipient).filter(Boolean);
       }
 
       if (attachments && attachments.length > 0) {
@@ -1244,7 +1369,9 @@ class EmailService {
         });
       }
 
-      console.log(`📤 Sending email from ${from.email} to ${to.length} recipients`);
+      console.log(
+        `📤 Sending email from ${from.email} to ${resolvedTo.length} recipients`
+      );
       const result = await this.resend.emails.send(emailData);
       
       console.log("✅ Email sent successfully:", result.id);

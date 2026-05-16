@@ -1171,22 +1171,43 @@ class EmailController {
         errors.html = "Email body (html) is required";
       }
 
+      const isRecipientReference = (recipient) =>
+        recipient &&
+        typeof recipient === "object" &&
+        recipient.recipientType &&
+        recipient.recipientId;
+
+      const isRecipientEmailObject = (recipient) =>
+        recipient &&
+        typeof recipient === "object" &&
+        typeof recipient.email === "string";
+
+      const isValidRecipientInput = (recipient, emailRegex) => {
+        if (!recipient) return false;
+        if (typeof recipient === "string") {
+          return emailRegex.test(recipient);
+        }
+        if (isRecipientEmailObject(recipient)) {
+          return emailRegex.test(recipient.email);
+        }
+        return isRecipientReference(recipient);
+      };
+
       if (!to) {
         errors.to = "Recipient email(s) required";
       } else {
-        // Handle both single email string and array of emails
         const emails = Array.isArray(to) ? to : [to];
+        const emailRegex = /^\w+([-.]?\w+)*@\w+([-.]?\w+)*(\.\w{2,3})+$/;
 
         if (emails.length === 0) {
           errors.to = "At least one recipient email is required";
         } else {
-          // Validate email format
-          const emailRegex = /^\w+([-.]?\w+)*@\w+([-.]?\w+)*(\.\w{2,3})+$/;
           const invalidEmails = emails.filter(
-            (email) => !emailRegex.test(email)
+            (email) => !isValidRecipientInput(email, emailRegex)
           );
           if (invalidEmails.length > 0) {
-            errors.to = `Invalid email format: ${invalidEmails.join(", ")}`;
+            errors.to =
+              "Recipients must be valid email addresses or internal recipient references";
           }
         }
       }
@@ -1195,10 +1216,11 @@ class EmailController {
         const ccEmails = Array.isArray(cc) ? cc : [cc];
         const emailRegex = /^\w+([-.]?\w+)*@\w+([-.]?\w+)*(\.\w{2,3})+$/;
         const invalidCcEmails = ccEmails.filter(
-          (email) => email && !emailRegex.test(email)
+          (email) => email && !isValidRecipientInput(email, emailRegex)
         );
         if (invalidCcEmails.length > 0) {
-          errors.cc = `Invalid CC email format: ${invalidCcEmails.join(", ")}`;
+          errors.cc =
+            "CC recipients must be valid email addresses or internal recipient references";
         }
       }
 
@@ -1226,6 +1248,17 @@ class EmailController {
           ? cc.filter(Boolean)
           : [cc].filter(Boolean)
         : [];
+      const resolvedRecipients =
+        await emailService.resolveRecipientsForDelivery(recipients);
+      const resolvedCcRecipients =
+        await emailService.resolveRecipientsForDelivery(ccRecipients);
+
+      if (resolvedRecipients.length === 0) {
+        return res.status(400).json({
+          status: "error",
+          message: "No valid recipient emails could be resolved",
+        });
+      }
 
       // Handle attachments if any
       let attachments = [];
@@ -1254,8 +1287,8 @@ class EmailController {
       // Prepare email data
       const emailData = {
         from: emailService.defaultFrom,
-        to: recipients,
-        cc: ccRecipients,
+        to: resolvedRecipients.map((recipient) => recipient.email),
+        cc: resolvedCcRecipients.map((recipient) => recipient.email),
         subject: subject.trim(),
         html: html.trim(), // Ensure HTML is trimmed
       };
@@ -1291,8 +1324,8 @@ class EmailController {
         status: "success",
         message: "Email sent successfully",
         data: {
-          recipients: recipients,
-          cc: ccRecipients,
+          recipients: resolvedRecipients.map((recipient) => recipient.email),
+          cc: resolvedCcRecipients.map((recipient) => recipient.email),
           subject: subject.trim(),
           attachmentCount: attachments.length,
           resendMessageId: resendResult.id,
