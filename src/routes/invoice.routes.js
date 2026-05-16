@@ -15,6 +15,7 @@ import {
 import emailService from "../services/email.service.js";
 import notificationService from "../services/notification.service.js";
 import { getAgencyServicePriceForJobType } from "../utils/agencyPricing.js";
+import fileUploadService from "../services/fileUpload.service.js";
 
 const router = express.Router();
 
@@ -932,17 +933,32 @@ router.patch(
 );
 
 // PATCH - Send invoice to agency and property managers
-router.patch("/:invoiceId/send", authenticate, async (req, res) => {
+router.patch(
+  "/:invoiceId/send",
+  authenticate,
+  fileUploadService.array("attachments", 5),
+  async (req, res) => {
   try {
     const { invoiceId } = req.params;
-    const {
-      to = [],
-      cc = [],
-      bcc = [],
-      subject,
-      bodyHtml,
-      bodyText,
-    } = req.body;
+    const parseRecipientField = (value, fallback = []) => {
+      if (!value) return fallback;
+      if (Array.isArray(value)) return value;
+      if (typeof value === "string") {
+        try {
+          return JSON.parse(value);
+        } catch {
+          return fallback;
+        }
+      }
+      return fallback;
+    };
+
+    const to = parseRecipientField(req.body.to, []);
+    const cc = parseRecipientField(req.body.cc, []);
+    const bcc = parseRecipientField(req.body.bcc, []);
+    const subject = req.body.subject;
+    const bodyHtml = req.body.bodyHtml;
+    const bodyText = req.body.bodyText;
 
     // Validate MongoDB ObjectId
     if (!mongoose.Types.ObjectId.isValid(invoiceId)) {
@@ -1028,17 +1044,26 @@ router.patch("/:invoiceId/send", authenticate, async (req, res) => {
 
     // Send email notification to agency and property managers
     try {
-      const invoicePdfBuffer = await generateInvoicePdfBuffer({
-        invoice,
-        reviewData,
-      });
+      const uploadedInvoiceAttachment = Array.isArray(req.files)
+        ? req.files.find((file) => file.mimetype === "application/pdf")
+        : null;
+
+      const invoicePdfBuffer = uploadedInvoiceAttachment
+        ? uploadedInvoiceAttachment.buffer
+        : await generateInvoicePdfBuffer({
+            invoice,
+            reviewData,
+          });
+
       const reportAttachment = await fetchAttachmentFromUrl(
         reviewData.reportFile,
         `inspection-report-${reviewData.jobNumber || invoice.invoiceNumber}.pdf`
       );
       const attachments = [
         {
-          filename: `invoice-${invoice.invoiceNumber}.pdf`,
+          filename:
+            uploadedInvoiceAttachment?.originalname ||
+            `invoice-${invoice.invoiceNumber}.pdf`,
           content: invoicePdfBuffer,
           contentType: "application/pdf",
         },
@@ -1107,7 +1132,8 @@ router.patch("/:invoiceId/send", authenticate, async (req, res) => {
       message: "Failed to send invoice",
     });
   }
-});
+  }
+);
 
 // GET - Get all invoices (with filtering and pagination)
 router.get("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'PropertyManager']), async (req, res) => {
