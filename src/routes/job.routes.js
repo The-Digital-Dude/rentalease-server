@@ -59,6 +59,18 @@ const normalizeLegacyCompletedJobs = async (match = {}) => {
   );
 };
 
+const appendAndCondition = (query, condition) => {
+  if (!condition) {
+    return;
+  }
+
+  if (!query.$and) {
+    query.$and = [];
+  }
+
+  query.$and.push(condition);
+};
+
 // Helper function to get owner info based on user type
 const getOwnerInfo = (req) => {
   if (req.superUser) {
@@ -446,13 +458,22 @@ router.get(
 
       // Add filters
       if (jobType) query.jobType = jobType;
-      if (status) query.status = status;
+      if (req.query.property) query.property = req.query.property;
+      if (status === "Completed") {
+        appendAndCondition(query, {
+          $or: [{ status: "Completed" }, { completedAt: { $ne: null } }],
+        });
+      } else if (status) {
+        query.status = status;
+      }
       if (assignedTechnician) query.assignedTechnician = assignedTechnician;
       if (priority) query.priority = priority;
 
       if (status === "Completed") {
-        await normalizeLegacyCompletedJobs(query);
-        query.status = "Completed";
+        await normalizeLegacyCompletedJobs({
+          ...query,
+          completedAt: { $ne: null },
+        });
       }
 
       // Add date range filter
@@ -463,7 +484,10 @@ router.get(
       }
 
       // Store base query without search for aggregation
-      const baseQuery = { ...query };
+      const baseQuery = {
+        ...query,
+        ...(query.$and ? { $and: [...query.$and] } : {}),
+      };
 
       // Add comprehensive search functionality
       if (search) {
@@ -495,10 +519,6 @@ router.get(
         // For non-aggregation query, add $or to existing query
         query.$or = textSearchFields;
       }
-      if (req.query.property) {
-        query.property = req.query.property;
-      }
-
       if (sortBy === "completedAt") {
         await Job.updateMany(
           {

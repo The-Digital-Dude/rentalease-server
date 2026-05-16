@@ -789,7 +789,7 @@ router.get("/completed-jobs", authenticateUserTypes(['Technician']), async (req,
 
     let query = {
       assignedTechnician: ownerInfo.ownerId,
-      status: "Completed", // Only completed jobs
+      $or: [{ status: "Completed" }, { completedAt: { $ne: null } }],
     };
 
     // Add filters
@@ -845,7 +845,7 @@ router.get("/completed-jobs", authenticateUserTypes(['Technician']), async (req,
       {
         $match: {
           assignedTechnician: new mongoose.Types.ObjectId(ownerInfo.ownerId),
-          status: "Completed",
+          $or: [{ status: "Completed" }, { completedAt: { $ne: null } }],
         },
       },
       { $group: { _id: "$status", count: { $sum: 1 } } },
