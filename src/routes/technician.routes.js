@@ -774,6 +774,19 @@ router.get("/completed-jobs", authenticateUserTypes(['Technician']), async (req,
     } = req.query;
 
     // Build query for completed jobs (assigned to technician, status is completed)
+    await Job.updateMany(
+      {
+        assignedTechnician: ownerInfo.ownerId,
+        status: { $ne: "Completed" },
+        completedAt: { $ne: null },
+      },
+      {
+        $set: {
+          status: "Completed",
+        },
+      }
+    );
+
     let query = {
       assignedTechnician: ownerInfo.ownerId,
       status: "Completed", // Only completed jobs

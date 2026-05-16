@@ -44,6 +44,21 @@ const resolveAgencyForJob = async (job) => {
   return agency;
 };
 
+const normalizeLegacyCompletedJobs = async (match = {}) => {
+  await Job.updateMany(
+    {
+      ...match,
+      status: { $ne: "Completed" },
+      completedAt: { $ne: null },
+    },
+    {
+      $set: {
+        status: "Completed",
+      },
+    }
+  );
+};
+
 // Helper function to get owner info based on user type
 const getOwnerInfo = (req) => {
   if (req.superUser) {
@@ -434,6 +449,11 @@ router.get(
       if (status) query.status = status;
       if (assignedTechnician) query.assignedTechnician = assignedTechnician;
       if (priority) query.priority = priority;
+
+      if (status === "Completed") {
+        await normalizeLegacyCompletedJobs(query);
+        query.status = "Completed";
+      }
 
       // Add date range filter
       if (startDate || endDate) {
