@@ -1,6 +1,9 @@
 import express from "express";
+import { readFile } from "fs/promises";
 import mongoose from "mongoose";
+import path from "path";
 import PDFDocument from "pdfkit";
+import { bucket } from "../config/gcs.js";
 import Invoice from "../models/Invoice.js";
 import Job from "../models/Job.js";
 import Technician from "../models/Technician.js";
@@ -393,8 +396,76 @@ const generateInvoicePdfBuffer = async ({ invoice, reviewData }) => {
   });
 };
 
+const extractGcsPathFromUrl = (value) => {
+  if (!value || typeof value !== "string") {
+    return null;
+  }
+
+  try {
+    const parsedUrl = value.startsWith("http://") || value.startsWith("https://")
+      ? new URL(value)
+      : new URL(value, "http://localhost");
+    const pathname = parsedUrl.pathname || "";
+    const gcsPath = parsedUrl.searchParams.get("path");
+
+    if (
+      gcsPath &&
+      (pathname.endsWith("/api/v1/files/pdf") ||
+        pathname.endsWith("/api/v1/files/object"))
+    ) {
+      return gcsPath;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+};
+
+const inferContentTypeFromFilename = (filename = "") => {
+  const normalized = filename.toLowerCase();
+  if (normalized.endsWith(".pdf")) return "application/pdf";
+  if (normalized.endsWith(".png")) return "image/png";
+  if (normalized.endsWith(".jpg") || normalized.endsWith(".jpeg")) {
+    return "image/jpeg";
+  }
+  return "application/octet-stream";
+};
+
 const fetchAttachmentFromUrl = async (url, fallbackFilename) => {
   if (!url) return null;
+
+  const gcsPath = extractGcsPathFromUrl(url);
+  if (gcsPath) {
+    const [buffer] = await bucket.file(gcsPath).download();
+    return {
+      filename:
+        fallbackFilename || gcsPath.split("/").pop() || "attachment.pdf",
+      content: buffer,
+      contentType: inferContentTypeFromFilename(
+        fallbackFilename || gcsPath
+      ),
+    };
+  }
+
+  const normalizedPath = String(url).trim();
+  if (
+    normalizedPath.startsWith("uploads/") ||
+    normalizedPath.startsWith("/uploads/")
+  ) {
+    const relativePath = normalizedPath.replace(/^\/+/, "");
+    const absolutePath = path.resolve(process.cwd(), relativePath);
+    const buffer = await readFile(absolutePath);
+
+    return {
+      filename:
+        fallbackFilename || path.basename(relativePath) || "attachment.pdf",
+      content: buffer,
+      contentType: inferContentTypeFromFilename(
+        fallbackFilename || relativePath
+      ),
+    };
+  }
 
   const response = await fetch(url);
   if (!response.ok) {
@@ -1055,10 +1126,20 @@ router.patch(
             reviewData,
           });
 
-      const reportAttachment = await fetchAttachmentFromUrl(
-        reviewData.reportFile,
-        `inspection-report-${reviewData.jobNumber || invoice.invoiceNumber}.pdf`
-      );
+      let reportAttachment = null;
+      try {
+        reportAttachment = await fetchAttachmentFromUrl(
+          reviewData.reportFile,
+          `inspection-report-${reviewData.jobNumber || invoice.invoiceNumber}.pdf`
+        );
+      } catch (reportAttachmentError) {
+        console.warn("Unable to attach inspection report to invoice email:", {
+          invoiceId: invoice._id?.toString?.(),
+          jobId: invoice.jobId?._id?.toString?.() || invoice.jobId?.toString?.(),
+          reportFile: reviewData.reportFile,
+          error: reportAttachmentError.message,
+        });
+      }
       const attachments = [
         {
           filename:
