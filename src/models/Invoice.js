@@ -122,8 +122,8 @@ const invoiceSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: {
-        values: ["Draft", "Pending", "Sent", "Paid"],
-        message: "Status must be one of: Draft, Pending, Sent, Paid",
+        values: ["Draft", "Sent", "Paid"],
+        message: "Status must be one of: Draft, Sent, Paid",
       },
       default: "Draft",
     },
@@ -175,6 +175,10 @@ invoiceSchema.index({ createdAt: -1 });
 
 // Pre-save middleware to calculate totals
 invoiceSchema.pre("save", function (next) {
+  if (this.status === "Pending") {
+    this.status = "Sent";
+  }
+
   // Calculate subtotal from items
   if (this.items && this.items.length > 0) {
     this.subtotal = this.items.reduce(

@@ -123,6 +123,38 @@ const dedupeRecipients = (recipients = []) => {
   });
 };
 
+const normalizeCompletedJobInvoiceStatus = (invoice) => {
+  if (!invoice) {
+    return invoice;
+  }
+
+  if (invoice.status === "Pending") {
+    invoice.status = "Sent";
+    if (!invoice.sentAt) {
+      invoice.sentAt = invoice.updatedAt || invoice.createdAt || new Date();
+    }
+  }
+
+  return invoice;
+};
+
+const normalizeCompletedJobInvoiceQuery = (query = {}) => {
+  const normalizedQuery = { ...query };
+
+  if (normalizedQuery.status === "Pending") {
+    normalizedQuery.status = "Sent";
+  }
+
+  return normalizedQuery;
+};
+
+const normalizeStatusCounts = (statusCounts = []) =>
+  statusCounts.reduce((acc, item) => {
+    const statusKey = item._id === "Pending" ? "Sent" : item._id;
+    acc[statusKey] = (acc[statusKey] || 0) + item.count;
+    return acc;
+  }, {});
+
 const normalizeRecipientList = (recipients = []) =>
   dedupeRecipients(
     (Array.isArray(recipients) ? recipients : [])
@@ -493,6 +525,107 @@ const fetchAttachmentFromUrl = async (url, fallbackFilename) => {
   };
 };
 
+export const sendCompletedJobInvoiceDocuments = async ({
+  invoice,
+  to = [],
+  cc = [],
+  bcc = [],
+  subject,
+  bodyHtml,
+  bodyText,
+  uploadedInvoiceAttachment = null,
+  sentBy = null,
+}) => {
+  normalizeCompletedJobInvoiceStatus(invoice);
+  const reviewData = await buildInvoiceReviewData(invoice);
+
+  if (!reviewData.hasReport) {
+    throw new Error("Inspection report is required before sending documents");
+  }
+
+  const normalizedTo = normalizeRecipientList(
+    to.length ? to : reviewData.recipients.to
+  );
+  const normalizedCc = normalizeRecipientList(cc);
+  const normalizedBcc = normalizeRecipientList(bcc);
+
+  if (!normalizedTo.length) {
+    throw new Error("At least one valid recipient is required");
+  }
+
+  const invoicePdfBuffer = uploadedInvoiceAttachment
+    ? uploadedInvoiceAttachment.buffer
+    : await generateInvoicePdfBuffer({
+        invoice,
+        reviewData,
+      });
+
+  let reportAttachment = null;
+  try {
+    reportAttachment = await fetchAttachmentFromUrl(
+      reviewData.reportFile,
+      `inspection-report-${reviewData.jobNumber || invoice.invoiceNumber}.pdf`
+    );
+  } catch (reportAttachmentError) {
+    console.warn("Unable to attach inspection report to invoice email:", {
+      invoiceId: invoice._id?.toString?.(),
+      jobId: invoice.jobId?._id?.toString?.() || invoice.jobId?.toString?.(),
+      reportFile: reviewData.reportFile,
+      error: reportAttachmentError.message,
+    });
+  }
+
+  const attachments = [
+    {
+      filename:
+        uploadedInvoiceAttachment?.originalname ||
+        `invoice-${invoice.invoiceNumber}.pdf`,
+      content: invoicePdfBuffer,
+      contentType: "application/pdf",
+    },
+    ...(reportAttachment ? [reportAttachment] : []),
+  ];
+
+  await emailService.sendUserEmail({
+    from: emailService.defaultFrom,
+    to: normalizedTo,
+    cc: normalizedCc,
+    bcc: normalizedBcc,
+    subject: String(subject).trim(),
+    bodyHtml: buildCompletedDocumentsHtml({
+      customBodyHtml: String(bodyHtml),
+      invoice,
+      reviewData,
+    }),
+    bodyText: buildCompletedDocumentsText({
+      customBodyText: bodyText ? String(bodyText) : stripHtml(String(bodyHtml)),
+      invoice,
+      reviewData,
+    }),
+    attachments,
+  });
+
+  invoice.status = "Sent";
+  invoice.sentAt = new Date();
+  await invoice.save();
+
+  if (sentBy) {
+    try {
+      await notificationService.sendInvoiceSentNotification(invoice, sentBy);
+    } catch (notificationError) {
+      console.error(
+        "Failed to send invoice sent notification:",
+        notificationError
+      );
+    }
+  }
+
+  return {
+    invoice,
+    reviewData,
+  };
+};
+
 // POST - Create new invoice
 router.post("/", authenticateUserTypes(['SuperUser', 'TeamMember']), async (req, res) => {
   try {
@@ -711,6 +844,8 @@ router.get("/job/:jobId", authenticateUserTypes(['SuperUser', 'TeamMember', 'Age
       });
     }
 
+    normalizeCompletedJobInvoiceStatus(invoice);
+
     // Check access permissions
     const userInfo = getUserInfo(req);
     let hasAccess = false;
@@ -794,6 +929,7 @@ router.post(
 
       const existingInvoice = await Invoice.findOne({ jobId });
       if (existingInvoice) {
+        normalizeCompletedJobInvoiceStatus(existingInvoice);
         return res.status(409).json({
           status: "error",
           message: "Invoice already exists for this job",
@@ -898,6 +1034,8 @@ router.patch("/:invoiceId", authenticateUserTypes(['SuperUser', 'TeamMember']), 
       });
     }
 
+    normalizeCompletedJobInvoiceStatus(invoice);
+
     if (invoice.status === "Sent" || invoice.status === "Paid") {
       return res.status(400).json({
         status: "error",
@@ -958,7 +1096,7 @@ router.patch(
         });
       }
 
-      if (!status || !["Draft", "Pending", "Sent", "Paid"].includes(status)) {
+      if (!status || !["Draft", "Sent", "Paid"].includes(status)) {
         return res.status(400).json({
           status: "error",
           message: "Invalid invoice status",
@@ -975,6 +1113,8 @@ router.patch(
           message: "Invoice not found",
         });
       }
+
+      normalizeCompletedJobInvoiceStatus(invoice);
 
       invoice.status = status;
 
@@ -1073,7 +1213,7 @@ router.patch(
         message: `Invoice cannot be sent. Current status: ${invoice.status}`,
         details: {
           currentStatus: invoice.status,
-          allowedStatuses: ["Draft", "Pending"],
+          allowedStatuses: ["Draft"],
         },
       });
     }
@@ -1092,84 +1232,30 @@ router.patch(
       });
     }
 
-    const reviewData = await buildInvoiceReviewData(invoice);
-    if (!reviewData.hasReport) {
-      return res.status(400).json({
-        status: "error",
-        message: "Inspection report is required before sending documents",
-      });
-    }
-
-    const normalizedTo = normalizeRecipientList(
-      to.length ? to : reviewData.recipients.to
-    );
-    const normalizedCc = normalizeRecipientList(cc);
-    const normalizedBcc = normalizeRecipientList(bcc);
-
-    if (!normalizedTo.length) {
-      return res.status(400).json({
-        status: "error",
-        message: "At least one valid recipient is required",
-      });
-    }
-
-    // Send email notification to agency and property managers
     try {
       const uploadedInvoiceAttachment = Array.isArray(req.files)
         ? req.files.find((file) => file.mimetype === "application/pdf")
         : null;
 
-      const invoicePdfBuffer = uploadedInvoiceAttachment
-        ? uploadedInvoiceAttachment.buffer
-        : await generateInvoicePdfBuffer({
-            invoice,
-            reviewData,
-          });
+      const { reviewData } = await sendCompletedJobInvoiceDocuments({
+        invoice,
+        to,
+        cc,
+        bcc,
+        subject,
+        bodyHtml,
+        bodyText,
+        uploadedInvoiceAttachment,
+        sentBy: userInfo,
+      });
 
-      let reportAttachment = null;
-      try {
-        reportAttachment = await fetchAttachmentFromUrl(
-          reviewData.reportFile,
-          `inspection-report-${reviewData.jobNumber || invoice.invoiceNumber}.pdf`
-        );
-      } catch (reportAttachmentError) {
-        console.warn("Unable to attach inspection report to invoice email:", {
-          invoiceId: invoice._id?.toString?.(),
-          jobId: invoice.jobId?._id?.toString?.() || invoice.jobId?.toString?.(),
-          reportFile: reviewData.reportFile,
-          error: reportAttachmentError.message,
-        });
-      }
-      const attachments = [
-        {
-          filename:
-            uploadedInvoiceAttachment?.originalname ||
-            `invoice-${invoice.invoiceNumber}.pdf`,
-          content: invoicePdfBuffer,
-          contentType: "application/pdf",
+      res.status(200).json({
+        status: "success",
+        message: "Invoice sent successfully",
+        data: {
+          invoice: invoice.getFullDetails(),
+          reviewData,
         },
-        ...(reportAttachment ? [reportAttachment] : []),
-      ];
-
-      await emailService.sendUserEmail({
-        from: emailService.defaultFrom,
-        to: normalizedTo,
-        cc: normalizedCc,
-        bcc: normalizedBcc,
-        subject: String(subject).trim(),
-        bodyHtml: buildCompletedDocumentsHtml({
-          customBodyHtml: String(bodyHtml),
-          invoice,
-          reviewData,
-        }),
-        bodyText: buildCompletedDocumentsText({
-          customBodyText: bodyText
-            ? String(bodyText)
-            : stripHtml(String(bodyHtml)),
-          invoice,
-          reviewData,
-        }),
-        attachments,
       });
     } catch (emailError) {
       console.error("Failed to send invoice email:", emailError);
@@ -1178,34 +1264,6 @@ router.patch(
         message: "Failed to send completed job documents",
       });
     }
-
-    invoice.status = "Sent";
-    invoice.sentAt = new Date();
-    await invoice.save();
-
-    // Send in-app notification
-    try {
-      if (userInfo) {
-        await notificationService.sendInvoiceSentNotification(
-          invoice,
-          userInfo
-        );
-      }
-    } catch (notificationError) {
-      console.error(
-        "Failed to send invoice sent notification:",
-        notificationError
-      );
-    }
-
-    res.status(200).json({
-      status: "success",
-      message: "Invoice sent successfully",
-      data: {
-        invoice: invoice.getFullDetails(),
-        reviewData,
-      },
-    });
   } catch (error) {
     console.error("Send invoice error:", error);
     res.status(500).json({
@@ -1270,21 +1328,22 @@ router.get("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'Pro
     }
 
     // Calculate pagination
+    const normalizedQuery = normalizeCompletedJobInvoiceQuery(query);
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     // Execute query
-    const invoices = await Invoice.find(query)
+    const invoices = await Invoice.find(normalizedQuery)
       .populate(buildInvoicePopulateConfig())
       .sort({ [sortBy]: sortOrder === "desc" ? -1 : 1 })
       .skip(skip)
       .limit(parseInt(limit));
 
     // Get total count
-    const totalInvoices = await Invoice.countDocuments(query);
+    const totalInvoices = await Invoice.countDocuments(normalizedQuery);
 
     // Get status counts for dashboard
     const statusCounts = await Invoice.aggregate([
-      { $match: query },
+      { $match: normalizedQuery },
       { $group: { _id: "$status", count: { $sum: 1 } } },
     ]);
 
@@ -1292,7 +1351,10 @@ router.get("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'Pro
       status: "success",
       message: "Invoices retrieved successfully",
       data: {
-        invoices: invoices.map((invoice) => invoice.getSummary()),
+        invoices: invoices.map((invoice) => {
+          normalizeCompletedJobInvoiceStatus(invoice);
+          return invoice.getSummary();
+        }),
         pagination: {
           currentPage: parseInt(page),
           totalPages: Math.ceil(totalInvoices / parseInt(limit)),
@@ -1302,10 +1364,7 @@ router.get("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'Pro
           hasPrevPage: parseInt(page) > 1,
         },
         statistics: {
-          statusCounts: statusCounts.reduce((acc, item) => {
-            acc[item._id] = item.count;
-            return acc;
-          }, {}),
+          statusCounts: normalizeStatusCounts(statusCounts),
           totalInvoices,
         },
       },
@@ -1342,6 +1401,8 @@ router.get("/:id", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', '
         message: "Invoice not found",
       });
     }
+
+    normalizeCompletedJobInvoiceStatus(invoice);
 
     // Check access permissions
     const userInfo = getUserInfo(req);

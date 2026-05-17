@@ -395,6 +395,25 @@ router.get(
         },
       ]);
 
+      await Invoice.updateMany(
+        { status: "Pending" },
+        [
+          {
+            $set: {
+              status: "Sent",
+              sentAt: {
+                $ifNull: [
+                  "$sentAt",
+                  {
+                    $ifNull: ["$updatedAt", "$createdAt"],
+                  },
+                ],
+              },
+            },
+          },
+        ]
+      );
+
       const [completedJobInvoiceStats, propertyManagerInvoiceStats] =
         await Promise.all([
           Invoice.aggregate([
@@ -413,18 +432,14 @@ router.get(
                     $cond: [{ $eq: ["$status", "Draft"] }, 1, 0],
                   },
                 },
-                pendingAmount: {
+                sentAmount: {
                   $sum: {
-                    $cond: [
-                      { $in: ["$status", ["Pending", "Sent"]] },
-                      "$totalCost",
-                      0,
-                    ],
+                    $cond: [{ $eq: ["$status", "Sent"] }, "$totalCost", 0],
                   },
                 },
-                pendingCount: {
+                sentCount: {
                   $sum: {
-                    $cond: [{ $in: ["$status", ["Pending", "Sent"]] }, 1, 0],
+                    $cond: [{ $eq: ["$status", "Sent"] }, 1, 0],
                   },
                 },
                 paidAmount: {
@@ -487,31 +502,26 @@ router.get(
       const propertyManagerInvoiceSummary = propertyManagerInvoiceStats[0] || {};
 
       const invoiceStats = {
-        totalInvoices:
-          (completedJobInvoiceSummary.totalInvoices || 0) +
-          (propertyManagerInvoiceSummary.totalInvoices || 0),
-        totalAmount:
-          (completedJobInvoiceSummary.totalAmount || 0) +
-          (propertyManagerInvoiceSummary.totalAmount || 0),
-        draftAmount: completedJobInvoiceSummary.draftAmount || 0,
-        draftCount: completedJobInvoiceSummary.draftCount || 0,
-        pendingAmount:
-          (completedJobInvoiceSummary.pendingAmount || 0) +
-          (propertyManagerInvoiceSummary.pendingAmount || 0),
-        pendingCount:
-          (completedJobInvoiceSummary.pendingCount || 0) +
-          (propertyManagerInvoiceSummary.pendingCount || 0),
-        paidAmount:
-          (completedJobInvoiceSummary.paidAmount || 0) +
-          (propertyManagerInvoiceSummary.paidAmount || 0),
-        paidCount:
-          (completedJobInvoiceSummary.paidCount || 0) +
-          (propertyManagerInvoiceSummary.paidCount || 0),
-        rejectedAmount: propertyManagerInvoiceSummary.rejectedAmount || 0,
-        rejectedCount: propertyManagerInvoiceSummary.rejectedCount || 0,
-        completedJobInvoices: completedJobInvoiceSummary.totalInvoices || 0,
-        propertyManagerInvoices:
-          propertyManagerInvoiceSummary.totalInvoices || 0,
+        completedJob: {
+          totalInvoices: completedJobInvoiceSummary.totalInvoices || 0,
+          totalAmount: completedJobInvoiceSummary.totalAmount || 0,
+          draftAmount: completedJobInvoiceSummary.draftAmount || 0,
+          draftCount: completedJobInvoiceSummary.draftCount || 0,
+          sentAmount: completedJobInvoiceSummary.sentAmount || 0,
+          sentCount: completedJobInvoiceSummary.sentCount || 0,
+          paidAmount: completedJobInvoiceSummary.paidAmount || 0,
+          paidCount: completedJobInvoiceSummary.paidCount || 0,
+        },
+        extraServices: {
+          totalInvoices: propertyManagerInvoiceSummary.totalInvoices || 0,
+          totalAmount: propertyManagerInvoiceSummary.totalAmount || 0,
+          pendingAmount: propertyManagerInvoiceSummary.pendingAmount || 0,
+          pendingCount: propertyManagerInvoiceSummary.pendingCount || 0,
+          acceptedAmount: propertyManagerInvoiceSummary.paidAmount || 0,
+          acceptedCount: propertyManagerInvoiceSummary.paidCount || 0,
+          rejectedAmount: propertyManagerInvoiceSummary.rejectedAmount || 0,
+          rejectedCount: propertyManagerInvoiceSummary.rejectedCount || 0,
+        },
       };
 
       // Get monthly trends (last 6 months)

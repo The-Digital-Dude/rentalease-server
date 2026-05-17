@@ -18,6 +18,7 @@ import notificationService from "../services/notification.service.js";
 import fileUploadService from "../services/fileUpload.service.js";
 import { sanitizeJobInput } from "../middleware/sanitizer.middleware.js";
 import { getAgencyServicePriceForJobType } from "../utils/agencyPricing.js";
+import { sendCompletedJobInvoiceDocuments } from "./invoice.routes.js";
 
 const router = express.Router();
 
@@ -2068,6 +2069,7 @@ router.patch(
       try {
         let reportFileUrl = null;
         let invoiceId = null;
+        let propertyAddress = "Property";
         let inspectionReportId = req.body.inspectionReportId;
         let inspectionReport = null;
 
@@ -2166,7 +2168,7 @@ router.patch(
             }
 
             const property = await Property.findById(job.property).select("address");
-            const propertyAddress = property?.address?.fullAddress || "Property";
+            propertyAddress = property?.address?.fullAddress || "Property";
             const newInvoiceData = {
               jobId: job._id,
               technicianId: job.assignedTechnician,
@@ -2397,6 +2399,77 @@ router.patch(
           }
         }
 
+        let automaticInvoiceDelivery = {
+          attempted: false,
+          sent: false,
+          skipped: false,
+          reason: null,
+        };
+
+        if (!invoiceId) {
+          automaticInvoiceDelivery = {
+            attempted: false,
+            sent: false,
+            skipped: true,
+            reason: "No invoice was created for this completed job",
+          };
+        } else if (!reportFileUrl) {
+          automaticInvoiceDelivery = {
+            attempted: false,
+            sent: false,
+            skipped: true,
+            reason: "No inspection report was available for automatic delivery",
+          };
+        } else {
+          try {
+            automaticInvoiceDelivery.attempted = true;
+            const completedInvoice = await Invoice.findById(invoiceId);
+
+            if (!completedInvoice) {
+              automaticInvoiceDelivery = {
+                attempted: true,
+                sent: false,
+                skipped: true,
+                reason: "Created invoice could not be loaded for automatic delivery",
+              };
+            } else {
+              const autoSendPayload = {
+                subject: `Completed Job Documents - ${job.jobType} - ${propertyAddress}`,
+                bodyHtml: `
+                  <p>Hello,</p>
+                  <p>The technician has completed this job. Please find the invoice and inspection report attached for your records.</p>
+                `,
+                bodyText:
+                  "Hello,\n\nThe technician has completed this job. Please find the invoice and inspection report attached for your records.",
+              };
+
+              await sendCompletedJobInvoiceDocuments({
+                invoice: completedInvoice,
+                subject: autoSendPayload.subject,
+                bodyHtml: autoSendPayload.bodyHtml,
+                bodyText: autoSendPayload.bodyText,
+                sentBy: completedBy,
+              });
+
+              automaticInvoiceDelivery.sent = true;
+            }
+          } catch (autoSendError) {
+            automaticInvoiceDelivery = {
+              attempted: true,
+              sent: false,
+              skipped: false,
+              reason: autoSendError.message,
+            };
+            console.error("Failed to automatically send completed job documents:", {
+              jobId: updatedJob._id,
+              invoiceId,
+              reportFile: reportFileUrl,
+              error: autoSendError.message,
+              timestamp: new Date().toISOString(),
+            });
+          }
+        }
+
         res.status(200).json({
           status: "success",
           message: "Job completed successfully",
@@ -2419,6 +2492,7 @@ router.patch(
                 inspectionReport?.id || inspectionReportId || null,
               invoiceCreated: !!invoiceId,
               invoiceId: invoiceId,
+              automaticInvoiceDelivery,
             },
             technicianPayment: technicianPaymentCreated
               ? {
