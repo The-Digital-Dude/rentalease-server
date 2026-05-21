@@ -5,6 +5,7 @@ import { isGCSConfigured, testGCSConnection } from "../config/gcs.js";
 import ComplianceCronJob from "../services/complianceCronJob.js";
 import websocketService from "../services/websocket.service.js";
 import { ensureDefaultTemplates } from "../services/inspectionTemplate.service.js";
+import { COMPLIANCE_CRON_ENABLED } from "../config/features.js";
 
 const PORT = process.env.PORT || 4000;
 
@@ -40,9 +41,13 @@ const startServer = async () => {
       console.log("----------------------------------------");
     });
 
-    // Start compliance cron job
+    // Start compliance cron job only when explicitly enabled
     const complianceCronJob = new ComplianceCronJob();
-    complianceCronJob.start();
+    if (COMPLIANCE_CRON_ENABLED) {
+      complianceCronJob.start();
+    } else {
+      console.log("⏸️ Compliance cron job is disabled by feature flag");
+    }
 
     // Handle graceful shutdown
     process.on("SIGTERM", () => {

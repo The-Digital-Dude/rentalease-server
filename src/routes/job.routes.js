@@ -73,6 +73,68 @@ const appendAndCondition = (query, condition) => {
   query.$and.push(condition);
 };
 
+const getJobScheduleDate = (job) => {
+  if (!job) {
+    return null;
+  }
+
+  return job.scheduledStartTime || job.dueDate || null;
+};
+
+const shouldSendTenantScheduledEmail = ({
+  previousJob = null,
+  currentJob,
+  tenantEmail,
+}) => {
+  if (!currentJob || currentJob.status !== "Scheduled" || !tenantEmail) {
+    return false;
+  }
+
+  if (!previousJob) {
+    return true;
+  }
+
+  if (previousJob.status !== "Scheduled") {
+    return true;
+  }
+
+  const previousDate = getJobScheduleDate(previousJob);
+  const currentDate = getJobScheduleDate(currentJob);
+
+  if (!previousDate || !currentDate) {
+    return false;
+  }
+
+  return new Date(previousDate).getTime() !== new Date(currentDate).getTime();
+};
+
+const sendTenantScheduledNotificationIfNeeded = async ({
+  previousJob = null,
+  currentJob,
+  property,
+  assignedTechnician = null,
+}) => {
+  const tenant = property?.currentTenant;
+  if (
+    !shouldSendTenantScheduledEmail({
+      previousJob,
+      currentJob,
+      tenantEmail: tenant?.email,
+    })
+  ) {
+    return false;
+  }
+
+  await emailService.sendTenantScheduledJobNotification({
+    tenant,
+    job: currentJob,
+    property,
+    assignedTechnician,
+  });
+
+  return true;
+};
+
 // Helper function to get owner info based on user type
 const getOwnerInfo = (req) => {
   if (req.superUser) {
@@ -342,6 +404,14 @@ router.post(
                 assignedBy
               );
             }
+          }
+
+          if (technician) {
+            await sendTenantScheduledNotificationIfNeeded({
+              currentJob: job,
+              property,
+              assignedTechnician: technician,
+            });
           }
         }
       } catch (notificationError) {
@@ -1376,6 +1446,11 @@ router.put(
         // Store the current assigned technician before update
         const previousTechnician = job.assignedTechnician;
         const newTechnician = updates.assignedTechnician;
+        const previousJobState = {
+          status: job.status,
+          dueDate: job.dueDate,
+          scheduledStartTime: job.scheduledStartTime,
+        };
 
         // Validate assigned technician if being updated
         if (
@@ -1506,20 +1581,28 @@ router.put(
         );
 
         // Send notifications for technician assignments during updates
-        if (canFullEdit && updates.hasOwnProperty("assignedTechnician")) {
+        if (
+          canFullEdit &&
+          (updates.hasOwnProperty("assignedTechnician") ||
+            updates.hasOwnProperty("dueDate") ||
+            updates.hasOwnProperty("status"))
+        ) {
           const assignedBy = getUserInfo(req);
-          if (assignedBy) {
-            try {
-              // Get property details for notification
-              const property = await Property.findById(job.property).populate(
-                "address"
-              );
+          try {
+            const property = await Property.findById(job.property).populate(
+              "address"
+            );
 
+            let assignedTechnician = null;
+            if (job.assignedTechnician) {
+              assignedTechnician = await Technician.findById(job.assignedTechnician);
+            }
+
+            if (assignedBy && updates.hasOwnProperty("assignedTechnician")) {
               // If technician was assigned to a previously unassigned job
               if (!previousTechnician && newTechnician) {
                 const newTech = await Technician.findById(newTechnician);
                 if (newTech) {
-                  // Send comprehensive job assignment notification
                   await notificationService.sendJobAssignmentNotification(
                     job,
                     property,
@@ -1536,7 +1619,6 @@ router.put(
               ) {
                 const newTech = await Technician.findById(newTechnician);
                 if (newTech) {
-                  // Send comprehensive job assignment notification
                   await notificationService.sendJobAssignmentNotification(
                     job,
                     property,
@@ -1545,14 +1627,20 @@ router.put(
                   );
                 }
               }
-            } catch (notificationError) {
-              // Log error but don't fail the job update
-              console.error("Failed to send job assignment notifications:", {
-                jobId: job._id,
-                error: notificationError.message,
-                timestamp: new Date().toISOString(),
-              });
             }
+
+            await sendTenantScheduledNotificationIfNeeded({
+              previousJob: previousJobState,
+              currentJob: job,
+              property,
+              assignedTechnician,
+            });
+          } catch (notificationError) {
+            console.error("Failed to send job scheduling notifications:", {
+              jobId: job._id,
+              error: notificationError.message,
+              timestamp: new Date().toISOString(),
+            });
           }
         }
 
@@ -1824,6 +1912,13 @@ router.patch("/:id/assign", authenticateAdminLevel, async (req, res) => {
             technician,
             assignedBy
           );
+
+          await sendTenantScheduledNotificationIfNeeded({
+            previousJob: { status: "Pending", dueDate: job.dueDate, scheduledStartTime: null },
+            currentJob: job,
+            property,
+            assignedTechnician: technician,
+          });
         } catch (notificationError) {
           // Log error but don't fail the job assignment
           console.error("Failed to send job assignment notifications:", {

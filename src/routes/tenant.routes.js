@@ -7,8 +7,23 @@ import emailService from "../services/email.service.js";
 import notificationService from "../services/notification.service.js";
 import { sanitizeInput } from "../middleware/sanitizer.middleware.js";
 import resolveFrontendUrl from "../utils/frontendUrl.js";
+import { TENANT_SELF_BOOKING_ENABLED } from "../config/features.js";
 
 const router = express.Router();
+
+const ensureTenantSelfBookingEnabled = (res) => {
+  if (TENANT_SELF_BOOKING_ENABLED) {
+    return true;
+  }
+
+  res.status(410).json({
+    status: "error",
+    message:
+      "Tenant self-booking is currently disabled. RentalEase will contact you directly with the scheduled inspection time.",
+  });
+
+  return false;
+};
 
 const encodeBookingToken = (value) =>
   Buffer.from(value, "utf-8").toString("base64url");
@@ -54,6 +69,10 @@ const validateBookingTokenAge = (timestamp) => {
  */
 router.post("/send-booking-request", sanitizeInput(), async (req, res) => {
   try {
+    if (!ensureTenantSelfBookingEnabled(res)) {
+      return;
+    }
+
     const { propertyId, tenantEmail, tenantName, complianceType } = req.body;
 
     // Validate required fields
@@ -151,6 +170,10 @@ router.post("/send-booking-request", sanitizeInput(), async (req, res) => {
  */
 router.get("/available-slots/:bookingToken", async (req, res) => {
   try {
+    if (!ensureTenantSelfBookingEnabled(res)) {
+      return;
+    }
+
     const { bookingToken } = req.params;
 
     // Decode booking token
@@ -246,6 +269,10 @@ router.get("/available-slots/:bookingToken", async (req, res) => {
  */
 router.post("/book-appointment", async (req, res) => {
   try {
+    if (!ensureTenantSelfBookingEnabled(res)) {
+      return;
+    }
+
     const {
       bookingToken,
       selectedDate,

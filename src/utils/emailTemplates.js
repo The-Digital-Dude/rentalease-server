@@ -2247,6 +2247,43 @@ const quotationRejectedTemplate = (data) => ({
   `,
 });
 
+const tenantScheduledJobNotificationTemplate = (data) => ({
+  subject: `Inspection Scheduled - ${data.jobType} at ${data.propertyAddress}`,
+  html: `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+      <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #333; margin-bottom: 10px;">Your Inspection Has Been Scheduled</h1>
+          <div style="width: 50px; height: 3px; background-color: #0f766e; margin: 0 auto;"></div>
+        </div>
+
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">Hello ${data.tenantName},</p>
+
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">
+          Your <strong>${data.jobType}</strong> inspection at <strong>${data.propertyAddress}</strong> has been scheduled by the RentalEase team.
+        </p>
+
+        <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 18px; border-radius: 8px; margin: 20px 0;">
+          <h3 style="color: #0f172a; margin-top: 0;">Appointment Details</h3>
+          <p style="margin: 0 0 8px; color: #334155;"><strong>Inspection Type:</strong> ${data.jobType}</p>
+          <p style="margin: 0 0 8px; color: #334155;"><strong>Property:</strong> ${data.propertyAddress}</p>
+          <p style="margin: 0 0 8px; color: #334155;"><strong>Scheduled For:</strong> ${data.scheduledDateTime}</p>
+          ${data.technicianName ? `<p style="margin: 0; color: #334155;"><strong>Technician:</strong> ${data.technicianName}</p>` : ""}
+        </div>
+
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">
+          If you need any help before the appointment, please contact us at <a href="mailto:${data.supportEmail}" style="color: #0f766e;">${data.supportEmail}</a>.
+        </p>
+
+        <p style="color: #333; margin-top: 30px;">
+          Best regards,<br>
+          <strong>The RentalEase Team</strong>
+        </p>
+      </div>
+    </div>
+  `,
+});
+
 const websiteLeadContactAcknowledgementTemplate = (data) => ({
   subject: "Thanks for contacting RentalEase",
   html: `
@@ -2372,6 +2409,7 @@ const templates = {
   // Tenant booking templates
   tenantBookingRequest: tenantBookingRequestTemplate,
   tenantBookingConfirmation: tenantBookingConfirmationTemplate,
+  tenantScheduledJobNotification: tenantScheduledJobNotificationTemplate,
   complianceDue: complianceDueTemplate,
   general: generalTemplate,
 

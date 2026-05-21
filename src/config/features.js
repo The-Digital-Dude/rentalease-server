@@ -1,2 +1,3 @@
 export const TECHNICIAN_PAYMENTS_ENABLED = false;
-
+export const COMPLIANCE_CRON_ENABLED = false;
+export const TENANT_SELF_BOOKING_ENABLED = false;

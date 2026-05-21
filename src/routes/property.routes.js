@@ -23,8 +23,23 @@ import notificationService from "../services/notification.service.js";
 import emailService from "../services/email.service.js";
 import propertyLogService from "../services/propertyLog.service.js";
 import { sanitizePropertyInput, sanitizeInput } from "../middleware/sanitizer.middleware.js";
+import { TENANT_SELF_BOOKING_ENABLED } from "../config/features.js";
 
 const router = express.Router();
+
+const ensureTenantSelfBookingEnabled = (res) => {
+  if (TENANT_SELF_BOOKING_ENABLED) {
+    return true;
+  }
+
+  res.status(410).json({
+    success: false,
+    message:
+      "Tenant self-booking is currently disabled. RentalEase will contact you directly with the scheduled inspection time.",
+  });
+
+  return false;
+};
 
 // Public route to get all properties compliance summary (no auth required)
 router.get("/compliance", async (req, res) => {
@@ -257,6 +272,10 @@ router.get("/compliance/:propertyId", async (req, res) => {
 // Public route to handle tenant booking requests (no auth required)
 router.post("/book-inspection", sanitizeInput(), async (req, res) => {
   try {
+    if (!ensureTenantSelfBookingEnabled(res)) {
+      return;
+    }
+
     const { propertyId, complianceType, selectedDate, selectedShift, token } =
       req.body;
 

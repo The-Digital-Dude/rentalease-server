@@ -807,6 +807,60 @@ class EmailService {
     });
   }
 
+  async sendTenantScheduledJobNotification({
+    tenant,
+    job,
+    property,
+    assignedTechnician = null,
+  }) {
+    if (!tenant?.email) {
+      throw new Error("Tenant email is required for scheduled job notification");
+    }
+
+    if (!tenant?.name) {
+      throw new Error("Tenant name is required for scheduled job notification");
+    }
+
+    if (!job?.jobType || !property?.address?.fullAddress) {
+      throw new Error(
+        "Job type and property address are required for scheduled job notification"
+      );
+    }
+
+    const scheduledAt = job.scheduledStartTime || job.dueDate;
+    const scheduledDateTime = scheduledAt
+      ? new Date(scheduledAt).toLocaleString("en-AU", {
+          weekday: "long",
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : "To be confirmed";
+
+    const technicianName = assignedTechnician
+      ? assignedTechnician.fullName ||
+        [assignedTechnician.firstName, assignedTechnician.lastName]
+          .filter(Boolean)
+          .join(" ")
+          .trim()
+      : "";
+
+    return await this.sendTemplatedEmail({
+      to: tenant.email,
+      templateName: "tenantScheduledJobNotification",
+      templateData: {
+        tenantName: tenant.name,
+        propertyAddress: property.address.fullAddress,
+        jobType: job.jobType,
+        scheduledDateTime,
+        technicianName,
+        supportEmail: emailConfig.supportEmail,
+      },
+    });
+  }
+
   /**
    * Send credentials email to new team member
    * @param {Object} teamMember - Team member object
