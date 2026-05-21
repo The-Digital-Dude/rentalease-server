@@ -22,15 +22,38 @@ async function pruneInvalidTokens(technicianId, invalidTokens) {
 }
 
 export async function sendToTechnician(technicianId, message) {
-  if (!technicianId) return;
+  if (!technicianId) {
+    console.warn("[ExpoPush] Skipping push because technicianId is missing");
+    return;
+  }
 
   const technician = await Technician.findById(technicianId).select("expoPushTokens");
-  if (!technician) return;
+  if (!technician) {
+    console.warn("[ExpoPush] Skipping push because technician was not found", {
+      technicianId,
+    });
+    return;
+  }
 
   const tokens = uniqueStrings(technician.expoPushTokens).filter((t) =>
     Expo.isExpoPushToken(t)
   );
-  if (!tokens.length) return;
+  if (!tokens.length) {
+    console.warn("[ExpoPush] No valid Expo push tokens found for technician", {
+      technicianId,
+      storedTokenCount: technician.expoPushTokens?.length || 0,
+      timestamp: new Date().toISOString(),
+    });
+    return;
+  }
+
+  console.log("[ExpoPush] Sending push notification", {
+    technicianId,
+    tokenCount: tokens.length,
+    title: message?.title || "RentalEase",
+    hasBody: Boolean(message?.body),
+    timestamp: new Date().toISOString(),
+  });
 
   const notifications = tokens.map((to) => ({
     to,
@@ -46,6 +69,17 @@ export async function sendToTechnician(technicianId, message) {
   for (const chunk of chunks) {
     try {
       const ticketChunk = await expo.sendPushNotificationsAsync(chunk);
+      ticketChunk.forEach((ticket, index) => {
+        if (ticket?.status !== "ok") {
+          console.error("[ExpoPush] Ticket error:", {
+            technicianId,
+            tokenPreview: `${chunk[index]?.to?.slice?.(0, 24) || "unknown"}...`,
+            status: ticket?.status,
+            message: ticket?.message,
+            details: ticket?.details || null,
+          });
+        }
+      });
       tickets.push(...ticketChunk);
     } catch (error) {
       console.error("[ExpoPush] sendPushNotificationsAsync error:", error?.message || error);
@@ -56,7 +90,13 @@ export async function sendToTechnician(technicianId, message) {
     .filter((t) => t && t.status === "ok" && t.id)
     .map((t) => t.id);
 
-  if (!receiptIds.length) return;
+  if (!receiptIds.length) {
+    console.log("[ExpoPush] No successful ticket receipt IDs returned", {
+      technicianId,
+      ticketCount: tickets.length,
+    });
+    return;
+  }
 
   const receiptIdChunks = expo.chunkPushNotificationReceiptIds(receiptIds);
   const invalid = new Set();
@@ -74,9 +114,15 @@ export async function sendToTechnician(technicianId, message) {
             invalid.add("DeviceNotRegistered");
           }
           console.error("[ExpoPush] Receipt error:", {
+            technicianId,
             receiptId,
             message: receipt.message,
             details,
+          });
+        } else {
+          console.log("[ExpoPush] Receipt ok:", {
+            technicianId,
+            receiptId,
           });
         }
       }

@@ -640,7 +640,7 @@ router.post("/push-token", authenticate, async (req, res) => {
       });
     }
 
-    const { token } = req.body;
+    const { token, metadata } = req.body;
     if (!token) {
       return res.status(400).json({
         status: "error",
@@ -670,6 +670,15 @@ router.post("/push-token", authenticate, async (req, res) => {
         message: "Technician not found",
       });
     }
+
+    console.log("✅ Push token registered for technician", {
+      technicianId: req.user.id,
+      tokenPreview: `${token.slice(0, 24)}...`,
+      tokenCount: technician.expoPushTokens?.length || 0,
+      metadata: metadata || null,
+      userAgent: req.headers["user-agent"] || null,
+      timestamp: new Date().toISOString(),
+    });
 
     res.status(200).json({
       status: "success",
