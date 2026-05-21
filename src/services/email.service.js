@@ -1,4 +1,5 @@
-import { Resend } from "resend";
+import postmark from "postmark";
+import nodemailer from "nodemailer";
 import emailConfig, { isValidEmail } from "../config/email.js";
 import emailTemplates from "../utils/emailTemplates.js";
 import SuperUser from "../models/SuperUser.js";
@@ -9,20 +10,345 @@ import Technician from "../models/Technician.js";
 
 class EmailService {
   constructor() {
-    // Only initialize Resend if API key is provided
-    if (emailConfig.resendApiKey) {
-      this.resend = new Resend(emailConfig.resendApiKey);
+    this.smtpTransporter = null;
+    this.postmark = null;
+    this.resend = null;
+    this.providerName = "none";
+
+    const shouldUseSmtp =
+      emailConfig.emailProvider === "smtp" ||
+      !!emailConfig.smtpUser ||
+      !!emailConfig.smtpPassword;
+
+    if (shouldUseSmtp && emailConfig.smtpHost) {
+      const smtpConfig = {
+        host: emailConfig.smtpHost,
+        port: emailConfig.smtpPort,
+        secure: emailConfig.smtpSecure,
+        name: emailConfig.smtpName,
+      };
+
+      if (emailConfig.smtpUser && emailConfig.smtpPassword) {
+        smtpConfig.auth = {
+          user: emailConfig.smtpUser,
+          pass: emailConfig.smtpPassword,
+        };
+      }
+
+      this.smtpTransporter = nodemailer.createTransport(smtpConfig);
+      this.providerName = "smtp";
+    }
+
+    if (
+      (!this.smtpTransporter || emailConfig.emailProvider === "postmark") &&
+      emailConfig.postmarkServerToken
+    ) {
+      this.postmark = new postmark.ServerClient(
+        emailConfig.postmarkServerToken
+      );
+      if (!this.smtpTransporter || emailConfig.emailProvider === "postmark") {
+        this.providerName = "postmark";
+      }
+    }
+
+    if (this.smtpTransporter || this.postmark) {
+      this.resend = {
+        emails: {
+          send: async (payload) => this.sendWithConfiguredProvider(payload),
+        },
+      };
     } else {
-      this.resend = null;
       console.warn(
-        "⚠️ Resend API key not provided. Email functionality will be disabled."
+        "⚠️ No email provider is configured. Email functionality will be disabled."
       );
     }
+
     this.defaultFrom = emailConfig.defaultFrom;
+    this.defaultReplyTo = emailConfig.replyToEmail;
+    this.smtpFrom = emailConfig.smtpFrom;
 
     // Bind methods to preserve 'this' context
     this.sendTemplatedEmail = this.sendTemplatedEmail.bind(this);
     this.sendWelcomeEmail = this.sendWelcomeEmail.bind(this);
+  }
+
+  async sendWithConfiguredProvider(payload = {}) {
+    if (emailConfig.emailProvider === "postmark") {
+      return this.sendWithPostmark(payload);
+    }
+
+    if (emailConfig.emailProvider === "smtp") {
+      return this.sendWithSmtp(payload);
+    }
+
+    if (this.smtpTransporter) {
+      return this.sendWithSmtp(payload);
+    }
+
+    return this.sendWithPostmark(payload);
+  }
+
+  async sendWithPostmark(payload = {}) {
+    if (!this.postmark) {
+      console.warn("📧 Email service not configured. Skipping email send.");
+      return { id: "mock-email-id", status: "skipped", provider: "postmark" };
+    }
+
+    const requestBody = await this.buildPostmarkPayload(payload);
+    const result = await this.postmark.sendEmail(requestBody);
+
+    return {
+      id: result.MessageID,
+      messageId: result.MessageID,
+      submittedAt: result.SubmittedAt,
+      to: result.To,
+      errorCode: result.ErrorCode,
+      message: result.Message,
+      provider: "postmark",
+      raw: result,
+    };
+  }
+
+  async sendWithSmtp(payload = {}) {
+    if (!this.smtpTransporter) {
+      console.warn("📧 SMTP is not configured. Skipping email send.");
+      return { id: "mock-email-id", status: "skipped", provider: "smtp" };
+    }
+
+    const mailOptions = await this.buildSmtpPayload(payload);
+    const result = await this.smtpTransporter.sendMail(mailOptions);
+
+    return {
+      id: result.messageId,
+      messageId: result.messageId,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      response: result.response,
+      provider: "smtp",
+      raw: result,
+    };
+  }
+
+  async buildPostmarkPayload(payload = {}) {
+    const {
+      from,
+      to,
+      cc,
+      bcc,
+      subject,
+      html,
+      text,
+      attachments,
+      replyTo,
+      headers,
+      tag,
+      trackOpens,
+      messageStream,
+    } = payload;
+
+    const postmarkPayload = {
+      From: from || this.defaultFrom,
+      To: this.normalizeRecipientList(to),
+      Subject: subject || "(No Subject)",
+      HtmlBody: html || undefined,
+      TextBody: text || undefined,
+    };
+
+    if (cc?.length) {
+      postmarkPayload.Cc = this.normalizeRecipientList(cc);
+    }
+
+    if (bcc?.length) {
+      postmarkPayload.Bcc = this.normalizeRecipientList(bcc);
+    }
+
+    const resolvedReplyTo = replyTo || this.defaultReplyTo;
+    if (resolvedReplyTo) {
+      postmarkPayload.ReplyTo = resolvedReplyTo;
+    }
+
+    if (Array.isArray(headers) && headers.length > 0) {
+      postmarkPayload.Headers = headers;
+    }
+
+    if (tag) {
+      postmarkPayload.Tag = tag;
+    }
+
+    if (typeof trackOpens === "boolean") {
+      postmarkPayload.TrackOpens = trackOpens;
+    }
+
+    if (messageStream) {
+      postmarkPayload.MessageStream = messageStream;
+    } else {
+      postmarkPayload.MessageStream = emailConfig.postmarkMessageStream;
+    }
+
+    const preparedAttachments = await this.preparePostmarkAttachments(
+      attachments
+    );
+    if (preparedAttachments.length > 0) {
+      postmarkPayload.Attachments = preparedAttachments;
+    }
+
+    return postmarkPayload;
+  }
+
+  normalizeRecipientList(recipients = []) {
+    const list = Array.isArray(recipients) ? recipients : [recipients];
+
+    return list
+      .map((recipient) => {
+        if (!recipient) {
+          return "";
+        }
+
+        if (typeof recipient === "string") {
+          return recipient.trim();
+        }
+
+        if (!recipient.email) {
+          return "";
+        }
+
+        const normalizedEmail = recipient.email.trim();
+        return recipient.name
+          ? `${recipient.name} <${normalizedEmail}>`
+          : normalizedEmail;
+      })
+      .filter(Boolean)
+      .join(",");
+  }
+
+  async preparePostmarkAttachments(attachments = []) {
+    const preparedAttachments = [];
+
+    for (const attachment of attachments || []) {
+      if (!attachment) {
+        continue;
+      }
+
+      let contentBuffer = null;
+      let contentType =
+        attachment.contentType || "application/octet-stream";
+
+      if (attachment.content) {
+        contentBuffer = Buffer.isBuffer(attachment.content)
+          ? attachment.content
+          : Buffer.from(String(attachment.content), "utf8");
+      } else if (attachment.path) {
+        const response = await fetch(attachment.path);
+        if (!response.ok) {
+          throw new Error(
+            `Failed to download attachment from ${attachment.path}`
+          );
+        }
+
+        const arrayBuffer = await response.arrayBuffer();
+        contentBuffer = Buffer.from(arrayBuffer);
+        contentType =
+          attachment.contentType ||
+          response.headers.get("content-type") ||
+          contentType;
+      }
+
+      if (!contentBuffer) {
+        continue;
+      }
+
+      preparedAttachments.push({
+        Name: attachment.filename || "attachment",
+        Content: contentBuffer.toString("base64"),
+        ContentType: contentType,
+      });
+    }
+
+    return preparedAttachments;
+  }
+
+  async buildSmtpPayload(payload = {}) {
+    const {
+      from,
+      to,
+      cc,
+      bcc,
+      subject,
+      html,
+      text,
+      attachments,
+      replyTo,
+      headers,
+    } = payload;
+
+    const resolvedFrom =
+      !from || from === this.defaultFrom ? this.smtpFrom || this.defaultFrom : from;
+
+    const smtpPayload = {
+      from: resolvedFrom,
+      to: this.normalizeRecipientList(to),
+      subject: subject || "(No Subject)",
+      html: html || undefined,
+      text: text || undefined,
+    };
+
+    if (cc?.length) {
+      smtpPayload.cc = this.normalizeRecipientList(cc);
+    }
+
+    if (bcc?.length) {
+      smtpPayload.bcc = this.normalizeRecipientList(bcc);
+    }
+
+    const resolvedReplyTo = replyTo || this.defaultReplyTo;
+    if (resolvedReplyTo) {
+      smtpPayload.replyTo = resolvedReplyTo;
+    }
+
+    if (Array.isArray(headers) && headers.length > 0) {
+      smtpPayload.headers = headers.reduce((acc, header) => {
+        if (header?.Name && header?.Value) {
+          acc[header.Name] = header.Value;
+        }
+        return acc;
+      }, {});
+    }
+
+    const preparedAttachments = await this.prepareSmtpAttachments(attachments);
+    if (preparedAttachments.length > 0) {
+      smtpPayload.attachments = preparedAttachments;
+    }
+
+    return smtpPayload;
+  }
+
+  async prepareSmtpAttachments(attachments = []) {
+    const preparedAttachments = [];
+
+    for (const attachment of attachments || []) {
+      if (!attachment) {
+        continue;
+      }
+
+      if (attachment.content) {
+        preparedAttachments.push({
+          filename: attachment.filename || "attachment",
+          content: attachment.content,
+          contentType: attachment.contentType || "application/octet-stream",
+        });
+        continue;
+      }
+
+      if (attachment.path) {
+        preparedAttachments.push({
+          filename: attachment.filename || "attachment",
+          path: attachment.path,
+          contentType: attachment.contentType || "application/octet-stream",
+        });
+      }
+    }
+
+    return preparedAttachments;
   }
 
   async resolveRecipientReference(recipient) {
@@ -1369,8 +1695,13 @@ class EmailService {
         });
       }
 
+      const senderLabel =
+        typeof from === "string"
+          ? from
+          : from?.email || this.defaultFrom;
+
       console.log(
-        `📤 Sending email from ${from.email} to ${resolvedTo.length} recipients`
+        `📤 Sending email from ${senderLabel} to ${resolvedTo.length} recipients`
       );
       const result = await this.resend.emails.send(emailData);
       

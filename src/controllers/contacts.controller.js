@@ -370,13 +370,13 @@ export const sendEmailToContact = async (req, res) => {
     } else {
       return res.status(403).json({ status: "error", message: "Unauthorized" });
     }
-    // Send email using Resend (custom, not template)
-    await emailService.resend.emails.send({
+    await emailService.sendUserEmail({
       from: emailService.defaultFrom,
-      to: [contact.email],
+      to: [{ email: contact.email, name: contact.name }],
       cc: ccRecipients,
       subject,
-      html,
+      bodyHtml: html,
+      bodyText: html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim(),
     });
     res.json({ status: "success", message: "Email sent successfully" });
   } catch (error) {

@@ -314,10 +314,9 @@ class EmailController {
           message: "Internal email sent successfully",
         });
       } else {
-        console.log("📤 Sending external email via Resend");
+        console.log("📤 Sending external email via Postmark");
 
-        // Send via Resend for external recipients
-        const resendResult = await emailService.sendUserEmail({
+        const providerResult = await emailService.sendUserEmail({
           from,
           to: toRecipients,
           cc: ccRecipients,
@@ -333,7 +332,7 @@ class EmailController {
 
         // Create email record in database (sent folder for sender)
         const email = await Email.create({
-          messageId: resendResult.id || `local-${Date.now()}`,
+          messageId: providerResult.id || `local-${Date.now()}`,
           from,
           to: toRecipients,
           cc: ccRecipients,
@@ -345,7 +344,7 @@ class EmailController {
           folder: "sent",
           isRead: true,
           owner: { userId, userType },
-          resendData: resendResult,
+          resendData: providerResult,
           timestamp: new Date(),
         });
 
@@ -552,10 +551,9 @@ class EmailController {
           message: "Reply sent successfully",
         });
       } else {
-        console.log("📤 Sending external reply via Resend");
+        console.log("📤 Sending external reply via Postmark");
 
-        // Send external reply via Resend
-        const resendResult = await emailService.sendUserEmail({
+        const providerResult = await emailService.sendUserEmail({
           from,
           to,
           cc,
@@ -570,7 +568,7 @@ class EmailController {
 
         // Create email record for sender
         const email = await Email.create({
-          messageId: resendResult.id || `reply-${Date.now()}`,
+          messageId: providerResult.id || `reply-${Date.now()}`,
           from,
           to,
           cc,
@@ -581,7 +579,7 @@ class EmailController {
           folder: "sent",
           isRead: true,
           owner: { userId, userType },
-          resendData: resendResult,
+          resendData: providerResult,
           inReplyTo: originalEmail.messageId,
           references: [
             ...(originalEmail.references || []),
@@ -927,44 +925,38 @@ class EmailController {
   }
 
   /**
-   * Handle Resend webhook for incoming emails
-   * Thinking: This is how we receive emails sent to @rentalease.com.au
+   * Handle Postmark webhook for inbound and delivery events
    */
-  async handleResendWebhook(req, res) {
+  async handlePostmarkWebhook(req, res) {
     try {
-      // Verify webhook signature (security)
-      const signature =
-        req.headers["svix-signature"] || req.headers["webhook-signature"];
+      if (!this.isAuthorizedPostmarkWebhook(req)) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized webhook request",
+        });
+      }
 
-      // TODO: Implement signature verification
-      // const isValid = await emailService.verifyWebhookSignature(req.body, signature);
+      const eventType = this.getPostmarkWebhookType(req.body);
+      console.log(`📨 Received Postmark webhook: ${eventType}`);
 
-      const { type, data } = req.body;
-      console.log(`📨 Received webhook: ${type}`);
-
-      switch (type) {
-        case "email.received":
-          await this.processIncomingEmail(data);
+      switch (eventType) {
+        case "inbound":
+          await this.processIncomingEmail(req.body);
           break;
-
-        case "email.delivered":
-          await this.updateEmailStatus(data.email_id, "delivered");
+        case "delivery":
+          await this.updateEmailStatus(req.body.MessageID, "delivered");
           break;
-
-        case "email.opened":
-          await this.updateEmailStatus(data.email_id, "opened");
+        case "open":
+          await this.updateEmailStatus(req.body.MessageID, "opened");
           break;
-
-        case "email.bounced":
-          await this.handleBouncedEmail(data);
+        case "bounce":
+          await this.handleBouncedEmail(req.body);
           break;
-
-        case "email.complained":
-          await this.handleComplaintEmail(data);
+        case "spamComplaint":
+          await this.handleComplaintEmail(req.body);
           break;
-
         default:
-          console.log(`⚠️ Unhandled webhook type: ${type}`);
+          console.log("⚠️ Unhandled Postmark webhook payload");
       }
 
       res.json({ success: true, received: true });
@@ -982,23 +974,35 @@ class EmailController {
    */
   async processIncomingEmail(data) {
     try {
-      const {
-        from,
-        to,
-        subject,
-        html,
-        text,
-        message_id,
-        in_reply_to,
-        references,
-      } = data;
+      const from = data.FromFull || {
+        Email: data.From,
+        Name: data.FromName,
+      };
+      const to = Array.isArray(data.ToFull) ? data.ToFull : [];
+      const subject = data.Subject;
+      const html = data.HtmlBody;
+      const text = data.TextBody || data.StrippedTextReply || data.TextBody;
+      const messageId = data.MessageID;
+      const inReplyTo = data.Headers?.find(
+        (header) => header.Name?.toLowerCase() === "in-reply-to"
+      )?.Value;
+      const referencesHeader = data.Headers?.find(
+        (header) => header.Name?.toLowerCase() === "references"
+      )?.Value;
+      const references = referencesHeader
+        ? referencesHeader.split(/\s+/).filter(Boolean)
+        : [];
 
       console.log(
-        `📥 Processing incoming email from ${from.email} to ${to[0].email}`
+        `📥 Processing incoming email from ${from.Email} to ${to[0]?.Email}`
       );
 
       // Find the recipient user
-      const recipientEmail = to[0].email.toLowerCase();
+      const recipientEmail = to[0]?.Email?.toLowerCase();
+      if (!recipientEmail) {
+        console.warn("⚠️ Incoming email does not include a usable recipient");
+        return;
+      }
       const recipient = await emailService.findUserBySystemEmail(
         recipientEmail
       );
@@ -1010,10 +1014,10 @@ class EmailController {
 
       // Create email record
       const email = await Email.create({
-        messageId: message_id,
+        messageId: messageId,
         from: {
-          email: from.email,
-          name: from.name,
+          email: from.Email,
+          name: from.Name,
         },
         to: [
           {
@@ -1032,7 +1036,7 @@ class EmailController {
           userId: recipient._id,
           userType: recipient.userType,
         },
-        inReplyTo: in_reply_to,
+        inReplyTo: inReplyTo,
         references: references || [],
         timestamp: new Date(),
       });
@@ -1083,15 +1087,23 @@ class EmailController {
    */
   async handleBouncedEmail(data) {
     try {
-      const { email_id, bounce_type, bounce_message } = data;
+      const messageId = data.MessageID;
+      const bounceType = data.Type || data.TypeCode || "bounce";
+      const bounceMessage = data.Description || data.Details || "";
 
-      const email = await Email.findOne({ messageId: email_id });
+      const email = await Email.findOne({ messageId });
       if (email) {
         email.resendStatus = "bounced";
-        email.resendData = { ...email.resendData, bounce_type, bounce_message };
+        email.resendData = {
+          ...email.resendData,
+          bounce_type: bounceType,
+          bounce_message: bounceMessage,
+          provider: "postmark",
+          webhook: data,
+        };
         await email.save();
 
-        console.warn(`⚠️ Email bounced: ${email_id}, type: ${bounce_type}`);
+        console.warn(`⚠️ Email bounced: ${messageId}, type: ${bounceType}`);
 
         // TODO: Notify sender about bounce
       }
@@ -1105,15 +1117,21 @@ class EmailController {
    */
   async handleComplaintEmail(data) {
     try {
-      const { email_id, complained_at } = data;
+      const messageId = data.MessageID;
+      const complainedAt = data.ReceivedAt || new Date().toISOString();
 
-      const email = await Email.findOne({ messageId: email_id });
+      const email = await Email.findOne({ messageId });
       if (email) {
         email.resendStatus = "complained";
-        email.resendData = { ...email.resendData, complained_at };
+        email.resendData = {
+          ...email.resendData,
+          complained_at: complainedAt,
+          provider: "postmark",
+          webhook: data,
+        };
         await email.save();
 
-        console.warn(`⚠️ Email marked as spam: ${email_id}`);
+        console.warn(`⚠️ Email marked as spam: ${messageId}`);
 
         // TODO: Handle spam complaint (maybe block sender)
       }
@@ -1304,21 +1322,9 @@ class EmailController {
       // Log email data before sending
       console.log("Sending email with data:", JSON.stringify(emailData, null, 2));
 
-      // Send email using Resend
-      const resendResult = await emailService.resend.emails.send(emailData);
+      const providerResult = await emailService.resend.emails.send(emailData);
 
-      // Log resend result
-      console.log("Resend response:", JSON.stringify(resendResult, null, 2));
-
-      // Check for errors returned by Resend itself
-      if (resendResult.error) {
-        console.error("❌ Resend API error:", resendResult.error);
-        return res.status(resendResult.error.statusCode || 500).json({
-          status: "error",
-          message: "Failed to send email via Resend",
-          details: resendResult.error.message,
-        });
-      }
+      console.log("Email provider response:", JSON.stringify(providerResult, null, 2));
 
       res.json({
         status: "success",
@@ -1328,7 +1334,7 @@ class EmailController {
           cc: resolvedCcRecipients.map((recipient) => recipient.email),
           subject: subject.trim(),
           attachmentCount: attachments.length,
-          resendMessageId: resendResult.id,
+          providerMessageId: providerResult.id,
         },
       });
     } catch (error) {
@@ -1340,6 +1346,54 @@ class EmailController {
         details: error.message,
         error: process.env.NODE_ENV === "development" ? error.stack : undefined,
       });
+    }
+  }
+
+  isAuthorizedPostmarkWebhook(req) {
+    const configuredUsername = process.env.POSTMARK_WEBHOOK_USERNAME || "";
+    const configuredPassword = process.env.POSTMARK_WEBHOOK_PASSWORD || "";
+
+    if (!configuredUsername && !configuredPassword) {
+      return true;
+    }
+
+    const authHeader = req.headers.authorization || "";
+    if (!authHeader.startsWith("Basic ")) {
+      return false;
+    }
+
+    const encoded = authHeader.slice("Basic ".length).trim();
+    const decoded = Buffer.from(encoded, "base64").toString("utf8");
+    const separatorIndex = decoded.indexOf(":");
+    if (separatorIndex === -1) {
+      return false;
+    }
+
+    const username = decoded.slice(0, separatorIndex);
+    const password = decoded.slice(separatorIndex + 1);
+
+    return (
+      username === configuredUsername &&
+      password === configuredPassword
+    );
+  }
+
+  getPostmarkWebhookType(payload = {}) {
+    if (Array.isArray(payload.ToFull) || payload.MessageStream === "inbound") {
+      return "inbound";
+    }
+
+    switch (payload.RecordType) {
+      case "Delivery":
+        return "delivery";
+      case "Open":
+        return "open";
+      case "Bounce":
+        return "bounce";
+      case "SpamComplaint":
+        return "spamComplaint";
+      default:
+        return "unknown";
     }
   }
 }

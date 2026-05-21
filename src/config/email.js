@@ -1,4 +1,4 @@
-const DEFAULT_FROM_FALLBACK = "onboarding@resend.dev";
+const DEFAULT_FROM_FALLBACK = "noreply@notify.rentalease.com.au";
 const DEFAULT_SUPPORT_FALLBACK = "support@rentallease.com";
 
 const sanitizeEmailValue = (value = "") =>
@@ -35,7 +35,15 @@ const resolveConfiguredEmail = ({
 };
 
 const emailConfig = {
-  resendApiKey: sanitizeEmailValue(process.env.RESEND_API_KEY || ""),
+  emailProvider: sanitizeEmailValue(
+    process.env.EMAIL_PROVIDER || "auto"
+  ).toLowerCase(),
+  postmarkServerToken: sanitizeEmailValue(
+    process.env.POSTMARK_SERVER_TOKEN || ""
+  ),
+  postmarkMessageStream: sanitizeEmailValue(
+    process.env.POSTMARK_MESSAGE_STREAM || "outbound"
+  ),
   defaultFrom: resolveConfiguredEmail({
     rawValue: process.env.EMAIL_FROM,
     fallback: DEFAULT_FROM_FALLBACK,
@@ -46,6 +54,32 @@ const emailConfig = {
     fallback: DEFAULT_SUPPORT_FALLBACK,
     label: "SUPPORT_EMAIL",
   }),
+  replyToEmail: resolveConfiguredEmail({
+    rawValue: process.env.REPLY_TO_EMAIL || process.env.SUPPORT_EMAIL,
+    fallback: DEFAULT_SUPPORT_FALLBACK,
+    label: "REPLY_TO_EMAIL",
+  }),
+  smtpHost: sanitizeEmailValue(process.env.SMTP_HOST || "smtp.gmail.com"),
+  smtpPort: Number(process.env.SMTP_PORT || 465),
+  smtpSecure:
+    sanitizeEmailValue(process.env.SMTP_SECURE || "true").toLowerCase() !==
+    "false",
+  smtpName: sanitizeEmailValue(
+    process.env.SMTP_NAME || "rentalease.com.au"
+  ),
+  smtpUser: sanitizeEmailValue(process.env.SMTP_USER || ""),
+  smtpPassword: sanitizeEmailValue(process.env.SMTP_PASSWORD || ""),
+  smtpFrom: resolveConfiguredEmail({
+    rawValue: process.env.SMTP_FROM || process.env.SMTP_USER,
+    fallback: DEFAULT_SUPPORT_FALLBACK,
+    label: "SMTP_FROM",
+  }),
+  postmarkWebhookUsername: sanitizeEmailValue(
+    process.env.POSTMARK_WEBHOOK_USERNAME || ""
+  ),
+  postmarkWebhookPassword: sanitizeEmailValue(
+    process.env.POSTMARK_WEBHOOK_PASSWORD || ""
+  ),
   environment: process.env.NODE_ENV || "development",
 };
 

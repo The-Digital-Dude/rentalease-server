@@ -224,11 +224,10 @@ router.put("/threads/:id/read", authenticate, async (req, res) => {
 // ============================================
 
 /**
- * POST /api/v1/emails/webhook/resend
- * Handle incoming emails and status updates from Resend
- * This endpoint is called by Resend's webhook system
+ * POST /api/v1/emails/webhook/postmark
+ * Handle incoming emails and status updates from Postmark
  */
-router.post("/webhook/resend", (req, res) => emailController.handleResendWebhook(req, res));
+router.post("/webhook/postmark", (req, res) => emailController.handlePostmarkWebhook(req, res));
 
 // ============================================
 // UTILITY ENDPOINTS
