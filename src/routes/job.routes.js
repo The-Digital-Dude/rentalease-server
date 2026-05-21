@@ -1239,13 +1239,24 @@ router.get(
       }
 
       const job = await Job.findById(id)
-        .populate(
-          "property",
-          "address _id propertyType region status currentTenant currentLandlord agency"
-        )
+        .populate({
+          path: "property",
+          select:
+            "address _id propertyType region status currentTenant currentLandlord agency assignedPropertyManager",
+          populate: [
+            {
+              path: "agency",
+              select: "companyName contactPerson email phone",
+            },
+            {
+              path: "assignedPropertyManager",
+              select: "firstName lastName fullName email phone",
+            },
+          ],
+        })
         .populate(
           "assignedTechnician",
-          "firstName lastName phone email availabilityStatus serviceRegions"
+          "firstName lastName fullName phone email availabilityStatus serviceRegions"
         )
         .populate({
           path: "latestInspectionReport",
@@ -1270,15 +1281,6 @@ router.get(
           message: "Job not found",
         });
       }
-
-      // Populate agency details for the property
-      if (job.property && job.property.agency) {
-        await job.populate(
-          "property.agency",
-          "companyName contactPerson email phone"
-        );
-      }
-
       // Check if user has access to this job
       if (!validateOwnerAccess(job, req)) {
         return res.status(403).json({

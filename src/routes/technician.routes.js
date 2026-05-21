@@ -51,6 +51,40 @@ const validateOwnerAccess = (technician, req) => {
   return true;
 };
 
+const applyTechnicianJobPopulates = (query) =>
+  query
+    .populate({
+      path: "property",
+      select:
+        "address _id propertyType region status currentTenant currentLandlord agency assignedPropertyManager",
+      populate: [
+        {
+          path: "agency",
+          select: "companyName contactPerson email phone",
+        },
+        {
+          path: "assignedPropertyManager",
+          select: "firstName lastName fullName email phone",
+        },
+      ],
+    })
+    .populate(
+      "assignedTechnician",
+      "firstName lastName fullName phone email availabilityStatus"
+    )
+    .populate(
+      "createdBy.userId",
+      "name email companyName contactPerson",
+      null,
+      { strictPopulate: false }
+    )
+    .populate(
+      "lastUpdatedBy.userId",
+      "name email companyName contactPerson",
+      null,
+      { strictPopulate: false }
+    );
+
 // CREATE - Add new technician
 router.post("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency']), async (req, res) => {
   console.log(req.body, "body");
@@ -321,23 +355,7 @@ router.get("/jobs", authenticateUserTypes(['Technician']), async (req, res) => {
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     // Execute query with pagination and sorting
-    const jobs = await Job.find(query)
-      .populate(
-        "property",
-        "address _id propertyType region status currentTenant currentLandlord agency"
-      )
-      .populate(
-        "createdBy.userId",
-        "name email companyName contactPerson",
-        null,
-        { strictPopulate: false }
-      )
-      .populate(
-        "lastUpdatedBy.userId",
-        "name email companyName contactPerson",
-        null,
-        { strictPopulate: false }
-      )
+    const jobs = await applyTechnicianJobPopulates(Job.find(query))
       .sort({ [sortBy]: sortOrder === "desc" ? -1 : 1 })
       .skip(skip)
       .limit(parseInt(limit));
@@ -441,23 +459,7 @@ router.get("/my-jobs", authenticateUserTypes(['Technician']), async (req, res) =
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     // Execute query with pagination and sorting
-    const jobs = await Job.find(query)
-      .populate(
-        "property",
-        "address _id propertyType region status currentTenant currentLandlord agency"
-      )
-      .populate(
-        "createdBy.userId",
-        "name email companyName contactPerson",
-        null,
-        { strictPopulate: false }
-      )
-      .populate(
-        "lastUpdatedBy.userId",
-        "name email companyName contactPerson",
-        null,
-        { strictPopulate: false }
-      )
+    const jobs = await applyTechnicianJobPopulates(Job.find(query))
       .sort({ [sortBy]: sortOrder === "desc" ? -1 : 1 })
       .skip(skip)
       .limit(parseInt(limit));
@@ -561,23 +563,7 @@ router.get("/active-jobs", authenticateUserTypes(['Technician']), async (req, re
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     // Execute query with pagination and sorting
-    const jobs = await Job.find(query)
-      .populate(
-        "property",
-        "address _id propertyType region status currentTenant currentLandlord agency"
-      )
-      .populate(
-        "createdBy.userId",
-        "name email companyName contactPerson",
-        null,
-        { strictPopulate: false }
-      )
-      .populate(
-        "lastUpdatedBy.userId",
-        "name email companyName contactPerson",
-        null,
-        { strictPopulate: false }
-      )
+    const jobs = await applyTechnicianJobPopulates(Job.find(query))
       .sort({ [sortBy]: sortOrder === "desc" ? -1 : 1 })
       .skip(skip)
       .limit(parseInt(limit));
@@ -683,23 +669,7 @@ router.get("/overdue-jobs", authenticateUserTypes(['Technician']), async (req, r
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     // Execute query with pagination and sorting
-    const jobs = await Job.find(query)
-      .populate(
-        "property",
-        "address _id propertyType region status currentTenant currentLandlord agency"
-      )
-      .populate(
-        "createdBy.userId",
-        "name email companyName contactPerson",
-        null,
-        { strictPopulate: false }
-      )
-      .populate(
-        "lastUpdatedBy.userId",
-        "name email companyName contactPerson",
-        null,
-        { strictPopulate: false }
-      )
+    const jobs = await applyTechnicianJobPopulates(Job.find(query))
       .sort({ [sortBy]: sortOrder === "desc" ? -1 : 1 })
       .skip(skip)
       .limit(parseInt(limit));
@@ -817,23 +787,7 @@ router.get("/completed-jobs", authenticateUserTypes(['Technician']), async (req,
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     // Execute query with pagination and sorting
-    const jobs = await Job.find(query)
-      .populate(
-        "property",
-        "address _id propertyType region status currentTenant currentLandlord agency"
-      )
-      .populate(
-        "createdBy.userId",
-        "name email companyName contactPerson",
-        null,
-        { strictPopulate: false }
-      )
-      .populate(
-        "lastUpdatedBy.userId",
-        "name email companyName contactPerson",
-        null,
-        { strictPopulate: false }
-      )
+    const jobs = await applyTechnicianJobPopulates(Job.find(query))
       .sort({ [sortBy]: sortOrder === "desc" ? -1 : 1 })
       .skip(skip)
       .limit(parseInt(limit));
