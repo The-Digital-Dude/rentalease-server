@@ -553,27 +553,30 @@ export const sendCompletedJobInvoiceDocuments = async ({
     throw new Error("At least one valid recipient is required");
   }
 
-  const invoicePdfBuffer = uploadedInvoiceAttachment
-    ? uploadedInvoiceAttachment.buffer
-    : await generateInvoicePdfBuffer({
+  const invoicePdfPromise = uploadedInvoiceAttachment
+    ? Promise.resolve(uploadedInvoiceAttachment.buffer)
+    : generateInvoicePdfBuffer({
         invoice,
         reviewData,
       });
 
-  let reportAttachment = null;
-  try {
-    reportAttachment = await fetchAttachmentFromUrl(
-      reviewData.reportFile,
-      `inspection-report-${reviewData.jobNumber || invoice.invoiceNumber}.pdf`
-    );
-  } catch (reportAttachmentError) {
+  const reportAttachmentPromise = fetchAttachmentFromUrl(
+    reviewData.reportFile,
+    `inspection-report-${reviewData.jobNumber || invoice.invoiceNumber}.pdf`
+  ).catch((reportAttachmentError) => {
     console.warn("Unable to attach inspection report to invoice email:", {
       invoiceId: invoice._id?.toString?.(),
       jobId: invoice.jobId?._id?.toString?.() || invoice.jobId?.toString?.(),
       reportFile: reviewData.reportFile,
       error: reportAttachmentError.message,
     });
-  }
+    return null;
+  });
+
+  const [invoicePdfBuffer, reportAttachment] = await Promise.all([
+    invoicePdfPromise,
+    reportAttachmentPromise,
+  ]);
 
   const attachments = [
     {
@@ -610,14 +613,17 @@ export const sendCompletedJobInvoiceDocuments = async ({
   await invoice.save();
 
   if (sentBy) {
-    try {
+    // Notifications should not block the API response for a completed send.
+    Promise.resolve()
+      .then(async () => {
       await notificationService.sendInvoiceSentNotification(invoice, sentBy);
-    } catch (notificationError) {
-      console.error(
-        "Failed to send invoice sent notification:",
-        notificationError
-      );
-    }
+      })
+      .catch((notificationError) => {
+        console.error(
+          "Failed to send invoice sent notification:",
+          notificationError
+        );
+      });
   }
 
   return {
