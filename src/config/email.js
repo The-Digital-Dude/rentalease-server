@@ -38,6 +38,9 @@ const emailConfig = {
   emailProvider: sanitizeEmailValue(
     process.env.EMAIL_PROVIDER || "auto"
   ).toLowerCase(),
+  mailgunApiKey: sanitizeEmailValue(process.env.MAILGUN_API_KEY || ""),
+  mailgunDomain: sanitizeEmailValue(process.env.MAILGUN_DOMAIN || ""),
+  mailgunBaseUrl: sanitizeEmailValue(process.env.MAILGUN_BASE_URL || ""),
   postmarkServerToken: sanitizeEmailValue(
     process.env.POSTMARK_SERVER_TOKEN || ""
   ),

@@ -1,3 +1,5 @@
+import FormData from "form-data";
+import Mailgun from "mailgun.js";
 import postmark from "postmark";
 import nodemailer from "nodemailer";
 import emailConfig, { isValidEmail } from "../config/email.js";
@@ -10,17 +12,40 @@ import Technician from "../models/Technician.js";
 
 class EmailService {
   constructor() {
+    this.mailgun = null;
     this.smtpTransporter = null;
     this.postmark = null;
     this.resend = null;
     this.providerName = "none";
+
+    if (emailConfig.mailgunApiKey && emailConfig.mailgunDomain) {
+      const mailgun = new Mailgun(FormData);
+      const mailgunClientConfig = {
+        username: "api",
+        key: emailConfig.mailgunApiKey,
+      };
+
+      if (emailConfig.mailgunBaseUrl) {
+        mailgunClientConfig.url = emailConfig.mailgunBaseUrl;
+      }
+
+      this.mailgun = {
+        client: mailgun.client(mailgunClientConfig),
+        domain: emailConfig.mailgunDomain,
+      };
+      this.providerName = "mailgun";
+    }
 
     const shouldUseSmtp =
       emailConfig.emailProvider === "smtp" ||
       !!emailConfig.smtpUser ||
       !!emailConfig.smtpPassword;
 
-    if (shouldUseSmtp && emailConfig.smtpHost) {
+    if (
+      (!this.mailgun || emailConfig.emailProvider === "smtp") &&
+      shouldUseSmtp &&
+      emailConfig.smtpHost
+    ) {
       const smtpConfig = {
         host: emailConfig.smtpHost,
         port: emailConfig.smtpPort,
@@ -40,18 +65,23 @@ class EmailService {
     }
 
     if (
-      (!this.smtpTransporter || emailConfig.emailProvider === "postmark") &&
-      emailConfig.postmarkServerToken
+      (!this.mailgun &&
+        !this.smtpTransporter &&
+        emailConfig.postmarkServerToken) ||
+      emailConfig.emailProvider === "postmark"
     ) {
       this.postmark = new postmark.ServerClient(
         emailConfig.postmarkServerToken
       );
-      if (!this.smtpTransporter || emailConfig.emailProvider === "postmark") {
+      if (
+        (!this.mailgun && !this.smtpTransporter) ||
+        emailConfig.emailProvider === "postmark"
+      ) {
         this.providerName = "postmark";
       }
     }
 
-    if (this.smtpTransporter || this.postmark) {
+    if (this.mailgun || this.smtpTransporter || this.postmark) {
       this.resend = {
         emails: {
           send: async (payload) => this.sendWithConfiguredProvider(payload),
@@ -73,12 +103,20 @@ class EmailService {
   }
 
   async sendWithConfiguredProvider(payload = {}) {
+    if (emailConfig.emailProvider === "mailgun") {
+      return this.sendWithMailgun(payload);
+    }
+
     if (emailConfig.emailProvider === "postmark") {
       return this.sendWithPostmark(payload);
     }
 
     if (emailConfig.emailProvider === "smtp") {
       return this.sendWithSmtp(payload);
+    }
+
+    if (this.mailgun) {
+      return this.sendWithMailgun(payload);
     }
 
     if (this.smtpTransporter) {
@@ -105,6 +143,27 @@ class EmailService {
       errorCode: result.ErrorCode,
       message: result.Message,
       provider: "postmark",
+      raw: result,
+    };
+  }
+
+  async sendWithMailgun(payload = {}) {
+    if (!this.mailgun) {
+      console.warn("📧 Mailgun is not configured. Skipping email send.");
+      return { id: "mock-email-id", status: "skipped", provider: "mailgun" };
+    }
+
+    const messageData = await this.buildMailgunPayload(payload);
+    const result = await this.mailgun.client.messages.create(
+      this.mailgun.domain,
+      messageData
+    );
+
+    return {
+      id: result.id,
+      messageId: result.id,
+      message: result.message,
+      provider: "mailgun",
       raw: result,
     };
   }
@@ -262,6 +321,126 @@ class EmailService {
         Content: contentBuffer.toString("base64"),
         ContentType: contentType,
       });
+    }
+
+    return preparedAttachments;
+  }
+
+  async buildMailgunPayload(payload = {}) {
+    const {
+      from,
+      to,
+      cc,
+      bcc,
+      subject,
+      html,
+      text,
+      attachments,
+      replyTo,
+      headers,
+    } = payload;
+
+    const messageData = {
+      from: from || this.defaultFrom,
+      to: this.normalizeRecipientArray(to),
+      subject: subject || "(No Subject)",
+      html: html || undefined,
+      text: text || undefined,
+    };
+
+    if (cc?.length) {
+      messageData.cc = this.normalizeRecipientArray(cc);
+    }
+
+    if (bcc?.length) {
+      messageData.bcc = this.normalizeRecipientArray(bcc);
+    }
+
+    const resolvedReplyTo = replyTo || this.defaultReplyTo;
+    if (resolvedReplyTo) {
+      messageData["h:Reply-To"] = resolvedReplyTo;
+    }
+
+    if (Array.isArray(headers)) {
+      for (const header of headers) {
+        if (header?.Name && header?.Value) {
+          messageData[`h:${header.Name}`] = header.Value;
+        }
+      }
+    }
+
+    const preparedAttachments = await this.prepareMailgunAttachments(
+      attachments
+    );
+    if (preparedAttachments.length > 0) {
+      messageData.attachment = preparedAttachments;
+    }
+
+    return messageData;
+  }
+
+  normalizeRecipientArray(recipients = []) {
+    const list = Array.isArray(recipients) ? recipients : [recipients];
+
+    return list
+      .map((recipient) => {
+        if (!recipient) {
+          return "";
+        }
+
+        if (typeof recipient === "string") {
+          return recipient.trim();
+        }
+
+        if (!recipient.email) {
+          return "";
+        }
+
+        const normalizedEmail = recipient.email.trim();
+        return recipient.name
+          ? `${recipient.name} <${normalizedEmail}>`
+          : normalizedEmail;
+      })
+      .filter(Boolean);
+  }
+
+  async prepareMailgunAttachments(attachments = []) {
+    const preparedAttachments = [];
+
+    for (const attachment of attachments || []) {
+      if (!attachment) {
+        continue;
+      }
+
+      if (attachment.content) {
+        preparedAttachments.push({
+          filename: attachment.filename || "attachment",
+          data: Buffer.isBuffer(attachment.content)
+            ? attachment.content
+            : Buffer.from(String(attachment.content), "utf8"),
+          contentType: attachment.contentType || "application/octet-stream",
+        });
+        continue;
+      }
+
+      if (attachment.path) {
+        const response = await fetch(attachment.path);
+        if (!response.ok) {
+          throw new Error(
+            `Failed to download attachment from ${attachment.path}`
+          );
+        }
+
+        const arrayBuffer = await response.arrayBuffer();
+        preparedAttachments.push({
+          filename: attachment.filename || "attachment",
+          data: Buffer.from(arrayBuffer),
+          contentType:
+            attachment.contentType ||
+            response.headers.get("content-type") ||
+            "application/octet-stream",
+        });
+      }
     }
 
     return preparedAttachments;

@@ -17,6 +17,8 @@ if (
   if (usesSmtpAuth) {
     requiredEnvVars.push("SMTP_USER", "SMTP_PASSWORD");
   }
+} else if (process.env.EMAIL_PROVIDER === "mailgun") {
+  requiredEnvVars.push("MAILGUN_API_KEY", "MAILGUN_DOMAIN");
 } else {
   requiredEnvVars.push("POSTMARK_SERVER_TOKEN");
 }
