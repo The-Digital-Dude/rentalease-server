@@ -12,6 +12,7 @@ import TechnicianPayment from "../models/TechnicianPayment.js"; // Added import 
 import Property from "../models/Property.js"; // Added import for Property model
 import PropertyManager from "../models/PropertyManager.js"; // Added import for PropertyManager model
 import Notification from "../models/Notification.js";
+import { TECHNICIAN_PAYMENTS_ENABLED } from "../config/features.js";
 
 const router = express.Router();
 
@@ -1070,30 +1071,32 @@ router.get("/dashboard", authenticateUserTypes(['Technician']), async (req, res)
       .select("job_id jobType status dueDate updatedAt");
 
     // Get payment statistics
-    const paymentStats = await TechnicianPayment.aggregate([
-      {
-        $match: {
-          technicianId: new mongoose.Types.ObjectId(technicianId),
-        },
-      },
-      {
-        $group: {
-          _id: null,
-          totalPayments: { $sum: 1 },
-          pendingPayments: {
-            $sum: {
-              $cond: [{ $eq: ["$status", "Pending"] }, 1, 0],
+    const paymentStats = TECHNICIAN_PAYMENTS_ENABLED
+      ? await TechnicianPayment.aggregate([
+          {
+            $match: {
+              technicianId: new mongoose.Types.ObjectId(technicianId),
             },
           },
-          totalAmount: { $sum: "$amount" },
-          pendingAmount: {
-            $sum: {
-              $cond: [{ $eq: ["$status", "Pending"] }, "$amount", 0],
+          {
+            $group: {
+              _id: null,
+              totalPayments: { $sum: 1 },
+              pendingPayments: {
+                $sum: {
+                  $cond: [{ $eq: ["$status", "Pending"] }, 1, 0],
+                },
+              },
+              totalAmount: { $sum: "$amount" },
+              pendingAmount: {
+                $sum: {
+                  $cond: [{ $eq: ["$status", "Pending"] }, "$amount", 0],
+                },
+              },
             },
           },
-        },
-      },
-    ]);
+        ])
+      : [];
 
     res.status(200).json({
       status: "success",
@@ -1498,6 +1501,13 @@ router.get("/reports/performance", async (req, res) => {
 // Get Technician Payments Report Data
 router.get("/reports/payments", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'PropertyManager']), async (req, res) => {
   try {
+    if (!TECHNICIAN_PAYMENTS_ENABLED) {
+      return res.status(200).json({
+        status: "success",
+        data: [],
+      });
+    }
+
     let paymentQuery = {};
 
     // Filter payments based on user type

@@ -40,6 +40,7 @@ import {
   CLOUDINARY_UPLOAD_LIMIT_BYTES,
   DEFAULT_UPLOAD_LIMIT_BYTES,
 } from "../services/fileUpload.service.js";
+import { TECHNICIAN_PAYMENTS_ENABLED } from "../config/features.js";
 
 // Create Express app
 const app = express();
@@ -72,7 +73,17 @@ app.use("/api/v1/contacts", contactsRoutes);
 app.use("/api/v1/compliance", complianceRoutes);
 app.use("/api/v1/notifications", notificationRoutes);
 app.use("/api/v1/invoices", invoiceRoutes);
-app.use("/api/v1/technician-payments", technicianPaymentRoutes);
+if (TECHNICIAN_PAYMENTS_ENABLED) {
+  app.use("/api/v1/technician-payments", technicianPaymentRoutes);
+} else {
+  app.use("/api/v1/technician-payments", (req, res) => {
+    res.status(404).json({
+      status: "error",
+      message: "Technician payment feature is disabled",
+      timestamp: new Date().toISOString(),
+    });
+  });
+}
 app.use("/api/v1/dashboard", dashboardRoutes);
 app.use("/api/v1/calendar", calendarRoutes);
 app.use("/api/v1/subscription", subscriptionRoutes);

@@ -1,5 +1,5 @@
-const DEFAULT_FROM_FALLBACK = "noreply@notify.rentalease.com.au";
-const DEFAULT_SUPPORT_FALLBACK = "support@rentallease.com";
+const DEFAULT_FROM_FALLBACK = "info@rentalease.com.au";
+const DEFAULT_SUPPORT_FALLBACK = "info@rentalease.com.au";
 
 const sanitizeEmailValue = (value = "") =>
   String(value).replace(/[\r\n\t]/g, "").trim();

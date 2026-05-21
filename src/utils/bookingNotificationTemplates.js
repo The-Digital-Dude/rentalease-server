@@ -68,7 +68,7 @@ const tenantBookingConfirmationTemplate = (data) => ({
           <h4 style="color: #0c5460; margin: 0 0 10px 0; font-size: 16px;">📞 Need to Reschedule?</h4>
           <p style="color: #0c5460; margin: 0; line-height: 1.6;">
             If you need to reschedule, please contact us as soon as possible:<br>
-            <strong>Email:</strong> support@rentalease-crm.com<br>
+            <strong>Email:</strong> info@rentalease.com.au<br>
             <strong>Phone:</strong> 1300 123 456
           </p>
         </div>

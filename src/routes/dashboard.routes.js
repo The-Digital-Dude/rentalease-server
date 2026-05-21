@@ -14,6 +14,7 @@ import TechnicianPayment from "../models/TechnicianPayment.js";
 import Quotation from "../models/Quotation.js";
 import Invoice from "../models/Invoice.js";
 import PropertyManagerInvoice from "../models/PropertyManagerInvoice.js";
+import { TECHNICIAN_PAYMENTS_ENABLED } from "../config/features.js";
 
 const router = express.Router();
 const JOB_STATUS_VALUES = [
@@ -28,6 +29,22 @@ const JOB_STATUS_VALUES = [
 const ACTIVE_JOB_STATUSES = JOB_STATUS_VALUES.filter(
   (status) => !["Completed", "Cancelled"].includes(status)
 );
+const EMPTY_TECHNICIAN_PAYMENT_STATS = {
+  totalPayments: 0,
+  totalAmount: 0,
+  pendingAmount: 0,
+  paidAmount: 0,
+  pendingCount: 0,
+  paidCount: 0,
+};
+const runTechnicianPaymentAggregate = (pipeline) =>
+  TECHNICIAN_PAYMENTS_ENABLED
+    ? TechnicianPayment.aggregate(pipeline)
+    : Promise.resolve([]);
+const countPendingTechnicianPayments = () =>
+  TECHNICIAN_PAYMENTS_ENABLED
+    ? TechnicianPayment.countDocuments({ status: "Pending" })
+    : Promise.resolve(0);
 const STATUS_FILTER_MAP = {
   all: null,
   active: ACTIVE_JOB_STATUSES,
@@ -373,27 +390,33 @@ router.get(
       };
 
       // Get payment statistics
-      const paymentStats = await TechnicianPayment.aggregate([
-        {
-          $group: {
-            _id: null,
-            totalPayments: { $sum: 1 },
-            totalAmount: { $sum: "$amount" },
-            pendingAmount: {
-              $sum: { $cond: [{ $eq: ["$status", "Pending"] }, "$amount", 0] },
+      const paymentStats = TECHNICIAN_PAYMENTS_ENABLED
+        ? await runTechnicianPaymentAggregate([
+            {
+              $group: {
+                _id: null,
+                totalPayments: { $sum: 1 },
+                totalAmount: { $sum: "$amount" },
+                pendingAmount: {
+                  $sum: {
+                    $cond: [{ $eq: ["$status", "Pending"] }, "$amount", 0],
+                  },
+                },
+                paidAmount: {
+                  $sum: {
+                    $cond: [{ $eq: ["$status", "Paid"] }, "$amount", 0],
+                  },
+                },
+                pendingCount: {
+                  $sum: { $cond: [{ $eq: ["$status", "Pending"] }, 1, 0] },
+                },
+                paidCount: {
+                  $sum: { $cond: [{ $eq: ["$status", "Paid"] }, 1, 0] },
+                },
+              },
             },
-            paidAmount: {
-              $sum: { $cond: [{ $eq: ["$status", "Paid"] }, "$amount", 0] },
-            },
-            pendingCount: {
-              $sum: { $cond: [{ $eq: ["$status", "Pending"] }, 1, 0] },
-            },
-            paidCount: {
-              $sum: { $cond: [{ $eq: ["$status", "Paid"] }, 1, 0] },
-            },
-          },
-        },
-      ]);
+          ])
+        : [EMPTY_TECHNICIAN_PAYMENT_STATS];
 
       await Invoice.updateMany(
         { status: "Pending" },
@@ -805,7 +828,7 @@ router.get(
         // System alerts (overdue jobs, pending payments, etc.)
         Promise.all([
           Job.countDocuments({ status: "Overdue" }),
-          TechnicianPayment.countDocuments({ status: "Pending" }),
+          countPendingTechnicianPayments(),
           Agency.countDocuments({ status: "Inactive" }),
         ]).then(([overdueJobs, pendingPayments, inactiveAgencies]) => [
           ...(overdueJobs > 0
@@ -1118,7 +1141,7 @@ router.get(
         Promise.all([
           Job.countDocuments({ createdAt: { $gte: todayStart } }),
           Job.countDocuments({ status: "Completed", updatedAt: { $gte: todayStart } }),
-          TechnicianPayment.aggregate([
+          runTechnicianPaymentAggregate([
             { $match: { createdAt: { $gte: todayStart } } },
             { $group: { _id: null, total: { $sum: "$amount" } } }
           ])
@@ -1137,7 +1160,7 @@ router.get(
             status: "Completed",
             updatedAt: { $gte: yesterdayStart, $lt: todayStart }
           }),
-          TechnicianPayment.aggregate([
+          runTechnicianPaymentAggregate([
             { $match: { createdAt: { $gte: yesterdayStart, $lt: todayStart } } },
             { $group: { _id: null, total: { $sum: "$amount" } } }
           ])
@@ -1151,7 +1174,7 @@ router.get(
         Promise.all([
           Job.countDocuments({ createdAt: { $gte: thisWeekStart } }),
           Job.countDocuments({ status: "Completed", updatedAt: { $gte: thisWeekStart } }),
-          TechnicianPayment.aggregate([
+          runTechnicianPaymentAggregate([
             { $match: { createdAt: { $gte: thisWeekStart } } },
             { $group: { _id: null, total: { $sum: "$amount" } } }
           ])
@@ -1170,7 +1193,7 @@ router.get(
             status: "Completed",
             updatedAt: { $gte: lastWeekStart, $lt: thisWeekStart }
           }),
-          TechnicianPayment.aggregate([
+          runTechnicianPaymentAggregate([
             { $match: { createdAt: { $gte: lastWeekStart, $lt: thisWeekStart } } },
             { $group: { _id: null, total: { $sum: "$amount" } } }
           ])
@@ -1184,7 +1207,7 @@ router.get(
         Promise.all([
           Job.countDocuments({ createdAt: { $gte: thisMonthStart } }),
           Job.countDocuments({ status: "Completed", updatedAt: { $gte: thisMonthStart } }),
-          TechnicianPayment.aggregate([
+          runTechnicianPaymentAggregate([
             { $match: { createdAt: { $gte: thisMonthStart } } },
             { $group: { _id: null, total: { $sum: "$amount" } } }
           ])
@@ -1203,7 +1226,7 @@ router.get(
             status: "Completed",
             updatedAt: { $gte: lastMonthStart, $lte: lastMonthEnd }
           }),
-          TechnicianPayment.aggregate([
+          runTechnicianPaymentAggregate([
             { $match: { createdAt: { $gte: lastMonthStart, $lte: lastMonthEnd } } },
             { $group: { _id: null, total: { $sum: "$amount" } } }
           ])
@@ -1217,7 +1240,7 @@ router.get(
         Promise.all([
           Job.countDocuments({ createdAt: { $gte: thisYearStart } }),
           Job.countDocuments({ status: "Completed", updatedAt: { $gte: thisYearStart } }),
-          TechnicianPayment.aggregate([
+          runTechnicianPaymentAggregate([
             { $match: { createdAt: { $gte: thisYearStart } } },
             { $group: { _id: null, total: { $sum: "$amount" } } }
           ])
@@ -1277,7 +1300,7 @@ router.get(
         }),
 
         // Average job value
-        TechnicianPayment.aggregate([
+        runTechnicianPaymentAggregate([
           { $match: { createdAt: { $gte: thisMonthStart } } },
           {
             $group: {
@@ -1395,7 +1418,7 @@ router.get(
         },
         alerts: {
           critical: await Job.countDocuments({ status: "Overdue" }),
-          warnings: await TechnicianPayment.countDocuments({ status: "Pending" }),
+          warnings: await countPendingTechnicianPayments(),
           info: await Agency.countDocuments({ status: "Inactive" })
         },
         lastUpdated: new Date().toISOString()

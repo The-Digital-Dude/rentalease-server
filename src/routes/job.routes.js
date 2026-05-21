@@ -19,6 +19,7 @@ import fileUploadService from "../services/fileUpload.service.js";
 import { sanitizeJobInput } from "../middleware/sanitizer.middleware.js";
 import { getAgencyServicePriceForJobType } from "../utils/agencyPricing.js";
 import { sendCompletedJobInvoiceDocuments } from "./invoice.routes.js";
+import { TECHNICIAN_PAYMENTS_ENABLED } from "../config/features.js";
 
 const router = express.Router();
 
@@ -2293,6 +2294,16 @@ router.patch(
         let technicianPaymentData = null;
 
         try {
+          if (!TECHNICIAN_PAYMENTS_ENABLED) {
+            console.log(
+              "⏭️ Technician payment feature disabled, skipping payment creation",
+              {
+                jobId: job._id,
+                technicianId: job.assignedTechnician,
+                timestamp: new Date().toISOString(),
+              }
+            );
+          } else {
           // Get agency ID from job owner
           let agencyId;
           if (job.owner.ownerType === "Agency") {
@@ -2346,6 +2357,7 @@ router.patch(
                 timestamp: new Date().toISOString(),
               }
             );
+          }
           }
         } catch (paymentError) {
           // Log error but don't fail the job completion
