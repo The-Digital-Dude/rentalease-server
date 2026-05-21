@@ -1,5 +1,8 @@
 import WebsiteLead from "../models/WebsiteLead.js";
 import mongoose from "mongoose";
+import SuperUser from "../models/SuperUser.js";
+import emailService from "../services/email.service.js";
+import notificationService from "../services/notification.service.js";
 
 // Helper validation functions
 const isValidEmail = (email) =>
@@ -9,6 +12,93 @@ const isValidPhone = (phone) => /^\+?[0-9()\-\.\s]{7,20}$/.test(phone);
 
 const escapeRegex = (value = "") =>
   value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const getLeadSourceLabel = (source) =>
+  source === "website_bookNow_form" ? "Book Now" : "Contact Us";
+
+const sendLeadAcknowledgementEmail = async (lead) => {
+  if (lead.source === "website_bookNow_form") {
+    return await emailService.sendWebsiteBookNowLeadAcknowledgement(lead);
+  }
+
+  return await emailService.sendWebsiteContactLeadAcknowledgement(lead);
+};
+
+const notifySuperUsersAboutLead = async (lead) => {
+  const superUsers = await SuperUser.find({}).select("_id");
+
+  if (!superUsers.length) {
+    return { notifiedCount: 0 };
+  }
+
+  const recipients = superUsers.map((superUser) => ({
+    recipientType: "SuperUser",
+    recipientId: superUser._id,
+  }));
+
+  const notificationData = {
+    type: "GENERAL",
+    title: `New Website Lead - ${getLeadSourceLabel(lead.source)}`,
+    message: `${lead.firstName} ${lead.lastName} submitted a ${getLeadSourceLabel(
+      lead.source
+    )} enquiry.`,
+    data: {
+      leadId: lead._id,
+      source: lead.source,
+      sourceLabel: getLeadSourceLabel(lead.source),
+      firstName: lead.firstName,
+      lastName: lead.lastName,
+      email: lead.email,
+      phone: lead.phone || "",
+      profession: lead.profession || "",
+      createdAt: lead.createdAt,
+    },
+    priority: "High",
+  };
+
+  const results = await notificationService.sendNotification(
+    recipients,
+    notificationData,
+    ["notification"]
+  );
+
+  return { notifiedCount: results.length };
+};
+
+const runLeadSideEffects = async (lead) => {
+  const sideEffects = await Promise.allSettled([
+    sendLeadAcknowledgementEmail(lead),
+    emailService.sendWebsiteLeadAdminNotification(lead),
+    notifySuperUsersAboutLead(lead),
+  ]);
+
+  const [customerEmailResult, adminEmailResult, notificationResult] =
+    sideEffects;
+
+  if (customerEmailResult.status === "rejected") {
+    console.error("Website lead customer acknowledgement failed:", {
+      leadId: lead._id,
+      email: lead.email,
+      error: customerEmailResult.reason?.message || customerEmailResult.reason,
+    });
+  }
+
+  if (adminEmailResult.status === "rejected") {
+    console.error("Website lead admin notification email failed:", {
+      leadId: lead._id,
+      email: lead.email,
+      error: adminEmailResult.reason?.message || adminEmailResult.reason,
+    });
+  }
+
+  if (notificationResult.status === "rejected") {
+    console.error("Website lead CRM notification failed:", {
+      leadId: lead._id,
+      email: lead.email,
+      error: notificationResult.reason?.message || notificationResult.reason,
+    });
+  }
+};
 
 // Create a new website lead (PUBLIC ENDPOINT - no auth required)
 export const createLead = async (req, res) => {
@@ -73,6 +163,7 @@ export const createLead = async (req, res) => {
     });
 
     const savedLead = await newLead.save();
+    await runLeadSideEffects(savedLead);
 
     res.status(201).json({
       status: "success",

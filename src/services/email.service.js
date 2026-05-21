@@ -730,6 +730,83 @@ class EmailService {
     });
   }
 
+  buildWebsiteLeadTemplateData(lead) {
+    const firstName = String(lead?.firstName || "").trim();
+    const lastName = String(lead?.lastName || "").trim();
+    const submittedAt = lead?.createdAt
+      ? new Date(lead.createdAt).toLocaleString("en-AU", {
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : new Date().toLocaleString("en-AU", {
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+
+    return {
+      leadId: lead?._id?.toString?.() || String(lead?._id || ""),
+      firstName,
+      lastName,
+      fullName: [firstName, lastName].filter(Boolean).join(" ").trim(),
+      email: lead?.email || "",
+      phone: lead?.phone || "",
+      profession: lead?.profession || "",
+      message: lead?.message || "",
+      source: lead?.source || "website_contact_form",
+      sourceLabel:
+        lead?.source === "website_bookNow_form" ? "Book Now" : "Contact Us",
+      submittedAt,
+      supportEmail: emailConfig.supportEmail,
+      supportPhone: "03 5906 7723",
+    };
+  }
+
+  async sendWebsiteContactLeadAcknowledgement(lead) {
+    if (!lead?.email) {
+      throw new Error(
+        "Lead email is required for contact acknowledgement email"
+      );
+    }
+
+    return await this.sendTemplatedEmail({
+      to: lead.email,
+      templateName: "websiteLeadContactAcknowledgement",
+      templateData: this.buildWebsiteLeadTemplateData(lead),
+    });
+  }
+
+  async sendWebsiteBookNowLeadAcknowledgement(lead) {
+    if (!lead?.email) {
+      throw new Error(
+        "Lead email is required for book now acknowledgement email"
+      );
+    }
+
+    return await this.sendTemplatedEmail({
+      to: lead.email,
+      templateName: "websiteLeadBookNowAcknowledgement",
+      templateData: this.buildWebsiteLeadTemplateData(lead),
+    });
+  }
+
+  async sendWebsiteLeadAdminNotification(lead) {
+    if (!emailConfig.supportEmail) {
+      throw new Error("Support email is not configured for lead notifications");
+    }
+
+    return await this.sendTemplatedEmail({
+      to: emailConfig.supportEmail,
+      templateName: "websiteLeadAdminNotification",
+      templateData: this.buildWebsiteLeadTemplateData(lead),
+    });
+  }
+
   /**
    * Send credentials email to new team member
    * @param {Object} teamMember - Team member object
@@ -984,13 +1061,23 @@ class EmailService {
       companyName: agency.companyName,
     });
 
+    const rawLoginUrl =
+      agency.loginUrl ||
+      process.env.FRONTEND_URL ||
+      "https://crm.rentalease.com.au";
+    const loginUrl = rawLoginUrl.endsWith("/login")
+      ? rawLoginUrl
+      : `${rawLoginUrl.replace(/\/$/, "")}/login`;
+
     return await this.sendTemplatedEmail({
       to: agency.email,
       templateName: "agencyWelcome",
       templateData: {
         name: agency.contactPerson,
+        contactPerson: agency.contactPerson,
         companyName: agency.companyName,
         email: agency.email,
+        loginUrl,
       },
     });
   }

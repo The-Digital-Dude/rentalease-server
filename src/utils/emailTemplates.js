@@ -759,48 +759,56 @@ const propertyManagerCredentialsTemplate = (data) => ({
  * @returns {Object} - Email template configuration
  */
 const agencyWelcomeTemplate = (data) => ({
-  subject: "Welcome to RentalEase CRM - Your Account is Active!",
+  subject: "Welcome to RentalEase CRM!",
   html: `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f7f8fa;">
       <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
         <div style="text-align: center; margin-bottom: 30px;">
           <h1 style="color: #333; margin-bottom: 10px;">Welcome to RentalEase CRM!</h1>
           <div style="width: 50px; height: 3px; background-color: #28a745; margin: 0 auto;"></div>
         </div>
 
-        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">Hello ${data.name},</p>
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">Hello ${
+          data.contactPerson || data.name || data.companyName
+        },</p>
 
         <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">
-          🎉 Congratulations! Your payment has been successfully processed and <strong>${data.companyName}</strong> is now active on RentalEase CRM!
+          Your agency account has been successfully created and is now active on RentalEase CRM.
         </p>
 
-        <div style="background-color: #d4edda; border: 1px solid #c3e6cb; padding: 20px; border-radius: 8px; margin: 25px 0;">
-          <h3 style="color: #155724; margin: 0 0 15px 0; font-size: 16px;">🔑 Your Login Credentials</h3>
-          <p style="color: #155724; margin: 0; font-size: 14px; line-height: 1.5;">
-            <strong>Email:</strong> ${data.email || 'Your registered email'}<br>
+        <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; padding: 20px; border-radius: 8px; margin: 25px 0;">
+          <h3 style="color: #111827; margin: 0 0 15px 0; font-size: 16px;">Your Login Credentials</h3>
+          <p style="color: #374151; margin: 0; font-size: 14px; line-height: 1.7;">
+            <strong>Email:</strong> ${data.email || "Your registered email"}<br>
             <strong>Password:</strong> The password you set during registration<br>
-            <strong>Login URL:</strong> <a href="${data.loginUrl || process.env.FRONTEND_URL || 'http://localhost:5173'}/login" style="color: #155724; text-decoration: underline;">${data.loginUrl || process.env.FRONTEND_URL || 'http://localhost:5173'}/login</a>
+            <strong>Login URL:</strong> <a href="${
+              data.loginUrl || "https://crm.rentalease.com.au/login"
+            }" style="color: #1d4ed8; text-decoration: underline;">${
+              data.loginUrl || "https://crm.rentalease.com.au/login"
+            }</a>
           </p>
         </div>
 
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="${data.loginUrl || process.env.FRONTEND_URL || 'http://localhost:5173'}/login"
-             style="background-color: #007bff; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
-            🚀 Access Your CRM Dashboard
+        <h3 style="color: #111827; margin: 0 0 14px;">Access Your CRM Dashboard</h3>
+        <p style="color: #374151; line-height: 1.6; margin: 0 0 12px;">You can now:</p>
+        <ul style="color: #374151; line-height: 1.8; margin: 0 0 24px 20px; padding: 0;">
+          <li>Log in to your agency dashboard</li>
+          <li>Add and manage your property portfolio</li>
+          <li>Create jobs and assign them to technicians</li>
+          <li>Track compliance requirements and deadlines</li>
+          <li>Manage team members and property managers</li>
+          <li>Streamline your rental compliance workflow</li>
+        </ul>
+
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">
+          If you need any assistance getting started, our team is here to help.
+        </p>
+
+        <div style="text-align: center; margin: 28px 0;">
+          <a href="${data.loginUrl || "https://crm.rentalease.com.au/login"}"
+             style="background-color: #0f62fe; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+            Access Your CRM Dashboard
           </a>
-        </div>
-
-        <div style="background-color: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 5px; margin: 20px 0;">
-          <p style="color: #856404; margin: 0; font-size: 14px;">
-            <strong>🚀 What You Can Do Now:</strong>
-          </p>
-          <ul style="color: #856404; margin: 10px 0 0 20px;">
-            <li>Log in to your agency dashboard immediately</li>
-            <li>Add and manage your property portfolio</li>
-            <li>Create jobs and assign them to technicians</li>
-            <li>Track compliance requirements and deadlines</li>
-            <li>Manage team members and property managers</li>
-          </ul>
         </div>
 
         <p style="color: #333; margin-top: 30px;">
@@ -2239,6 +2247,96 @@ const quotationRejectedTemplate = (data) => ({
   `,
 });
 
+const websiteLeadContactAcknowledgementTemplate = (data) => ({
+  subject: "Thanks for contacting RentalEase",
+  html: `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f7f8fa;">
+      <div style="background-color: #ffffff; padding: 32px; border-radius: 12px; border: 1px solid #e6e8ec;">
+        <h1 style="margin: 0 0 20px; color: #1f2937; font-size: 28px;">Thanks for reaching out</h1>
+        <p style="color: #374151; line-height: 1.7; margin: 0 0 16px;">
+          Hello ${data.firstName},
+        </p>
+        <p style="color: #374151; line-height: 1.7; margin: 0 0 16px;">
+          We have received your message and a member of the RentalEase team will be in touch soon.
+        </p>
+        <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 10px; padding: 18px; margin: 24px 0;">
+          <h2 style="margin: 0 0 12px; color: #111827; font-size: 18px;">Your submission</h2>
+          <p style="margin: 0 0 8px; color: #374151;"><strong>Name:</strong> ${data.fullName}</p>
+          <p style="margin: 0 0 8px; color: #374151;"><strong>Email:</strong> ${data.email}</p>
+          ${data.phone ? `<p style="margin: 0 0 8px; color: #374151;"><strong>Phone:</strong> ${data.phone}</p>` : ""}
+          ${data.profession ? `<p style="margin: 0 0 8px; color: #374151;"><strong>Profession:</strong> ${data.profession}</p>` : ""}
+          <p style="margin: 0; color: #374151;"><strong>Message:</strong> ${data.message}</p>
+        </div>
+        <p style="color: #374151; line-height: 1.7; margin: 0 0 16px;">
+          If your enquiry is urgent, you can reach us on ${data.supportPhone || "03 5906 7723"} or reply to this email.
+        </p>
+        <p style="color: #374151; margin: 24px 0 0;">
+          Regards,<br>
+          <strong>RentalEase</strong>
+        </p>
+      </div>
+    </div>
+  `,
+});
+
+const websiteLeadBookNowAcknowledgementTemplate = (data) => ({
+  subject: "Your RentalEase demo request has been received",
+  html: `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f7f8fa;">
+      <div style="background-color: #ffffff; padding: 32px; border-radius: 12px; border: 1px solid #e6e8ec;">
+        <h1 style="margin: 0 0 20px; color: #1f2937; font-size: 28px;">Thanks for booking with RentalEase</h1>
+        <p style="color: #374151; line-height: 1.7; margin: 0 0 16px;">
+          Hello ${data.firstName},
+        </p>
+        <p style="color: #374151; line-height: 1.7; margin: 0 0 16px;">
+          We have received your booking request. A member of our team will review the details and contact you to confirm the next step.
+        </p>
+        <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 10px; padding: 18px; margin: 24px 0;">
+          <h2 style="margin: 0 0 12px; color: #111827; font-size: 18px;">Your request</h2>
+          <p style="margin: 0 0 8px; color: #374151;"><strong>Name:</strong> ${data.fullName}</p>
+          <p style="margin: 0 0 8px; color: #374151;"><strong>Email:</strong> ${data.email}</p>
+          ${data.phone ? `<p style="margin: 0 0 8px; color: #374151;"><strong>Phone:</strong> ${data.phone}</p>` : ""}
+          ${data.profession ? `<p style="margin: 0 0 8px; color: #374151;"><strong>Profession:</strong> ${data.profession}</p>` : ""}
+          <p style="margin: 0; color: #374151;"><strong>Service details:</strong> ${data.message}</p>
+        </div>
+        <p style="color: #374151; line-height: 1.7; margin: 0 0 16px;">
+          If you need to add anything before we respond, reply to this email and our team will pick it up.
+        </p>
+        <p style="color: #374151; margin: 24px 0 0;">
+          Regards,<br>
+          <strong>RentalEase</strong>
+        </p>
+      </div>
+    </div>
+  `,
+});
+
+const websiteLeadAdminNotificationTemplate = (data) => ({
+  subject: `New Website Lead - ${data.sourceLabel}`,
+  html: `
+    <div style="font-family: Arial, sans-serif; max-width: 680px; margin: 0 auto; padding: 20px; background-color: #f7f8fa;">
+      <div style="background-color: #ffffff; padding: 32px; border-radius: 12px; border: 1px solid #e6e8ec;">
+        <h1 style="margin: 0 0 20px; color: #1f2937; font-size: 28px;">New Website Lead</h1>
+        <p style="color: #374151; line-height: 1.7; margin: 0 0 16px;">
+          A new lead was submitted through the RentalEase website.
+        </p>
+        <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 10px; padding: 18px;">
+          <p style="margin: 0 0 8px; color: #374151;"><strong>Source:</strong> ${data.sourceLabel}</p>
+          <p style="margin: 0 0 8px; color: #374151;"><strong>Name:</strong> ${data.fullName}</p>
+          <p style="margin: 0 0 8px; color: #374151;"><strong>Email:</strong> ${data.email}</p>
+          ${data.phone ? `<p style="margin: 0 0 8px; color: #374151;"><strong>Phone:</strong> ${data.phone}</p>` : ""}
+          ${data.profession ? `<p style="margin: 0 0 8px; color: #374151;"><strong>Profession:</strong> ${data.profession}</p>` : ""}
+          <p style="margin: 0 0 8px; color: #374151;"><strong>Submitted:</strong> ${data.submittedAt}</p>
+          <p style="margin: 0; color: #374151;"><strong>Message:</strong> ${data.message}</p>
+        </div>
+        <p style="color: #374151; line-height: 1.7; margin: 24px 0 0;">
+          Lead ID: ${data.leadId}
+        </p>
+      </div>
+    </div>
+  `,
+});
+
 // Create templates object with all email templates
 const templates = {
   // Original templates
@@ -2282,6 +2380,10 @@ const templates = {
   quotationReceived: quotationReceivedTemplate,
   quotationAccepted: quotationAcceptedTemplate,
   quotationRejected: quotationRejectedTemplate,
+  websiteLeadContactAcknowledgement: websiteLeadContactAcknowledgementTemplate,
+  websiteLeadBookNowAcknowledgement:
+    websiteLeadBookNowAcknowledgementTemplate,
+  websiteLeadAdminNotification: websiteLeadAdminNotificationTemplate,
 };
 
 /**

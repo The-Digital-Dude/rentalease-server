@@ -1,6 +1,5 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
-import emailService from "../services/email.service.js";
 import {
   deriveComplianceSubscriptions,
   deriveSubscriptionAmount,
@@ -336,38 +335,6 @@ agencySchema.methods.updateLastLogin = async function () {
   this.lastLogin = new Date();
   return await this.save();
 };
-
-// Post-save middleware to send welcome email
-agencySchema.post("save", async function (doc, next) {
-  if (this.isNew) {
-    try {
-      await emailService.sendAgencyWelcomeEmail({
-        email: this.email,
-        contactPerson: this.contactPerson,
-        companyName: this.companyName,
-      });
-
-      console.log("Welcome email sent successfully to new agency:", {
-        agencyId: this._id,
-        email: this.email,
-        companyName: this.companyName,
-        contactPerson: this.contactPerson,
-        timestamp: new Date().toISOString(),
-      });
-    } catch (error) {
-      // Log error but don't fail the save operation
-      console.error("Failed to send welcome email to agency:", {
-        agencyId: this._id,
-        email: this.email,
-        companyName: this.companyName,
-        contactPerson: this.contactPerson,
-        error: error.message,
-        timestamp: new Date().toISOString(),
-      });
-    }
-  }
-  next();
-});
 
 // Add index for email for faster queries
 agencySchema.index({ email: 1 });
