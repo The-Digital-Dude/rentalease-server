@@ -1208,12 +1208,15 @@ router.patch(
 
     // Check if invoice is already sent or paid
     if (invoice.status === "Sent" || invoice.status === "Paid") {
-      return res.status(400).json({
+      return res.status(409).json({
         status: "error",
         message: `Invoice cannot be sent. Current status: ${invoice.status}`,
         details: {
           currentStatus: invoice.status,
           allowedStatuses: ["Draft"],
+        },
+        data: {
+          invoice: invoice.getFullDetails(),
         },
       });
     }
@@ -1259,9 +1262,19 @@ router.patch(
       });
     } catch (emailError) {
       console.error("Failed to send invoice email:", emailError);
-      return res.status(500).json({
+      const message =
+        emailError?.message === "Inspection report is required before sending documents"
+          ? emailError.message
+          : emailError?.message === "At least one valid recipient is required"
+            ? emailError.message
+            : "Failed to send completed job documents";
+
+      const statusCode =
+        message === "Failed to send completed job documents" ? 500 : 400;
+
+      return res.status(statusCode).json({
         status: "error",
-        message: "Failed to send completed job documents",
+        message,
       });
     }
   } catch (error) {
