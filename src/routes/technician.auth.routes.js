@@ -658,11 +658,7 @@ router.post("/push-token", authenticate, async (req, res) => {
       });
     }
 
-    const technician = await Technician.findByIdAndUpdate(
-      req.user.id,
-      { $addToSet: { expoPushTokens: token } },
-      { new: true }
-    );
+    const technician = await Technician.findById(req.user.id);
 
     if (!technician) {
       return res.status(404).json({
@@ -670,6 +666,42 @@ router.post("/push-token", authenticate, async (req, res) => {
         message: "Technician not found",
       });
     }
+
+    const normalizedPlatform =
+      metadata?.platform === "ios" || metadata?.platform === "android"
+        ? metadata.platform
+        : metadata?.platform === "web"
+        ? "web"
+        : "unknown";
+
+    technician.expoPushTokens = Array.from(
+      new Set([...(technician.expoPushTokens || []), token])
+    );
+
+    const nextTokenDetails = Array.isArray(technician.expoPushTokenDetails)
+      ? [...technician.expoPushTokenDetails]
+      : [];
+    const detailIndex = nextTokenDetails.findIndex(
+      (item) => item?.token === token
+    );
+    const nextDetail = {
+      token,
+      platform: normalizedPlatform,
+      deviceModel: metadata?.deviceModel || null,
+      osVersion: metadata?.osVersion || null,
+      appVersion: metadata?.appVersion || null,
+      projectId: metadata?.projectId || null,
+      lastRegisteredAt: new Date(),
+    };
+
+    if (detailIndex >= 0) {
+      nextTokenDetails[detailIndex] = nextDetail;
+    } else {
+      nextTokenDetails.push(nextDetail);
+    }
+
+    technician.expoPushTokenDetails = nextTokenDetails;
+    await technician.save();
 
     console.log("✅ Push token registered for technician", {
       technicianId: req.user.id,
@@ -685,6 +717,7 @@ router.post("/push-token", authenticate, async (req, res) => {
       message: "Push token registered successfully",
       data: {
         tokens: technician.expoPushTokens || [],
+        tokenDetails: technician.expoPushTokenDetails || [],
       },
     });
   } catch (error) {
@@ -692,6 +725,73 @@ router.post("/push-token", authenticate, async (req, res) => {
     res.status(500).json({
       status: "error",
       message: "Failed to register push token. Please try again later.",
+    });
+  }
+});
+
+// GET PUSH TOKEN DEBUG INFO
+router.get("/push-token/debug", authenticate, async (req, res) => {
+  try {
+    const isAdmin =
+      req.user.userType === "SuperUser" ||
+      req.user.userType === "TeamMember" ||
+      req.user.type === "super_user" ||
+      req.user.type === "team_member";
+    const requestedTechnicianId =
+      isAdmin && typeof req.query.technicianId === "string"
+        ? req.query.technicianId
+        : req.user.id;
+
+    if (
+      !isAdmin &&
+      (req.user.userType !== "Technician" && req.user.type !== "technician")
+    ) {
+      return res.status(403).json({
+        status: "error",
+        message: "Access denied.",
+      });
+    }
+
+    const technician = await Technician.findById(requestedTechnicianId).select(
+      "firstName lastName email expoPushTokens expoPushTokenDetails"
+    );
+
+    if (!technician) {
+      return res.status(404).json({
+        status: "error",
+        message: "Technician not found",
+      });
+    }
+
+    const tokenDetails = Array.isArray(technician.expoPushTokenDetails)
+      ? technician.expoPushTokenDetails
+      : [];
+    const countsByPlatform = tokenDetails.reduce((acc, detail) => {
+      const platform = detail?.platform || "unknown";
+      acc[platform] = (acc[platform] || 0) + 1;
+      return acc;
+    }, {});
+
+    res.status(200).json({
+      status: "success",
+      message: "Push token debug info retrieved successfully",
+      data: {
+        technician: {
+          id: technician._id,
+          fullName: technician.fullName,
+          email: technician.email,
+        },
+        tokenCount: technician.expoPushTokens?.length || 0,
+        countsByPlatform,
+        tokens: technician.expoPushTokens || [],
+        tokenDetails,
+      },
+    });
+  } catch (error) {
+    console.error("Get push token debug info error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Failed to retrieve push token debug info.",
     });
   }
 });
@@ -714,11 +814,7 @@ router.delete("/push-token", authenticate, async (req, res) => {
       });
     }
 
-    const technician = await Technician.findByIdAndUpdate(
-      req.user.id,
-      { $pull: { expoPushTokens: token } },
-      { new: true }
-    );
+    const technician = await Technician.findById(req.user.id);
 
     if (!technician) {
       return res.status(404).json({
@@ -726,6 +822,14 @@ router.delete("/push-token", authenticate, async (req, res) => {
         message: "Technician not found",
       });
     }
+
+    technician.expoPushTokens = (technician.expoPushTokens || []).filter(
+      (storedToken) => storedToken !== token
+    );
+    technician.expoPushTokenDetails = (
+      technician.expoPushTokenDetails || []
+    ).filter((detail) => detail?.token !== token);
+    await technician.save();
 
     res.status(200).json({
       status: "success",

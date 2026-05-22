@@ -27,7 +27,9 @@ export async function sendToTechnician(technicianId, message) {
     return;
   }
 
-  const technician = await Technician.findById(technicianId).select("expoPushTokens");
+  const technician = await Technician.findById(technicianId).select(
+    "expoPushTokens expoPushTokenDetails"
+  );
   if (!technician) {
     console.warn("[ExpoPush] Skipping push because technician was not found", {
       technicianId,
@@ -47,9 +49,21 @@ export async function sendToTechnician(technicianId, message) {
     return;
   }
 
+  const tokenMetadata = new Map(
+    (technician.expoPushTokenDetails || [])
+      .filter((detail) => detail?.token)
+      .map((detail) => [detail.token, detail])
+  );
+  const platformCounts = tokens.reduce((acc, token) => {
+    const platform = tokenMetadata.get(token)?.platform || "unknown";
+    acc[platform] = (acc[platform] || 0) + 1;
+    return acc;
+  }, {});
+
   console.log("[ExpoPush] Sending push notification", {
     technicianId,
     tokenCount: tokens.length,
+    platformCounts,
     title: message?.title || "RentalEase",
     hasBody: Boolean(message?.body),
     timestamp: new Date().toISOString(),
@@ -71,9 +85,11 @@ export async function sendToTechnician(technicianId, message) {
       const ticketChunk = await expo.sendPushNotificationsAsync(chunk);
       ticketChunk.forEach((ticket, index) => {
         if (ticket?.status !== "ok") {
+          const token = chunk[index]?.to;
           console.error("[ExpoPush] Ticket error:", {
             technicianId,
-            tokenPreview: `${chunk[index]?.to?.slice?.(0, 24) || "unknown"}...`,
+            platform: tokenMetadata.get(token)?.platform || "unknown",
+            tokenPreview: `${token?.slice?.(0, 24) || "unknown"}...`,
             status: ticket?.status,
             message: ticket?.message,
             details: ticket?.details || null,
