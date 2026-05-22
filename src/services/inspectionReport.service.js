@@ -4,11 +4,16 @@ import Job from "../models/Job.js";
 import Property from "../models/Property.js";
 import Technician from "../models/Technician.js";
 import InspectionReport from "../models/InspectionReport.js";
+import Invoice from "../models/Invoice.js";
 import { getTemplateByJobType } from "./inspectionTemplate.service.js";
 import fileUploadService from "./fileUpload.service.js";
 import buildInspectionReportPdf from "./inspectionReportPdf.service.js";
 import notificationService from "./notification.service.js";
 import complianceService from "./compliance.service.js";
+import {
+  buildDefaultCompletedJobInvoiceEmailPayload,
+  sendCompletedJobInvoiceDocuments,
+} from "./completedJobInvoice.service.js";
 import { validateNextComplianceDate } from "../utils/complianceValidation.js";
 import { resolveNextComplianceDate } from "../utils/inspectionComplianceDate.js";
 import { resolveEventTimestamp } from "../utils/timezone.js";
@@ -934,6 +939,47 @@ export const submitInspectionReport = async ({
   job.inspectionReports.push(report._id);
   await job.save();
   console.log("[Inspection Submit] Job updated with report reference");
+
+  if (job.status === "Completed" && job.invoice) {
+    try {
+      const invoice = await Invoice.findById(job.invoice);
+      if (invoice && invoice.status === "Draft") {
+        const autoSendPayload = buildDefaultCompletedJobInvoiceEmailPayload({
+          jobType: job.jobType,
+          propertyAddress: property.address?.fullAddress || "Property",
+        });
+
+        await sendCompletedJobInvoiceDocuments({
+          invoice,
+          subject: autoSendPayload.subject,
+          bodyHtml: autoSendPayload.bodyHtml,
+          bodyText: autoSendPayload.bodyText,
+          sentBy: {
+            id: technician._id?.toString?.() || technicianId?.toString?.(),
+            name:
+              technician.fullName ||
+              `${technician.firstName || ""} ${technician.lastName || ""}`.trim() ||
+              technician.email ||
+              "Technician",
+            type: "Technician",
+          },
+        });
+
+        console.log("[Inspection Submit] Auto-sent completed job invoice after report submission", {
+          jobId: job._id,
+          reportId: report._id,
+          invoiceId: invoice._id,
+        });
+      }
+    } catch (autoSendError) {
+      console.error("[Inspection Submit] Failed to auto-send completed job invoice after report submission", {
+        jobId: job._id,
+        reportId: report._id,
+        invoiceId: job.invoice,
+        error: autoSendError.message,
+      });
+    }
+  }
 
   // Update property compliance schedule if nextComplianceDate is provided
   if (resolvedNextComplianceDate) {
