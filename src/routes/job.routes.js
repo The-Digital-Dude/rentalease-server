@@ -95,6 +95,27 @@ const getActiveAssignedPropertyIds = (propertyManager) => {
     .map((assignment) => assignment.propertyId.toString());
 };
 
+const resolvePropertyManagerPropertyIds = async (propertyManager) => {
+  if (!propertyManager?.id) {
+    return [];
+  }
+
+  const assignedPropertyIds = getActiveAssignedPropertyIds(propertyManager);
+
+  const directlyAssignedProperties = await Property.find({
+    assignedPropertyManager: propertyManager.id,
+    isActive: true,
+  })
+    .select("_id")
+    .lean();
+
+  const directPropertyIds = directlyAssignedProperties.map((property) =>
+    property._id.toString()
+  );
+
+  return [...new Set([...assignedPropertyIds, ...directPropertyIds])];
+};
+
 const shouldSendTenantScheduledEmail = ({
   previousJob = null,
   currentJob,
@@ -344,7 +365,9 @@ router.post(
       }
 
       if (req.propertyManager) {
-        const activePropertyIds = getActiveAssignedPropertyIds(req.propertyManager);
+        const activePropertyIds = await resolvePropertyManagerPropertyIds(
+          req.propertyManager
+        );
         const hasAssignedAccess = activePropertyIds.includes(propertyDoc._id.toString());
 
         if (!hasAssignedAccess) {
@@ -559,7 +582,7 @@ router.get(
       } = req.query;
 
       const propertyManagerActivePropertyIds = ownerInfo.propertyManagerId
-        ? getActiveAssignedPropertyIds(req.propertyManager)
+        ? await resolvePropertyManagerPropertyIds(req.propertyManager)
         : [];
 
       if (
@@ -1031,7 +1054,9 @@ router.get(
         statusCountsMatch = {};
       } else if (ownerInfo.propertyManagerId) {
         statusCountsMatch = {
-          property: { $in: getActiveAssignedPropertyIds(req.propertyManager) },
+          property: {
+            $in: await resolvePropertyManagerPropertyIds(req.propertyManager),
+          },
         };
       } else {
         // Agencies and team members can only see their scoped jobs

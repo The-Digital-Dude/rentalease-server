@@ -634,6 +634,29 @@ const getAgencyFilter = (req) => {
   return null;
 };
 
+const resolvePropertyManagerPropertyIds = async (propertyManager) => {
+  if (!propertyManager?.id) {
+    return [];
+  }
+
+  const assignmentPropertyIds = (propertyManager.assignedProperties || [])
+    .filter((assignment) => assignment.status === "Active")
+    .map((assignment) => assignment.propertyId.toString());
+
+  const directlyAssignedProperties = await Property.find({
+    assignedPropertyManager: propertyManager.id,
+    isActive: true,
+  })
+    .select("_id")
+    .lean();
+
+  const directPropertyIds = directlyAssignedProperties.map((property) =>
+    property._id.toString()
+  );
+
+  return [...new Set([...assignmentPropertyIds, ...directPropertyIds])];
+};
+
 // Helper function to determine region based on state and suburb
 const getRegionFromStateAndSuburb = (state, suburb) => {
   // Simple mapping - in real app you might want a more sophisticated lookup
@@ -972,12 +995,19 @@ router.post("/", sanitizePropertyInput(), authenticateUserTypes(['SuperUser', 'T
 router.get("/filter-options", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'PropertyManager']), async (req, res) => {
   try {
     // Get agency filter based on user type
-    const agencyFilter = getAgencyFilter(req);
+    let agencyFilter = getAgencyFilter(req);
     if (agencyFilter === null) {
       return res.status(401).json({
         status: "error",
         message: "Authentication required",
       });
+    }
+
+    if (req.propertyManager) {
+      const activePropertyIds = await resolvePropertyManagerPropertyIds(
+        req.propertyManager
+      );
+      agencyFilter = { _id: { $in: activePropertyIds } };
     }
 
     // Get unique values from database for dynamic filters
@@ -1139,12 +1169,19 @@ router.get("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'Pro
     console.log(req.propertyManager);
 
     // Get agency filter based on user type
-    const agencyFilter = getAgencyFilter(req);
+    let agencyFilter = getAgencyFilter(req);
     if (agencyFilter === null) {
       return res.status(401).json({
         status: "error",
         message: "Authentication required",
       });
+    }
+
+    if (req.propertyManager) {
+      const activePropertyIds = await resolvePropertyManagerPropertyIds(
+        req.propertyManager
+      );
+      agencyFilter = { _id: { $in: activePropertyIds } };
     }
 
     // Build filter object
