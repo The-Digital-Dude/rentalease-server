@@ -85,6 +85,16 @@ const getJobScheduleDate = (job) => {
   return job.scheduledStartTime || job.dueDate || null;
 };
 
+const getActiveAssignedPropertyIds = (propertyManager) => {
+  if (!propertyManager?.assignedProperties) {
+    return [];
+  }
+
+  return propertyManager.assignedProperties
+    .filter((assignment) => assignment.status === "Active")
+    .map((assignment) => assignment.propertyId.toString());
+};
+
 const shouldSendTenantScheduledEmail = ({
   previousJob = null,
   currentJob,
@@ -224,8 +234,8 @@ const validateOwnerAccess = (job, req) => {
   // Property Managers can access jobs for their assigned properties
   if (ownerInfo.propertyManagerId) {
     const activePropertyIds = ownerInfo.assignedProperties
-      .filter(assignment => assignment.status === 'Active')
-      .map(assignment => assignment.propertyId.toString());
+      .filter((assignment) => assignment.status === "Active")
+      .map((assignment) => assignment.propertyId.toString());
 
     return activePropertyIds.includes(job.property.toString());
   }
@@ -322,6 +332,46 @@ router.post(
           ? null
           : assignedTechnician;
 
+      const propertyDoc = await Property.findById(property).select("agency");
+      if (!propertyDoc) {
+        return res.status(400).json({
+          status: "error",
+          message: "Property not found",
+          details: {
+            property: "The selected property was not found",
+          },
+        });
+      }
+
+      if (req.propertyManager) {
+        const activePropertyIds = getActiveAssignedPropertyIds(req.propertyManager);
+        const hasAssignedAccess = activePropertyIds.includes(propertyDoc._id.toString());
+
+        if (!hasAssignedAccess) {
+          return res.status(403).json({
+            status: "error",
+            message: "You can only create jobs for properties assigned to you.",
+          });
+        }
+
+        if (
+          req.propertyManager.owner?.ownerType === "Agency" &&
+          propertyDoc.agency?.toString() !== req.propertyManager.owner.ownerId?.toString()
+        ) {
+          return res.status(403).json({
+            status: "error",
+            message: "You do not have permission to create jobs for this property.",
+          });
+        }
+
+        if (technicianId) {
+          return res.status(403).json({
+            status: "error",
+            message: "Property managers cannot assign technicians when creating jobs.",
+          });
+        }
+      }
+
       if (technicianId) {
         technician = await Technician.findById(technicianId);
 
@@ -360,7 +410,7 @@ router.post(
         owner: ownerInfo,
         createdBy: creatorInfo,
         lastUpdatedBy: creatorInfo,
-        status: technicianId ? "Scheduled" : "Pending",
+        status: req.propertyManager ? "Pending" : technicianId ? "Scheduled" : "Pending",
       });
 
       await job.save();
@@ -944,8 +994,16 @@ router.get(
       if (ownerInfo.ownerType === "SuperUser") {
         // Super users can see all jobs
         statusCountsMatch = {};
+      } else if (ownerInfo.propertyManagerId) {
+        const activePropertyIds = ownerInfo.assignedProperties
+          .filter((assignment) => assignment.status === "Active")
+          .map((assignment) => assignment.propertyId);
+
+        statusCountsMatch = {
+          property: { $in: activePropertyIds },
+        };
       } else {
-        // Agencies can only see their own jobs
+        // Agencies and team members can only see their scoped jobs
         statusCountsMatch = {
           "owner.ownerType": ownerInfo.ownerType,
           "owner.ownerId": new mongoose.Types.ObjectId(ownerInfo.ownerId),

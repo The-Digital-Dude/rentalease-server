@@ -35,6 +35,44 @@ const simulateJobAccess = (propertyManager, jobs) => {
     };
   };
 
+const simulateJobCreationAccess = (propertyManager, propertyId, assignedTechnician = null) => {
+    const activePropertyIds = propertyManager.assignedProperties
+      .filter(assignment => assignment.status === 'Active')
+      .map(assignment => assignment.propertyId);
+
+    if (!activePropertyIds.includes(propertyId)) {
+      return {
+        allowed: false,
+        message: 'You can only create jobs for properties assigned to you.'
+      };
+    }
+
+    if (assignedTechnician) {
+      return {
+        allowed: false,
+        message: 'Property managers cannot assign technicians when creating jobs.'
+      };
+    }
+
+    return {
+      allowed: true,
+      status: 'Pending'
+    };
+  };
+
+const simulatePropertyManagerStatusCounts = (propertyManager, jobs) => {
+    const activePropertyIds = propertyManager.assignedProperties
+      .filter(assignment => assignment.status === 'Active')
+      .map(assignment => assignment.propertyId);
+
+    return jobs
+      .filter(job => activePropertyIds.includes(job.property))
+      .reduce((acc, job) => {
+        acc[job.status] = (acc[job.status] || 0) + 1;
+        return acc;
+      }, {});
+  };
+
 describe('Property Manager Access Control Tests', () => {
 
   describe('Property Access Control', () => {
@@ -162,6 +200,80 @@ describe('Property Manager Access Control Tests', () => {
 
       expect(result.accessibleJobs).toHaveLength(0);
       expect(result.restrictedJobs).toHaveLength(2);
+    });
+  });
+
+  describe('Completed Job Status Counts', () => {
+    test('should count only completed jobs for active assigned properties', () => {
+      const propertyManager = {
+        _id: 'pm123',
+        assignedProperties: [
+          { propertyId: 'prop1', status: 'Active' },
+          { propertyId: 'prop2', status: 'Inactive' }
+        ]
+      };
+
+      const allJobs = [
+        { _id: 'job1', property: 'prop1', status: 'Completed' },
+        { _id: 'job2', property: 'prop1', status: 'Completed' },
+        { _id: 'job3', property: 'prop1', status: 'Pending' },
+        { _id: 'job4', property: 'prop2', status: 'Completed' },
+        { _id: 'job5', property: 'prop3', status: 'Completed' }
+      ];
+
+      const counts = simulatePropertyManagerStatusCounts(propertyManager, allJobs);
+
+      expect(counts.Completed).toBe(2);
+      expect(counts.Pending).toBe(1);
+      expect(counts.Overdue).toBeUndefined();
+    });
+  });
+
+  describe('Job Creation Access Control', () => {
+    test('should allow property manager to create unassigned job for active assigned property', () => {
+      const propertyManager = {
+        _id: 'pm123',
+        assignedProperties: [
+          { propertyId: 'prop1', status: 'Active' },
+          { propertyId: 'prop2', status: 'Inactive' }
+        ]
+      };
+
+      const result = simulateJobCreationAccess(propertyManager, 'prop1');
+
+      expect(result.allowed).toBe(true);
+      expect(result.status).toBe('Pending');
+    });
+
+    test('should reject job creation for unassigned or inactive property', () => {
+      const propertyManager = {
+        _id: 'pm123',
+        assignedProperties: [
+          { propertyId: 'prop1', status: 'Inactive' }
+        ]
+      };
+
+      const inactiveResult = simulateJobCreationAccess(propertyManager, 'prop1');
+      const otherResult = simulateJobCreationAccess(propertyManager, 'prop2');
+
+      expect(inactiveResult.allowed).toBe(false);
+      expect(inactiveResult.message).toBe('You can only create jobs for properties assigned to you.');
+      expect(otherResult.allowed).toBe(false);
+      expect(otherResult.message).toBe('You can only create jobs for properties assigned to you.');
+    });
+
+    test('should reject technician assignment during property manager job creation', () => {
+      const propertyManager = {
+        _id: 'pm123',
+        assignedProperties: [
+          { propertyId: 'prop1', status: 'Active' }
+        ]
+      };
+
+      const result = simulateJobCreationAccess(propertyManager, 'prop1', 'tech123');
+
+      expect(result.allowed).toBe(false);
+      expect(result.message).toBe('Property managers cannot assign technicians when creating jobs.');
     });
   });
 
@@ -305,8 +417,9 @@ describe('Property Manager Access Control Tests', () => {
   });
 });
 
-// Export test utilities for reuse
-module.exports = {
+export {
   simulatePropertyManagerAccess,
-  simulateJobAccess
+  simulateJobAccess,
+  simulateJobCreationAccess,
+  simulatePropertyManagerStatusCounts
 };
