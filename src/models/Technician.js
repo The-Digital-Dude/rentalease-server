@@ -51,6 +51,11 @@ const technicianSchema = new mongoose.Schema(
       min: [0, "Experience cannot be negative"],
       default: 0,
     },
+    tradeType: {
+      type: String,
+      trim: true,
+      default: "Technician",
+    },
     availabilityStatus: {
       type: String,
       enum: ["Available", "Busy", "Unavailable", "On Leave"],
@@ -429,6 +434,7 @@ technicianSchema.methods.getFullDetails = function () {
     email: this.email,
     phone: this.phone,
     experience: this.experience,
+    tradeType: this.tradeType,
     hourlyRate: this.hourlyRate,
     availabilityStatus: this.availabilityStatus,
     currentJobs: this.currentJobs,
@@ -459,6 +465,7 @@ technicianSchema.methods.getSummary = function () {
     email: this.email,
     phone: this.phone,
     experience: this.experience,
+    tradeType: this.tradeType,
     hourlyRate: this.hourlyRate,
     availabilityStatus: this.availabilityStatus,
     currentJobs: this.currentJobs,

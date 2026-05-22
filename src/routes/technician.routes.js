@@ -70,7 +70,7 @@ const applyTechnicianJobPopulates = (query) =>
     })
     .populate(
       "assignedTechnician",
-      "firstName lastName fullName phone email availabilityStatus"
+      "firstName lastName fullName phone email availabilityStatus tradeType"
     )
     .populate(
       "createdBy.userId",
@@ -95,6 +95,7 @@ router.post("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency']), a
       email,
       phone,
       password,
+      tradeType,
       licenseNumber,
       licenseExpiry,
       experience,
@@ -104,10 +105,10 @@ router.post("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency']), a
     } = req.body;
 
     // Validate required fields
-    if (!firstName || !lastName || !email || !phone || !password) {
+    if (!firstName || !lastName || !email || !phone || !password || !tradeType) {
       return res.status(400).json({
         status: "error",
-        message: "Required fields: firstName, lastName, email, phone, password",
+        message: "Required fields: firstName, lastName, email, phone, password, tradeType",
       });
     }
 
@@ -139,6 +140,7 @@ router.post("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency']), a
       email: email.toLowerCase(),
       phone,
       password,
+      tradeType: tradeType.trim(),
       licenseNumber,
       licenseExpiry: licenseExpiry ? new Date(licenseExpiry) : null,
       experience: experience || 0,
@@ -1428,7 +1430,7 @@ router.get("/reports/performance", async (req, res) => {
         return {
           id: technician._id,
           name: `${technician.firstName} ${technician.lastName}`,
-          tradeType: "N/A", // This field is not in the Technician model
+          tradeType: technician.tradeType || "Technician",
           jobsCompleted: completedJobs.length,
           avgCompletionTime,
           rating: technician.averageRating,

@@ -35,6 +35,7 @@ router.post("/register", async (req, res) => {
       email,
       phone,
       password,
+      tradeType,
       licenseNumber,
       licenseExpiry,
       experience,
@@ -85,6 +86,7 @@ router.post("/register", async (req, res) => {
       email,
       phone,
       password,
+      tradeType: tradeType?.trim() || "Technician",
       licenseNumber,
       licenseExpiry: licenseExpiry ? new Date(licenseExpiry) : null,
       experience: experience || 0,
@@ -159,6 +161,7 @@ router.post("/register", async (req, res) => {
           fullName: technician.fullName,
           email: technician.email,
           phone: technician.phone,
+          tradeType: technician.tradeType,
           status: technician.status,
           owner: technician.owner,
         },
@@ -245,6 +248,7 @@ router.post("/login", async (req, res) => {
           fullName: technician.fullName,
           email: technician.email,
           phone: technician.phone,
+          tradeType: technician.tradeType,
           status: technician.status,
           availabilityStatus: technician.availabilityStatus,
           currentJobs: technician.currentJobs,
@@ -293,6 +297,7 @@ router.get("/profile", authenticate, async (req, res) => {
           fullName: technician.fullName,
           email: technician.email,
           phone: technician.phone,
+          tradeType: technician.tradeType,
           licenseNumber: technician.licenseNumber,
           licenseExpiry: technician.licenseExpiry,
           experience: technician.experience,
@@ -343,6 +348,7 @@ router.put("/profile", authenticate, async (req, res) => {
       experience,
       hourlyRate,
       address,
+      tradeType,
     } = req.body;
 
     const technician = await Technician.findById(req.user.id);
@@ -363,6 +369,7 @@ router.put("/profile", authenticate, async (req, res) => {
     if (experience !== undefined) technician.experience = experience;
     if (hourlyRate !== undefined) technician.hourlyRate = hourlyRate;
     if (address) technician.address = address;
+    if (tradeType !== undefined) technician.tradeType = tradeType?.trim() || "Technician";
 
     technician.lastUpdated = new Date();
     await technician.save();
@@ -378,6 +385,7 @@ router.put("/profile", authenticate, async (req, res) => {
           fullName: technician.fullName,
           email: technician.email,
           phone: technician.phone,
+          tradeType: technician.tradeType,
           licenseNumber: technician.licenseNumber,
           licenseExpiry: technician.licenseExpiry,
           experience: technician.experience,
