@@ -242,7 +242,7 @@ const jobSchema = new mongoose.Schema(
       userType: {
         type: String,
         required: true,
-        enum: ["SuperUser", "Agency"],
+        enum: ["SuperUser", "Agency", "PropertyManager"],
       },
       userId: {
         type: mongoose.Schema.Types.ObjectId,
@@ -253,7 +253,7 @@ const jobSchema = new mongoose.Schema(
     lastUpdatedBy: {
       userType: {
         type: String,
-        enum: ["SuperUser", "Agency", "Technician"],
+        enum: ["SuperUser", "Agency", "PropertyManager", "Technician"],
       },
       userId: {
         type: mongoose.Schema.Types.ObjectId,
