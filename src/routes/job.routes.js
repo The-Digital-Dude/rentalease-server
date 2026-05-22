@@ -560,6 +560,9 @@ router.get(
 
       // Build query
       let query = {};
+      const propertyManagerActivePropertyIds = ownerInfo.propertyManagerId
+        ? getActiveAssignedPropertyIds(req.propertyManager)
+        : [];
 
       // If super user, show all jobs. If agency, show only their jobs. If property manager, show jobs for assigned properties only
       if (ownerInfo.ownerType === "SuperUser") {
@@ -567,12 +570,8 @@ router.get(
         query = {};
       } else if (ownerInfo.propertyManagerId) {
         // Property Manager: filter by assigned properties only
-        const activePropertyIds = ownerInfo.assignedProperties
-          .filter(assignment => assignment.status === 'Active')
-          .map(assignment => assignment.propertyId);
-
         query = {
-          property: { $in: activePropertyIds }
+          property: { $in: propertyManagerActivePropertyIds }
         };
       } else {
         // Agencies and other user types can only see their own jobs
@@ -584,7 +583,17 @@ router.get(
 
       // Add filters
       if (jobType) query.jobType = jobType;
-      if (req.query.property) query.property = req.query.property;
+      if (req.query.property) {
+        if (ownerInfo.propertyManagerId) {
+          if (!propertyManagerActivePropertyIds.includes(req.query.property)) {
+            return res.status(403).json({
+              status: "error",
+              message: "You can only view jobs for properties assigned to you.",
+            });
+          }
+        }
+        query.property = req.query.property;
+      }
       if (status === "Completed") {
         appendAndCondition(query, {
           $or: [{ status: "Completed" }, { completedAt: { $ne: null } }],
@@ -995,12 +1004,8 @@ router.get(
         // Super users can see all jobs
         statusCountsMatch = {};
       } else if (ownerInfo.propertyManagerId) {
-        const activePropertyIds = ownerInfo.assignedProperties
-          .filter((assignment) => assignment.status === "Active")
-          .map((assignment) => assignment.propertyId);
-
         statusCountsMatch = {
-          property: { $in: activePropertyIds },
+          property: { $in: getActiveAssignedPropertyIds(req.propertyManager) },
         };
       } else {
         // Agencies and team members can only see their scoped jobs
