@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { getNextInvoiceNumber } from "../services/invoiceNumber.service.js";
 
 const propertyManagerInvoiceSchema = new mongoose.Schema(
   {
@@ -24,9 +25,6 @@ const propertyManagerInvoiceSchema = new mongoose.Schema(
       type: String,
       unique: true,
       required: true,
-      default: function () {
-        return `PM-INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-      },
     },
     description: {
       type: String,
@@ -98,6 +96,12 @@ propertyManagerInvoiceSchema.index({ agencyId: 1, status: 1 });
 propertyManagerInvoiceSchema.index({ propertyId: 1, status: 1 });
 
 // Pre-save middleware to set timestamps
+propertyManagerInvoiceSchema.pre("validate", async function () {
+  if (this.isNew && !this.invoiceNumber) {
+    this.invoiceNumber = await getNextInvoiceNumber("propertyManagerInvoice");
+  }
+});
+
 propertyManagerInvoiceSchema.pre("save", function (next) {
   // Set acceptedAt timestamp when status changes to "Accepted"
   if (this.status === "Accepted" && !this.acceptedAt) {
@@ -151,8 +155,8 @@ propertyManagerInvoiceSchema.methods.getSummary = function () {
 };
 
 // Static method to generate invoice number
-propertyManagerInvoiceSchema.statics.generateInvoiceNumber = function () {
-  return `PM-INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+propertyManagerInvoiceSchema.statics.generateInvoiceNumber = async function () {
+  return getNextInvoiceNumber("propertyManagerInvoice");
 };
 
 // Method to check if invoice is overdue

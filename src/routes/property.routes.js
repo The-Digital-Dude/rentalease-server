@@ -24,6 +24,10 @@ import emailService from "../services/email.service.js";
 import propertyLogService from "../services/propertyLog.service.js";
 import { sanitizePropertyInput, sanitizeInput } from "../middleware/sanitizer.middleware.js";
 import { TENANT_SELF_BOOKING_ENABLED } from "../config/features.js";
+import {
+  AUSTRALIAN_TIMEZONES,
+  isValidAustralianTimeZone,
+} from "../utils/timezone.js";
 
 const router = express.Router();
 
@@ -693,6 +697,7 @@ router.post("/", sanitizePropertyInput(), authenticateUserTypes(['SuperUser', 'T
       currentLandlord,
       complianceSchedule,
       notes,
+      timezone,
     } = req.body;
 
     // Validate required fields
@@ -851,7 +856,6 @@ router.post("/", sanitizePropertyInput(), authenticateUserTypes(['SuperUser', 'T
 
     // Determine region automatically
     const region = getRegionFromStateAndSuburb(address.state, address.suburb);
-
     // Prepare property data with defaults
     let propertyData = {
       address,
@@ -921,6 +925,7 @@ router.post("/", sanitizePropertyInput(), authenticateUserTypes(['SuperUser', 'T
           rentAmount: property.rentAmount,
           status: property.status,
           region: property.region,
+          timezone: property.timezone,
           agency: property.agency,
           assignedPropertyManager: property.assignedPropertyManager,
           currentTenant: property.currentTenant,
@@ -946,6 +951,13 @@ router.post("/", sanitizePropertyInput(), authenticateUserTypes(['SuperUser', 'T
         status: "error",
         message: "Validation failed",
         errors: validationErrors,
+      });
+    }
+
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({
+        status: "error",
+        message: error.message,
       });
     }
 
@@ -985,11 +997,13 @@ router.get("/filter-options", authenticateUserTypes(['SuperUser', 'TeamMember', 
         propertyTypes: ["All Types", ...propertyTypes.sort()],
         statuses: ["All Status", ...statuses.sort()],
         states: states.sort(),
+        timezones: AUSTRALIAN_TIMEZONES,
         validOptions: {
           regions: VALID_REGIONS,
           propertyTypes: VALID_PROPERTY_TYPES,
           statuses: VALID_PROPERTY_STATUSES,
           states: VALID_STATES,
+          timezones: AUSTRALIAN_TIMEZONES,
         },
       },
     });
@@ -1329,7 +1343,14 @@ router.get("/:id", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', '
 router.put("/:id", sanitizePropertyInput(), authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'PropertyManager']), async (req, res) => {
   try {
     const { id } = req.params;
-    const { address, currentTenant, currentLandlord, complianceSchedule, notes } = req.body;
+    const {
+      address,
+      currentTenant,
+      currentLandlord,
+      complianceSchedule,
+      notes,
+      timezone,
+    } = req.body;
 
     // Validate ObjectId
     if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -1454,6 +1475,21 @@ router.put("/:id", sanitizePropertyInput(), authenticateUserTypes(['SuperUser', 
         address.suburb
       );
     }
+    if (timezone !== undefined) {
+      if (timezone === null || timezone === "") {
+        property.timezone = undefined;
+      } else {
+        if (!isValidAustralianTimeZone(timezone)) {
+          return res.status(400).json({
+            status: "error",
+            message:
+              "Timezone must be a valid Australian IANA timezone such as Australia/Sydney",
+          });
+        }
+
+        property.timezone = timezone;
+      }
+    }
     if (currentTenant) property.currentTenant = currentTenant;
     if (currentLandlord) property.currentLandlord = currentLandlord;
     if (complianceSchedule) {
@@ -1501,6 +1537,7 @@ router.put("/:id", sanitizePropertyInput(), authenticateUserTypes(['SuperUser', 
           rentAmount: property.rentAmount,
           status: property.status,
           region: property.region,
+          timezone: property.timezone,
           agency: property.agency,
           assignedPropertyManager: property.assignedPropertyManager,
           currentTenant: property.currentTenant,
@@ -1525,6 +1562,13 @@ router.put("/:id", sanitizePropertyInput(), authenticateUserTypes(['SuperUser', 
         status: "error",
         message: "Validation failed",
         errors: validationErrors,
+      });
+    }
+
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({
+        status: "error",
+        message: error.message,
       });
     }
 
@@ -2936,3 +2980,14 @@ router.get(
 );
 
 export default router;
+    if (timezone !== undefined && timezone !== null && timezone !== "") {
+      if (!isValidAustralianTimeZone(timezone)) {
+        return res.status(400).json({
+          status: "error",
+          message:
+            "Timezone must be a valid Australian IANA timezone such as Australia/Sydney",
+        });
+      }
+
+      propertyData.timezone = timezone;
+    }

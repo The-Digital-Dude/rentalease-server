@@ -259,6 +259,9 @@ router.post(
         notes,
         mediaMeta,
         nextComplianceDate,
+        eventLocalTimestamp,
+        eventTimezone,
+        timestampSource,
       } = req.body;
 
       console.log("[Inspection Submit] Starting report submission", {
@@ -282,6 +285,9 @@ router.post(
         files: req.files || [],
         mediaMeta,
         nextComplianceDate,
+        eventLocalTimestamp,
+        eventTimezone,
+        timestampSource,
       });
 
       console.log("[Inspection Submit] Report created, populating references", {

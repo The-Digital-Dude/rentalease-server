@@ -4,6 +4,11 @@ import path from "path";
 import sharp from "sharp";
 import { fileURLToPath } from "url";
 import { bucket } from "../config/gcs.js";
+import {
+  formatDateInTimeZone,
+  formatDateTimeInTimeZone,
+  resolvePropertyTimeZone,
+} from "../utils/timezone.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -229,7 +234,13 @@ const getComplianceStandards = (template, job) => {
   return standardsMap[jobType] || ["Residential Tenancies Regulations 2021"];
 };
 
-const formatDisplayDate = (value) => {
+const formatDisplayDate = (value, timeZone) =>
+  formatDateInTimeZone(value, timeZone);
+
+const formatDisplayDateTime = (value, timeZone) =>
+  formatDateTimeInTimeZone(value, timeZone);
+
+const formatNumericDate = (value, timeZone) => {
   if (!value) {
     return "N/A";
   }
@@ -240,24 +251,7 @@ const formatDisplayDate = (value) => {
   }
 
   return date.toLocaleDateString("en-AU", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-};
-
-const formatNumericDate = (value) => {
-  if (!value) {
-    return "N/A";
-  }
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return "N/A";
-  }
-
-  return date.toLocaleDateString("en-AU", {
+    timeZone: timeZone || "UTC",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -979,8 +973,12 @@ const drawPropertyDetailsSection = (
   { property, job, technician, report, template }
 ) => {
   doc.fillColor(COLORS.text);
+  const propertyTimeZone = resolvePropertyTimeZone(property);
   const propertyAddress = getPropertyAddress(property);
-  const inspectionDate = formatDisplayDate(report?.submittedAt || job?.dueDate);
+  const inspectionDate = formatDisplayDate(
+    report?.submittedAt || job?.dueDate,
+    propertyTimeZone
+  );
   const summaryInsights = extractSummaryInsights({
     report,
     template,
@@ -991,6 +989,7 @@ const drawPropertyDetailsSection = (
     template,
     job,
     report,
+    propertyTimeZone,
   });
   const reportTitle = getReportTitle(template, job);
   const statusColor = isNonCompliantStatus(summaryInsights.reportStatus)
@@ -1300,13 +1299,14 @@ const drawSignatureFromData = async (
 
 const drawDeclarationSection = async (
   doc,
-  { template, job, technician, report }
+  { template, job, property, technician, report }
 ) => {
   ensurePageSpace(doc, 200);
 
   drawSectionHeader(doc, "Declaration and Certification");
 
   const reportTitle = getReportTitle(template, job);
+  const propertyTimeZone = resolvePropertyTimeZone(property);
   const inspectorName =
     `${technician?.firstName || ""} ${technician?.lastName || ""}`.trim() ||
     "Inspector";
@@ -1377,7 +1377,10 @@ const drawDeclarationSection = async (
       doc
         .text("Date:", PAGE.margin + 10, boxY + 10)
         .text(
-          formatDisplayDate(report?.submittedAt || new Date()),
+          formatDisplayDateTime(
+            report?.submittedAt || new Date(),
+            propertyTimeZone
+          ),
           PAGE.margin + 80,
           boxY + 10
         );
@@ -1387,7 +1390,10 @@ const drawDeclarationSection = async (
         .text(inspectorName, PAGE.margin + 10, boxY + 25)
         .text("Date:", PAGE.margin + 10, boxY + 40)
         .text(
-          formatDisplayDate(report?.submittedAt || new Date()),
+          formatDisplayDateTime(
+            report?.submittedAt || new Date(),
+            propertyTimeZone
+          ),
           PAGE.margin + 80,
           boxY + 40
         );
@@ -1417,7 +1423,10 @@ const drawDeclarationSection = async (
       doc
         .text("Date:", PAGE.margin + 10, boxY + 10)
         .text(
-          formatDisplayDate(report?.submittedAt || new Date()),
+          formatDisplayDateTime(
+            report?.submittedAt || new Date(),
+            propertyTimeZone
+          ),
           PAGE.margin + 80,
           boxY + 10
         );
@@ -1427,7 +1436,10 @@ const drawDeclarationSection = async (
         .text(inspectorName, PAGE.margin + 10, boxY + 25)
         .text("Date:", PAGE.margin + 10, boxY + 40)
         .text(
-          formatDisplayDate(report?.submittedAt || new Date()),
+          formatDisplayDateTime(
+            report?.submittedAt || new Date(),
+            propertyTimeZone
+          ),
           PAGE.margin + 80,
           boxY + 40
         );
@@ -1521,7 +1533,12 @@ const drawGasHazardsSection = (doc) => {
   doc.y += conclusionHeight + 30;
 };
 
-const resolveNextComplianceDisplayDate = ({ template, job, report }) => {
+const resolveNextComplianceDisplayDate = ({
+  template,
+  job,
+  report,
+  propertyTimeZone,
+}) => {
   const jobType = template?.jobType || job?.jobType;
   const formData = report?.formData || {};
   const directDate =
@@ -1531,8 +1548,8 @@ const resolveNextComplianceDisplayDate = ({ template, job, report }) => {
     formData["inspection-summary"]?.["next-service-due"] ||
     formData["compliance-next-steps"]?.["next-service-due"];
 
-  if (formatDisplayDate(directDate) !== "N/A") {
-    return formatDisplayDate(directDate);
+  if (formatDisplayDate(directDate, propertyTimeZone) !== "N/A") {
+    return formatDisplayDate(directDate, propertyTimeZone);
   }
 
   const inspectionDate = new Date(report?.submittedAt || new Date());
@@ -1550,7 +1567,7 @@ const resolveNextComplianceDisplayDate = ({ template, job, report }) => {
       nextDate.setFullYear(nextDate.getFullYear() + 1);
   }
 
-  return formatDisplayDate(nextDate);
+  return formatDisplayDate(nextDate, propertyTimeZone);
 };
 
 const drawMinimumStandardStatusTable = (
@@ -5761,6 +5778,7 @@ export const buildInspectionReportPdf = async ({
   await drawDeclarationSection(doc, {
     template,
     job,
+    property,
     technician,
     report: preparedReport,
   });

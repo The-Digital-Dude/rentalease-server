@@ -18,8 +18,12 @@ import notificationService from "../services/notification.service.js";
 import fileUploadService from "../services/fileUpload.service.js";
 import { sanitizeJobInput } from "../middleware/sanitizer.middleware.js";
 import { getAgencyServicePriceForJobType } from "../utils/agencyPricing.js";
-import { sendCompletedJobInvoiceDocuments } from "./invoice.routes.js";
+import {
+  buildDefaultCompletedJobInvoiceEmailPayload,
+  sendCompletedJobInvoiceDocuments,
+} from "../services/completedJobInvoice.service.js";
 import { TECHNICIAN_PAYMENTS_ENABLED } from "../config/features.js";
+import { resolveEventTimestamp } from "../utils/timezone.js";
 
 const router = express.Router();
 
@@ -2104,7 +2108,15 @@ router.patch(
   async (req, res) => {
     console.log(req.body, "req.body");
     console.log(req.file, "req.file");
-    const { hasInvoice, invoiceData, completionNotes, totalCost } = req.body;
+    const {
+      hasInvoice,
+      invoiceData,
+      completionNotes,
+      totalCost,
+      eventLocalTimestamp,
+      eventTimezone,
+      timestampSource,
+    } = req.body;
     console.log(invoiceData, "invoiceData");
 
     try {
@@ -2162,6 +2174,12 @@ router.patch(
         jobId: job._id,
         jobDueDate: new Date(job.dueDate).toISOString(),
         completionTime: new Date().toISOString()
+      });
+
+      const resolvedEventTimestamp = resolveEventTimestamp({
+        eventLocalTimestamp,
+        eventTimezone,
+        timestampSource,
       });
 
       try {
@@ -2358,7 +2376,12 @@ router.patch(
         // Update job status to "Completed" and set completion timestamp
         const updateData = {
           status: "Completed",
-          completedAt: new Date(),
+          completedAt: resolvedEventTimestamp.eventAt,
+          completedTimezone: resolvedEventTimestamp.eventTimezone,
+          completedLocalInput: resolvedEventTimestamp.eventLocalInput,
+          completedTimestampSource: resolvedEventTimestamp.timestampSource,
+          completedServerReceivedAt:
+            resolvedEventTimestamp.serverReceivedAt,
           lastUpdatedBy: getCreatorInfo(req),
           reportFile: reportFileUrl,
           hasInvoice: !!invoiceId,
@@ -2542,15 +2565,11 @@ router.patch(
                 reason: "Created invoice could not be loaded for automatic delivery",
               };
             } else {
-              const autoSendPayload = {
-                subject: `Completed Job Documents - ${job.jobType} - ${propertyAddress}`,
-                bodyHtml: `
-                  <p>Hello,</p>
-                  <p>The technician has completed this job. Please find the invoice and inspection report attached for your records.</p>
-                `,
-                bodyText:
-                  "Hello,\n\nThe technician has completed this job. Please find the invoice and inspection report attached for your records.",
-              };
+              const autoSendPayload =
+                buildDefaultCompletedJobInvoiceEmailPayload({
+                  jobType: job.jobType,
+                  propertyAddress,
+                });
 
               await sendCompletedJobInvoiceDocuments({
                 invoice: completedInvoice,
@@ -2621,7 +2640,7 @@ router.patch(
       }
     } catch (error) {
       console.error("Complete job error:", error);
-      res.status(500).json({
+      res.status(error.statusCode || 500).json({
         status: "error",
         message: error.message || "Failed to complete job",
       });

@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { isValidAustralianTimeZone } from "../utils/timezone.js";
 
 const propertySchema = new mongoose.Schema(
   {
@@ -72,6 +73,17 @@ const propertySchema = new mongoose.Schema(
         "Regional NT",
         "Regional TAS",
       ],
+    },
+    timezone: {
+      type: String,
+      trim: true,
+      validate: {
+        validator: function (value) {
+          return !value || isValidAustralianTimeZone(value);
+        },
+        message:
+          "Timezone must be a valid Australian IANA timezone such as Australia/Sydney",
+      },
     },
 
     // Tenant Information

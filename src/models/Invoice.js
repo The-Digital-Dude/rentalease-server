@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { getNextInvoiceNumber } from "../services/invoiceNumber.service.js";
 
 const invoiceItemSchema = new mongoose.Schema(
   {
@@ -76,9 +77,6 @@ const invoiceSchema = new mongoose.Schema(
       type: String,
       unique: true,
       required: true,
-      default: function () {
-        return `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-      },
     },
     description: {
       type: String,
@@ -174,6 +172,12 @@ invoiceSchema.index({ status: 1 });
 invoiceSchema.index({ createdAt: -1 });
 
 // Pre-save middleware to calculate totals
+invoiceSchema.pre("validate", async function () {
+  if (this.isNew && !this.invoiceNumber) {
+    this.invoiceNumber = await getNextInvoiceNumber("invoice");
+  }
+});
+
 invoiceSchema.pre("save", function (next) {
   if (this.status === "Pending") {
     this.status = "Sent";
@@ -261,8 +265,8 @@ invoiceSchema.methods.getSummary = function () {
 };
 
 // Static method to generate invoice number
-invoiceSchema.statics.generateInvoiceNumber = function () {
-  return `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+invoiceSchema.statics.generateInvoiceNumber = async function () {
+  return getNextInvoiceNumber("invoice");
 };
 
 // Static method to calculate totals for items

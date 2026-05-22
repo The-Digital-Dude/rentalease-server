@@ -142,6 +142,23 @@ const inspectionReportSchema = new mongoose.Schema(
       default: Date.now,
       index: true,
     },
+    submittedTimezone: {
+      type: String,
+      default: null,
+    },
+    submittedLocalInput: {
+      type: String,
+      default: null,
+    },
+    submittedTimestampSource: {
+      type: String,
+      enum: ["device_auto", "manual_override", "server_fallback"],
+      default: "server_fallback",
+    },
+    submittedServerReceivedAt: {
+      type: Date,
+      default: null,
+    },
     submittedBy: {
       userType: {
         type: String,
@@ -182,6 +199,10 @@ inspectionReportSchema.methods.toSummary = function () {
     jobType: this.jobType,
     templateVersion: this.templateVersion,
     submittedAt: this.submittedAt,
+    submittedTimezone: this.submittedTimezone,
+    submittedLocalInput: this.submittedLocalInput,
+    submittedTimestampSource: this.submittedTimestampSource,
+    submittedServerReceivedAt: this.submittedServerReceivedAt,
     pdf: this.pdf,
     notes: this.notes,
     complianceOutcome,

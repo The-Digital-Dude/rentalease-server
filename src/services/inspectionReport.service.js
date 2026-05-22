@@ -11,6 +11,7 @@ import notificationService from "./notification.service.js";
 import complianceService from "./compliance.service.js";
 import { validateNextComplianceDate } from "../utils/complianceValidation.js";
 import { resolveNextComplianceDate } from "../utils/inspectionComplianceDate.js";
+import { resolveEventTimestamp } from "../utils/timezone.js";
 
 const normalizeFormData = (formData) => {
   if (!formData) {
@@ -714,6 +715,9 @@ export const submitInspectionReport = async ({
   files,
   mediaMeta,
   nextComplianceDate,
+  eventLocalTimestamp,
+  eventTimezone,
+  timestampSource,
 }) => {
   if (!mongoose.Types.ObjectId.isValid(jobId)) {
     throw new Error("Invalid job id");
@@ -741,6 +745,12 @@ export const submitInspectionReport = async ({
   if (!technician) {
     throw new Error("Technician not found");
   }
+
+  const resolvedEventTimestamp = resolveEventTimestamp({
+    eventLocalTimestamp,
+    eventTimezone,
+    timestampSource,
+  });
 
   const template = await getTemplateByJobType(jobType || job.jobType);
   if (!template) {
@@ -855,6 +865,11 @@ export const submitInspectionReport = async ({
     media: mediaUploads,
     notes,
     nextComplianceDate: resolvedNextComplianceDate ? new Date(resolvedNextComplianceDate) : null,
+    submittedAt: resolvedEventTimestamp.eventAt,
+    submittedTimezone: resolvedEventTimestamp.eventTimezone,
+    submittedLocalInput: resolvedEventTimestamp.eventLocalInput,
+    submittedTimestampSource: resolvedEventTimestamp.timestampSource,
+    submittedServerReceivedAt: resolvedEventTimestamp.serverReceivedAt,
     submittedBy: {
       userType: "Technician",
       userId: technicianId,

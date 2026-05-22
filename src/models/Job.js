@@ -178,6 +178,23 @@ const jobSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    completedTimezone: {
+      type: String,
+      default: null,
+    },
+    completedLocalInput: {
+      type: String,
+      default: null,
+    },
+    completedTimestampSource: {
+      type: String,
+      enum: ["device_auto", "manual_override", "server_fallback"],
+      default: "server_fallback",
+    },
+    completedServerReceivedAt: {
+      type: Date,
+      default: null,
+    },
     estimatedDuration: {
       type: Number, // in hours
       min: [0.5, "Estimated duration must be at least 0.5 hours"],
@@ -343,6 +360,10 @@ jobSchema.methods.getFullDetails = function () {
     description: this.description,
     priority: this.priority,
     completedAt: resolvedCompletedAt,
+    completedTimezone: this.completedTimezone,
+    completedLocalInput: this.completedLocalInput,
+    completedTimestampSource: this.completedTimestampSource,
+    completedServerReceivedAt: this.completedServerReceivedAt,
     estimatedDuration: this.estimatedDuration,
     actualDuration: this.actualDuration,
     cost: this.cost,
@@ -382,6 +403,10 @@ jobSchema.methods.getSummary = function () {
     jobType: this.jobType,
     dueDate: this.dueDate,
     completedAt: resolvedCompletedAt,
+    completedTimezone: this.completedTimezone,
+    completedLocalInput: this.completedLocalInput,
+    completedTimestampSource: this.completedTimestampSource,
+    completedServerReceivedAt: this.completedServerReceivedAt,
     shift: this.shift,
     scheduledStartTime: this.scheduledStartTime,
     scheduledEndTime: this.scheduledEndTime,
