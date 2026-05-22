@@ -558,11 +558,37 @@ router.get(
         sortOrder = "asc",
       } = req.query;
 
-      // Build query
-      let query = {};
       const propertyManagerActivePropertyIds = ownerInfo.propertyManagerId
         ? getActiveAssignedPropertyIds(req.propertyManager)
         : [];
+
+      if (
+        ownerInfo.propertyManagerId &&
+        propertyManagerActivePropertyIds.length === 0
+      ) {
+        return res.status(200).json({
+          status: "success",
+          message: "Jobs retrieved successfully",
+          data: {
+            jobs: [],
+            pagination: {
+              currentPage: parseInt(page),
+              totalPages: 0,
+              totalItems: 0,
+              itemsPerPage: parseInt(limit),
+              hasNextPage: false,
+              hasPrevPage: false,
+            },
+            statistics: {
+              statusCounts: {},
+              totalJobs: 0,
+            },
+          },
+        });
+      }
+
+      // Build query
+      let query = {};
 
       // If super user, show all jobs. If agency, show only their jobs. If property manager, show jobs for assigned properties only
       if (ownerInfo.ownerType === "SuperUser") {
