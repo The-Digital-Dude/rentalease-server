@@ -2980,14 +2980,3 @@ router.get(
 );
 
 export default router;
-    if (timezone !== undefined && timezone !== null && timezone !== "") {
-      if (!isValidAustralianTimeZone(timezone)) {
-        return res.status(400).json({
-          status: "error",
-          message:
-            "Timezone must be a valid Australian IANA timezone such as Australia/Sydney",
-        });
-      }
-
-      propertyData.timezone = timezone;
-    }
