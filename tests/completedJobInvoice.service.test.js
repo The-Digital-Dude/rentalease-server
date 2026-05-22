@@ -117,6 +117,45 @@ describe("completedJobInvoice.service", () => {
     ]);
   });
 
+  test("buildInvoiceReviewData falls back to latest inspection report pdf when job reportFile is missing", async () => {
+    mockJobFindById.mockReturnValue({
+      populate: jest.fn().mockResolvedValue({
+        jobType: "Gas",
+        job_id: "JOB-303",
+        reportFile: null,
+        latestInspectionReport: {
+          pdf: {
+            url: "https://files.example.com/job-303-report.pdf",
+          },
+        },
+        property: {
+          _id: "property-3",
+          address: {
+            fullAddress: "3 George St, Brisbane QLD 4000",
+          },
+        },
+      }),
+    });
+    mockAgencyFindById.mockReturnValue(
+      buildQueryResult({
+        companyName: "Agency Co",
+        contactPerson: "Alice Agency",
+        email: "agency@example.com",
+      })
+    );
+    mockPropertyManagerFind.mockReturnValue(buildQueryResult([]));
+
+    const reviewData = await buildInvoiceReviewData({
+      jobId: "job-3",
+      agencyId: "agency-1",
+    });
+
+    expect(reviewData.reportFile).toBe(
+      "https://files.example.com/job-303-report.pdf"
+    );
+    expect(reviewData.hasReport).toBe(true);
+  });
+
   test("sendCompletedJobInvoiceDocuments emails default recipients and marks invoice sent", async () => {
     mockJobFindById.mockReturnValue({
       populate: jest.fn().mockResolvedValue({

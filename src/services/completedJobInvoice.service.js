@@ -68,8 +68,16 @@ const normalizeRecipientList = (recipients = []) =>
 
 export const buildInvoiceReviewData = async (invoice) => {
   const job = await Job.findById(invoice.jobId).populate(
-    "property",
-    "address reportFile"
+    [
+      {
+        path: "property",
+        select: "address",
+      },
+      {
+        path: "latestInspectionReport",
+        select: "pdf",
+      },
+    ]
   );
   const agency = await Agency.findById(invoice.agencyId).select(
     "companyName contactPerson email"
@@ -97,13 +105,16 @@ export const buildInvoiceReviewData = async (invoice) => {
     ].filter(Boolean)
   );
 
+  const resolvedReportFile =
+    job?.reportFile || job?.latestInspectionReport?.pdf?.url || null;
+
   return {
     propertyAddress: job?.property?.address?.fullAddress || "Property",
     jobType: job?.jobType || "",
     jobNumber: job?.job_id || "",
     agencyName: agency?.companyName || "",
-    reportFile: job?.reportFile || null,
-    hasReport: Boolean(job?.reportFile),
+    reportFile: resolvedReportFile,
+    hasReport: Boolean(resolvedReportFile),
     recipients: {
       to: toRecipients,
       cc: [],
