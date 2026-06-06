@@ -18,6 +18,7 @@ import notificationService from "../services/notification.service.js";
 import fileUploadService from "../services/fileUpload.service.js";
 import { sanitizeJobInput } from "../middleware/sanitizer.middleware.js";
 import { getAgencyServicePriceForJobType } from "../utils/agencyPricing.js";
+import { isComplianceJobType } from "../utils/complianceValidation.js";
 import {
   buildDefaultCompletedJobInvoiceEmailPayload,
   sendCompletedJobInvoiceDocuments,
@@ -48,6 +49,34 @@ const resolveAgencyForJob = async (job) => {
 
   const agency = await Agency.findById(property.agency);
   return agency;
+};
+
+const resolveCompletionReportUrl = async (job, explicitReportUrl = null) => {
+  if (explicitReportUrl) {
+    return explicitReportUrl;
+  }
+
+  if (job?.reportFile) {
+    return job.reportFile;
+  }
+
+  if (job?.latestInspectionReport) {
+    const inspectionReport = await InspectionReport.findById(
+      job.latestInspectionReport
+    ).select("pdf.url");
+    return inspectionReport?.pdf?.url || null;
+  }
+
+  return null;
+};
+
+const assertComplianceJobHasReport = async (job, explicitReportUrl = null) => {
+  const reportUrl = await resolveCompletionReportUrl(job, explicitReportUrl);
+  if (isComplianceJobType(job?.jobType) && !reportUrl) {
+    return null;
+  }
+
+  return reportUrl;
 };
 
 const normalizeLegacyCompletedJobs = async (match = {}) => {
@@ -1621,6 +1650,23 @@ router.put(
         // Update lastUpdatedBy
         job.lastUpdatedBy = getCreatorInfo(req);
 
+        if (
+          updates.status === "Completed" &&
+          previousJobState.status !== "Completed"
+        ) {
+          const completionReportUrl = await assertComplianceJobHasReport(job);
+          if (!completionReportUrl && isComplianceJobType(job.jobType)) {
+            return res.status(400).json({
+              status: "error",
+              message:
+                "Compliance jobs cannot be marked completed without an inspection report. Submit the inspection report first.",
+            });
+          }
+          if (completionReportUrl && !job.reportFile) {
+            job.reportFile = completionReportUrl;
+          }
+        }
+
         await job.save();
 
         // Handle technician job count updates
@@ -1894,6 +1940,20 @@ router.patch("/:id/status", authenticate, async (req, res) => {
 
     // Store previous status to check for completion
     const previousStatus = job.status;
+
+    if (status === "Completed" && previousStatus !== "Completed") {
+      const completionReportUrl = await assertComplianceJobHasReport(job);
+      if (!completionReportUrl && isComplianceJobType(job.jobType)) {
+        return res.status(400).json({
+          status: "error",
+          message:
+            "Compliance jobs cannot be marked completed without an inspection report. Submit the inspection report first.",
+        });
+      }
+      if (completionReportUrl && !job.reportFile) {
+        job.reportFile = completionReportUrl;
+      }
+    }
 
     job.status = status;
     job.lastUpdatedBy = getCreatorInfo(req);
@@ -2375,6 +2435,15 @@ router.patch(
               details: uploadError.details || uploadError.message,
             });
           }
+        }
+
+        reportFileUrl = await assertComplianceJobHasReport(job, reportFileUrl);
+        if (isComplianceJobType(job.jobType) && !reportFileUrl) {
+          return res.status(400).json({
+            status: "error",
+            message:
+              "Compliance jobs cannot be completed without an inspection report. Submit the inspection report first.",
+          });
         }
 
         // Handle invoice creation. Compliance jobs use agency service pricing
