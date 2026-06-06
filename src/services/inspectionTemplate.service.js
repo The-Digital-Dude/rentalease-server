@@ -25,30 +25,37 @@ export const cleanupOldTemplateVersions = async () => {
     );
   }
 
-  // Gas inspections now use version 3 with repeatable appliance entries.
+  // Gas inspections now use version 4 with conditional rectification fields.
   // Keep older templates for historical reports only.
   await InspectionTemplate.updateMany(
-    { jobType: "Gas", version: { $lt: 3 } },
+    { jobType: "Gas", version: { $lt: 4 } },
     { isActive: false }
   );
 
-  // The smoke inspection now has a dedicated smoke-only template at version 3.
+  // The smoke inspection now has a dedicated smoke-only template at version 4.
   // Ensure any older smoke templates remain in the database for historical
   // reports but are hidden from technicians completing new jobs.
   await InspectionTemplate.updateMany(
-    { jobType: "Smoke", version: { $lt: 3 } },
+    { jobType: "Smoke", version: { $lt: 4 } },
     { isActive: false }
   );
 
   // Electrical inspections have moved to a dedicated electrical-only template
-  // at version 3. Keep older templates for historical reports only.
+  // at version 6. Keep older templates for historical reports only.
   await InspectionTemplate.updateMany(
-    { jobType: "Electrical", version: { $lt: 3 } },
+    { jobType: "Electrical", version: { $lt: 6 } },
+    { isActive: false }
+  );
+
+  // Minimum Safety Standard inspections now use version 4 with conditional
+  // rectification fields. Keep older templates for historical reports only.
+  await InspectionTemplate.updateMany(
+    { jobType: "MinimumSafetyStandard", version: { $lt: 4 } },
     { isActive: false }
   );
 
   console.log(
-    "Deactivated legacy inspection templates: versions <3 for Gas, versions <3 for Smoke, versions <3 for Electrical"
+    "Deactivated legacy inspection templates: versions <4 for Gas, versions <4 for Smoke, versions <6 for Electrical, versions <4 for MinimumSafetyStandard"
   );
 };
 

@@ -52,6 +52,156 @@ const yesNoNaOptions = [
   { value: "na", label: "N/A" },
 ];
 
+const buildConditionalRectificationField = (
+  fieldId,
+  condition = { equals: "no" }
+) => ({
+  id: `${fieldId}-rectification`,
+  label: "Rectification",
+  type: "textarea",
+  required: true,
+  placeholder: "Record rectification required if this check fails",
+  metadata: {
+    requiredWhen: {
+      fieldId,
+      ...condition,
+    },
+    visibleWhen: {
+      fieldId,
+      ...condition,
+    },
+  },
+});
+
+const addConditionalRectificationFields = (fields, rectificationMap = {}) =>
+  fields.flatMap((field) => {
+    const condition = rectificationMap[field.id];
+    if (!condition) {
+      return [field];
+    }
+
+    return [field, buildConditionalRectificationField(field.id, condition)];
+  });
+
+const addConditionalRectificationsToSections = (
+  sections = [],
+  sectionRectificationMap = {}
+) =>
+  sections.map((section) => ({
+    ...section,
+    fields: addConditionalRectificationFields(
+      section.fields || [],
+      sectionRectificationMap[section.id] || {}
+    ),
+  }));
+
+const gasRectificationMap = {
+  "lp-gas-checklist": {
+    "lp-gas-cylinders": { equals: "no" },
+    "gas-leakage-test": { equals: "fail" },
+  },
+  "general-gas-checks": {
+    "gas-pressure-test-result": { equals: "fail" },
+  },
+  "gas-appliances": {
+    "room-sealed-appliance": { equals: "no" },
+    "installation-gastight": { equals: "no" },
+    "accessible-for-servicing": { equals: "no" },
+    "isolation-valve-provided": { equals: "no" },
+    "electrically-safe": { equals: "no" },
+    "evidence-of-certification": { equals: "no" },
+    "adequately-restrained": { equals: "no" },
+    "adequate-room-ventilation": { equals: "no" },
+    "clearances-compliant": { equals: "no" },
+    "cowl-chimney-flue-good": { equals: "no" },
+    "flue-correctly-installed": { equals: "no" },
+    "no-scorching-overheating": { equals: "no" },
+    "heat-exchanger-satisfactory": { equals: "no" },
+    "appliance-cleaned": { equals: "no" },
+    "gas-supply-burner-pressure-correct": { equals: "no" },
+    "burner-flame-normal": { equals: "no" },
+    "operating-correctly": { equals: "no" },
+    "negative-pressure-present": { equals: "no" },
+    "co-spillage-test": { equals: "fail" },
+  },
+};
+
+const smokeRectificationMap = {
+  "inspection-summary": {
+    "smoke-outcome": { notEquals: "all-compliant" },
+  },
+  "property-coverage": {
+    "hallway-bedrooms-covered": { equals: "no" },
+    "between-sleeping-living-covered": { equals: "no" },
+    "every-storey-covered": { equals: "no" },
+    "garage-smoke-alarm": { equals: "no" },
+    "coverage-compliant": { equals: "no" },
+  },
+  "smoke-alarm-inventory": {
+    "expired-over-10-years": { equals: "yes" },
+    "positioning-compliant": { equals: "no" },
+    "physical-condition": { notEquals: "excellent" },
+    "test-button-result": { notEquals: "pass" },
+    "sound-level-adequate": { equals: "no" },
+    "interconnection-working": { equals: "no" },
+    "compliance-status": { notEquals: "compliant" },
+    "action-required": { notEquals: "none" },
+  },
+  "compliance-assessment": {
+    "overall-property-compliance": { notEquals: "fully-compliant" },
+  },
+};
+
+const electricalRectificationMap = () => ({
+  "inspection-summary": {
+    "electrical-outcome": { notEquals: "no-faults" },
+    "smoke-outcome": { notEquals: "no-faults" },
+  },
+  "extent-of-installation": Object.fromEntries(
+    extentItems.map((item) => [item.id, { notEquals: "included" }])
+  ),
+  "visual-inspection": Object.fromEntries(
+    visualInspectionItems.map((item) => [item.id, { notEquals: "satisfactory" }])
+  ),
+  "testing-polarity": Object.fromEntries(
+    polarityTestItems.map((item) => [item.id, { notEquals: "pass" }])
+  ),
+  "testing-earth": Object.fromEntries(
+    earthContinuityItems.map((item) => [item.id, { notEquals: "pass" }])
+  ),
+  "rcd-testing": {
+    "rcd-test-result": { notEquals: "pass" },
+  },
+  "smoke-alarms": {
+    "smoke-alarms-operational": { equals: "no" },
+  },
+});
+
+const electricalSmokeRectificationMap = () => ({
+  "inspection-summary": {
+    "electrical-outcome": { notEquals: "no-faults" },
+    "smoke-outcome": { notEquals: "no-faults" },
+  },
+  "extent-of-installation": Object.fromEntries(
+    extentItems.map((item) => [item.id, { notEquals: "included" }])
+  ),
+  "visual-inspection": Object.fromEntries(
+    visualInspectionItems.map((item) => [item.id, { notEquals: "satisfactory" }])
+  ),
+  "testing-polarity": Object.fromEntries(
+    polarityTestItems.map((item) => [item.id, { notEquals: "pass" }])
+  ),
+  "testing-earth": Object.fromEntries(
+    earthContinuityItems.map((item) => [item.id, { notEquals: "pass" }])
+  ),
+  "rcd-testing": {
+    "rcd-test-result": { notEquals: "pass" },
+  },
+  "smoke-alarms": {
+    "smoke-alarms-operational": { equals: "no" },
+  },
+});
+
 const complianceStatusOptions = [
   { value: "compliant", label: "Compliant" },
   { value: "non-compliant", label: "Non-Compliant" },
@@ -220,7 +370,7 @@ const buildSmokeAlarmsSection = () => ({
   ],
 });
 
-const createElectricalSmokeSections = () => [
+const createElectricalSmokeSections = () => addConditionalRectificationsToSections([
   {
     id: "inspection-summary",
     title: "Inspection Summary",
@@ -444,18 +594,18 @@ const createElectricalSmokeSections = () => [
       },
     ],
   },
-];
+], electricalSmokeRectificationMap());
 
 const gasTemplate = {
   jobType: "Gas",
   title: "Gas Safety Inspection",
-  version: 3,
+  version: 4,
   metadata: {
     category: "compliance",
     durationEstimateMins: 60,
     summary: "Comprehensive gas appliance and installation safety inspection",
   },
-  sections: [
+  sections: addConditionalRectificationsToSections([
     {
       id: "property-details",
       title: "Property Details",
@@ -959,10 +1109,10 @@ const gasTemplate = {
         },
       ],
     },
-  ],
+  ], gasRectificationMap),
 };
 
-const createElectricalSections = () => [
+const createElectricalSections = () => addConditionalRectificationsToSections([
   {
     id: "inspection-summary",
     title: "Inspection Summary",
@@ -1182,12 +1332,12 @@ const createElectricalSections = () => [
         },
     ],
   },
-];
+], electricalRectificationMap());
 
 const createElectricalTemplate = () => ({
   jobType: "Electrical",
   title: "Electrical Safety Inspection",
-  version: 3,
+  version: 4,
   metadata: {
     category: "compliance",
     durationEstimateMins: 60,
@@ -1201,7 +1351,7 @@ const createElectricalTemplate = () => ({
 const createSmokeTemplate = () => ({
   jobType: "Smoke",
   title: "Smoke Alarm Safety Inspection (Smoke Only)",
-  version: 3,
+  version: 4,
   metadata: {
     category: "compliance",
     durationEstimateMins: 45,
@@ -2462,6 +2612,34 @@ const createMinimumSafetyStandardTemplate = (
     required: options.required ?? true,
     ...(options.defaultValue === undefined ? {} : { defaultValue: options.defaultValue }),
   });
+  const questionWithRectification = (id, label, options = {}) => {
+    const questionField = question(id, label, options);
+    const visibleValue =
+      questionField.type === "pass-fail" || questionField.type === "pass-fail-na"
+        ? "fail"
+        : "no";
+
+    return [
+      questionField,
+      {
+        id: `${id}-rectification`,
+        label: "Rectification",
+        type: "textarea",
+        required: true,
+        placeholder: "Record rectification required if this check fails",
+        metadata: {
+          requiredWhen: {
+            fieldId: id,
+            equals: visibleValue,
+          },
+          visibleWhen: {
+            fieldId: id,
+            equals: visibleValue,
+          },
+        },
+      },
+    ];
+  };
   const photo = (id, label, options = {}) => ({
     id,
     label,
@@ -2559,11 +2737,11 @@ const createMinimumSafetyStandardTemplate = (
       title: "1. Electrical Safety",
       fields: [
         sectionPhoto("electrical-safety-photos"),
-        question(
+        ...questionWithRectification(
           "switchboard-circuit-breaker",
           "Are all power outlets and lighting circuits connected to a switchboard-type circuit breaker complying with AS/NZS 3000?"
         ),
-        question(
+        ...questionWithRectification(
           "rcd-present",
           "Are all power outlets and lighting circuits connected to a switchboard-type residual current device (RCD) complying with the relevant AS/NZS standards?"
         ),
@@ -2575,7 +2753,7 @@ const createMinimumSafetyStandardTemplate = (
       title: "2. Bin Facilities (Vermin-Proof Bins)",
       fields: [
         sectionPhoto("bin-facilities-photos"),
-        question(
+        ...questionWithRectification(
           "bin-general-standard",
           "Are both a rubbish bin and a recycling bin available for the renter's use - either council-supplied or vermin-proof and compatible with local collection services?"
         ),
@@ -2587,7 +2765,7 @@ const createMinimumSafetyStandardTemplate = (
       title: "3. Locks - External Doors",
       fields: [
         sectionPhoto("external-doors-photos"),
-        question(
+        ...questionWithRectification(
           "living-room-external-door-standard",
           "Are all external doors (excluding any screen doors) fitted with compliant deadlocks?"
         ),
@@ -2599,7 +2777,7 @@ const createMinimumSafetyStandardTemplate = (
       title: "4. Heating - Main Living Area",
       fields: [
         sectionPhoto("heating-photos"),
-        question(
+        ...questionWithRectification(
           "living-room-heater-fixed",
           "Is a fixed, energy-efficient heating system installed in the main living area?"
         ),
@@ -2611,11 +2789,11 @@ const createMinimumSafetyStandardTemplate = (
       title: "5. Window Coverings",
       fields: [
         sectionPhoto("window-coverings-photos"),
-        question(
+        ...questionWithRectification(
           "living-room-window-coverings",
           "Does every window in a bedroom or living area have a curtain or blind that the renter can open and close to adequately block light and provide reasonable privacy?"
         ),
-        question(
+        ...questionWithRectification(
           "openable-window-security",
           "Are all openable external windows able to be set in both an open and closed position, and secured with a functioning latch, lock, or bolt against external entry?"
         ),
@@ -2627,7 +2805,7 @@ const createMinimumSafetyStandardTemplate = (
       title: "6. Window covering anchors",
       fields: [
         sectionPhoto("window-covering-anchors-photos"),
-        question(
+        ...questionWithRectification(
           "window-covering-anchor-installed",
           "Are all windows which has coverings, such as blinds and curtains have an anchor installed to secure the cords and prevent them from forming loops?"
         ),
@@ -2639,15 +2817,15 @@ const createMinimumSafetyStandardTemplate = (
       title: "7. Lighting",
       fields: [
         sectionPhoto("lighting-photos"),
-        question(
+        ...questionWithRectification(
           "living-room-lighting-standard",
           "Do all interior rooms, corridors, and hallways have access to appropriate natural or artificial light suitable for their intended function?"
         ),
-        question(
+        ...questionWithRectification(
           "living-room-lighting-day",
           "Does each habitable room have access to natural light (including borrowed light from an adjoining room) during daylight hours?"
         ),
-        question(
+        ...questionWithRectification(
           "living-room-lighting-night",
           "Does each habitable room have access to sufficient artificial light during non-daylight hours?"
         ),
@@ -2659,7 +2837,7 @@ const createMinimumSafetyStandardTemplate = (
       title: "8. Mould and Dampness",
       fields: [
         sectionPhoto("mould-dampness-photos"),
-        question(
+        ...questionWithRectification(
           "living-room-mould-standard",
           "Are all rooms in the premises free from mould or dampness caused by or related to the building structure?"
         ),
@@ -2677,7 +2855,7 @@ const createMinimumSafetyStandardTemplate = (
           type: "text",
           placeholder: "e.g. Class 1",
         },
-        question(
+        ...questionWithRectification(
           "living-room-ventilation-standard",
           "Do all habitable rooms, bathrooms, shower rooms, toilets, and laundry areas have adequate ventilation in line with the required performance or deemed-to-satisfy standards?"
         ),
@@ -2689,7 +2867,7 @@ const createMinimumSafetyStandardTemplate = (
       title: "10. Structural Soundness",
       fields: [
         sectionPhoto("structural-soundness-photos"),
-        question(
+        ...questionWithRectification(
           "living-room-bowing",
           "Is the rented premises structurally sound, weatherproof, and free from any significant risk of collapse, failure, or moisture ingress?"
         ),
@@ -2701,16 +2879,16 @@ const createMinimumSafetyStandardTemplate = (
       title: "11. Kitchen",
       fields: [
         sectionPhoto("kitchen-photos"),
-        question("kitchen-food-prep", "Is there a dedicated food preparation area?"),
-        question(
+        ...questionWithRectification("kitchen-food-prep", "Is there a dedicated food preparation area?"),
+        ...questionWithRectification(
           "kitchen-sink-working",
           "Is there a kitchen sink in good working order connected to a reasonable supply of hot and cold water?"
         ),
-        question(
+        ...questionWithRectification(
           "kitchen-stovetop-burners",
           "Is there a cooktop in good working order with at least two burners?"
         ),
-        question(
+        ...questionWithRectification(
           "kitchen-oven-standard",
           "If an oven is present on the premises, is it in good working order?"
         ),
@@ -2722,7 +2900,7 @@ const createMinimumSafetyStandardTemplate = (
       title: "12. Laundry",
       fields: [
         sectionPhoto("laundry-photos"),
-        question(
+        ...questionWithRectification(
           "laundry-cold-water-standard",
           "If laundry facilities are provided, are they connected to a reasonable supply of hot and cold water?"
         ),
@@ -2734,15 +2912,15 @@ const createMinimumSafetyStandardTemplate = (
       title: "13. Bathroom Facilities",
       fields: [
         sectionPhoto("bathroom-facilities-photos"),
-        question(
+        ...questionWithRectification(
           "bathroom-hot-water-standard",
           "Does the bathroom provide a reasonable supply of hot and cold running water?"
         ),
-        question(
+        ...questionWithRectification(
           "bathroom-fixtures-standard",
           "Does the bathroom contain a washbasin and either a shower or bath?"
         ),
-        question(
+        ...questionWithRectification(
           "bathroom-showerhead-rating",
           "If a shower is present, does it have a shower head with a 3-star WELS rating (or a lower-rated head where a 3-star cannot be installed or would not operate effectively)?"
         ),
@@ -2754,15 +2932,15 @@ const createMinimumSafetyStandardTemplate = (
       title: "14. Toilets",
       fields: [
         sectionPhoto("toilets-photos"),
-        question(
+        ...questionWithRectification(
           "toilet-present",
           "Is there at least one toilet in good working order?"
         ),
-        question(
+        ...questionWithRectification(
           "toilet-connection",
           "Is toilet connected to sewerage or septic system?"
         ),
-        question(
+        ...questionWithRectification(
           "toilet-location",
           "Is the toilet located in an enclosed room intended for use as a toilet area (either standalone or combined bathroom/laundry)?"
         ),
@@ -2819,7 +2997,7 @@ const createMinimumSafetyStandardTemplate = (
   return {
     jobType: "MinimumSafetyStandard",
     title: "Minimum Safety Standard Inspection",
-    version: 3,
+    version: 4,
     metadata: {
       category: "compliance",
       durationEstimateMins: 60,
@@ -3503,7 +3681,7 @@ const createSmokeOnlySections_OLD = () => [
 ];
 
 // NEW: Improved smoke-only template following Gas/Electrical patterns
-const createSmokeOnlySections = () => [
+const createSmokeOnlySections = () => addConditionalRectificationsToSections([
   {
     id: "inspection-summary",
     title: "Inspection Summary",
@@ -4037,7 +4215,7 @@ const createSmokeOnlySections = () => [
       },
     ],
   },
-];
+], smokeRectificationMap);
 
 // Create comprehensive Gas + Smoke combined template
 const createGasSmokeTemplate = () => ({
@@ -4511,7 +4689,7 @@ const createGasSmokeTemplate = () => ({
 const createBasicMinimumSafetyStandardTemplate = () => ({
   jobType: "MinimumSafetyStandard",
   title: "Minimum Safety Standard Inspection",
-  version: 2,
+  version: 4,
   metadata: {
     category: "compliance",
     durationEstimateMins: 120,
@@ -4561,7 +4739,7 @@ const createBasicMinimumSafetyStandardTemplate = () => ({
 const createComprehensiveElectricalSmokeTemplate = () => ({
   jobType: "Electrical",
   title: "Electrical & Smoke Safety Inspection",
-  version: 5,
+  version: 6,
   metadata: {
     category: "compliance",
     durationEstimateMins: 90,

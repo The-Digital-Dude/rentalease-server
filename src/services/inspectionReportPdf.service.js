@@ -471,16 +471,94 @@ const extractSummaryInsights = ({ report, template, job, technician }) => {
   const formData = report?.formData || {};
   const sections = template?.sections || [];
   const fieldDefinitions = new Map();
+  const sectionFieldOrder = new Map();
 
-  sections.forEach((section) => {
-    (section.fields || []).forEach((field) => {
+  sections.forEach((section, sectionIndex) => {
+    sectionFieldOrder.set(section.id, section.fields || []);
+
+    (section.fields || []).forEach((field, fieldIndex) => {
       fieldDefinitions.set(`${section.id}.${field.id}`, {
+        sectionId: section.id,
         sectionTitle: section.title || humanizeKey(section.id),
         fieldLabel: field.label || humanizeKey(field.id),
         fieldType: field.type,
+        reference: `Q${sectionIndex + 1}.${fieldIndex + 1}`,
+        fieldIndex,
+        metadata: field.metadata || {},
       });
     });
   });
+
+  const getFieldDefinition = (sectionId, fieldId) =>
+    fieldDefinitions.get(`${sectionId}.${fieldId}`) || {};
+
+  const getFieldReference = (sectionId, fieldId) => {
+    const definition = getFieldDefinition(sectionId, fieldId);
+    const triggerFieldId = definition.metadata?.visibleWhen?.fieldId;
+
+    if (triggerFieldId) {
+      return (
+        getFieldDefinition(sectionId, triggerFieldId)?.reference ||
+        definition.reference ||
+        ""
+      );
+    }
+
+    const fieldOrder = sectionFieldOrder.get(sectionId) || [];
+    const currentFieldIndex = definition.fieldIndex;
+    if (
+      Number.isInteger(currentFieldIndex) &&
+      /(comment|comments|note|notes|recommendation|recommendations|follow-up|action|rectification|rectifications|remedial|issue|issues)/i.test(
+        `${sectionId}.${fieldId}`
+      )
+    ) {
+      for (let index = currentFieldIndex - 1; index >= 0; index -= 1) {
+        const previousField = fieldOrder[index];
+        if (!previousField?.id) {
+          continue;
+        }
+
+        const previousDefinition = getFieldDefinition(sectionId, previousField.id);
+        if (
+          ["yes-no", "yes-no-na", "pass-fail", "pass-fail-na", "select", "multi-select", "boolean"].includes(
+            previousDefinition.fieldType
+          )
+        ) {
+          return previousDefinition.reference || definition.reference || "";
+        }
+      }
+    }
+
+    return definition.reference || "";
+  };
+
+  const buildSummaryLine = ({
+    sectionId,
+    fieldId,
+    value,
+    itemLabel,
+    itemIndex,
+  }) => {
+    const definition = getFieldDefinition(sectionId, fieldId);
+    const reference = getFieldReference(sectionId, fieldId);
+    const sectionTitle = definition.sectionTitle || humanizeKey(sectionId);
+    const fieldLabel = definition.fieldLabel || humanizeKey(fieldId);
+    const itemContext = itemLabel
+      ? `${itemLabel}${Number.isInteger(itemIndex) ? ` ${itemIndex + 1}` : ""}`
+      : "";
+    const contextParts = [reference, sectionTitle, itemContext].filter(Boolean);
+    const context = contextParts.join(" - ");
+    const content = `${fieldLabel}: ${value}`;
+    return context ? `${context} - ${content}` : content;
+  };
+
+  const isRecommendationField = (lowerKey) =>
+    /(comment|comments|note|notes|recommendation|recommendations|follow-up|action)/i.test(
+      lowerKey
+    );
+
+  const isRectificationField = (lowerKey) =>
+    /(rectification|rectifications|remedial|issue|issues)/i.test(lowerKey);
 
   const foundStatuses = [];
   const recommendations = [];
@@ -502,11 +580,7 @@ const extractSummaryInsights = ({ report, template, job, technician }) => {
 
         Object.entries(item).forEach(([fieldId, rawValue]) => {
           const lowerKey = `${sectionId}.${fieldId}`.toLowerCase();
-          if (
-            !/(comment|comments|note|notes|recommendation|recommendations|follow-up|action)/i.test(
-              lowerKey
-            )
-          ) {
+          if (!isRecommendationField(lowerKey) && !isRectificationField(lowerKey)) {
             return;
           }
 
@@ -519,20 +593,34 @@ const extractSummaryInsights = ({ report, template, job, technician }) => {
             sections.find((section) => section.id === sectionId)?.itemLabel ||
             sections.find((section) => section.id === sectionId)?.title ||
             humanizeKey(sectionId);
-          const label =
-            fieldDefinitions.get(`${sectionId}.${fieldId}`)?.fieldLabel ||
-            humanizeKey(fieldId);
-          recommendations.push(`${itemLabel} ${index + 1} ${label}: ${value}`);
+          const line = buildSummaryLine({
+            sectionId,
+            fieldId,
+            value,
+            itemLabel,
+            itemIndex: index,
+          });
+
+          if (isRectificationField(lowerKey)) {
+            urgentRectifications.push(line);
+            return;
+          }
+
+          if (
+            isNonCompliantStatus(value) ||
+            /urgent|mandatory|immediate|non-compliant|repair|required/i.test(value)
+          ) {
+            urgentRectifications.push(line);
+          } else {
+            recommendations.push(line);
+          }
         });
       });
       return;
     }
 
     Object.entries(sectionData).forEach(([fieldId, rawValue]) => {
-      const definition =
-        fieldDefinitions.get(`${sectionId}.${fieldId}`) || {};
-      const label = definition.fieldLabel || humanizeKey(fieldId);
-      const fieldType = definition.fieldType || "";
+      const definition = getFieldDefinition(sectionId, fieldId);
       const lowerKey = `${sectionId}.${fieldId}`.toLowerCase();
 
       if (REPORT_STATUS_CANDIDATES.includes(fieldId)) {
@@ -582,31 +670,34 @@ const extractSummaryInsights = ({ report, template, job, technician }) => {
         return;
       }
 
+      const summaryLine = buildSummaryLine({
+        sectionId,
+        fieldId,
+        value,
+      });
+
       if (
         /(ongoing|tenant.*issue|pm.*issue|property.*issue)/i.test(lowerKey) &&
         value.toLowerCase() !== "no"
       ) {
-        ongoingIssues.push(`${label}: ${value}`);
+        ongoingIssues.push(summaryLine);
       }
 
-      if (
-        /(comment|comments|note|notes|recommendation|recommendations|follow-up|action)/i.test(
-          lowerKey
-        )
-      ) {
+      if (isRectificationField(lowerKey)) {
+        urgentRectifications.push(summaryLine);
+      } else if (isRecommendationField(lowerKey)) {
         if (value.toLowerCase() === "n/a") {
           return;
         }
 
-        const itemText = `${label}: ${value}`;
         if (
           isNonCompliantStatus(value) ||
           /urgent|mandatory|immediate|non-compliant|repair|required/i.test(value)
         ) {
           hasExplicitNonCompliance = true;
-          urgentRectifications.push(itemText);
+          urgentRectifications.push(summaryLine);
         } else {
-          recommendations.push(itemText);
+          recommendations.push(summaryLine);
         }
       }
 
@@ -615,7 +706,7 @@ const extractSummaryInsights = ({ report, template, job, technician }) => {
         /urgent|mandatory|immediate|non-compliant|repair|required/i.test(value)
       ) {
         hasExplicitNonCompliance = true;
-        urgentRectifications.push(`${label}: ${value}`);
+        urgentRectifications.push(summaryLine);
       }
     });
   });
@@ -649,6 +740,7 @@ const extractSummaryInsights = ({ report, template, job, technician }) => {
     reportStatus,
     recommendations: dedupeItems(recommendations).slice(0, 8),
     urgentRectifications: dedupeItems(urgentRectifications).slice(0, 8),
+    rectifications: dedupeItems(urgentRectifications).slice(0, 8),
     ongoingIssues: dedupeItems(ongoingIssues).slice(0, 4),
     technicianName:
       `${technician?.firstName || ""} ${technician?.lastName || ""}`.trim() ||
@@ -1090,9 +1182,9 @@ const drawPropertyDetailsSection = (
   if (isNonCompliantStatus(summaryInsights.reportStatus)) {
     drawSummaryList(
       doc,
-      "Urgent / Mandatory Rectifications",
-      summaryInsights.urgentRectifications.length
-        ? summaryInsights.urgentRectifications
+      "Rectifications",
+      summaryInsights.rectifications.length
+        ? summaryInsights.rectifications
         : ["Non-compliance recorded. Review technician comments below."],
       {
         backgroundColor: COLORS.errorSoft,
@@ -1103,9 +1195,7 @@ const drawPropertyDetailsSection = (
 
   drawSummaryList(
     doc,
-    isNonCompliantStatus(summaryInsights.reportStatus)
-      ? "Recommendations From Tradie"
-      : "Recommendations",
+    "Recommendations",
     summaryInsights.recommendations.length
       ? summaryInsights.recommendations
       : ["No additional recommendations recorded."],

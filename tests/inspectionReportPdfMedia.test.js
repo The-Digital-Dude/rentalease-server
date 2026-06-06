@@ -467,6 +467,10 @@ describe("Inspection report PDF media matching", () => {
       expect(detailsSource).toContain(label);
     });
 
+    expect(source).toContain('drawSummaryList(doc, "Rectifications"');
+    expect(source).toContain('drawSummaryList(doc, "Recommendations"');
+    expect(source).toContain("reference: `Q");
+
     [
       '"Regulations / Standards"',
       '"Declaration"',

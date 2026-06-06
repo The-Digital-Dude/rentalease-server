@@ -44,7 +44,7 @@ describe("Minimum Safety Standard DOCX checklist template", () => {
       .filter((section) => /^\d+\./.test(section.title))
       .map((section) => section.title);
 
-    expect(template.version).toBe(3);
+    expect(template.version).toBe(4);
     expect(template.sections.map((section) => section.id)).toEqual([
       "property-setup",
       "property-summary",
@@ -126,6 +126,25 @@ describe("Minimum Safety Standard DOCX checklist template", () => {
     for (const [fieldKey, label] of Object.entries(expectedLabels)) {
       expect(fields.get(fieldKey)?.label).toBe(label);
     }
+
+    [
+      "electrical-safety.switchboard-circuit-breaker-rectification",
+      "electrical-safety.rcd-present-rectification",
+      "bin-facilities.bin-general-standard-rectification",
+      "external-entry-doors.living-room-external-door-standard-rectification",
+      "kitchen.kitchen-food-prep-rectification",
+      "bathroom-facilities.bathroom-showerhead-rating-rectification",
+      "toilet-summary.toilet-location-rectification",
+    ].forEach((fieldKey) => {
+      expect(fields.get(fieldKey)?.type).toBe("textarea");
+      expect(fields.get(fieldKey)?.required).toBe(true);
+      expect(fields.get(fieldKey)?.metadata?.visibleWhen?.fieldId).toBe(
+        fieldKey.replace(/-rectification$/, "")
+      );
+      expect(fields.get(fieldKey)?.metadata?.requiredWhen?.fieldId).toBe(
+        fieldKey.replace(/-rectification$/, "")
+      );
+    });
 
     expect(fields.get("technician-signoff.mss-disclaimer")?.type).toBe(
       "static-text"

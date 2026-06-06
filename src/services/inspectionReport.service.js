@@ -334,6 +334,73 @@ const ensureRequiredValue = (value, message) => {
   }
 };
 
+const isConditionMet = (value, condition = {}) => {
+  if (!condition || typeof condition !== "object") {
+    return false;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(condition, "equals")) {
+    return value === condition.equals;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(condition, "notEquals")) {
+    return value !== condition.notEquals;
+  }
+
+  return false;
+};
+
+const validateConditionallyRequiredFields = (template, formData = {}) => {
+  (template?.sections || []).forEach((section) => {
+    const sectionResponses = formData[section.id];
+
+    if (section.repeatable && Array.isArray(sectionResponses)) {
+      sectionResponses.forEach((itemResponses = {}, itemIndex) => {
+        (section.fields || []).forEach((field) => {
+          const requiredWhen = field?.metadata?.requiredWhen;
+          if (!requiredWhen) {
+            return;
+          }
+
+          if (!isConditionMet(itemResponses?.[requiredWhen.fieldId], requiredWhen)) {
+            return;
+          }
+
+          ensureRequiredValue(
+            itemResponses?.[field.id],
+            `${section.itemLabel || section.title || "Item"} ${itemIndex + 1} field "${field.id}" is required`
+          );
+        });
+      });
+      return;
+    }
+
+    if (
+      !sectionResponses ||
+      typeof sectionResponses !== "object" ||
+      Array.isArray(sectionResponses)
+    ) {
+      return;
+    }
+
+    (section.fields || []).forEach((field) => {
+      const requiredWhen = field?.metadata?.requiredWhen;
+      if (!requiredWhen) {
+        return;
+      }
+
+      if (!isConditionMet(sectionResponses?.[requiredWhen.fieldId], requiredWhen)) {
+        return;
+      }
+
+      ensureRequiredValue(
+        sectionResponses?.[field.id],
+        `Field "${field.id}" is required when "${requiredWhen.fieldId}" is "${requiredWhen.equals}"`
+      );
+    });
+  });
+};
+
 const calculateGasComplianceOutcome = (formData = {}) => {
   const generalChecks = formData["general-gas-checks"] || {};
   const rectification = formData["rectification-works-required"] || {};
@@ -795,6 +862,8 @@ export const submitInspectionReport = async ({
       "final-compliance-outcome": minimumSafetyStandardOutcome,
     };
   }
+
+  validateConditionallyRequiredFields(template, normalizedFormData);
 
   let resolvedNextComplianceDate = resolveNextComplianceDate(
     template,
