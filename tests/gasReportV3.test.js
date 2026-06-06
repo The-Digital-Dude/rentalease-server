@@ -1,20 +1,26 @@
-describe("Gas report v3 validation and outcome", () => {
-  const fs = require("fs");
-  const path = require("path");
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+describe("Gas report v3 validation and outcome", () => {
   const loadGasReportHelpers = () => {
     const servicePath = path.resolve(
       __dirname,
       "../src/services/inspectionReport.service.js"
     );
     const source = fs.readFileSync(servicePath, "utf8");
-    const executableSource = source
-      .replace(/^import .*;$/gm, "")
-      .replace(/export const submitInspectionReport = async/g, "const submitInspectionReport = async")
-      .replace(/export default submitInspectionReport;?/g, "")
-      .concat(
-        "\nreturn { calculateGasComplianceOutcome, calculateMinimumSafetyStandardOutcome, validateGasReportV3, isGasTemplateV3, validateRequiredPhotoUploads };"
-      );
+    const helperSource = source
+      .slice(
+      0,
+      source.indexOf("export const submitInspectionReport = async")
+      )
+      .replace(/^\s*import[\s\S]*?;\r?\n?/gm, "");
+    const executableSource = helperSource.concat(
+      "\nreturn { calculateGasComplianceOutcome, calculateMinimumSafetyStandardOutcome, validateGasReportV3, isGasTemplateV3, validateRequiredPhotoUploads };"
+    );
 
     return new Function(executableSource)();
   };
@@ -89,12 +95,15 @@ describe("Gas report v3 validation and outcome", () => {
     ).toBe(true);
 
     expect(
-      isGasTemplateV3({
-        jobType: "Gas",
-        version: 2,
-      }, {
-        "appliance-1": {},
-      })
+      isGasTemplateV3(
+        {
+          jobType: "Gas",
+          version: 2,
+        },
+        {
+          "appliance-1": {},
+        }
+      )
     ).toBe(false);
   });
 
@@ -247,12 +256,16 @@ describe("Gas report v3 validation and outcome", () => {
     ).toThrow(/other appliance type is required/i);
   });
 
-  test("requires completed job status for gas v3 submission", () => {
+  test("allows gas v3 submission before the job is completed", () => {
     const { validateGasReportV3 } = loadGasReportHelpers();
 
-    expect(() =>
+    expect(
       validateGasReportV3(createValidGasFormData(), { status: "Scheduled" })
-    ).toThrow(/job status is Completed/i);
+    ).toBe("compliant");
+
+    expect(
+      validateGasReportV3(createValidGasFormData(), { status: "In Progress" })
+    ).toBe("compliant");
   });
 
   test("requires required photo uploads for normal and repeatable sections", () => {

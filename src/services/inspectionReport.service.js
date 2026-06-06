@@ -506,10 +506,6 @@ const calculateMinimumSafetyStandardOutcome = (formData = {}, template = null) =
 };
 
 const validateGasReportV3 = (formData = {}, job) => {
-  if (job?.status !== "Completed") {
-    throw new Error("Gas inspection reports can only be submitted when the job status is Completed");
-  }
-
   const propertyDetails = formData["property-details"] || {};
   const technicianDetails = formData["technician-details"] || {};
   const lpGasChecklist = formData["lp-gas-checklist"] || {};
