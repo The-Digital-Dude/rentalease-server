@@ -1016,6 +1016,7 @@ export const submitInspectionReport = async ({
         const autoSendPayload = buildDefaultCompletedJobInvoiceEmailPayload({
           jobType: job.jobType,
           propertyAddress: property.address?.fullAddress || "Property",
+          invoiceNumber: invoice.invoiceNumber,
         });
 
         await sendCompletedJobInvoiceDocuments({

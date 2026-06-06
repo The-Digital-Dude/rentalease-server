@@ -1,12 +1,17 @@
 import { readFile } from "fs/promises";
 import path from "path";
-import PDFDocument from "pdfkit";
 import { bucket } from "../config/gcs.js";
 import Job from "../models/Job.js";
 import Agency from "../models/Agency.js";
 import PropertyManager from "../models/PropertyManager.js";
 import emailService from "./email.service.js";
 import notificationService from "./notification.service.js";
+import {
+  buildCompletedDocumentsHtml,
+  buildCompletedDocumentsText,
+  buildInvoiceReviewDates,
+  generateCompletedJobInvoicePdfBuffer,
+} from "./completedJobInvoiceTemplate.js";
 
 const isValidEmail = (email = "") => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
@@ -107,13 +112,30 @@ export const buildInvoiceReviewData = async (invoice) => {
 
   const resolvedReportFile =
     job?.reportFile || job?.latestInspectionReport?.pdf?.url || null;
+  const reportSource = job?.reportFile
+    ? "job"
+    : job?.latestInspectionReport?.pdf?.url
+      ? "latestInspectionReport"
+      : null;
+  const dates = buildInvoiceReviewDates(invoice, {});
+  const attentionName =
+    propertyManagers
+      .map((manager) => formatRecipientName(manager))
+      .find(Boolean) ||
+    agency?.contactPerson ||
+    agency?.companyName ||
+    "Landlord";
 
   return {
     propertyAddress: job?.property?.address?.fullAddress || "Property",
     jobType: job?.jobType || "",
     jobNumber: job?.job_id || "",
     agencyName: agency?.companyName || "",
+    attentionName,
+    invoiceDate: dates.invoiceDate,
+    dueDate: dates.dueDate,
     reportFile: resolvedReportFile,
+    reportSource,
     hasReport: Boolean(resolvedReportFile),
     recipients: {
       to: toRecipients,
@@ -121,173 +143,6 @@ export const buildInvoiceReviewData = async (invoice) => {
       bcc: [],
     },
   };
-};
-
-const buildCompletedDocumentsHtml = ({ customBodyHtml, invoice, reviewData }) => {
-  const itemsHtml = (invoice.items || [])
-    .map(
-      (item) => `
-        <tr>
-          <td style="padding:8px;border:1px solid #dbe3ea;">${item.name}</td>
-          <td style="padding:8px;border:1px solid #dbe3ea;text-align:right;">${Number(item.quantity || 0).toFixed(2)}</td>
-          <td style="padding:8px;border:1px solid #dbe3ea;text-align:right;">$${Number(item.rate || 0).toFixed(2)}</td>
-          <td style="padding:8px;border:1px solid #dbe3ea;text-align:right;">$${Number(item.amount || 0).toFixed(2)}</td>
-        </tr>
-      `
-    )
-    .join("");
-
-  return `
-    <div>${customBodyHtml || ""}</div>
-    <hr style="margin:24px 0;border:none;border-top:1px solid #dbe3ea;" />
-    <div style="font-family:Arial,sans-serif;color:#1f2937;">
-      <h3 style="margin:0 0 12px;">Completed Job Documents</h3>
-      <p><strong>Property:</strong> ${reviewData.propertyAddress}</p>
-      <p><strong>Service:</strong> ${reviewData.jobType || "-"}</p>
-      <p><strong>Job ID:</strong> ${reviewData.jobNumber || "-"}</p>
-      <p><strong>Invoice #:</strong> ${invoice.invoiceNumber}</p>
-      <p><strong>Invoice Total:</strong> $${Number(invoice.totalCost || 0).toFixed(2)}</p>
-      <p><strong>Inspection Report:</strong> ${
-        reviewData.reportFile
-          ? `<a href="${reviewData.reportFile}">Open report</a>`
-          : "Not available"
-      }</p>
-      <table style="width:100%;border-collapse:collapse;margin-top:16px;">
-        <thead>
-          <tr>
-            <th style="padding:8px;border:1px solid #dbe3ea;text-align:left;background:#f8fafc;">Item</th>
-            <th style="padding:8px;border:1px solid #dbe3ea;text-align:right;background:#f8fafc;">Qty</th>
-            <th style="padding:8px;border:1px solid #dbe3ea;text-align:right;background:#f8fafc;">Rate</th>
-            <th style="padding:8px;border:1px solid #dbe3ea;text-align:right;background:#f8fafc;">Amount</th>
-          </tr>
-        </thead>
-        <tbody>${itemsHtml}</tbody>
-      </table>
-      <p style="margin-top:16px;"><strong>Subtotal:</strong> $${Number(invoice.subtotal || 0).toFixed(2)}</p>
-      <p><strong>Tax:</strong> $${Number(invoice.tax || 0).toFixed(2)}</p>
-      <p><strong>Total:</strong> $${Number(invoice.totalCost || 0).toFixed(2)}</p>
-      ${invoice.notes ? `<p><strong>Notes:</strong> ${invoice.notes}</p>` : ""}
-    </div>
-  `;
-};
-
-const buildCompletedDocumentsText = ({ customBodyText, invoice, reviewData }) => {
-  const lines = [
-    customBodyText || "",
-    "",
-    "Completed Job Documents",
-    `Property: ${reviewData.propertyAddress}`,
-    `Service: ${reviewData.jobType || "-"}`,
-    `Job ID: ${reviewData.jobNumber || "-"}`,
-    `Invoice #: ${invoice.invoiceNumber}`,
-    `Invoice Total: $${Number(invoice.totalCost || 0).toFixed(2)}`,
-    `Inspection Report: ${reviewData.reportFile || "Not available"}`,
-    "",
-    "Invoice Items:",
-    ...(invoice.items || []).map(
-      (item) =>
-        `- ${item.name}: ${Number(item.quantity || 0).toFixed(2)} x $${Number(
-          item.rate || 0
-        ).toFixed(2)} = $${Number(item.amount || 0).toFixed(2)}`
-    ),
-    "",
-    `Subtotal: $${Number(invoice.subtotal || 0).toFixed(2)}`,
-    `Tax: $${Number(invoice.tax || 0).toFixed(2)}`,
-    `Total: $${Number(invoice.totalCost || 0).toFixed(2)}`,
-  ];
-
-  if (invoice.notes) {
-    lines.push(`Notes: ${invoice.notes}`);
-  }
-
-  return lines.join("\n").trim();
-};
-
-const generateInvoicePdfBuffer = async ({ invoice, reviewData }) => {
-  const doc = new PDFDocument({ size: "A4", margin: 50 });
-  const chunks = [];
-
-  return new Promise((resolve, reject) => {
-    doc.on("data", (chunk) => chunks.push(chunk));
-    doc.on("end", () => resolve(Buffer.concat(chunks)));
-    doc.on("error", reject);
-
-    doc.fontSize(24).fillColor("#0f172a").text("Rentalease Invoice", {
-      align: "left",
-    });
-    doc.moveDown(0.5);
-    doc.fontSize(11).fillColor("#475569");
-    doc.text(`Invoice #: ${invoice.invoiceNumber}`);
-    doc.text(`Status: ${invoice.status}`);
-    doc.text(`Job Number: ${reviewData.jobNumber || "-"}`);
-    doc.text(`Service: ${reviewData.jobType || "-"}`);
-    doc.text(`Property: ${reviewData.propertyAddress || "-"}`);
-    if (reviewData.agencyName) {
-      doc.text(`Agency: ${reviewData.agencyName}`);
-    }
-
-    doc.moveDown(1);
-    doc.fontSize(16).fillColor("#0f172a").text("Description");
-    doc.moveDown(0.3);
-    doc.fontSize(11).fillColor("#111827").text(invoice.description || "-", {
-      lineGap: 3,
-    });
-
-    doc.moveDown(1);
-    doc.fontSize(16).fillColor("#0f172a").text("Items");
-    doc.moveDown(0.4);
-
-    const columns = {
-      item: 50,
-      qty: 280,
-      rate: 350,
-      amount: 450,
-    };
-
-    doc.fontSize(10).fillColor("#64748b");
-    doc.text("Item", columns.item, doc.y);
-    doc.text("Qty", columns.qty, doc.y - 12);
-    doc.text("Rate", columns.rate, doc.y - 12);
-    doc.text("Amount", columns.amount, doc.y - 12);
-    doc.moveDown(0.6);
-    doc.strokeColor("#cbd5e1").moveTo(50, doc.y).lineTo(545, doc.y).stroke();
-    doc.moveDown(0.4);
-
-    doc.fontSize(11).fillColor("#111827");
-    for (const item of invoice.items || []) {
-      const startY = doc.y;
-      doc.text(item.name || "-", columns.item, startY, { width: 200 });
-      doc.text(`${Number(item.quantity || 0)}`, columns.qty, startY);
-      doc.text(`$${Number(item.rate || 0).toFixed(2)}`, columns.rate, startY);
-      doc.text(
-        `$${Number(item.amount || 0).toFixed(2)}`,
-        columns.amount,
-        startY
-      );
-      doc.moveDown(0.8);
-    }
-
-    doc.moveDown(0.8);
-    doc.strokeColor("#cbd5e1").moveTo(300, doc.y).lineTo(545, doc.y).stroke();
-    doc.moveDown(0.4);
-    doc.fontSize(11).fillColor("#111827");
-    doc.text(`Subtotal: $${Number(invoice.subtotal || 0).toFixed(2)}`, 330);
-    doc.text(`Tax: $${Number(invoice.tax || 0).toFixed(2)}`, 330);
-    doc.font("Helvetica-Bold").text(
-      `Total: $${Number(invoice.totalCost || 0).toFixed(2)}`,
-      330
-    );
-    doc.font("Helvetica");
-
-    if (invoice.notes) {
-      doc.moveDown(1.2);
-      doc.fontSize(16).fillColor("#0f172a").text("Notes");
-      doc.moveDown(0.3);
-      doc.fontSize(11).fillColor("#111827").text(invoice.notes, { lineGap: 3 });
-    }
-
-    doc.end();
-  });
 };
 
 const extractGcsPathFromUrl = (value) => {
@@ -391,14 +246,18 @@ const fetchAttachmentFromUrl = async (url, fallbackFilename) => {
 export const buildDefaultCompletedJobInvoiceEmailPayload = ({
   jobType,
   propertyAddress,
+  invoiceNumber,
 }) => ({
-  subject: `Completed Job Documents - ${jobType} - ${propertyAddress}`,
+  subject: `Tax Invoice - ${jobType} - ${propertyAddress}`,
   bodyHtml: `
     <p>Hello,</p>
-    <p>The technician has completed this job. Please find the invoice and inspection report attached for your records.</p>
+    <p>Please find the tax invoice and inspection report attached for your records.</p>
+    <p><strong>Invoice #:</strong> ${invoiceNumber || "Draft"}</p>
   `,
   bodyText:
-    "Hello,\n\nThe technician has completed this job. Please find the invoice and inspection report attached for your records.",
+    `Hello,\n\nPlease find the tax invoice and inspection report attached for your records.\nInvoice #: ${
+      invoiceNumber || "Draft"
+    }`,
 });
 
 export const sendCompletedJobInvoiceDocuments = async ({
@@ -431,9 +290,14 @@ export const sendCompletedJobInvoiceDocuments = async ({
 
   const invoicePdfPromise = uploadedInvoiceAttachment
     ? Promise.resolve(uploadedInvoiceAttachment.buffer)
-    : generateInvoicePdfBuffer({
+    : generateCompletedJobInvoicePdfBuffer({
         invoice,
         reviewData,
+        job: {
+          description: invoice.description,
+          jobType: reviewData.jobType,
+          reportFile: reviewData.reportFile,
+        },
       });
 
   const reportAttachmentPromise = fetchAttachmentFromUrl(

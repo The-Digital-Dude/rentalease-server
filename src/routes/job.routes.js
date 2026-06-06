@@ -2752,6 +2752,7 @@ router.patch(
                 buildDefaultCompletedJobInvoiceEmailPayload({
                   jobType: job.jobType,
                   propertyAddress,
+                  invoiceNumber: completedInvoice.invoiceNumber,
                 });
 
               await sendCompletedJobInvoiceDocuments({

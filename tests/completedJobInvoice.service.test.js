@@ -110,6 +110,7 @@ describe("completedJobInvoice.service", () => {
 
     expect(reviewData.propertyAddress).toBe("1 Main St, Sydney NSW 2000");
     expect(reviewData.jobType).toBe("Gas");
+    expect(reviewData.attentionName).toBe("Pat Manager");
     expect(reviewData.recipients.to).toEqual([
       { email: "agency@example.com", name: "Alice Agency" },
       { email: "pm1@example.com", name: "Pat Manager" },
@@ -154,6 +155,7 @@ describe("completedJobInvoice.service", () => {
       "https://files.example.com/job-303-report.pdf"
     );
     expect(reviewData.hasReport).toBe(true);
+    expect(reviewData.reportSource).toBe("latestInspectionReport");
   });
 
   test("sendCompletedJobInvoiceDocuments emails default recipients and marks invoice sent", async () => {
