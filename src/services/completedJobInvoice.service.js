@@ -268,7 +268,6 @@ export const sendCompletedJobInvoiceDocuments = async ({
   subject,
   bodyHtml,
   bodyText,
-  uploadedInvoiceAttachment = null,
   sentBy = null,
 }) => {
   normalizeCompletedJobInvoiceStatus(invoice);
@@ -288,17 +287,15 @@ export const sendCompletedJobInvoiceDocuments = async ({
     throw new Error("At least one valid recipient is required");
   }
 
-  const invoicePdfPromise = uploadedInvoiceAttachment
-    ? Promise.resolve(uploadedInvoiceAttachment.buffer)
-    : generateCompletedJobInvoicePdfBuffer({
-        invoice,
-        reviewData,
-        job: {
-          description: invoice.description,
-          jobType: reviewData.jobType,
-          reportFile: reviewData.reportFile,
-        },
-      });
+  const invoicePdfPromise = generateCompletedJobInvoicePdfBuffer({
+    invoice,
+    reviewData,
+    job: {
+      description: invoice.description,
+      jobType: reviewData.jobType,
+      reportFile: reviewData.reportFile,
+    },
+  });
 
   const reportAttachmentPromise = fetchAttachmentFromUrl(
     reviewData.reportFile,
@@ -320,9 +317,7 @@ export const sendCompletedJobInvoiceDocuments = async ({
 
   const attachments = [
     {
-      filename:
-        uploadedInvoiceAttachment?.originalname ||
-        `invoice-${invoice.invoiceNumber}.pdf`,
+      filename: `invoice-${invoice.invoiceNumber}.pdf`,
       content: invoicePdfBuffer,
       contentType: "application/pdf",
     },

@@ -215,10 +215,6 @@ describe("completedJobInvoice.service", () => {
       subject: "Completed Job Documents - Smoke - 2 Queen St",
       bodyHtml: "<p>Hello</p>",
       bodyText: "Hello",
-      uploadedInvoiceAttachment: {
-        originalname: "invoice.pdf",
-        buffer: Buffer.from("invoice-pdf"),
-      },
       sentBy: {
         id: "tech-1",
         name: "Test Technician",
@@ -233,7 +229,7 @@ describe("completedJobInvoice.service", () => {
       { email: "pm@example.com", name: "Sam Supervisor" },
     ]);
     expect(emailPayload.attachments).toHaveLength(2);
-    expect(emailPayload.attachments[0].filename).toBe("invoice.pdf");
+    expect(emailPayload.attachments[0].filename).toBe("invoice-INV-202.pdf");
     expect(emailPayload.attachments[1].filename).toBe(
       "inspection-report-JOB-202.pdf"
     );

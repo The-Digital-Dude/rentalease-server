@@ -220,7 +220,7 @@ const drawInvoiceHeader = (doc, reviewData, invoice) => {
   return headerY + headerHeight + 14;
 };
 
-const drawRecipientBlock = (doc, reviewData, job, startY) => {
+const drawRecipientBlock = (doc, reviewData, invoice, job, startY) => {
   const boxWidth = (PAGE.width - PAGE.margin * 2 - 12) / 2;
   const boxHeight = 124;
   const attentionName = getAttentionName(reviewData);
@@ -479,7 +479,7 @@ export const generateCompletedJobInvoicePdfBuffer = async ({
 
     doc.fillColor("#0f172a");
     let cursorY = drawInvoiceHeader(doc, reviewData, invoice);
-    cursorY = drawRecipientBlock(doc, reviewData, job, cursorY);
+    cursorY = drawRecipientBlock(doc, reviewData, invoice, job, cursorY);
     cursorY = drawHowToPaySection(doc, cursorY);
     cursorY = drawTermsSection(doc, cursorY);
     if (invoice.notes) {

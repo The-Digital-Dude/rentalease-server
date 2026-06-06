@@ -16,8 +16,8 @@ import {
   normalizeCompletedJobInvoiceStatus,
   sendCompletedJobInvoiceDocuments,
 } from "../services/completedJobInvoice.service.js";
+import { generateCompletedJobInvoicePdfBuffer } from "../services/completedJobInvoiceTemplate.js";
 import { getAgencyServicePriceForJobType } from "../utils/agencyPricing.js";
-import fileUploadService from "../services/fileUpload.service.js";
 
 const router = express.Router();
 
@@ -159,6 +159,64 @@ const buildInvoicePopulateConfig = () => [
   { path: "technicianId", select: "firstName lastName email phone" },
   { path: "agencyId", select: "companyName contactPerson email phone" },
 ];
+
+const toIdString = (value) =>
+  value?._id?.toString?.() || value?.toString?.() || "";
+
+const canAccessInvoice = (userInfo, invoice) => {
+  if (!userInfo || !invoice) {
+    return false;
+  }
+
+  if (userInfo.type === "SuperUser") {
+    return true;
+  }
+
+  if (
+    userInfo.type === "Agency" &&
+    toIdString(invoice.agencyId) === userInfo.id
+  ) {
+    return true;
+  }
+
+  if (
+    userInfo.type === "Technician" &&
+    toIdString(invoice.technicianId) === userInfo.id
+  ) {
+    return true;
+  }
+
+  if (userInfo.type === "PropertyManager") {
+    const assignedPropertyIds = userInfo.assignedProperties.map((prop) =>
+      toIdString(prop.propertyId)
+    );
+    const jobPropertyId =
+      toIdString(invoice.jobId.property);
+    return assignedPropertyIds.includes(jobPropertyId);
+  }
+
+  return false;
+};
+
+const sendInvoicePdfResponse = async (res, invoice, reviewData) => {
+  const pdfBuffer = await generateCompletedJobInvoicePdfBuffer({
+    invoice,
+    reviewData,
+    job: {
+      description: invoice.description,
+      jobType: reviewData?.jobType || "",
+      reportFile: reviewData?.reportFile || null,
+    },
+  });
+
+  const fileName = `invoice-${invoice.invoiceNumber || "draft"}.pdf`;
+
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+  res.setHeader("Content-Length", pdfBuffer.length);
+
+  return res.status(200).send(pdfBuffer);
+};
 
 // POST - Create new invoice
 router.post("/", authenticateUserTypes(['SuperUser', 'TeamMember']), async (req, res) => {
@@ -382,28 +440,7 @@ router.get("/job/:jobId", authenticateUserTypes(['SuperUser', 'TeamMember', 'Age
 
     // Check access permissions
     const userInfo = getUserInfo(req);
-    let hasAccess = false;
-
-    if (userInfo.type === "SuperUser") {
-      hasAccess = true;
-    } else if (
-      userInfo.type === "Agency" &&
-      invoice.agencyId.toString() === userInfo.id
-    ) {
-      hasAccess = true;
-    } else if (
-      userInfo.type === "Technician" &&
-      invoice.technicianId.toString() === userInfo.id
-    ) {
-      hasAccess = true;
-    } else if (userInfo.type === "PropertyManager") {
-      // Check if Property Manager has access to the property associated with the job
-      const assignedPropertyIds = userInfo.assignedProperties.map(prop => prop.propertyId.toString());
-      const jobPropertyId = invoice.jobId.property.toString();
-      hasAccess = assignedPropertyIds.includes(jobPropertyId);
-    }
-
-    if (!hasAccess) {
+    if (!canAccessInvoice(userInfo, invoice)) {
       return res.status(403).json({
         status: "error",
         message:
@@ -615,6 +652,106 @@ router.patch("/:invoiceId", authenticateUserTypes(['SuperUser', 'TeamMember']), 
   }
 });
 
+router.get(
+  "/job/:jobId/pdf",
+  authenticateUserTypes(["SuperUser", "TeamMember", "Agency", "PropertyManager"]),
+  async (req, res) => {
+    try {
+      const { jobId } = req.params;
+
+      if (!mongoose.Types.ObjectId.isValid(jobId)) {
+        return res.status(400).json({
+          status: "error",
+          message: "Invalid job ID format",
+        });
+      }
+
+      const invoice = await Invoice.findOne({ jobId }).populate(
+        buildInvoicePopulateConfig()
+      );
+
+      if (!invoice) {
+        return res.status(404).json({
+          status: "error",
+          message: "Invoice not found for this job",
+        });
+      }
+
+      normalizeCompletedJobInvoiceStatus(invoice);
+
+      const userInfo = getUserInfo(req);
+      if (!canAccessInvoice(userInfo, invoice)) {
+        return res.status(403).json({
+          status: "error",
+          message:
+            "Access denied. You do not have permission to view this invoice.",
+        });
+      }
+
+      const reviewData = await buildInvoiceReviewData(invoice);
+      return sendInvoicePdfResponse(res, invoice, reviewData);
+    } catch (error) {
+      console.error("Get invoice PDF error:", error);
+      return res.status(500).json({
+        status: "error",
+        message: "Failed to generate invoice PDF",
+      });
+    }
+  }
+);
+
+router.get(
+  "/:invoiceId/pdf",
+  authenticateUserTypes(["SuperUser", "TeamMember", "Agency", "PropertyManager"]),
+  async (req, res, next) => {
+    if (req.params.invoiceId === "status" || req.params.invoiceId === "send") {
+      return next();
+    }
+
+    try {
+      const { invoiceId } = req.params;
+
+      if (!mongoose.Types.ObjectId.isValid(invoiceId)) {
+        return res.status(400).json({
+          status: "error",
+          message: "Invalid invoice ID format",
+        });
+      }
+
+      const invoice = await Invoice.findById(invoiceId).populate(
+        buildInvoicePopulateConfig()
+      );
+
+      if (!invoice) {
+        return res.status(404).json({
+          status: "error",
+          message: "Invoice not found",
+        });
+      }
+
+      normalizeCompletedJobInvoiceStatus(invoice);
+
+      const userInfo = getUserInfo(req);
+      if (!canAccessInvoice(userInfo, invoice)) {
+        return res.status(403).json({
+          status: "error",
+          message:
+            "Access denied. You do not have permission to view this invoice.",
+        });
+      }
+
+      const reviewData = await buildInvoiceReviewData(invoice);
+      return sendInvoicePdfResponse(res, invoice, reviewData);
+    } catch (error) {
+      console.error("Get invoice PDF error:", error);
+      return res.status(500).json({
+        status: "error",
+        message: "Failed to generate invoice PDF",
+      });
+    }
+  }
+);
+
 router.patch(
   "/:invoiceId/status",
   authenticateUserTypes(["SuperUser", "TeamMember"]),
@@ -681,7 +818,6 @@ router.patch(
 router.patch(
   "/:invoiceId/send",
   authenticate,
-  fileUploadService.array("attachments", 5),
   async (req, res) => {
   try {
     const { invoiceId } = req.params;
@@ -770,10 +906,6 @@ router.patch(
     }
 
     try {
-      const uploadedInvoiceAttachment = Array.isArray(req.files)
-        ? req.files.find((file) => file.mimetype === "application/pdf")
-        : null;
-
       const { reviewData } = await sendCompletedJobInvoiceDocuments({
         invoice,
         to,
@@ -782,7 +914,6 @@ router.patch(
         subject,
         bodyHtml,
         bodyText,
-        uploadedInvoiceAttachment,
         sentBy: userInfo,
       });
 
