@@ -23,7 +23,10 @@ import {
   buildDefaultCompletedJobInvoiceEmailPayload,
   sendCompletedJobInvoiceDocuments,
 } from "../services/completedJobInvoice.service.js";
-import { TECHNICIAN_PAYMENTS_ENABLED } from "../config/features.js";
+import {
+  AUTOMATED_COMPLETED_JOB_DOCUMENTS_ENABLED,
+  TECHNICIAN_PAYMENTS_ENABLED,
+} from "../config/features.js";
 import { resolveEventTimestamp } from "../utils/timezone.js";
 
 const router = express.Router();
@@ -2734,6 +2737,13 @@ router.patch(
             sent: false,
             skipped: true,
             reason: "No inspection report was available for automatic delivery",
+          };
+        } else if (!AUTOMATED_COMPLETED_JOB_DOCUMENTS_ENABLED) {
+          automaticInvoiceDelivery = {
+            attempted: false,
+            sent: false,
+            skipped: true,
+            reason: "Automatic completed job document delivery is disabled",
           };
         } else {
           try {

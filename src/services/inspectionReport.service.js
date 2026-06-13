@@ -14,6 +14,7 @@ import {
   buildDefaultCompletedJobInvoiceEmailPayload,
   sendCompletedJobInvoiceDocuments,
 } from "./completedJobInvoice.service.js";
+import { AUTOMATED_COMPLETED_JOB_DOCUMENTS_ENABLED } from "../config/features.js";
 import { validateNextComplianceDate } from "../utils/complianceValidation.js";
 import { resolveNextComplianceDate } from "../utils/inspectionComplianceDate.js";
 import { resolveEventTimestamp } from "../utils/timezone.js";
@@ -1005,7 +1006,11 @@ export const submitInspectionReport = async ({
   await job.save();
   console.log("[Inspection Submit] Job updated with report reference");
 
-  if (job.status === "Completed" && job.invoice) {
+  if (
+    AUTOMATED_COMPLETED_JOB_DOCUMENTS_ENABLED &&
+    job.status === "Completed" &&
+    job.invoice
+  ) {
     try {
       const invoice = await Invoice.findById(job.invoice);
       if (invoice && invoice.status === "Draft") {
