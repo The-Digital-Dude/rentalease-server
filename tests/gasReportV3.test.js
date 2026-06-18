@@ -196,7 +196,7 @@ describe("Gas report v3 validation and outcome", () => {
     );
   });
 
-  test("returns non-compliant when any MSS checklist yes/no question is no or N/A", () => {
+  test("returns non-compliant when any MSS checklist yes/no question is no", () => {
     const { calculateMinimumSafetyStandardOutcome } = loadGasReportHelpers();
     const template = {
       sections: [
@@ -230,13 +230,103 @@ describe("Gas report v3 validation and outcome", () => {
         template
       )
     ).toBe("non-compliant");
+  });
+
+  test("returns compliant when MSS checklist questions are N/A", () => {
+    const { calculateMinimumSafetyStandardOutcome } = loadGasReportHelpers();
+    const template = {
+      sections: [
+        {
+          id: "bin-facilities",
+          fields: [
+            {
+              id: "bin-general-standard",
+              label:
+                "Are both a rubbish bin and a recycling bin available for the renter's use?",
+              type: "yes-no-na",
+            },
+          ],
+        },
+      ],
+    };
+
+    ["na", "n/a", "not_applicable", "not-applicable"].forEach((answer) => {
+      expect(
+        calculateMinimumSafetyStandardOutcome(
+          {
+            "bin-facilities": {
+              "bin-general-standard": answer,
+            },
+          },
+          template
+        )
+      ).toBe("compliant");
+    });
+  });
+
+  test("returns non-compliant when an MSS checklist answer is missing", () => {
+    const { calculateMinimumSafetyStandardOutcome } = loadGasReportHelpers();
+    const template = {
+      sections: [
+        {
+          id: "bin-facilities",
+          fields: [
+            {
+              id: "bin-general-standard",
+              label:
+                "Are both a rubbish bin and a recycling bin available for the renter's use?",
+              type: "yes-no-na",
+            },
+          ],
+        },
+      ],
+    };
+
+    [
+      {},
+      {
+        "bin-facilities": {},
+      },
+      {
+        "bin-facilities": {
+          "bin-general-standard": "",
+        },
+      },
+      {
+        "bin-facilities": {
+          "bin-general-standard": null,
+        },
+      },
+    ].forEach((formData) => {
+      expect(calculateMinimumSafetyStandardOutcome(formData, template)).toBe(
+        "non-compliant"
+      );
+    });
+  });
+
+  test("returns non-compliant when an MSS checklist answer is unknown", () => {
+    const { calculateMinimumSafetyStandardOutcome } = loadGasReportHelpers();
+    const template = {
+      sections: [
+        {
+          id: "bin-facilities",
+          fields: [
+            {
+              id: "bin-general-standard",
+              label:
+                "Are both a rubbish bin and a recycling bin available for the renter's use?",
+              type: "yes-no-na",
+            },
+          ],
+        },
+      ],
+    };
 
     expect(
       calculateMinimumSafetyStandardOutcome(
         {
           "bin-facilities": {
-            "bin-general-standard": "na",
-            "bin-summary-standard": "yes",
+            "bin-general-standard": "unknown",
           },
         },
         template

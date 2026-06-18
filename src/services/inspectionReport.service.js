@@ -440,6 +440,9 @@ const normalizeMssStandardAnswer = (value) =>
     .trim()
     .toLowerCase();
 
+const isCompliantMssStandardAnswer = (answer) =>
+  ["yes", "na", "n/a", "not_applicable", "not-applicable"].includes(answer);
+
 const isMssComplianceQuestion = (field) => {
   if (!["yes-no", "yes-no-na"].includes(field?.type)) {
     return false;
@@ -498,7 +501,7 @@ const calculateMinimumSafetyStandardOutcome = (formData = {}, template = null) =
     const [sectionId, fieldId] = fieldKey.split(".");
     const answer = normalizeMssStandardAnswer(formData?.[sectionId]?.[fieldId]);
 
-    if (answer !== "yes") {
+    if (!isCompliantMssStandardAnswer(answer)) {
       return "non-compliant";
     }
   }
