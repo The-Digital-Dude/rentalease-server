@@ -63,16 +63,29 @@ const resolveCompletionReportUrl = async (job, explicitReportUrl = null) => {
     return job.reportFile;
   }
 
-  let inspectionReport = null;
-
-  if (job?.latestInspectionReport) {
-    inspectionReport = await InspectionReport.findById(
-      job.latestInspectionReport
-    ).select("pdf.url");
-  } else {
-    inspectionReport = await InspectionReport.findOne({ job: job._id })
+  const findReport = async () => {
+    if (job?.latestInspectionReport) {
+      return InspectionReport.findById(job.latestInspectionReport).select("pdf.url");
+    }
+    return InspectionReport.findOne({ job: job._id })
       .sort({ createdAt: -1 })
       .select("pdf.url createdAt");
+  };
+
+  let inspectionReport = await findReport();
+
+  // Retry up to 20 seconds when the report hasn't been saved yet (e.g. HEIC
+  // conversion is still running while /complete fires concurrently).
+  if (!inspectionReport) {
+    console.log(`[Job Completion] No report found for job ${job._id}. Waiting for report to be saved...`);
+    for (let i = 0; i < 20; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      inspectionReport = await findReport();
+      if (inspectionReport) {
+        console.log(`[Job Completion] Report found for job ${job._id} after ${i + 1} seconds.`);
+        break;
+      }
+    }
   }
 
   if (inspectionReport && !inspectionReport.pdf?.url) {
