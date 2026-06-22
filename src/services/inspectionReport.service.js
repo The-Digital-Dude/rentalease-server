@@ -673,6 +673,15 @@ const getInspectionImageValidation = async (file) => {
     return { shouldUpload: true };
   }
 
+  if (
+    fileUploadService.isHeicUpload({
+      contentType: file.mimetype,
+      fileName: file.originalname,
+    })
+  ) {
+    return { shouldUpload: true };
+  }
+
   try {
     const metadata = await sharp(file.buffer).metadata();
     const width = metadata.width || 0;
@@ -767,7 +776,7 @@ const uploadInspectionMedia = async (files = {}, mediaMeta = {}, context = {}) =
         url: uploadResult.secure_url || uploadResult.url,
         cloudinaryId: uploadResult.public_id,
         gcsPath: uploadResult.gcsPath,
-        mimeType: file.mimetype,
+        mimeType: uploadResult.contentType || file.mimetype,
         size: file.size,
         metadata: derivedMeta.metadata,
       });

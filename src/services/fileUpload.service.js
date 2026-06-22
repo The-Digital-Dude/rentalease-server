@@ -13,24 +13,100 @@ const IMAGE_COMPRESSION_STEPS = [
   { width: 1080, quality: 58 },
 ];
 
+const HEIC_MIME_TYPES = new Set(["image/heic", "image/heif"]);
+const HEIC_EXTENSIONS = new Set([".heic", ".heif"]);
+const GENERIC_UPLOAD_MIME_TYPES = new Set([
+  "",
+  "application/octet-stream",
+]);
+const DOCUMENT_UPLOAD_MIME_TYPES = new Set([
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+]);
+const IMAGE_UPLOAD_MIME_TYPES = new Set([
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  ...HEIC_MIME_TYPES,
+]);
+const PRIMARY_UPLOAD_MIME_TYPES = new Set([
+  ...DOCUMENT_UPLOAD_MIME_TYPES,
+  ...IMAGE_UPLOAD_MIME_TYPES,
+]);
+
+let heicConverterPromise;
+
+const normalizeMimeType = (contentType = "") =>
+  String(contentType || "").trim().toLowerCase();
+
+const getFileExtension = (fileName = "") => {
+  const match = String(fileName || "")
+    .toLowerCase()
+    .match(/\.[^./\\]+$/);
+  return match?.[0] || "";
+};
+
+const replaceFileExtension = (fileName = "", extension = ".jpg") => {
+  const normalizedFileName = String(fileName || "").trim();
+  if (!normalizedFileName) {
+    return `upload-${Date.now()}${extension}`;
+  }
+
+  if (getFileExtension(normalizedFileName)) {
+    return normalizedFileName.replace(/\.[^./\\]+$/, extension);
+  }
+
+  return `${normalizedFileName}${extension}`;
+};
+
+const hasHeicExtension = (fileName = "") =>
+  HEIC_EXTENSIONS.has(getFileExtension(fileName));
+
+const isHeicUpload = ({ contentType, fileName } = {}) => {
+  const normalizedContentType = normalizeMimeType(contentType);
+  return (
+    HEIC_MIME_TYPES.has(normalizedContentType) || hasHeicExtension(fileName)
+  );
+};
+
+const isAllowedUploadFile = (file = {}) => {
+  const mimetype = normalizeMimeType(file.mimetype);
+  return (
+    PRIMARY_UPLOAD_MIME_TYPES.has(mimetype) ||
+    (GENERIC_UPLOAD_MIME_TYPES.has(mimetype) &&
+      hasHeicExtension(file.originalname))
+  );
+};
+
+const getHeicConverter = async () => {
+  if (!heicConverterPromise) {
+    heicConverterPromise = import("heic-convert").then(
+      (module) => module.default || module
+    );
+  }
+
+  return heicConverterPromise;
+};
+
+const createUnsupportedHeicError = (error) => {
+  const uploadError = new Error(
+    "Unable to process HEIC/HEIF image. Please upload a JPG or PNG image."
+  );
+  uploadError.status = 400;
+  uploadError.code = "UNSUPPORTED_HEIC_IMAGE";
+  uploadError.details = error?.message;
+  return uploadError;
+};
+
 // File filter to allow only specific file types
 const fileFilter = (req, file, cb) => {
-  // Allowed file types for documents
-  const allowedTypes = [
-    "application/pdf",
-    "image/jpeg",
-    "image/jpg",
-    "image/png",
-    "application/msword",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  ];
-
-  if (allowedTypes.includes(file.mimetype)) {
+  if (isAllowedUploadFile(file)) {
     cb(null, true);
   } else {
     cb(
       new Error(
-        "Invalid file type. Only PDF, JPG, PNG, and DOC files are allowed."
+        "Invalid file type. Only PDF, JPG, PNG, HEIC, HEIF, and DOC files are allowed."
       ),
       false
     );
@@ -138,9 +214,51 @@ const tryCompressImageBuffer = async (buffer) => {
   return buffer;
 };
 
+const convertHeicToJpegBuffer = async (buffer) => {
+  try {
+    return await sharp(buffer)
+      .rotate()
+      .flatten({ background: "#ffffff" })
+      .jpeg({ quality: 82, mozjpeg: true })
+      .toBuffer();
+  } catch {
+    try {
+      const convert = await getHeicConverter();
+      const convertedBuffer = await convert({
+        buffer,
+        format: "JPEG",
+        quality: 0.82,
+      });
+      return Buffer.from(convertedBuffer);
+    } catch (convertError) {
+      throw createUnsupportedHeicError(convertError);
+    }
+  }
+};
+
+const normalizeImageForStorage = async (
+  buffer,
+  { fileName, contentType = "application/octet-stream" } = {}
+) => {
+  if (!isHeicUpload({ contentType, fileName })) {
+    return {
+      buffer,
+      fileName,
+      contentType,
+      wasConverted: false,
+    };
+  }
+
+  return {
+    buffer: await convertHeicToJpegBuffer(buffer),
+    fileName: replaceFileExtension(fileName, ".jpg"),
+    contentType: "image/jpeg",
+    wasConverted: true,
+  };
+};
+
 // Legacy alias kept so existing callers still route image uploads through GCS.
 const uploadToCloudinary = async (buffer, options = {}) => {
-  let uploadBuffer = buffer;
   const {
     folder: providedFolder,
     fileName: providedFileName,
@@ -157,6 +275,11 @@ const uploadToCloudinary = async (buffer, options = {}) => {
     providedFileName ||
     (derivedBaseName ? `${derivedBaseName}${extension}` : null) ||
     `upload-${Date.now()}${extension}`;
+  const normalizedUpload = await normalizeImageForStorage(buffer, {
+    fileName,
+    contentType,
+  });
+  let uploadBuffer = normalizedUpload.buffer;
 
   if (uploadBuffer?.length > CLOUDINARY_UPLOAD_LIMIT_BYTES) {
     uploadBuffer = await tryCompressImageBuffer(uploadBuffer);
@@ -173,8 +296,8 @@ const uploadToCloudinary = async (buffer, options = {}) => {
 
   return uploadToGCS(uploadBuffer, {
     folder,
-    fileName,
-    contentType,
+    fileName: normalizedUpload.fileName,
+    contentType: normalizedUpload.contentType,
   });
 };
 
@@ -257,7 +380,7 @@ const resolveBackendUrl = () => {
 };
 
 const getGCSProxyPath = (contentType) => {
-  return contentType?.startsWith("image/")
+  return normalizeMimeType(contentType).startsWith("image/")
     ? "/api/v1/files/object"
     : "/api/v1/files/pdf";
 };
@@ -272,7 +395,7 @@ const deleteFromCloudinary = async (publicId) => {
   return null;
 };
 
-const createGCSResponse = (objectName, contentType) => {
+const createGCSResponse = (objectName, contentType, fileName) => {
   const backendUrl = resolveBackendUrl();
   const url = `${backendUrl}${getGCSProxyPath(
     contentType
@@ -285,6 +408,8 @@ const createGCSResponse = (objectName, contentType) => {
     public_id: null,
     gcsPath: objectName,
     storageProvider: "gcs",
+    contentType,
+    fileName,
   };
 };
 
@@ -317,19 +442,35 @@ const uploadToGCS = async (
     throw error;
   }
 
-  return createGCSResponse(objectName, contentType);
+  return createGCSResponse(objectName, contentType, fileName);
 };
 
 const uploadImageToGCS = async (buffer, options = {}) => {
-  const uploadBuffer = await tryCompressImageBuffer(buffer);
-  return uploadToGCS(uploadBuffer, options);
+  const normalizedUpload = await normalizeImageForStorage(buffer, options);
+  const uploadBuffer = await tryCompressImageBuffer(normalizedUpload.buffer);
+  const uploadResult = await uploadToGCS(uploadBuffer, {
+    ...options,
+    fileName: normalizedUpload.fileName,
+    contentType: normalizedUpload.contentType,
+  });
+
+  return {
+    ...uploadResult,
+    contentType: normalizedUpload.contentType,
+    fileName: normalizedUpload.fileName,
+    wasConverted: normalizedUpload.wasConverted,
+  };
 };
 
 const uploadToStorage = async (
   buffer,
   { folder, fileName, contentType = "application/octet-stream" }
 ) => {
-  if (contentType.startsWith("image/")) {
+  const shouldUseImagePipeline =
+    normalizeMimeType(contentType).startsWith("image/") ||
+    isHeicUpload({ contentType, fileName });
+
+  if (shouldUseImagePipeline) {
     return uploadImageToGCS(buffer, { folder, fileName, contentType });
   }
 
@@ -393,7 +534,7 @@ const processUploadedFiles = async (files, technicianId) => {
           result[fieldName].push({
             filename: file.originalname,
             originalName: file.originalname,
-            mimetype: file.mimetype,
+            mimetype: uploadResult.contentType || file.mimetype,
             size: file.size,
             cloudinaryId: uploadResult.public_id,
             cloudinaryUrl: uploadResult.secure_url || uploadResult.url,
@@ -488,6 +629,10 @@ export default {
   deleteFromGCS,
   deleteFilesFromGCS,
   deleteStoredFile,
+  isAllowedUploadFile,
+  isHeicUpload,
+  normalizeImageForStorage,
+  tryCompressImageBuffer,
 
   // Legacy helper functions
   getFileInfo,
