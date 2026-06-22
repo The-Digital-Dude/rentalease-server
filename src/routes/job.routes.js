@@ -63,14 +63,31 @@ const resolveCompletionReportUrl = async (job, explicitReportUrl = null) => {
     return job.reportFile;
   }
 
+  let inspectionReport = null;
+
   if (job?.latestInspectionReport) {
-    const inspectionReport = await InspectionReport.findById(
+    inspectionReport = await InspectionReport.findById(
       job.latestInspectionReport
     ).select("pdf.url");
-    return inspectionReport?.pdf?.url || null;
+  } else {
+    inspectionReport = await InspectionReport.findOne({ job: job._id })
+      .sort({ createdAt: -1 })
+      .select("pdf.url createdAt");
   }
 
-  return null;
+  if (inspectionReport && !inspectionReport.pdf?.url) {
+    console.log(`[Job Completion] Report ${inspectionReport._id} exists but PDF is missing. Waiting...`);
+    for (let i = 0; i < 15; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      inspectionReport = await InspectionReport.findById(inspectionReport._id).select("pdf.url");
+      if (inspectionReport?.pdf?.url) {
+        console.log(`[Job Completion] PDF found for report ${inspectionReport._id} after ${i + 1} seconds.`);
+        break;
+      }
+    }
+  }
+
+  return inspectionReport?.pdf?.url || null;
 };
 
 const assertComplianceJobHasReport = async (job, explicitReportUrl = null) => {
