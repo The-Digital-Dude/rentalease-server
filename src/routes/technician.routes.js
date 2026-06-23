@@ -321,8 +321,7 @@ router.get("/jobs", authenticateUserTypes(['Technician']), async (req, res) => {
     // Add filters based on status
     if (status) {
       if (status === "Active") {
-        query.status = { $in: ["Pending", "Scheduled"] };
-        query.dueDate = { $gte: new Date() };
+        query.status = { $in: ["Pending", "Scheduled", "Overdue"] };
       } else if (status === "Scheduled") {
         query.status = "Scheduled";
       } else if (status === "In Progress") {
