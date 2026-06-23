@@ -534,11 +534,10 @@ router.get("/active-jobs", authenticateUserTypes(['Technician']), async (req, re
       sortOrder = "asc",
     } = req.query;
 
-    // Build query for active jobs (claimed by technician, not completed, not overdue)
+    // Build query for active jobs (all non-completed jobs assigned to technician, including overdue)
     let query = {
       assignedTechnician: ownerInfo.ownerId,
-      status: { $in: ["Pending", "Scheduled"] }, // Active statuses
-      dueDate: { $gte: new Date() }, // Due date is not behind (not overdue)
+      status: { $in: ["Pending", "Scheduled", "Overdue"] },
     };
 
     // Add filters
@@ -578,8 +577,7 @@ router.get("/active-jobs", authenticateUserTypes(['Technician']), async (req, re
       {
         $match: {
           assignedTechnician: new mongoose.Types.ObjectId(ownerInfo.ownerId),
-          status: { $in: ["Pending", "Scheduled"] },
-          dueDate: { $gte: new Date() },
+          status: { $in: ["Pending", "Scheduled", "Overdue"] },
         },
       },
       { $group: { _id: "$status", count: { $sum: 1 } } },
@@ -651,9 +649,9 @@ router.get("/overdue-jobs", authenticateUserTypes(['Technician']), async (req, r
     if (jobType) query.jobType = jobType;
     if (priority) query.priority = priority;
 
-    // Add date range filter
+    // Add date range filter (preserve the $lt: now constraint)
     if (startDate || endDate) {
-      query.dueDate = {};
+      query.dueDate = { $lt: new Date() };
       if (startDate) query.dueDate.$gte = new Date(startDate);
       if (endDate) query.dueDate.$lte = new Date(endDate);
     }
