@@ -1,11 +1,12 @@
 describe("file upload HEIC support", () => {
   let fileUploadService;
+  let cleanupInspectionUploadTempFiles;
 
   beforeAll(async () => {
     process.env.GCS_BUCKET_NAME = process.env.GCS_BUCKET_NAME || "test-bucket";
-    fileUploadService = (
-      await import("../src/services/fileUpload.service.js")
-    ).default;
+    const module = await import("../src/services/fileUpload.service.js");
+    fileUploadService = module.default;
+    cleanupInspectionUploadTempFiles = module.cleanupInspectionUploadTempFiles;
   });
 
   test("allows HEIC and HEIF uploads by MIME type", () => {
@@ -74,6 +75,23 @@ describe("file upload HEIC support", () => {
       fileName: "meter.jpg",
       contentType: "image/jpeg",
       wasConverted: false,
+    });
+  });
+
+  test("cleans up inspection temp upload files", async () => {
+    const fs = await import("node:fs/promises");
+    const path = await import("node:path");
+    const os = await import("node:os");
+    const tempPath = path.join(
+      os.tmpdir(),
+      `inspection-upload-${Date.now()}.tmp`
+    );
+
+    await fs.writeFile(tempPath, "temp");
+    await cleanupInspectionUploadTempFiles([{ path: tempPath }]);
+
+    await expect(fs.access(tempPath)).rejects.toMatchObject({
+      code: "ENOENT",
     });
   });
 });

@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import sharp from "sharp";
+import fs from "fs/promises";
 import Job from "../models/Job.js";
 import Property from "../models/Property.js";
 import Technician from "../models/Technician.js";
@@ -668,6 +669,47 @@ const buildSectionsSummary = (template, formData = {}) => {
   return summary;
 };
 
+const getUploadedFileInput = (file) => file?.buffer || file?.path;
+
+const readUploadedFileBuffer = async (file) => {
+  if (file?.buffer) {
+    return file.buffer;
+  }
+
+  if (file?.path) {
+    return fs.readFile(file.path);
+  }
+
+  throw new Error("Uploaded file data is unavailable");
+};
+
+const cleanupInspectionTempFile = async (file) => {
+  if (!file?.path) {
+    return;
+  }
+
+  try {
+    await fs.unlink(file.path);
+  } catch (error) {
+    if (error.code !== "ENOENT") {
+      console.warn("[Inspection Submit] Failed to delete temporary upload file", {
+        path: file.path,
+        originalname: file.originalname,
+        error: error.message,
+      });
+    }
+  }
+};
+
+const cleanupInspectionTempFiles = async (files = []) => {
+  const fileList = Array.isArray(files)
+    ? files
+    : files?.path || files?.buffer
+      ? [files]
+      : Object.values(files || {}).flat();
+  await Promise.all(fileList.map((file) => cleanupInspectionTempFile(file)));
+};
+
 const getInspectionImageValidation = async (file) => {
   if (!file?.mimetype?.startsWith("image/")) {
     return { shouldUpload: true };
@@ -683,7 +725,7 @@ const getInspectionImageValidation = async (file) => {
   }
 
   try {
-    const metadata = await sharp(file.buffer).metadata();
+    const metadata = await sharp(getUploadedFileInput(file)).metadata();
     const width = metadata.width || 0;
     const height = metadata.height || 0;
 
@@ -730,6 +772,7 @@ const uploadInspectionMedia = async (files = {}, mediaMeta = {}, context = {}) =
   for (const [fieldKey, fileArray] of entries) {
     const mediaMatch = fieldKey.match(/^media__(.+)$/);
     if (!mediaMatch) {
+      await cleanupInspectionTempFiles(fileArray);
       continue;
     }
     const fieldId = mediaMatch[1];
@@ -740,46 +783,51 @@ const uploadInspectionMedia = async (files = {}, mediaMeta = {}, context = {}) =
     const label = derivedMeta.label;
 
     for (const file of fileArray) {
-      const imageValidation = await getInspectionImageValidation(file);
-      if (!imageValidation.shouldUpload) {
-        console.warn("[Inspection Submit] Skipping placeholder inspection image", {
+      try {
+        const imageValidation = await getInspectionImageValidation(file);
+        if (!imageValidation.shouldUpload) {
+          console.warn("[Inspection Submit] Skipping placeholder inspection image", {
+            fieldId,
+            label: label || file.originalname,
+            fieldname: file.fieldname,
+            originalname: file.originalname,
+            mimetype: file.mimetype,
+            size: file.size,
+            width: imageValidation.width,
+            height: imageValidation.height,
+            reason: imageValidation.reason,
+          });
+          continue;
+        }
+
+        const fileName = `job-${context.jobId}-${fieldId}-${Date.now()}-${file.originalname}`;
+        const uploadBuffer = await readUploadedFileBuffer(file);
+        const uploadResult = await fileUploadService.uploadToStorage(uploadBuffer, {
+          folder: "inspection-reports",
+          fileName,
+          contentType: file.mimetype,
+          public_id: `inspection-reports/job-${context.jobId}-${fieldId}-${Date.now()}`,
+          tags: [
+            `job-${context.jobId}`,
+            `property-${context.propertyId}`,
+            "inspection-report",
+            `field-${fieldId}`,
+          ],
+        });
+
+        uploads.push({
           fieldId,
           label: label || file.originalname,
-          fieldname: file.fieldname,
-          originalname: file.originalname,
-          mimetype: file.mimetype,
+          url: uploadResult.secure_url || uploadResult.url,
+          cloudinaryId: uploadResult.public_id,
+          gcsPath: uploadResult.gcsPath,
+          mimeType: uploadResult.contentType || file.mimetype,
           size: file.size,
-          width: imageValidation.width,
-          height: imageValidation.height,
-          reason: imageValidation.reason,
+          metadata: derivedMeta.metadata,
         });
-        continue;
+      } finally {
+        await cleanupInspectionTempFile(file);
       }
-
-      const fileName = `job-${context.jobId}-${fieldId}-${Date.now()}-${file.originalname}`;
-      const uploadResult = await fileUploadService.uploadToStorage(file.buffer, {
-        folder: "inspection-reports",
-        fileName,
-        contentType: file.mimetype,
-        public_id: `inspection-reports/job-${context.jobId}-${fieldId}-${Date.now()}`,
-        tags: [
-          `job-${context.jobId}`,
-          `property-${context.propertyId}`,
-          "inspection-report",
-          `field-${fieldId}`,
-        ],
-      });
-
-      uploads.push({
-        fieldId,
-        label: label || file.originalname,
-        url: uploadResult.secure_url || uploadResult.url,
-        cloudinaryId: uploadResult.public_id,
-        gcsPath: uploadResult.gcsPath,
-        mimeType: uploadResult.contentType || file.mimetype,
-        size: file.size,
-        metadata: derivedMeta.metadata,
-      });
     }
   }
 
@@ -1107,3 +1155,5 @@ export const submitInspectionReport = async ({
 };
 
 export default submitInspectionReport;
+
+export { cleanupInspectionTempFiles };

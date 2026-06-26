@@ -38,7 +38,10 @@ import propertyManagerInvoiceRoutes from "../routes/propertyManagerInvoice.route
 import filesRoutes from "../routes/files.routes.js";
 import {
   CLOUDINARY_UPLOAD_LIMIT_BYTES,
+  cleanupInspectionUploadTempFiles,
   DEFAULT_UPLOAD_LIMIT_BYTES,
+  INSPECTION_UPLOAD_MAX_FILE_BYTES,
+  INSPECTION_UPLOAD_MAX_FILES,
 } from "../services/fileUpload.service.js";
 import { TECHNICIAN_PAYMENTS_ENABLED } from "../config/features.js";
 
@@ -114,9 +117,24 @@ app.use((err, req, res, next) => {
   console.error(err.stack);
 
   if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
+    void cleanupInspectionUploadTempFiles(req.files || req.file || []);
+    const maxBytes = req.path?.includes("/inspections/")
+      ? INSPECTION_UPLOAD_MAX_FILE_BYTES
+      : DEFAULT_UPLOAD_LIMIT_BYTES;
+
     return res.status(413).json({
       status: "error",
-      message: `File size too large. Maximum allowed size is ${DEFAULT_UPLOAD_LIMIT_BYTES} bytes.`,
+      message: `File size too large. Maximum allowed size is ${maxBytes} bytes.`,
+      code: err.code,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_COUNT") {
+    void cleanupInspectionUploadTempFiles(req.files || req.file || []);
+    return res.status(413).json({
+      status: "error",
+      message: `Too many files uploaded. Maximum allowed is ${INSPECTION_UPLOAD_MAX_FILES} files.`,
       code: err.code,
       timestamp: new Date().toISOString(),
     });
@@ -128,6 +146,19 @@ app.use((err, req, res, next) => {
       message:
         err.message ||
         `File size too large after processing. Maximum allowed size is ${CLOUDINARY_UPLOAD_LIMIT_BYTES} bytes.`,
+      code: err.code,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  if (
+    err.code === "INVALID_UPLOAD_FILE_TYPE" ||
+    err.code === "INSPECTION_UPLOAD_TOO_LARGE"
+  ) {
+    void cleanupInspectionUploadTempFiles(req.files || req.file || []);
+    return res.status(err.status || 400).json({
+      status: "error",
+      message: err.message,
       code: err.code,
       timestamp: new Date().toISOString(),
     });

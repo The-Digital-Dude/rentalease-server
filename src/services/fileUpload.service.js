@@ -1,9 +1,19 @@
 import multer from "multer";
 import { bucket, isGCSConfigured } from "../config/gcs.js";
 import sharp from "sharp";
+import fs from "fs";
+import path from "path";
 
 export const CLOUDINARY_UPLOAD_LIMIT_BYTES = 10 * 1024 * 1024;
 export const DEFAULT_UPLOAD_LIMIT_BYTES = 20 * 1024 * 1024;
+export const INSPECTION_UPLOAD_MAX_FILES = 200;
+export const INSPECTION_UPLOAD_MAX_FILE_BYTES = 15 * 1024 * 1024;
+export const INSPECTION_UPLOAD_MAX_TOTAL_BYTES = 300 * 1024 * 1024;
+export const INSPECTION_UPLOAD_TMP_DIR = path.resolve(
+  "uploads",
+  "tmp",
+  "inspection-reports"
+);
 
 const IMAGE_COMPRESSION_STEPS = [
   { width: 2200, quality: 82 },
@@ -104,13 +114,82 @@ const fileFilter = (req, file, cb) => {
   if (isAllowedUploadFile(file)) {
     cb(null, true);
   } else {
-    cb(
-      new Error(
-        "Invalid file type. Only PDF, JPG, PNG, HEIC, HEIF, and DOC files are allowed."
-      ),
-      false
+    const error = new Error(
+      "Invalid file type. Only PDF, JPG, PNG, HEIC, HEIF, and DOC files are allowed."
     );
+    error.status = 400;
+    error.code = "INVALID_UPLOAD_FILE_TYPE";
+    cb(error, false);
   }
+};
+
+const rejectInspectionUploadTooLarge = (message, code) => {
+  const error = new Error(message);
+  error.status = 413;
+  error.code = code;
+  return error;
+};
+
+const guardInspectionUploadContentLength = (req, res, next) => {
+  const contentLength = Number(req.headers["content-length"] || 0);
+
+  if (
+    Number.isFinite(contentLength) &&
+    contentLength > INSPECTION_UPLOAD_MAX_TOTAL_BYTES
+  ) {
+    next(
+      rejectInspectionUploadTooLarge(
+        `Inspection upload is too large. Maximum allowed total is ${INSPECTION_UPLOAD_MAX_TOTAL_BYTES} bytes.`,
+        "INSPECTION_UPLOAD_TOO_LARGE"
+      )
+    );
+    return;
+  }
+
+  next();
+};
+
+const sanitizeDiskFileName = (fileName = "upload") =>
+  String(fileName || "upload").replace(/[^a-zA-Z0-9._-]/g, "_");
+
+const inspectionDiskStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    fs.mkdir(INSPECTION_UPLOAD_TMP_DIR, { recursive: true }, (error) => {
+      cb(error, INSPECTION_UPLOAD_TMP_DIR);
+    });
+  },
+  filename: (req, file, cb) => {
+    const uniquePrefix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+    cb(null, `${uniquePrefix}-${sanitizeDiskFileName(file.originalname)}`);
+  },
+});
+
+export const cleanupInspectionUploadTempFiles = async (files = []) => {
+  const fileList = Array.isArray(files)
+    ? files
+    : files?.path || files?.buffer
+      ? [files]
+      : Object.values(files || {}).flat();
+
+  await Promise.all(
+    fileList.map(async (file) => {
+      if (!file?.path) {
+        return;
+      }
+
+      try {
+        await fs.promises.unlink(file.path);
+      } catch (error) {
+        if (error.code !== "ENOENT") {
+          console.warn("Failed to delete temporary inspection upload file", {
+            path: file.path,
+            originalname: file.originalname,
+            error: error.message,
+          });
+        }
+      }
+    })
+  );
 };
 
 // Configure multer for memory storage
@@ -125,10 +204,11 @@ const upload = multer({
 
 // Configure multer specifically for inspection reports
 const inspectionUpload = multer({
-  storage: multer.memoryStorage(),
+  storage: inspectionDiskStorage,
   fileFilter: fileFilter,
   limits: {
-    files: 400, // Support up to 400 files for photo-heavy inspections
+    files: INSPECTION_UPLOAD_MAX_FILES,
+    fileSize: INSPECTION_UPLOAD_MAX_FILE_BYTES,
   },
 });
 
@@ -608,7 +688,10 @@ export default {
   ]),
 
   // Inspection-specific upload configurations
-  inspectionReports: () => inspectionUpload.any(),
+  inspectionReports: () => [
+    guardInspectionUploadContentLength,
+    inspectionUpload.any(),
+  ],
   inspectionSingle: (fieldName) => inspectionUpload.single(fieldName),
   inspectionArray: (fieldName, maxCount = 15) => inspectionUpload.array(fieldName, maxCount),
   inspectionFields: (fields) => inspectionUpload.fields(fields),
@@ -633,6 +716,7 @@ export default {
   isHeicUpload,
   normalizeImageForStorage,
   tryCompressImageBuffer,
+  cleanupInspectionUploadTempFiles,
 
   // Legacy helper functions
   getFileInfo,

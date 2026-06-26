@@ -4,7 +4,11 @@ import {
   authenticateUserTypes,
   authenticate,
 } from "../middleware/auth.middleware.js";
-import fileUploadService from "../services/fileUpload.service.js";
+import fileUploadService, {
+  INSPECTION_UPLOAD_MAX_FILES,
+  INSPECTION_UPLOAD_MAX_FILE_BYTES,
+  INSPECTION_UPLOAD_MAX_TOTAL_BYTES,
+} from "../services/fileUpload.service.js";
 import {
   listTemplates,
   getTemplateByJobType,
@@ -12,7 +16,10 @@ import {
   cleanupOldTemplateVersions,
   prefillTemplateWithJobData,
 } from "../services/inspectionTemplate.service.js";
-import { submitInspectionReport } from "../services/inspectionReport.service.js";
+import {
+  cleanupInspectionTempFiles,
+  submitInspectionReport,
+} from "../services/inspectionReport.service.js";
 import InspectionReport from "../models/InspectionReport.js";
 import Property from "../models/Property.js";
 import PropertyManager from "../models/PropertyManager.js";
@@ -37,6 +44,41 @@ const parseInspectionMediaMetaForLogging = (mediaMeta) => {
   }
 
   return mediaMeta;
+};
+
+const validateInspectionUploadSize = (files = []) => {
+  const uploadedFiles = Array.isArray(files) ? files : [];
+  const totalBytes = uploadedFiles.reduce((sum, file) => sum + (file.size || 0), 0);
+  const oversizedFile = uploadedFiles.find(
+    (file) => (file.size || 0) > INSPECTION_UPLOAD_MAX_FILE_BYTES
+  );
+
+  if (uploadedFiles.length > INSPECTION_UPLOAD_MAX_FILES) {
+    const error = new Error(
+      `Inspection upload has too many files. Maximum allowed is ${INSPECTION_UPLOAD_MAX_FILES}.`
+    );
+    error.statusCode = 413;
+    error.code = "INSPECTION_UPLOAD_TOO_MANY_FILES";
+    throw error;
+  }
+
+  if (oversizedFile) {
+    const error = new Error(
+      `Inspection upload file is too large. Maximum allowed per file is ${INSPECTION_UPLOAD_MAX_FILE_BYTES} bytes.`
+    );
+    error.statusCode = 413;
+    error.code = "INSPECTION_UPLOAD_FILE_TOO_LARGE";
+    throw error;
+  }
+
+  if (totalBytes > INSPECTION_UPLOAD_MAX_TOTAL_BYTES) {
+    const error = new Error(
+      `Inspection upload is too large. Maximum allowed total is ${INSPECTION_UPLOAD_MAX_TOTAL_BYTES} bytes.`
+    );
+    error.statusCode = 413;
+    error.code = "INSPECTION_UPLOAD_TOO_LARGE";
+    throw error;
+  }
 };
 
 const ensureValidObjectId = (id, label) => {
@@ -211,6 +253,7 @@ router.post(
         req.body?.mediaMeta
       );
       const uploadedFiles = Array.isArray(req.files) ? req.files : [];
+      validateInspectionUploadSize(uploadedFiles);
 
       console.log("[Inspection Submit] Request received", {
         jobId,
@@ -317,10 +360,12 @@ router.post(
         },
       });
     } catch (error) {
+      await cleanupInspectionTempFiles(req.files || []);
       const duration = Date.now() - startTime;
       console.error("[Inspection Submit] Error occurred", {
         jobId,
         error: error.message,
+        code: error.code,
         stack: error.stack,
         duration: `${duration}ms`,
       });
@@ -328,6 +373,7 @@ router.post(
       res.status(error.statusCode || 500).json({
         status: "error",
         message: error.message || "Failed to submit inspection report",
+        code: error.code,
       });
     }
   }
