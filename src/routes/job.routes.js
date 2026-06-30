@@ -2307,12 +2307,7 @@ router.patch(
   }
 );
 
-// PATCH - Complete job (technicians can complete their assigned jobs with report file and invoice)
-router.patch(
-  "/:id/complete",
-  authenticate,
-  fileUploadService.single("reportFile"),
-  async (req, res) => {
+const completeJobHandler = async (req, res) => {
     console.log(req.body, "req.body");
     console.log(req.file, "req.file");
     const {
@@ -2869,7 +2864,28 @@ router.patch(
         message: error.message || "Failed to complete job",
       });
     }
-  }
+  };
+
+// Complete job (support PATCH plus legacy/mobile POST/PUT callers)
+router.patch(
+  "/:id/complete",
+  authenticate,
+  fileUploadService.single("reportFile"),
+  completeJobHandler
+);
+
+router.post(
+  "/:id/complete",
+  authenticate,
+  fileUploadService.single("reportFile"),
+  completeJobHandler
+);
+
+router.put(
+  "/:id/complete",
+  authenticate,
+  fileUploadService.single("reportFile"),
+  completeJobHandler
 );
 
 // UTILITY - Recalculate technician job statistics (Super users only)
