@@ -323,169 +323,6 @@ class NotificationService {
   }
 
   /**
-   * Send email notification
-   * @param {Object} recipient - Recipient object
-   * @param {Object} notificationData - Notification data
-   */
-  async sendEmailNotification(recipient, notificationData) {
-    try {
-      // Get recipient details based on type
-      let recipientDetails = null;
-
-      console.log(
-        `🔍 Looking up recipient: ${recipient.recipientType}:${recipient.recipientId}`
-      );
-
-      switch (recipient.recipientType) {
-        case "SuperUser":
-          const superUser = await SuperUser.findById(recipient.recipientId);
-          if (superUser) {
-            recipientDetails = {
-              email: superUser.email,
-              name: superUser.fullName || "Super User",
-              type: "SuperUser",
-            };
-            console.log(`✅ Found SuperUser: ${superUser.email}`);
-          } else {
-            console.warn(`❌ SuperUser not found: ${recipient.recipientId}`);
-          }
-          break;
-        case "Agency":
-          const agency = await Agency.findById(recipient.recipientId);
-          if (agency) {
-            recipientDetails = {
-              email: agency.email,
-              name: agency.contactPerson,
-              type: "Agency",
-            };
-            console.log(`✅ Found Agency: ${agency.email}`);
-          } else {
-            console.warn(`❌ Agency not found: ${recipient.recipientId}`);
-          }
-          break;
-        case "PropertyManager":
-          const propertyManager = await PropertyManager.findById(
-            recipient.recipientId
-          );
-          if (propertyManager) {
-            recipientDetails = {
-              email: propertyManager.email,
-              name: `${propertyManager.firstName} ${propertyManager.lastName}`,
-              type: "PropertyManager",
-            };
-            console.log(`✅ Found PropertyManager: ${propertyManager.email}`);
-          } else {
-            console.warn(
-              `❌ PropertyManager not found: ${recipient.recipientId}`
-            );
-          }
-          break;
-        case "Technician":
-          const technician = await Technician.findById(recipient.recipientId);
-          if (technician) {
-            recipientDetails = {
-              email: technician.email,
-              name: technician.fullName,
-              type: "Technician",
-            };
-            console.log(`✅ Found Technician: ${technician.email}`);
-          } else {
-            console.warn(`❌ Technician not found: ${recipient.recipientId}`);
-          }
-          break;
-        default:
-          console.warn(`❌ Unknown recipient type: ${recipient.recipientType}`);
-      }
-
-      if (!recipientDetails) {
-        console.warn(
-          `Recipient not found for ${recipient.recipientType}:${recipient.recipientId}`
-        );
-        return {
-          recipient,
-          channel: "email",
-          success: false,
-          error: "Recipient not found",
-        };
-      }
-
-      // Validate recipient details before proceeding
-      if (
-        !recipientDetails.email ||
-        !recipientDetails.name ||
-        !recipientDetails.type
-      ) {
-        console.error(`❌ Invalid recipient details:`, recipientDetails);
-        return {
-          recipient,
-          channel: "email",
-          success: false,
-          error: "Invalid recipient details - missing email, name, or type",
-        };
-      }
-
-      // Send email based on notification type
-      let emailResult;
-      switch (notificationData.type) {
-        case "JOB_CREATED":
-          emailResult = await this.sendJobCreationEmailNotification(
-            recipientDetails,
-            notificationData
-          );
-          break;
-        case "JOB_ASSIGNED":
-          emailResult = await this.sendJobAssignmentEmailNotification(
-            recipientDetails,
-            notificationData
-          );
-          break;
-        case "JOB_COMPLETED":
-          emailResult = await this.sendJobCompletionEmailNotification(
-            recipientDetails,
-            notificationData
-          );
-          break;
-        case "COMPLIANCE_DUE":
-          emailResult = await this.sendComplianceJobEmailNotification(
-            recipientDetails,
-            notificationData
-          );
-          break;
-        default:
-          // Generic email notification
-          emailResult = await this.sendGenericEmailNotification(
-            recipientDetails,
-            notificationData
-          );
-      }
-
-      console.log(
-        `✅ Email notification sent to ${recipient.recipientType}:${recipient.recipientId}`,
-        {
-          type: notificationData.type,
-          title: notificationData.title,
-          timestamp: new Date().toISOString(),
-        }
-      );
-
-      return {
-        recipient,
-        channel: "email",
-        success: true,
-        result: emailResult,
-      };
-    } catch (error) {
-      console.error("Error sending email notification:", error);
-      return {
-        recipient,
-        channel: "email",
-        success: false,
-        error: error.message,
-      };
-    }
-  }
-
-  /**
    * Send generic email notification
    * @param {Object} recipientDetails - Recipient details
    * @param {Object} notificationData - Notification data
@@ -1470,47 +1307,61 @@ class NotificationService {
   async sendEmailNotification(recipient, notificationData) {
     try {
       console.log("Sending email notification:", { recipient, type: notificationData.type });
-      
-      // Use the email service to send templated emails
-      const emailService = (await import('./email.service.js')).default;
-      
-      // Map notification types to email templates
-      let templateName;
-      let templateData = {
-        recipientName: notificationData.recipientName || 'User',
-        ...notificationData.data
-      };
 
-      switch (notificationData.type) {
-        case 'job_assigned':
-          templateName = 'jobAssignment';
-          break;
-        case 'job_completed':
-          templateName = 'jobCompletion';
-          break;
-        case 'compliance_due':
-          templateName = 'complianceDue';
-          break;
-        case 'tenant_booking_request':
-          templateName = 'tenantBookingRequest';
-          break;
-        case 'tenant_booking_confirmation':
-          templateName = 'tenantBookingConfirmation';
-          break;
-        default:
-          templateName = 'general';
-          templateData.subject = notificationData.title;
-          templateData.message = notificationData.message;
+      const recipientReference = await emailService.resolveRecipientReference(
+        recipient
+      );
+
+      if (!recipientReference?.email) {
+        throw new Error(
+          `No email address found for ${recipient?.recipientType || "recipient"}:${recipient?.recipientId || "unknown"}`
+        );
       }
 
-      const result = await emailService.sendTemplatedEmail({
-        to: recipient,
-        templateName,
-        templateData
-      });
+      const recipientDetails = {
+        email: recipientReference.email,
+        name: recipientReference.name || notificationData.recipientName || "User",
+        type: recipient?.recipientType || "Unknown",
+      };
 
-      console.log("Email notification sent successfully:", result.id);
-      return result;
+      let emailResult;
+      switch (notificationData.type) {
+        case "JOB_CREATED":
+          emailResult = await this.sendJobCreationEmailNotification(
+            recipientDetails,
+            notificationData
+          );
+          break;
+        case "JOB_ASSIGNED":
+        case "job_assigned":
+          emailResult = await this.sendJobAssignmentEmailNotification(
+            recipientDetails,
+            notificationData
+          );
+          break;
+        case "JOB_COMPLETED":
+        case "job_completed":
+          emailResult = await this.sendJobCompletionEmailNotification(
+            recipientDetails,
+            notificationData
+          );
+          break;
+        case "COMPLIANCE_DUE":
+        case "compliance_due":
+          emailResult = await this.sendComplianceJobEmailNotification(
+            recipientDetails,
+            notificationData
+          );
+          break;
+        default:
+          emailResult = await this.sendGenericEmailNotification(
+            recipientDetails,
+            notificationData
+          );
+      }
+
+      console.log("Email notification sent successfully:", emailResult?.id);
+      return emailResult;
     } catch (error) {
       console.error("Failed to send email notification:", error);
       throw error;

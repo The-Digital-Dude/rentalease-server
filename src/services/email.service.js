@@ -671,9 +671,16 @@ class EmailService {
         timestamp: new Date().toISOString(),
       });
 
+      const resolvedRecipients = await this.resolveRecipientsForDelivery(to);
+      const recipientEmails = resolvedRecipients.map((recipient) => recipient.email);
+
+      if (!recipientEmails.length) {
+        throw new Error("No valid email recipients resolved");
+      }
+
       const result = await this.resend.emails.send({
         from,
-        to: [to],
+        to: recipientEmails,
         subject: template.subject,
         html: template.html,
       });

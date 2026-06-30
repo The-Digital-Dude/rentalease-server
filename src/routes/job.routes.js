@@ -2337,7 +2337,7 @@ const completeJobHandler = async (req, res) => {
       if (
         !ownerInfo ||
         (ownerInfo.ownerType !== "Technician" &&
-          ownerInfo.ownerType !== "Superuser")
+          ownerInfo.ownerType !== "SuperUser")
       ) {
         return res.status(403).json({
           status: "error",
@@ -2735,7 +2735,8 @@ const completeJobHandler = async (req, res) => {
             // Log error but don't fail the job completion
             console.error("Failed to send job completion notifications:", {
               jobId: updatedJob._id,
-              technicianId: technician._id,
+              technicianId:
+                technician?._id?.toString?.() || ownerInfo.ownerId?.toString?.(),
               error: notificationError.message,
               timestamp: new Date().toISOString(),
             });
