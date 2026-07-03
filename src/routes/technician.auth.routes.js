@@ -666,15 +666,6 @@ router.post("/push-token", authenticate, async (req, res) => {
       });
     }
 
-    const technician = await Technician.findById(req.user.id);
-
-    if (!technician) {
-      return res.status(404).json({
-        status: "error",
-        message: "Technician not found",
-      });
-    }
-
     const normalizedPlatform =
       metadata?.platform === "ios" || metadata?.platform === "android"
         ? metadata.platform
@@ -682,16 +673,6 @@ router.post("/push-token", authenticate, async (req, res) => {
         ? "web"
         : "unknown";
 
-    technician.expoPushTokens = Array.from(
-      new Set([...(technician.expoPushTokens || []), token])
-    );
-
-    const nextTokenDetails = Array.isArray(technician.expoPushTokenDetails)
-      ? [...technician.expoPushTokenDetails]
-      : [];
-    const detailIndex = nextTokenDetails.findIndex(
-      (item) => item?.token === token
-    );
     const nextDetail = {
       token,
       platform: normalizedPlatform,
@@ -702,14 +683,40 @@ router.post("/push-token", authenticate, async (req, res) => {
       lastRegisteredAt: new Date(),
     };
 
-    if (detailIndex >= 0) {
-      nextTokenDetails[detailIndex] = nextDetail;
-    } else {
-      nextTokenDetails.push(nextDetail);
-    }
+    const technician = await Technician.findOneAndUpdate(
+      { _id: req.user.id },
+      [
+        {
+          $set: {
+            expoPushTokens: {
+              $setUnion: [{ $ifNull: ["$expoPushTokens", []] }, [token]],
+            },
+            expoPushTokenDetails: {
+              $concatArrays: [
+                {
+                  $filter: {
+                    input: { $ifNull: ["$expoPushTokenDetails", []] },
+                    as: "detail",
+                    cond: { $ne: ["$$detail.token", token] },
+                  },
+                },
+                [nextDetail],
+              ],
+            },
+          },
+        },
+      ],
+      {
+        new: true,
+      }
+    );
 
-    technician.expoPushTokenDetails = nextTokenDetails;
-    await technician.save();
+    if (!technician) {
+      return res.status(404).json({
+        status: "error",
+        message: "Technician not found",
+      });
+    }
 
     console.log("✅ Push token registered for technician", {
       technicianId: req.user.id,
@@ -822,7 +829,18 @@ router.delete("/push-token", authenticate, async (req, res) => {
       });
     }
 
-    const technician = await Technician.findById(req.user.id);
+    const technician = await Technician.findOneAndUpdate(
+      { _id: req.user.id },
+      {
+        $pull: {
+          expoPushTokens: token,
+          expoPushTokenDetails: { token },
+        },
+      },
+      {
+        new: true,
+      }
+    );
 
     if (!technician) {
       return res.status(404).json({
@@ -830,14 +848,6 @@ router.delete("/push-token", authenticate, async (req, res) => {
         message: "Technician not found",
       });
     }
-
-    technician.expoPushTokens = (technician.expoPushTokens || []).filter(
-      (storedToken) => storedToken !== token
-    );
-    technician.expoPushTokenDetails = (
-      technician.expoPushTokenDetails || []
-    ).filter((detail) => detail?.token !== token);
-    await technician.save();
 
     res.status(200).json({
       status: "success",
