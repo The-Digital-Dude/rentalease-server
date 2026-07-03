@@ -14,6 +14,17 @@ export const INSPECTION_UPLOAD_TMP_DIR = path.resolve(
   "tmp",
   "inspection-reports"
 );
+const SHARP_CONCURRENCY = Math.max(
+  1,
+  Number.parseInt(process.env.SHARP_CONCURRENCY || "1", 10) || 1
+);
+const SHARP_CACHE_ENABLED =
+  String(process.env.SHARP_CACHE_ENABLED || "").trim().toLowerCase() === "true";
+
+sharp.concurrency(SHARP_CONCURRENCY);
+if (!SHARP_CACHE_ENABLED) {
+  sharp.cache(false);
+}
 
 const IMAGE_COMPRESSION_STEPS = [
   { width: 2200, quality: 82 },
@@ -527,7 +538,21 @@ const uploadToGCS = async (
 
 const uploadImageToGCS = async (buffer, options = {}) => {
   const normalizedUpload = await normalizeImageForStorage(buffer, options);
-  const uploadBuffer = await tryCompressImageBuffer(normalizedUpload.buffer);
+  let uploadBuffer = normalizedUpload.buffer;
+
+  if (uploadBuffer?.length > CLOUDINARY_UPLOAD_LIMIT_BYTES) {
+    uploadBuffer = await tryCompressImageBuffer(uploadBuffer);
+  }
+
+  if (uploadBuffer?.length > CLOUDINARY_UPLOAD_LIMIT_BYTES) {
+    const error = new Error(
+      `File size too large after processing. Maximum allowed size is ${CLOUDINARY_UPLOAD_LIMIT_BYTES} bytes.`
+    );
+    error.status = 413;
+    error.code = "FILE_TOO_LARGE";
+    throw error;
+  }
+
   const uploadResult = await uploadToGCS(uploadBuffer, {
     ...options,
     fileName: normalizedUpload.fileName,

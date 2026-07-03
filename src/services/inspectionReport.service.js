@@ -758,6 +758,13 @@ const getInspectionImageValidation = async (file) => {
 
 const uploadInspectionMedia = async (files = {}, mediaMeta = {}, context = {}) => {
   const uploads = [];
+  const existingClientMediaIds = new Set(
+    Array.isArray(context.existingMediaUploads)
+      ? context.existingMediaUploads
+          .map((item) => item?.clientMediaId)
+          .filter((value) => typeof value === "string" && value.length > 0)
+      : []
+  );
 
   const fileGroups = Array.isArray(files)
     ? files.reduce((acc, file) => {
@@ -781,9 +788,28 @@ const uploadInspectionMedia = async (files = {}, mediaMeta = {}, context = {}) =
       normalizeMediaMetadata({ [fieldId]: {} }, context.template)[fieldId] ||
       {};
     const label = derivedMeta.label;
+    const clientMediaIds = Array.isArray(derivedMeta?.metadata?.clientMediaIds)
+      ? derivedMeta.metadata.clientMediaIds
+      : [];
 
-    for (const file of fileArray) {
+    for (const [fileIndex, file] of fileArray.entries()) {
       try {
+        const clientMediaId =
+          typeof clientMediaIds[fileIndex] === "string" &&
+          clientMediaIds[fileIndex].trim()
+            ? clientMediaIds[fileIndex].trim()
+            : null;
+
+        if (clientMediaId && existingClientMediaIds.has(clientMediaId)) {
+          console.info("[Inspection Submit] Skipping duplicate media retry", {
+            jobId: context.jobId,
+            fieldId,
+            clientMediaId,
+            originalname: file.originalname,
+          });
+          continue;
+        }
+
         const imageValidation = await getInspectionImageValidation(file);
         if (!imageValidation.shouldUpload) {
           console.warn("[Inspection Submit] Skipping placeholder inspection image", {
@@ -816,6 +842,7 @@ const uploadInspectionMedia = async (files = {}, mediaMeta = {}, context = {}) =
         });
 
         uploads.push({
+          clientMediaId,
           fieldId,
           label: label || file.originalname,
           url: uploadResult.secure_url || uploadResult.url,
@@ -825,6 +852,9 @@ const uploadInspectionMedia = async (files = {}, mediaMeta = {}, context = {}) =
           size: file.size,
           metadata: derivedMeta.metadata,
         });
+        if (clientMediaId) {
+          existingClientMediaIds.add(clientMediaId);
+        }
       } finally {
         await cleanupInspectionTempFile(file);
       }
@@ -834,15 +864,12 @@ const uploadInspectionMedia = async (files = {}, mediaMeta = {}, context = {}) =
   return uploads;
 };
 
-export const submitInspectionReport = async ({
+const loadInspectionSubmissionContext = async ({
   jobId,
   technicianId,
   jobType,
   templateVersion,
   formData,
-  notes,
-  files,
-  mediaMeta,
   nextComplianceDate,
   eventLocalTimestamp,
   eventTimezone,
@@ -887,14 +914,11 @@ export const submitInspectionReport = async ({
   }
 
   if (templateVersion && template.version !== Number(templateVersion)) {
-    console.warn(
-      "Template version mismatch. Using latest active template.",
-      {
-        expected: templateVersion,
-        actual: template.version,
-        jobType: template.jobType,
-      }
-    );
+    console.warn("Template version mismatch. Using latest active template.", {
+      expected: templateVersion,
+      actual: template.version,
+      jobType: template.jobType,
+    });
   }
 
   const normalizedFormData = normalizeFormData(formData);
@@ -928,12 +952,11 @@ export const submitInspectionReport = async ({
     nextComplianceDate
   );
 
-  // Validate nextComplianceDate for compliance job types
   const complianceJobTypes = [
-    'Gas', 'Gas Safety', 'Gas Safety Check', 'Gas Safety Inspection',
-    'Electrical', 'Electrical Safety', 'Electrical Safety Check', 'Electrical Safety Inspection',
-    'Smoke', 'Smoke Alarm', 'Smoke Alarm Inspection',
-    'MinimumSafetyStandard', 'Minimum Safety Standard'
+    "Gas", "Gas Safety", "Gas Safety Check", "Gas Safety Inspection",
+    "Electrical", "Electrical Safety", "Electrical Safety Check", "Electrical Safety Inspection",
+    "Smoke", "Smoke Alarm", "Smoke Alarm Inspection",
+    "MinimumSafetyStandard", "Minimum Safety Standard",
   ];
 
   if (complianceJobTypes.includes(template.jobType)) {
@@ -948,10 +971,11 @@ export const submitInspectionReport = async ({
     }
 
     if (!resolvedNextComplianceDate) {
-      throw new Error(`Next compliance date is required for ${template.jobType} inspections`);
+      throw new Error(
+        `Next compliance date is required for ${template.jobType} inspections`
+      );
     }
 
-    // Validate against Australian regulations
     validateNextComplianceDate(resolvedNextComplianceDate, template.jobType);
     console.log("[Inspection Submit] Next compliance date validated", {
       jobType: template.jobType,
@@ -959,21 +983,32 @@ export const submitInspectionReport = async ({
     });
   }
 
-  console.log("[Inspection Submit] Form data normalized and media metadata parsing started");
-  const mediaMetadata = normalizeMediaMetadata(parseMediaMeta(mediaMeta), template);
-  
-  console.log("[Inspection Submit] Uploading inspection media files", {
-    filesCount: Array.isArray(files) ? files.length : Object.keys(files || {}).length,
-  });
-  const mediaUploads = await uploadInspectionMedia(files, mediaMetadata, {
-    jobId: job._id,
-    propertyId: property._id,
+  return {
+    job,
+    property,
+    technician,
     template,
-  });
-  console.log("[Inspection Submit] Media uploads completed", {
-    uploadsCount: mediaUploads.length,
-  });
+    normalizedFormData,
+    gasComplianceOutcome,
+    minimumSafetyStandardOutcome,
+    resolvedNextComplianceDate,
+    resolvedEventTimestamp,
+  };
+};
 
+const finalizeInspectionReportSubmission = async ({
+  job,
+  property,
+  technician,
+  technicianId,
+  template,
+  normalizedFormData,
+  gasComplianceOutcome,
+  mediaUploads,
+  notes,
+  resolvedNextComplianceDate,
+  resolvedEventTimestamp,
+}) => {
   validateRequiredPhotoUploads(template, normalizedFormData, mediaUploads);
 
   if (gasComplianceOutcome) {
@@ -995,7 +1030,9 @@ export const submitInspectionReport = async ({
     sectionsSummary,
     media: mediaUploads,
     notes,
-    nextComplianceDate: resolvedNextComplianceDate ? new Date(resolvedNextComplianceDate) : null,
+    nextComplianceDate: resolvedNextComplianceDate
+      ? new Date(resolvedNextComplianceDate)
+      : null,
     submittedAt: resolvedEventTimestamp.eventAt,
     submittedTimezone: resolvedEventTimestamp.eventTimezone,
     submittedLocalInput: resolvedEventTimestamp.eventLocalInput,
@@ -1015,9 +1052,7 @@ export const submitInspectionReport = async ({
     templateVersion: template.version,
   });
   const pdfStartTime = Date.now();
-  
-  // Add timeout wrapper for PDF generation (5 minutes max)
-  const PDF_GENERATION_TIMEOUT = 5 * 60 * 1000; // 5 minutes
+  const PDF_GENERATION_TIMEOUT = 5 * 60 * 1000;
   const pdfBuffer = await Promise.race([
     buildInspectionReportPdf({
       report,
@@ -1033,7 +1068,7 @@ export const submitInspectionReport = async ({
       )
     ),
   ]);
-  
+
   const pdfDuration = Date.now() - pdfStartTime;
   console.log("[Inspection Submit] PDF generation completed", {
     duration: `${pdfDuration}ms`,
@@ -1095,12 +1130,6 @@ export const submitInspectionReport = async ({
             type: "Technician",
           },
         });
-
-        console.log("[Inspection Submit] Auto-sent completed job invoice after report submission", {
-          jobId: job._id,
-          reportId: report._id,
-          invoiceId: invoice._id,
-        });
       }
     } catch (autoSendError) {
       console.error("[Inspection Submit] Failed to auto-send completed job invoice after report submission", {
@@ -1112,7 +1141,6 @@ export const submitInspectionReport = async ({
     }
   }
 
-  // Update property compliance schedule if nextComplianceDate is provided
   if (resolvedNextComplianceDate) {
     try {
       console.log("[Inspection Submit] Updating property compliance schedule");
@@ -1130,8 +1158,6 @@ export const submitInspectionReport = async ({
         });
       }
     } catch (complianceError) {
-      // Log error but don't fail the inspection submission
-      // Graceful degradation: inspection succeeded even if compliance update failed
       console.error("[Inspection Submit] ✗ Failed to update property compliance", {
         propertyId: property._id,
         jobType: template.jobType,
@@ -1140,7 +1166,6 @@ export const submitInspectionReport = async ({
     }
   }
 
-  // Notify stakeholders about the new inspection report
   notificationService
     .sendInspectionReportNotification(report, job, property, technician)
     .catch((error) =>
@@ -1154,6 +1179,89 @@ export const submitInspectionReport = async ({
   };
 };
 
+export const submitInspectionReportFromStoredMedia = async ({
+  jobId,
+  technicianId,
+  jobType,
+  templateVersion,
+  formData,
+  notes,
+  mediaUploads,
+  nextComplianceDate,
+  eventLocalTimestamp,
+  eventTimezone,
+  timestampSource,
+}) => {
+  const context = await loadInspectionSubmissionContext({
+    jobId,
+    technicianId,
+    jobType,
+    templateVersion,
+    formData,
+    nextComplianceDate,
+    eventLocalTimestamp,
+    eventTimezone,
+    timestampSource,
+  });
+
+  return finalizeInspectionReportSubmission({
+    ...context,
+    technicianId,
+    mediaUploads,
+    notes,
+  });
+};
+
+export const submitInspectionReport = async ({
+  jobId,
+  technicianId,
+  jobType,
+  templateVersion,
+  formData,
+  notes,
+  files,
+  mediaMeta,
+  nextComplianceDate,
+  eventLocalTimestamp,
+  eventTimezone,
+  timestampSource,
+}) => {
+  const context = await loadInspectionSubmissionContext({
+    jobId,
+    technicianId,
+    jobType,
+    templateVersion,
+    formData,
+    nextComplianceDate,
+    eventLocalTimestamp,
+    eventTimezone,
+    timestampSource,
+  });
+  console.log("[Inspection Submit] Form data normalized and media metadata parsing started");
+  const mediaMetadata = normalizeMediaMetadata(
+    parseMediaMeta(mediaMeta),
+    context.template
+  );
+  
+  console.log("[Inspection Submit] Uploading inspection media files", {
+    filesCount: Array.isArray(files) ? files.length : Object.keys(files || {}).length,
+  });
+  const mediaUploads = await uploadInspectionMedia(files, mediaMetadata, {
+    jobId: context.job._id,
+    propertyId: context.property._id,
+    template: context.template,
+  });
+  console.log("[Inspection Submit] Media uploads completed", {
+    uploadsCount: mediaUploads.length,
+  });
+  return finalizeInspectionReportSubmission({
+    ...context,
+    technicianId,
+    mediaUploads,
+    notes,
+  });
+};
+
 export default submitInspectionReport;
 
-export { cleanupInspectionTempFiles };
+export { cleanupInspectionTempFiles, uploadInspectionMedia };

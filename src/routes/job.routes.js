@@ -7,6 +7,7 @@ import Property from "../models/Property.js";
 import Invoice from "../models/Invoice.js";
 import TechnicianPayment from "../models/TechnicianPayment.js";
 import InspectionReport from "../models/InspectionReport.js";
+import InspectionSubmission from "../models/InspectionSubmission.js";
 import {
   authenticateAdminLevel,
   authenticateAgency,
@@ -15,7 +16,16 @@ import {
 } from "../middleware/auth.middleware.js";
 import emailService from "../services/email.service.js";
 import notificationService from "../services/notification.service.js";
-import fileUploadService from "../services/fileUpload.service.js";
+import fileUploadService, {
+  INSPECTION_UPLOAD_MAX_FILES,
+  INSPECTION_UPLOAD_MAX_FILE_BYTES,
+  INSPECTION_UPLOAD_MAX_TOTAL_BYTES,
+} from "../services/fileUpload.service.js";
+import submitInspectionReport, {
+  cleanupInspectionTempFiles,
+  submitInspectionReportFromStoredMedia,
+  uploadInspectionMedia,
+} from "../services/inspectionReport.service.js";
 import { sanitizeJobInput } from "../middleware/sanitizer.middleware.js";
 import { getAgencyServicePriceForJobType } from "../utils/agencyPricing.js";
 import { isComplianceJobType } from "../utils/complianceValidation.js";
@@ -354,6 +364,614 @@ const getUserInfo = (req) => {
     };
   }
   return null;
+};
+
+const createHttpError = (statusCode, message, extra = {}) => {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  Object.assign(error, extra);
+  return error;
+};
+
+const validateInspectionUploadSize = (files = []) => {
+  const uploadedFiles = Array.isArray(files) ? files : [];
+  const totalBytes = uploadedFiles.reduce(
+    (sum, file) => sum + (file.size || 0),
+    0
+  );
+  const oversizedFile = uploadedFiles.find(
+    (file) => (file.size || 0) > INSPECTION_UPLOAD_MAX_FILE_BYTES
+  );
+
+  if (uploadedFiles.length > INSPECTION_UPLOAD_MAX_FILES) {
+    throw createHttpError(
+      413,
+      `Inspection upload has too many files. Maximum allowed is ${INSPECTION_UPLOAD_MAX_FILES}.`,
+      { code: "INSPECTION_UPLOAD_TOO_MANY_FILES" }
+    );
+  }
+
+  if (oversizedFile) {
+    throw createHttpError(
+      413,
+      `Inspection upload file is too large. Maximum allowed per file is ${INSPECTION_UPLOAD_MAX_FILE_BYTES} bytes.`,
+      { code: "INSPECTION_UPLOAD_FILE_TOO_LARGE" }
+    );
+  }
+
+  if (totalBytes > INSPECTION_UPLOAD_MAX_TOTAL_BYTES) {
+    throw createHttpError(
+      413,
+      `Inspection upload is too large. Maximum allowed total is ${INSPECTION_UPLOAD_MAX_TOTAL_BYTES} bytes.`,
+      { code: "INSPECTION_UPLOAD_TOO_LARGE" }
+    );
+  }
+};
+
+const parseMaybeJson = (value, fallback = null) => {
+  if (value === undefined || value === null || value === "") {
+    return fallback;
+  }
+  if (typeof value === "string") {
+    return JSON.parse(value);
+  }
+  return value;
+};
+
+const assertSubmissionOwnership = async (submissionId, req) => {
+  if (!mongoose.Types.ObjectId.isValid(submissionId)) {
+    throw createHttpError(400, "Invalid submission ID");
+  }
+
+  const submission = await InspectionSubmission.findById(submissionId);
+  if (!submission) {
+    throw createHttpError(404, "Inspection submission not found");
+  }
+
+  const ownerInfo = getOwnerInfo(req);
+  if (
+    !ownerInfo ||
+    (ownerInfo.ownerType !== "Technician" && ownerInfo.ownerType !== "SuperUser")
+  ) {
+    throw createHttpError(
+      403,
+      "Only technicians or superusers can access inspection submissions"
+    );
+  }
+
+  if (
+    ownerInfo.ownerType !== "SuperUser" &&
+    submission.technician.toString() !== ownerInfo.ownerId.toString()
+  ) {
+    throw createHttpError(403, "Access denied to this inspection submission");
+  }
+
+  return { submission, ownerInfo };
+};
+
+const getAssignedTechnicianId = (job) => {
+  if (!job?.assignedTechnician) {
+    return null;
+  }
+
+  if (typeof job.assignedTechnician === "string") {
+    return job.assignedTechnician;
+  }
+
+  return job.assignedTechnician.toString();
+};
+
+const canAccessAssignedJob = (job, ownerInfo) => {
+  if (!ownerInfo || !job?.assignedTechnician) {
+    return false;
+  }
+
+  if (ownerInfo.ownerType === "SuperUser") {
+    return true;
+  }
+
+  return getAssignedTechnicianId(job) === ownerInfo.ownerId.toString();
+};
+
+const resolveSubmissionTechnicianId = (job, ownerInfo) => {
+  if (ownerInfo?.ownerType === "SuperUser") {
+    return getAssignedTechnicianId(job);
+  }
+
+  return ownerInfo?.ownerId?.toString?.() || ownerInfo?.ownerId || null;
+};
+
+const buildCompletedJobSuccessResponse = async (job) => {
+  await job.populate([
+    {
+      path: "assignedTechnician",
+      select: "firstName lastName phone email availabilityStatus",
+    },
+    {
+      path: "invoice",
+      select: "invoiceNumber description totalCost status",
+    },
+    {
+      path: "latestInspectionReport",
+      select: "_id pdf submittedAt",
+    },
+  ]);
+
+  const reportFile =
+    job.latestInspectionReport?.pdf?.url ||
+    job.reportFile ||
+    (await resolveCompletionReportUrl(job));
+
+  return {
+    status: "success",
+    message: "Job is already completed",
+    data: {
+      job: job.getFullDetails(),
+      completionDetails: {
+        completedAt: job.completedAt,
+        dueDate: job.dueDate,
+        reportFile,
+        inspectionReportId:
+          job.latestInspectionReport?._id?.toString?.() || null,
+        invoiceCreated: Boolean(job.invoice),
+        invoiceId: job.invoice || null,
+      },
+    },
+  };
+};
+
+const mergeSubmissionMediaUploads = (existingUploads = [], incomingUploads = []) => {
+  const merged = [...existingUploads];
+  const seenClientMediaIds = new Set(
+    existingUploads
+      .map((item) => item?.clientMediaId)
+      .filter((value) => typeof value === "string" && value.length > 0)
+  );
+
+  for (const upload of incomingUploads) {
+    const clientMediaId =
+      typeof upload?.clientMediaId === "string" && upload.clientMediaId.length > 0
+        ? upload.clientMediaId
+        : null;
+
+    if (clientMediaId && seenClientMediaIds.has(clientMediaId)) {
+      continue;
+    }
+
+    merged.push(upload);
+    if (clientMediaId) {
+      seenClientMediaIds.add(clientMediaId);
+    }
+  }
+
+  return merged;
+};
+
+const finalizeJobCompletion = async ({
+  req,
+  job,
+  ownerInfo,
+  technicianId,
+  inspectionReportId = null,
+  hasInvoice = "false",
+  invoiceData = null,
+  completionNotes = null,
+  totalCost = null,
+  resolvedEventTimestamp,
+}) => {
+  if (job.status === "Completed") {
+    return buildCompletedJobSuccessResponse(job);
+  }
+
+  let reportFileUrl = null;
+  let createdInvoiceId = null;
+  let propertyAddress = "Property";
+  let inspectionReport = null;
+
+  if (inspectionReportId) {
+    if (!mongoose.Types.ObjectId.isValid(inspectionReportId)) {
+      throw createHttpError(400, "Invalid inspection report id");
+    }
+
+    inspectionReport = await InspectionReport.findById(inspectionReportId);
+    if (!inspectionReport) {
+      throw createHttpError(404, "Inspection report not found");
+    }
+
+    if (inspectionReport.job.toString() !== job._id.toString()) {
+      throw createHttpError(400, "Inspection report does not belong to this job");
+    }
+
+    if (
+      ownerInfo.ownerType !== "SuperUser" &&
+      inspectionReport.technician.toString() !== technicianId.toString()
+    ) {
+      throw createHttpError(403, "Access denied to the inspection report");
+    }
+
+    if (!inspectionReport.pdf?.url) {
+      throw createHttpError(400, "Inspection report is missing generated PDF");
+    }
+
+    reportFileUrl = inspectionReport.pdf.url;
+  }
+
+  if (!reportFileUrl && req.file) {
+    try {
+      const uploadResult = await fileUploadService.uploadToStorage(
+        req.file.buffer,
+        {
+          folder: "job-reports",
+          fileName: `job-${job._id}-${Date.now()}-${req.file.originalname}`,
+          contentType: req.file.mimetype,
+          public_id: `job-reports/job-${job._id}-${Date.now()}`,
+          resource_type: "auto",
+          tags: [`job-${job._id}`, "report"],
+        }
+      );
+      reportFileUrl = uploadResult.secure_url || uploadResult.url;
+    } catch (uploadError) {
+      throw createHttpError(
+        uploadError.status || 500,
+        uploadError.code === "FILE_TOO_LARGE" ||
+          uploadError.code === "STORAGE_AUTH_INVALID"
+          ? uploadError.message
+          : "Failed to upload report file",
+        {
+          code: uploadError.code,
+          details: uploadError.details || uploadError.message,
+        }
+      );
+    }
+  }
+
+  reportFileUrl = await assertComplianceJobHasReport(job, reportFileUrl);
+  if (isComplianceJobType(job.jobType) && !reportFileUrl) {
+    throw createHttpError(
+      400,
+      "Compliance jobs cannot be completed without an inspection report. Submit the inspection report first."
+    );
+  }
+
+  if (job.jobCategory === "compliance") {
+    const agency = await resolveAgencyForJob(job);
+    if (!agency) {
+      throw createHttpError(
+        400,
+        "Cannot create draft invoice: No agency associated with this job"
+      );
+    }
+
+    const servicePrice = getAgencyServicePriceForJobType(agency, job.jobType);
+    if (!servicePrice) {
+      throw createHttpError(
+        400,
+        `Cannot complete job because ${agency.companyName} does not have pricing configured for ${job.jobType}`
+      );
+    }
+
+    const property = await Property.findById(job.property).select("address");
+    propertyAddress = property?.address?.fullAddress || "Property";
+    try {
+      const invoice = new Invoice({
+        jobId: job._id,
+        technicianId: job.assignedTechnician,
+        agencyId: agency._id,
+        description: `${job.jobType} completed for ${propertyAddress}`,
+        items: [
+          {
+            name: servicePrice.serviceType,
+            quantity: 1,
+            rate: servicePrice.price,
+            amount: servicePrice.price,
+          },
+        ],
+        tax: 0,
+        notes: `Auto-generated draft invoice from agency pricing for ${job.jobType}.`,
+        status: "Draft",
+      });
+
+      await invoice.save();
+      createdInvoiceId = invoice._id;
+    } catch (invoiceError) {
+      throw createHttpError(500, "Failed to create invoice", {
+        details: invoiceError.message,
+      });
+    }
+  } else if (hasInvoice === "true" && invoiceData) {
+    try {
+      const parsedInvoiceData =
+        typeof invoiceData === "string" ? JSON.parse(invoiceData) : invoiceData;
+
+      if (
+        !parsedInvoiceData.description ||
+        !parsedInvoiceData.items ||
+        parsedInvoiceData.items.length === 0
+      ) {
+        throw createHttpError(
+          400,
+          "Invalid invoice data. Description and items are required."
+        );
+      }
+
+      const agency = await resolveAgencyForJob(job);
+      if (!agency) {
+        throw createHttpError(
+          400,
+          "Cannot create invoice: No agency associated with this job"
+        );
+      }
+
+      const invoice = new Invoice({
+        jobId: job._id,
+        technicianId: job.assignedTechnician,
+        agencyId: agency._id,
+        description: parsedInvoiceData.description,
+        items: parsedInvoiceData.items.map((item) => ({
+          name: item.name,
+          quantity: parseFloat(item.quantity),
+          rate: parseFloat(item.rate),
+          amount: parseFloat(item.amount),
+        })),
+        tax: parseFloat(parsedInvoiceData.tax || 0),
+        notes: parsedInvoiceData.notes || "",
+        status: "Draft",
+      });
+
+      await invoice.save();
+      createdInvoiceId = invoice._id;
+    } catch (invoiceError) {
+      if (invoiceError.statusCode) {
+        throw invoiceError;
+      }
+      throw createHttpError(500, "Failed to create invoice", {
+        details: invoiceError.message,
+      });
+    }
+  }
+
+  const updateData = {
+    status: "Completed",
+    completedAt: resolvedEventTimestamp.eventAt,
+    completedTimezone: resolvedEventTimestamp.eventTimezone,
+    completedLocalInput: resolvedEventTimestamp.eventLocalInput,
+    completedTimestampSource: resolvedEventTimestamp.timestampSource,
+    completedServerReceivedAt: resolvedEventTimestamp.serverReceivedAt,
+    lastUpdatedBy: getCreatorInfo(req),
+    reportFile: reportFileUrl,
+    hasInvoice: !!createdInvoiceId,
+    invoice: createdInvoiceId,
+    latestInspectionReport: inspectionReport?._id || job.latestInspectionReport,
+  };
+
+  const updatedJob = await Job.findByIdAndUpdate(job._id, updateData, {
+    runValidators: false,
+    new: true,
+  });
+
+  const technician = technicianId
+    ? await Technician.findById(technicianId)
+    : null;
+  if (technician) {
+    technician.currentJobs = Math.max(0, (technician.currentJobs || 0) - 1);
+    technician.completedJobs = (technician.completedJobs || 0) + 1;
+    const technicianMaxJobs = getTechnicianMaxJobs(technician);
+    technician.availabilityStatus =
+      technician.currentJobs < technicianMaxJobs ? "Available" : "Busy";
+    await technician.save();
+  }
+
+  let technicianPaymentCreated = false;
+  let technicianPaymentData = null;
+
+  try {
+    if (!TECHNICIAN_PAYMENTS_ENABLED) {
+      console.log(
+        "⏭️ Technician payment feature disabled, skipping payment creation",
+        {
+          jobId: job._id,
+          technicianId: job.assignedTechnician,
+          timestamp: new Date().toISOString(),
+        }
+      );
+    } else {
+      let agencyId;
+      if (job.owner.ownerType === "Agency") {
+        agencyId = job.owner.ownerId;
+      } else {
+        const property = await Property.findById(job.property);
+        if (property && property.agency) {
+          agencyId = property.agency;
+        }
+      }
+
+      if (agencyId) {
+        const paymentAmount = TechnicianPayment.getPaymentAmountByJobType(
+          job.jobType
+        );
+
+        const technicianPayment = new TechnicianPayment({
+          technicianId: job.assignedTechnician,
+          jobId: job._id,
+          agencyId,
+          jobType: job.jobType,
+          amount: paymentAmount,
+          jobCompletedAt: new Date(),
+          createdBy: {
+            userType: "System",
+            userId: job.assignedTechnician,
+          },
+        });
+
+        await technicianPayment.save();
+        technicianPaymentCreated = true;
+        technicianPaymentData = technicianPayment.getSummary();
+      } else {
+        console.warn(
+          "⚠️ No agency found for job, skipping technician payment creation:",
+          {
+            jobId: job._id,
+            jobOwner: job.owner,
+            timestamp: new Date().toISOString(),
+          }
+        );
+      }
+    }
+  } catch (paymentError) {
+    console.error("❌ Failed to create technician payment:", {
+      jobId: job._id,
+      technicianId: job.assignedTechnician,
+      error: paymentError.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  await updatedJob.populate([
+    {
+      path: "assignedTechnician",
+      select: "firstName lastName phone email availabilityStatus",
+    },
+    {
+      path: "invoice",
+      select: "invoiceNumber description totalCost status",
+    },
+  ]);
+
+  const completedBy = getUserInfo(req);
+  if (completedBy) {
+    try {
+      const property = await Property.findById(updatedJob.property).populate(
+        "address"
+      );
+      await notificationService.sendJobCompletionNotification(
+        updatedJob,
+        property,
+        technician,
+        completionNotes,
+        totalCost
+      );
+    } catch (notificationError) {
+      console.error("Failed to send job completion notifications:", {
+        jobId: updatedJob._id,
+        technicianId:
+          technician?._id?.toString?.() || ownerInfo.ownerId?.toString?.(),
+        error: notificationError.message,
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+
+  let automaticInvoiceDelivery = {
+    attempted: false,
+    sent: false,
+    skipped: false,
+    reason: null,
+  };
+
+  if (!createdInvoiceId) {
+    automaticInvoiceDelivery = {
+      attempted: false,
+      sent: false,
+      skipped: true,
+      reason: "No invoice was created for this completed job",
+    };
+  } else if (!reportFileUrl) {
+    automaticInvoiceDelivery = {
+      attempted: false,
+      sent: false,
+      skipped: true,
+      reason: "No inspection report was available for automatic delivery",
+    };
+  } else if (!AUTOMATED_COMPLETED_JOB_DOCUMENTS_ENABLED) {
+    automaticInvoiceDelivery = {
+      attempted: false,
+      sent: false,
+      skipped: true,
+      reason: "Automatic completed job document delivery is disabled",
+    };
+  } else {
+    try {
+      automaticInvoiceDelivery.attempted = true;
+      const completedInvoice = await Invoice.findById(createdInvoiceId);
+
+      if (!completedInvoice) {
+        automaticInvoiceDelivery = {
+          attempted: true,
+          sent: false,
+          skipped: true,
+          reason: "Created invoice could not be loaded for automatic delivery",
+        };
+      } else {
+        const autoSendPayload = buildDefaultCompletedJobInvoiceEmailPayload({
+          jobType: job.jobType,
+          propertyAddress,
+          invoiceNumber: completedInvoice.invoiceNumber,
+        });
+
+        await sendCompletedJobInvoiceDocuments({
+          invoice: completedInvoice,
+          subject: autoSendPayload.subject,
+          bodyHtml: autoSendPayload.bodyHtml,
+          bodyText: autoSendPayload.bodyText,
+          sentBy: completedBy,
+        });
+
+        automaticInvoiceDelivery.sent = true;
+      }
+    } catch (autoSendError) {
+      automaticInvoiceDelivery = {
+        attempted: true,
+        sent: false,
+        skipped: false,
+        reason: autoSendError.message,
+      };
+      console.error("Failed to automatically send completed job documents:", {
+        jobId: updatedJob._id,
+        invoiceId: createdInvoiceId,
+        reportFile: reportFileUrl,
+        error: autoSendError.message,
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+
+  return {
+    status: "success",
+    message: "Job completed successfully",
+    data: {
+      job: updatedJob.getFullDetails(),
+      technician: technician
+        ? {
+            id: technician._id,
+            fullName: technician.fullName,
+            currentJobs: technician.currentJobs,
+            availabilityStatus: technician.availabilityStatus,
+          }
+        : null,
+      completionDetails: {
+        completedAt: updatedJob.completedAt,
+        completedBy,
+        dueDate: updatedJob.dueDate,
+        reportFile: reportFileUrl,
+        inspectionReportId:
+          inspectionReport?._id?.toString?.() || inspectionReportId || null,
+        invoiceCreated: !!createdInvoiceId,
+        invoiceId: createdInvoiceId,
+        automaticInvoiceDelivery,
+      },
+      technicianPayment: technicianPaymentCreated
+        ? {
+            created: true,
+            payment: technicianPaymentData,
+            message: `Technician payment of $${technicianPaymentData.amount} created for ${job.jobType} job`,
+          }
+        : {
+            created: false,
+            message:
+              "No technician payment created (no agency associated with job)",
+          },
+    },
+  };
 };
 
 // CREATE - Add new job
@@ -2308,564 +2926,91 @@ router.patch(
 );
 
 const completeJobHandler = async (req, res) => {
-    console.log(req.body, "req.body");
-    console.log(req.file, "req.file");
-    const {
+  console.log(req.body, "req.body");
+  console.log(req.file, "req.file");
+  const {
+    hasInvoice,
+    invoiceData,
+    completionNotes,
+    totalCost,
+    eventLocalTimestamp,
+    eventTimezone,
+    timestampSource,
+  } = req.body;
+  console.log(invoiceData, "invoiceData");
+
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        status: "error",
+        message: "Invalid job ID format",
+      });
+    }
+
+    const ownerInfo = getOwnerInfo(req);
+    if (
+      !ownerInfo ||
+      (ownerInfo.ownerType !== "Technician" &&
+        ownerInfo.ownerType !== "SuperUser")
+    ) {
+      return res.status(403).json({
+        status: "error",
+        message: "Only technicians or superusers can complete jobs",
+      });
+    }
+
+    const job = await Job.findById(id);
+    if (!job) {
+      return res.status(404).json({
+        status: "error",
+        message: "Job not found",
+      });
+    }
+
+    if (!canAccessAssignedJob(job, ownerInfo)) {
+      return res.status(403).json({
+        status: "error",
+        message: "Access denied. You can only complete jobs assigned to you.",
+      });
+    }
+
+    console.log("Job completion allowed at any time:", {
+      jobId: job._id,
+      jobDueDate: new Date(job.dueDate).toISOString(),
+      completionTime: new Date().toISOString(),
+    });
+
+    const resolvedEventTimestamp = resolveEventTimestamp({
+      eventLocalTimestamp,
+      eventTimezone,
+      timestampSource,
+    });
+
+    const responsePayload = await finalizeJobCompletion({
+      req,
+      job,
+      ownerInfo,
+      technicianId: getAssignedTechnicianId(job),
+      inspectionReportId: req.body.inspectionReportId,
       hasInvoice,
       invoiceData,
       completionNotes,
       totalCost,
-      eventLocalTimestamp,
-      eventTimezone,
-      timestampSource,
-    } = req.body;
-    console.log(invoiceData, "invoiceData");
+      resolvedEventTimestamp,
+    });
 
-    try {
-      const { id } = req.params;
-
-      // Validate MongoDB ObjectId
-      if (!mongoose.Types.ObjectId.isValid(id)) {
-        return res.status(400).json({
-          status: "error",
-          message: "Invalid job ID format",
-        });
-      }
-
-      // Check if user is a technician or superuser
-      const ownerInfo = getOwnerInfo(req);
-      if (
-        !ownerInfo ||
-        (ownerInfo.ownerType !== "Technician" &&
-          ownerInfo.ownerType !== "SuperUser")
-      ) {
-        return res.status(403).json({
-          status: "error",
-          message: "Only technicians or superusers can complete jobs",
-        });
-      }
-
-      const job = await Job.findById(id);
-      if (!job) {
-        return res.status(404).json({
-          status: "error",
-          message: "Job not found",
-        });
-      }
-
-      // Check if technician is assigned to this job
-      if (
-        !job.assignedTechnician ||
-        job.assignedTechnician.toString() !== ownerInfo.ownerId.toString()
-      ) {
-        return res.status(403).json({
-          status: "error",
-          message: "Access denied. You can only complete jobs assigned to you.",
-        });
-      }
-
-      if (job.status === "Completed") {
-        return res.status(400).json({
-          status: "error",
-          message: "Job is already completed",
-        });
-      }
-
-      // Jobs can be completed at any time - no date restrictions
-      console.log("Job completion allowed at any time:", {
-        jobId: job._id,
-        jobDueDate: new Date(job.dueDate).toISOString(),
-        completionTime: new Date().toISOString()
-      });
-
-      const resolvedEventTimestamp = resolveEventTimestamp({
-        eventLocalTimestamp,
-        eventTimezone,
-        timestampSource,
-      });
-
-      try {
-        let reportFileUrl = null;
-        let invoiceId = null;
-        let propertyAddress = "Property";
-        let inspectionReportId = req.body.inspectionReportId;
-        let inspectionReport = null;
-
-        if (inspectionReportId) {
-          if (!mongoose.Types.ObjectId.isValid(inspectionReportId)) {
-            return res.status(400).json({
-              status: "error",
-              message: "Invalid inspection report id",
-            });
-          }
-
-          inspectionReport = await InspectionReport.findById(
-            inspectionReportId
-          );
-          if (!inspectionReport) {
-            return res.status(404).json({
-              status: "error",
-              message: "Inspection report not found",
-            });
-          }
-
-          if (inspectionReport.job.toString() !== job._id.toString()) {
-            return res.status(400).json({
-              status: "error",
-              message: "Inspection report does not belong to this job",
-            });
-          }
-
-          if (
-            inspectionReport.technician.toString() !==
-            ownerInfo.ownerId.toString()
-          ) {
-            return res.status(403).json({
-              status: "error",
-              message: "Access denied to the inspection report",
-            });
-          }
-
-          if (!inspectionReport.pdf?.url) {
-            return res.status(400).json({
-              status: "error",
-              message: "Inspection report is missing generated PDF",
-            });
-          }
-
-          reportFileUrl = inspectionReport.pdf.url;
-        }
-
-        // Handle report file upload if provided
-        if (!reportFileUrl && req.file) {
-          try {
-            const uploadResult = await fileUploadService.uploadToStorage(
-              req.file.buffer,
-              {
-                folder: "job-reports",
-                fileName: `job-${job._id}-${Date.now()}-${req.file.originalname}`,
-                contentType: req.file.mimetype,
-                public_id: `job-reports/job-${job._id}-${Date.now()}`,
-                resource_type: "auto",
-                tags: [`job-${job._id}`, "report"],
-              }
-            );
-            reportFileUrl = uploadResult.secure_url || uploadResult.url;
-          } catch (uploadError) {
-            console.error("Failed to upload report file:", uploadError);
-            return res.status(uploadError.status || 500).json({
-              status: "error",
-              message:
-                uploadError.code === "FILE_TOO_LARGE" ||
-                uploadError.code === "STORAGE_AUTH_INVALID"
-                  ? uploadError.message
-                  : "Failed to upload report file",
-              details: uploadError.details || uploadError.message,
-            });
-          }
-        }
-
-        reportFileUrl = await assertComplianceJobHasReport(job, reportFileUrl);
-        if (isComplianceJobType(job.jobType) && !reportFileUrl) {
-          return res.status(400).json({
-            status: "error",
-            message:
-              "Compliance jobs cannot be completed without an inspection report. Submit the inspection report first.",
-          });
-        }
-
-        // Handle invoice creation. Compliance jobs use agency service pricing
-        if (job.jobCategory === "compliance") {
-          try {
-            const agency = await resolveAgencyForJob(job);
-            if (!agency) {
-              return res.status(400).json({
-                status: "error",
-                message:
-                  "Cannot create draft invoice: No agency associated with this job",
-              });
-            }
-
-            const servicePrice = getAgencyServicePriceForJobType(agency, job.jobType);
-            if (!servicePrice) {
-              return res.status(400).json({
-                status: "error",
-                message: `Cannot complete job because ${agency.companyName} does not have pricing configured for ${job.jobType}`,
-              });
-            }
-
-            const property = await Property.findById(job.property).select("address");
-            propertyAddress = property?.address?.fullAddress || "Property";
-            const newInvoiceData = {
-              jobId: job._id,
-              technicianId: job.assignedTechnician,
-              agencyId: agency._id,
-              description: `${job.jobType} completed for ${propertyAddress}`,
-              items: [
-                {
-                  name: servicePrice.serviceType,
-                  quantity: 1,
-                  rate: servicePrice.price,
-                  amount: servicePrice.price,
-                },
-              ],
-              tax: 0,
-              notes: `Auto-generated draft invoice from agency pricing for ${job.jobType}.`,
-              status: "Draft",
-            };
-
-            const invoice = new Invoice(newInvoiceData);
-            await invoice.save();
-            invoiceId = invoice._id;
-          } catch (invoiceError) {
-            console.error("Failed to create invoice:", invoiceError);
-            return res.status(500).json({
-              status: "error",
-              message: "Failed to create invoice",
-              details: invoiceError.message,
-            });
-          }
-        } else if (hasInvoice === "true" && invoiceData) {
-          try {
-            let parsedInvoiceData;
-            if (typeof invoiceData === "string") {
-              parsedInvoiceData = JSON.parse(invoiceData);
-            } else {
-              parsedInvoiceData = invoiceData;
-            }
-
-            if (
-              !parsedInvoiceData.description ||
-              !parsedInvoiceData.items ||
-              parsedInvoiceData.items.length === 0
-            ) {
-              return res.status(400).json({
-                status: "error",
-                message:
-                  "Invalid invoice data. Description and items are required.",
-              });
-            }
-
-            const agency = await resolveAgencyForJob(job);
-            if (!agency) {
-              return res.status(400).json({
-                status: "error",
-                message:
-                  "Cannot create invoice: No agency associated with this job",
-              });
-            }
-
-            const newInvoiceData = {
-              jobId: job._id,
-              technicianId: job.assignedTechnician,
-              agencyId: agency._id,
-              description: parsedInvoiceData.description,
-              items: parsedInvoiceData.items.map((item) => ({
-                name: item.name,
-                quantity: parseFloat(item.quantity),
-                rate: parseFloat(item.rate),
-                amount: parseFloat(item.amount),
-              })),
-              tax: parseFloat(parsedInvoiceData.tax || 0),
-              notes: parsedInvoiceData.notes || "",
-              status: "Draft",
-            };
-
-            const invoice = new Invoice(newInvoiceData);
-            await invoice.save();
-            invoiceId = invoice._id;
-          } catch (invoiceError) {
-            console.error("Failed to create invoice:", invoiceError);
-            return res.status(500).json({
-              status: "error",
-              message: "Failed to create invoice",
-              details: invoiceError.message,
-            });
-          }
-        }
-
-        // Update job status to "Completed" and set completion timestamp
-        const updateData = {
-          status: "Completed",
-          completedAt: resolvedEventTimestamp.eventAt,
-          completedTimezone: resolvedEventTimestamp.eventTimezone,
-          completedLocalInput: resolvedEventTimestamp.eventLocalInput,
-          completedTimestampSource: resolvedEventTimestamp.timestampSource,
-          completedServerReceivedAt:
-            resolvedEventTimestamp.serverReceivedAt,
-          lastUpdatedBy: getCreatorInfo(req),
-          reportFile: reportFileUrl,
-          hasInvoice: !!invoiceId,
-          invoice: invoiceId,
-        };
-
-        const updatedJob = await Job.findByIdAndUpdate(job._id, updateData, {
-          runValidators: false,
-          new: true,
-        });
-
-        // Update technician's job count and availability status
-        const technician = await Technician.findById(ownerInfo.ownerId);
-        if (technician) {
-          technician.currentJobs = Math.max(
-            0,
-            (technician.currentJobs || 0) - 1
-          );
-          technician.completedJobs = (technician.completedJobs || 0) + 1;
-          const technicianMaxJobs = getTechnicianMaxJobs(technician);
-          technician.availabilityStatus =
-            technician.currentJobs < technicianMaxJobs
-              ? "Available"
-              : "Busy";
-          await technician.save();
-        }
-
-        // Create technician payment for completed job
-        let technicianPaymentCreated = false;
-        let technicianPaymentData = null;
-
-        try {
-          if (!TECHNICIAN_PAYMENTS_ENABLED) {
-            console.log(
-              "⏭️ Technician payment feature disabled, skipping payment creation",
-              {
-                jobId: job._id,
-                technicianId: job.assignedTechnician,
-                timestamp: new Date().toISOString(),
-              }
-            );
-          } else {
-          // Get agency ID from job owner
-          let agencyId;
-          if (job.owner.ownerType === "Agency") {
-            agencyId = job.owner.ownerId;
-          } else {
-            // If job is owned by SuperUser, get agency from property
-            const property = await Property.findById(job.property);
-            if (property && property.agency) {
-              agencyId = property.agency;
-            }
-          }
-
-          if (agencyId) {
-            // Get payment amount based on job type
-            const paymentAmount = TechnicianPayment.getPaymentAmountByJobType(
-              job.jobType
-            );
-
-            // Create technician payment
-            const technicianPayment = new TechnicianPayment({
-              technicianId: job.assignedTechnician,
-              jobId: job._id,
-              agencyId: agencyId,
-              jobType: job.jobType,
-              amount: paymentAmount,
-              jobCompletedAt: new Date(),
-              createdBy: {
-                userType: "System",
-                userId: job.assignedTechnician, // Using technician ID as system user
-              },
-            });
-
-            await technicianPayment.save();
-            technicianPaymentCreated = true;
-            technicianPaymentData = technicianPayment.getSummary();
-
-            console.log("✅ Technician payment created successfully:", {
-              paymentNumber: technicianPayment.paymentNumber,
-              jobId: job._id,
-              technicianId: job.assignedTechnician,
-              jobType: job.jobType,
-              amount: paymentAmount,
-              timestamp: new Date().toISOString(),
-            });
-          } else {
-            console.warn(
-              "⚠️ No agency found for job, skipping technician payment creation:",
-              {
-                jobId: job._id,
-                jobOwner: job.owner,
-                timestamp: new Date().toISOString(),
-              }
-            );
-          }
-          }
-        } catch (paymentError) {
-          // Log error but don't fail the job completion
-          console.error("❌ Failed to create technician payment:", {
-            jobId: job._id,
-            technicianId: job.assignedTechnician,
-            error: paymentError.message,
-            timestamp: new Date().toISOString(),
-          });
-        }
-
-        // Transaction handling removed for standalone MongoDB compatibility
-
-        // Populate references for response
-        await updatedJob.populate([
-          {
-            path: "assignedTechnician",
-            select: "firstName lastName phone email availabilityStatus",
-          },
-          {
-            path: "invoice",
-            select: "invoiceNumber description totalCost status",
-          },
-        ]);
-
-        // Send completion notifications
-        const completedBy = getUserInfo(req);
-        if (completedBy) {
-          try {
-            // Get property details for notification
-            const property = await Property.findById(
-              updatedJob.property
-            ).populate("address");
-
-            // Send comprehensive job completion notification
-            await notificationService.sendJobCompletionNotification(
-              updatedJob,
-              property,
-              technician,
-              completionNotes,
-              totalCost
-            );
-          } catch (notificationError) {
-            // Log error but don't fail the job completion
-            console.error("Failed to send job completion notifications:", {
-              jobId: updatedJob._id,
-              technicianId:
-                technician?._id?.toString?.() || ownerInfo.ownerId?.toString?.(),
-              error: notificationError.message,
-              timestamp: new Date().toISOString(),
-            });
-          }
-        }
-
-        let automaticInvoiceDelivery = {
-          attempted: false,
-          sent: false,
-          skipped: false,
-          reason: null,
-        };
-
-        if (!invoiceId) {
-          automaticInvoiceDelivery = {
-            attempted: false,
-            sent: false,
-            skipped: true,
-            reason: "No invoice was created for this completed job",
-          };
-        } else if (!reportFileUrl) {
-          automaticInvoiceDelivery = {
-            attempted: false,
-            sent: false,
-            skipped: true,
-            reason: "No inspection report was available for automatic delivery",
-          };
-        } else if (!AUTOMATED_COMPLETED_JOB_DOCUMENTS_ENABLED) {
-          automaticInvoiceDelivery = {
-            attempted: false,
-            sent: false,
-            skipped: true,
-            reason: "Automatic completed job document delivery is disabled",
-          };
-        } else {
-          try {
-            automaticInvoiceDelivery.attempted = true;
-            const completedInvoice = await Invoice.findById(invoiceId);
-
-            if (!completedInvoice) {
-              automaticInvoiceDelivery = {
-                attempted: true,
-                sent: false,
-                skipped: true,
-                reason: "Created invoice could not be loaded for automatic delivery",
-              };
-            } else {
-              const autoSendPayload =
-                buildDefaultCompletedJobInvoiceEmailPayload({
-                  jobType: job.jobType,
-                  propertyAddress,
-                  invoiceNumber: completedInvoice.invoiceNumber,
-                });
-
-              await sendCompletedJobInvoiceDocuments({
-                invoice: completedInvoice,
-                subject: autoSendPayload.subject,
-                bodyHtml: autoSendPayload.bodyHtml,
-                bodyText: autoSendPayload.bodyText,
-                sentBy: completedBy,
-              });
-
-              automaticInvoiceDelivery.sent = true;
-            }
-          } catch (autoSendError) {
-            automaticInvoiceDelivery = {
-              attempted: true,
-              sent: false,
-              skipped: false,
-              reason: autoSendError.message,
-            };
-            console.error("Failed to automatically send completed job documents:", {
-              jobId: updatedJob._id,
-              invoiceId,
-              reportFile: reportFileUrl,
-              error: autoSendError.message,
-              timestamp: new Date().toISOString(),
-            });
-          }
-        }
-
-        res.status(200).json({
-          status: "success",
-          message: "Job completed successfully",
-          data: {
-            job: updatedJob.getFullDetails(),
-            technician: technician
-              ? {
-                  id: technician._id,
-                  fullName: technician.fullName,
-                  currentJobs: technician.currentJobs,
-                  availabilityStatus: technician.availabilityStatus,
-                }
-              : null,
-            completionDetails: {
-              completedAt: updatedJob.completedAt,
-              completedBy: completedBy,
-              dueDate: updatedJob.dueDate,
-              reportFile: reportFileUrl,
-              inspectionReportId:
-                inspectionReport?.id || inspectionReportId || null,
-              invoiceCreated: !!invoiceId,
-              invoiceId: invoiceId,
-              automaticInvoiceDelivery,
-            },
-            technicianPayment: technicianPaymentCreated
-              ? {
-                  created: true,
-                  payment: technicianPaymentData,
-                  message: `Technician payment of $${technicianPaymentData.amount} created for ${job.jobType} job`,
-                }
-              : {
-                  created: false,
-                  message:
-                    "No technician payment created (no agency associated with job)",
-                },
-          },
-        });
-      } catch (error) {
-        throw error;
-      }
-    } catch (error) {
-      console.error("Complete job error:", error);
-      res.status(error.statusCode || 500).json({
-        status: "error",
-        message: error.message || "Failed to complete job",
-      });
-    }
-  };
+    res.status(200).json(responsePayload);
+  } catch (error) {
+    console.error("Complete job error:", error);
+    res.status(error.statusCode || 500).json({
+      status: "error",
+      message: error.message || "Failed to complete job",
+      ...(error.details ? { details: error.details } : {}),
+    });
+  }
+};
 
 // Complete job (support PATCH plus legacy/mobile POST/PUT callers)
 router.patch(
@@ -2887,6 +3032,430 @@ router.put(
   authenticate,
   fileUploadService.single("reportFile"),
   completeJobHandler
+);
+
+router.post(
+  "/:id/inspection-submissions",
+  authenticateUserTypes(["Technician", "SuperUser"]),
+  async (req, res) => {
+    try {
+      const { id: jobId } = req.params;
+      const {
+        clientSubmissionId,
+        jobType,
+        templateVersion,
+        formData,
+        notes,
+        nextComplianceDate,
+        eventLocalTimestamp,
+        eventTimezone,
+        timestampSource,
+      } = req.body;
+
+      if (!mongoose.Types.ObjectId.isValid(jobId)) {
+        return res.status(400).json({
+          status: "error",
+          message: "Invalid job ID format",
+        });
+      }
+
+      if (!clientSubmissionId || !String(clientSubmissionId).trim()) {
+        return res.status(400).json({
+          status: "error",
+          message: "clientSubmissionId is required",
+        });
+      }
+
+      const ownerInfo = getOwnerInfo(req);
+      if (
+        !ownerInfo ||
+        (ownerInfo.ownerType !== "Technician" &&
+          ownerInfo.ownerType !== "SuperUser")
+      ) {
+        return res.status(403).json({
+          status: "error",
+          message: "Only technicians or superusers can create inspection submissions",
+        });
+      }
+
+      const job = await Job.findById(jobId);
+      if (!job) {
+        return res.status(404).json({
+          status: "error",
+          message: "Job not found",
+        });
+      }
+
+      if (!canAccessAssignedJob(job, ownerInfo)) {
+        return res.status(403).json({
+          status: "error",
+          message: "Access denied. You can only submit jobs assigned to you.",
+        });
+      }
+
+      const submissionTechnicianId = resolveSubmissionTechnicianId(job, ownerInfo);
+      const normalizedClientSubmissionId = String(clientSubmissionId).trim();
+      let submission = await InspectionSubmission.findOne({
+        job: job._id,
+        technician: submissionTechnicianId,
+        clientSubmissionId: normalizedClientSubmissionId,
+      });
+
+      if (!submission) {
+        submission = await InspectionSubmission.create({
+          clientSubmissionId: normalizedClientSubmissionId,
+          job: job._id,
+          technician: submissionTechnicianId,
+          jobType: jobType || job.jobType,
+          templateVersion: templateVersion ? Number(templateVersion) : null,
+          formData: parseMaybeJson(formData, {}),
+          notes: notes || "",
+          nextComplianceDate: nextComplianceDate || null,
+          eventLocalTimestamp: eventLocalTimestamp || null,
+          eventTimezone: eventTimezone || null,
+          timestampSource: timestampSource || null,
+          status: "pending",
+        });
+      } else if (submission.status !== "completed") {
+        submission.jobType = jobType || job.jobType;
+        submission.templateVersion = templateVersion ? Number(templateVersion) : null;
+        submission.formData = parseMaybeJson(formData, {});
+        submission.notes = notes || "";
+        submission.nextComplianceDate = nextComplianceDate || null;
+        submission.eventLocalTimestamp = eventLocalTimestamp || null;
+        submission.eventTimezone = eventTimezone || null;
+        submission.timestampSource = timestampSource || null;
+        submission.lastError = null;
+        await submission.save();
+      }
+
+      return res.status(200).json({
+        status: "success",
+        data: {
+          submissionId: submission._id,
+          status: submission.status,
+          uploadedMediaCount: submission.mediaUploads?.length || 0,
+          inspectionReportId: submission.inspectionReport || null,
+        },
+      });
+    } catch (error) {
+      console.error("Create inspection submission error:", error);
+      return res.status(error.statusCode || 500).json({
+        status: "error",
+        message: error.message || "Failed to create inspection submission",
+      });
+    }
+  }
+);
+
+router.post(
+  "/inspection-submissions/:submissionId/media-batch",
+  authenticateUserTypes(["Technician", "SuperUser"]),
+  fileUploadService.inspectionReports(),
+  async (req, res) => {
+    const uploadedFiles = Array.isArray(req.files) ? req.files : [];
+
+    try {
+      validateInspectionUploadSize(uploadedFiles);
+      const { submission, ownerInfo } = await assertSubmissionOwnership(
+        req.params.submissionId,
+        req
+      );
+
+      if (submission.status === "completed") {
+        return res.status(200).json({
+          status: "success",
+          data: {
+            submissionId: submission._id,
+            status: submission.status,
+            uploadedMediaCount: submission.mediaUploads?.length || 0,
+          },
+        });
+      }
+
+      const job = await Job.findById(submission.job);
+      if (!job) {
+        throw createHttpError(404, "Job not found");
+      }
+
+      const batchMediaMeta = parseMaybeJson(req.body.mediaMeta, {});
+      const uploadedBatch = await uploadInspectionMedia(uploadedFiles, batchMediaMeta, {
+        jobId: submission.job,
+        propertyId: job.property,
+        existingMediaUploads: submission.mediaUploads || [],
+        template: {
+          jobType: submission.jobType || job.jobType,
+          version: submission.templateVersion,
+          sections: [],
+        },
+      });
+
+      submission.mediaUploads = mergeSubmissionMediaUploads(
+        submission.mediaUploads || [],
+        uploadedBatch
+      );
+      submission.status = "uploading_media";
+      submission.lastError = null;
+      await submission.save();
+
+      return res.status(200).json({
+        status: "success",
+        data: {
+          submissionId: submission._id,
+          uploadedBatchCount: uploadedBatch.length,
+          uploadedMediaCount: submission.mediaUploads.length,
+          status: submission.status,
+        },
+      });
+    } catch (error) {
+      await cleanupInspectionTempFiles(uploadedFiles);
+      console.error("Upload inspection media batch error:", error);
+      return res.status(error.statusCode || 500).json({
+        status: "error",
+        message: error.message || "Failed to upload inspection media batch",
+      });
+    }
+  }
+);
+
+router.post(
+  "/inspection-submissions/:submissionId/finalize",
+  authenticateUserTypes(["Technician", "SuperUser"]),
+  async (req, res) => {
+    try {
+      const { submission, ownerInfo } = await assertSubmissionOwnership(
+        req.params.submissionId,
+        req
+      );
+
+      if (submission.status === "completed" && submission.completionResponse) {
+        return res.status(200).json(submission.completionResponse);
+      }
+
+      const result = await submitInspectionReportFromStoredMedia({
+        jobId: submission.job.toString(),
+        technicianId: ownerInfo.ownerId,
+        jobType: submission.jobType,
+        templateVersion: submission.templateVersion,
+        formData: submission.formData,
+        notes: submission.notes,
+        mediaUploads: submission.mediaUploads || [],
+        nextComplianceDate: submission.nextComplianceDate,
+        eventLocalTimestamp: submission.eventLocalTimestamp,
+        eventTimezone: submission.eventTimezone,
+        timestampSource: submission.timestampSource,
+      });
+
+      submission.inspectionReport = result.report._id;
+      submission.reportPdfUrl = result.pdf?.url || null;
+      submission.status = "ready_to_finalize";
+      submission.lastError = null;
+      await submission.save();
+
+      const job = await Job.findById(submission.job);
+      const resolvedEventTimestamp = resolveEventTimestamp({
+        eventLocalTimestamp: submission.eventLocalTimestamp,
+        eventTimezone: submission.eventTimezone,
+        timestampSource: submission.timestampSource,
+      });
+
+      const completionResponse = await finalizeJobCompletion({
+        req,
+        job,
+        ownerInfo,
+        technicianId: submission.technician.toString(),
+        inspectionReportId: result.report._id.toString(),
+        resolvedEventTimestamp,
+      });
+
+      submission.status = "completed";
+      submission.completedAt = new Date();
+      submission.completionResponse = completionResponse;
+      submission.lastError = null;
+      await submission.save();
+
+      return res.status(200).json(completionResponse);
+    } catch (error) {
+      console.error("Finalize inspection submission error:", error);
+      return res.status(error.statusCode || 500).json({
+        status: "error",
+        message: error.message || "Failed to finalize inspection submission",
+      });
+    }
+  }
+);
+
+router.post(
+  "/:id/complete-with-inspection",
+  authenticateUserTypes(["Technician", "SuperUser"]),
+  fileUploadService.inspectionReports(),
+  async (req, res) => {
+    const uploadedFiles = Array.isArray(req.files) ? req.files : [];
+    let submissionRecord = null;
+
+    try {
+      validateInspectionUploadSize(uploadedFiles);
+
+      const { id: jobId } = req.params;
+      const {
+        clientSubmissionId,
+        jobType,
+        templateVersion,
+        formData,
+        notes,
+        mediaMeta,
+        nextComplianceDate,
+        eventLocalTimestamp,
+        eventTimezone,
+        timestampSource,
+      } = req.body;
+
+      if (!mongoose.Types.ObjectId.isValid(jobId)) {
+        return res.status(400).json({
+          status: "error",
+          message: "Invalid job ID format",
+        });
+      }
+
+      if (!clientSubmissionId || !String(clientSubmissionId).trim()) {
+        return res.status(400).json({
+          status: "error",
+          message: "clientSubmissionId is required",
+        });
+      }
+
+      const ownerInfo = getOwnerInfo(req);
+      if (
+        !ownerInfo ||
+        (ownerInfo.ownerType !== "Technician" &&
+          ownerInfo.ownerType !== "SuperUser")
+      ) {
+        return res.status(403).json({
+          status: "error",
+          message: "Only technicians or superusers can complete jobs",
+        });
+      }
+
+      const job = await Job.findById(jobId);
+      if (!job) {
+        return res.status(404).json({
+          status: "error",
+          message: "Job not found",
+        });
+      }
+
+      if (!canAccessAssignedJob(job, ownerInfo)) {
+        return res.status(403).json({
+          status: "error",
+          message: "Access denied. You can only complete jobs assigned to you.",
+        });
+      }
+
+      const submissionTechnicianId = resolveSubmissionTechnicianId(job, ownerInfo);
+      const normalizedClientSubmissionId = String(clientSubmissionId).trim();
+      submissionRecord = await InspectionSubmission.findOne({
+        job: job._id,
+        technician: submissionTechnicianId,
+        clientSubmissionId: normalizedClientSubmissionId,
+      });
+
+      if (submissionRecord?.status === "completed" && submissionRecord.completionResponse) {
+        return res.status(200).json(submissionRecord.completionResponse);
+      }
+
+      if (!submissionRecord) {
+        submissionRecord = await InspectionSubmission.create({
+          clientSubmissionId: normalizedClientSubmissionId,
+          job: job._id,
+          technician: submissionTechnicianId,
+          jobType: jobType || job.jobType,
+          templateVersion: templateVersion ? Number(templateVersion) : null,
+          formData: parseMaybeJson(formData, {}),
+          notes: notes || "",
+          nextComplianceDate: nextComplianceDate || null,
+          eventLocalTimestamp: eventLocalTimestamp || null,
+          eventTimezone: eventTimezone || null,
+          timestampSource: timestampSource || null,
+          status: "pending",
+        });
+      } else if (submissionRecord.status !== "completed") {
+        submissionRecord.jobType = jobType || job.jobType;
+        submissionRecord.templateVersion = templateVersion ? Number(templateVersion) : null;
+        submissionRecord.formData = parseMaybeJson(formData, {});
+        submissionRecord.notes = notes || "";
+        submissionRecord.nextComplianceDate = nextComplianceDate || null;
+        submissionRecord.eventLocalTimestamp = eventLocalTimestamp || null;
+        submissionRecord.eventTimezone = eventTimezone || null;
+        submissionRecord.timestampSource = timestampSource || null;
+        submissionRecord.lastError = null;
+        await submissionRecord.save();
+      }
+
+      let inspectionReportId = submissionRecord.inspectionReport?.toString?.() || null;
+
+      if (!inspectionReportId) {
+        const { report } = await submitInspectionReport({
+          jobId: job._id.toString(),
+          technicianId: submissionTechnicianId,
+          jobType,
+          templateVersion,
+          formData,
+          notes,
+          files: uploadedFiles,
+          mediaMeta,
+          nextComplianceDate,
+          eventLocalTimestamp,
+          eventTimezone,
+          timestampSource,
+        });
+
+        inspectionReportId = report._id.toString();
+        submissionRecord.inspectionReport = report._id;
+        submissionRecord.reportPdfUrl = report.pdf?.url || null;
+        submissionRecord.status = "report_submitted";
+        submissionRecord.lastError = null;
+        await submissionRecord.save();
+      }
+
+      const resolvedEventTimestamp = resolveEventTimestamp({
+        eventLocalTimestamp,
+        eventTimezone,
+        timestampSource,
+      });
+
+      const completionResponse = await finalizeJobCompletion({
+        req,
+        job: await Job.findById(job._id),
+        ownerInfo,
+        technicianId: submissionRecord.technician.toString(),
+        inspectionReportId,
+        resolvedEventTimestamp,
+      });
+
+      submissionRecord.status = "completed";
+      submissionRecord.completedAt = new Date();
+      submissionRecord.completionResponse = completionResponse;
+      submissionRecord.lastError = null;
+      await submissionRecord.save();
+
+      res.status(200).json(completionResponse);
+    } catch (error) {
+      await cleanupInspectionTempFiles(uploadedFiles);
+
+      if (submissionRecord) {
+        submissionRecord.status = "failed";
+        submissionRecord.lastError = error.message;
+        await submissionRecord.save().catch(() => {});
+      }
+
+      console.error("Complete with inspection error:", error);
+      res.status(error.statusCode || 500).json({
+        status: "error",
+        message: error.message || "Failed to complete inspection job",
+        ...(error.details ? { details: error.details } : {}),
+      });
+    }
+  }
 );
 
 // UTILITY - Recalculate technician job statistics (Super users only)
