@@ -1622,6 +1622,85 @@ const jobCompletionNotificationTemplate = (data) => ({
 });
 
 /**
+ * Email template for inspection report submitted notification
+ * @param {Object} data - Template data
+ * @param {string} data.recipientName - Recipient's name
+ * @param {string} data.recipientType - Recipient type
+ * @param {string} data.technicianName - Technician who submitted the report
+ * @param {string} data.jobType - Job type (Gas, Electrical, Smoke)
+ * @param {string} data.propertyAddress - Property address
+ * @param {string} data.submittedAt - Formatted submission date/time
+ * @param {string} [data.pdfUrl] - Optional PDF download URL
+ * @returns {Object} - Email template configuration
+ */
+const inspectionReportSubmittedTemplate = (data) => ({
+  subject: `Inspection Report Submitted – ${data.jobType} at ${data.propertyAddress}`,
+  html: `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+      <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #2196F3; margin-bottom: 10px;">📋 Inspection Report Submitted</h1>
+          <div style="width: 50px; height: 3px; background-color: #2196F3; margin: 0 auto;"></div>
+        </div>
+
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">Hello ${data.recipientName},</p>
+
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">
+          An inspection report has been submitted by <strong>${data.technicianName}</strong> for the
+          <strong>${data.jobType}</strong> inspection at the property listed below.
+        </p>
+
+        <div style="background-color: #f8f9fa; border: 1px solid #dee2e6; padding: 20px; border-radius: 8px; margin: 25px 0;">
+          <h3 style="color: #495057; margin: 0 0 15px 0; font-size: 18px;">📋 Report Details</h3>
+
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold; width: 40%;">Property:</td>
+              <td style="padding: 8px 0; color: #333;">${data.propertyAddress}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold;">Inspection Type:</td>
+              <td style="padding: 8px 0; color: #333;">${data.jobType}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold;">Submitted By:</td>
+              <td style="padding: 8px 0; color: #333;">${data.technicianName}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-weight: bold;">Submitted At:</td>
+              <td style="padding: 8px 0; color: #333;">${data.submittedAt}</td>
+            </tr>
+          </table>
+        </div>
+
+        ${
+          data.pdfUrl
+            ? `
+        <div style="text-align: center; margin: 25px 0;">
+          <a href="${data.pdfUrl}" style="background-color: #2196F3; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+            Download Inspection Report (PDF)
+          </a>
+        </div>
+        `
+            : ""
+        }
+
+        <div style="background-color: #d4edda; border: 1px solid #c3e6cb; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <p style="color: #155724; margin: 0; font-size: 14px;">
+            <strong>✅ Status:</strong> Inspection report has been submitted and is available for review in the RentalEase portal.
+          </p>
+        </div>
+
+        <p style="color: #333; margin-top: 30px;">
+          Best regards,<br>
+          <strong>The RentalEase CRM Team</strong>
+        </p>
+      </div>
+    </div>
+  `,
+});
+
+/**
  * Email template for compliance job notification to all stakeholders
  * @param {Object} data - Template data
  * @param {string} data.recipientName - Recipient's name
@@ -2392,6 +2471,7 @@ const templates = {
   jobCreationNotification: jobCreationNotificationTemplate,
   jobAssignmentNotification: jobAssignmentNotificationTemplate,
   jobCompletionNotification: jobCompletionNotificationTemplate,
+  inspectionReportSubmitted: inspectionReportSubmittedTemplate,
 
   // Credentials templates
   propertyManagerCredentials: propertyManagerCredentialsTemplate,

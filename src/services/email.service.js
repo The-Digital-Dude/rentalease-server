@@ -1948,8 +1948,28 @@ class EmailService {
   }
 
   /**
+   * Send inspection report submitted notification email
+   * @param {Object} recipient - Recipient object with email, name, type
+   * @param {Object} templateData - Template data
+   * @returns {Promise} - Email send result
+   */
+  async sendInspectionReportSubmittedEmail(recipient, templateData) {
+    if (!recipient || !recipient.email || !recipient.name || !recipient.type) {
+      throw new Error(
+        "Invalid recipient data provided for inspection report submitted email"
+      );
+    }
+
+    return await this.sendTemplatedEmail({
+      to: recipient.email,
+      templateName: "inspectionReportSubmitted",
+      templateData,
+    });
+  }
+
+  /**
    * Send email from user's system email address
-   * @param {Object} options - Email options  
+   * @param {Object} options - Email options
    * @returns {Promise} - Email send result
    */
   async sendUserEmail({ from, to, cc, bcc, subject, bodyHtml, bodyText, attachments }) {

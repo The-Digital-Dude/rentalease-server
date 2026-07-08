@@ -2466,6 +2466,7 @@ const renderInlinePhoto = async (doc, mediaItem, options = {}) => {
     400,
     photoHeight
   );
+  mediaItem.imageBuffer = null;
 
   let height = result.height;
   doc.y += height;
@@ -2508,6 +2509,7 @@ const renderInlinePhotos = async (doc, mediaItems = [], options = {}) => {
         itemWidth,
         imageHeight
       );
+      mediaItem.imageBuffer = null;
 
       if (!rendered.success) {
         doc
@@ -5136,6 +5138,7 @@ const renderMediaGallery = async (doc, mediaItems = [], heading, options = {}) =
       doc.page.width - PAGE.margin * 2,
       200
     );
+    mediaItem.imageBuffer = null;
 
     if (!rendered.success) {
       doc
@@ -5397,11 +5400,11 @@ const prepareRenderableMedia = async (mediaItems = []) => {
     };
 
     try {
-      const imageBuffer = await loadImageBuffer({
+      const rawBuffer = await loadImageBuffer({
         imageUrl: normalizedItem.imageBuffer || normalizedItem.url,
         gcsPath: normalizedItem.gcsPath,
       });
-      const metadata = await sharp(imageBuffer).metadata();
+      const metadata = await sharp(rawBuffer).metadata();
       const width = metadata.width || 0;
       const height = metadata.height || 0;
 
@@ -5417,6 +5420,14 @@ const prepareRenderableMedia = async (mediaItems = []) => {
         });
         continue;
       }
+
+      // Downsample to max 1200px wide before storing — reduces each buffer
+      // from ~5 MB (full-res iPhone JPEG) to ~150–300 KB, preventing OOM
+      // when many photos are loaded simultaneously during PDF generation.
+      const imageBuffer = await sharp(rawBuffer)
+        .resize({ width: 1200, withoutEnlargement: true })
+        .jpeg({ quality: 80 })
+        .toBuffer();
 
       preparedItems.push({
         ...normalizedItem,

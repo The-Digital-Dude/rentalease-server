@@ -554,6 +554,45 @@ class NotificationService {
   }
 
   /**
+   * Send inspection report submitted email notification
+   * @param {Object} recipientDetails - Recipient details
+   * @param {Object} notificationData - Notification data
+   */
+  async sendInspectionReportEmailNotification(recipientDetails, notificationData) {
+    const { propertyId, jobType, submittedAt, pdfUrl, technicianName } =
+      notificationData.data;
+
+    const Property = (await import("../models/Property.js")).default;
+    const property = await Property.findById(propertyId).populate("address");
+
+    if (!property) {
+      throw new Error("Property not found for inspection report email notification");
+    }
+
+    const formattedDate = new Date(submittedAt || new Date()).toLocaleDateString(
+      "en-US",
+      {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      }
+    );
+
+    return await emailService.sendInspectionReportSubmittedEmail(recipientDetails, {
+      recipientName: recipientDetails.name,
+      recipientType: recipientDetails.type,
+      technicianName: technicianName || "Technician",
+      jobType: jobType || "Inspection",
+      propertyAddress: property.address.fullAddress,
+      submittedAt: formattedDate,
+      pdfUrl: pdfUrl || null,
+    });
+  }
+
+  /**
    * Send job creation notification to agency, super users, and assigned PropertyManagers
    * @param {Object} job - Job object
    * @param {Object} property - Property object
@@ -1034,6 +1073,8 @@ class NotificationService {
           jobType: report.jobType,
           submittedAt: report.submittedAt,
           pdfUrl: report.pdf?.url,
+          technicianName: technician.fullName,
+          technicianId: technician._id,
         },
         priority: "Normal",
       };
@@ -1349,6 +1390,12 @@ class NotificationService {
         case "COMPLIANCE_DUE":
         case "compliance_due":
           emailResult = await this.sendComplianceJobEmailNotification(
+            recipientDetails,
+            notificationData
+          );
+          break;
+        case "INSPECTION_REPORT_SUBMITTED":
+          emailResult = await this.sendInspectionReportEmailNotification(
             recipientDetails,
             notificationData
           );
