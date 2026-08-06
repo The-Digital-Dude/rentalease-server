@@ -121,10 +121,10 @@ const drawHeader = (doc, reviewData, invoice) => {
 
   // Company details
   const companyY = y + 36;
-  doc.font("Helvetica-Bold").fontSize(13).fillColor("#0f172a")
-    .text(COMPLETED_JOB_INVOICE_COMPANY.name, rightBlockX, companyY, { width: 215 });
+  doc.font("Helvetica-Bold").fontSize(10).fillColor("#0f172a")
+    .text(COMPLETED_JOB_INVOICE_COMPANY.name, rightBlockX, companyY, { width: 215, lineBreak: false });
   doc.font("Helvetica").fontSize(9).fillColor("#334155");
-  let cy = companyY + 18;
+  let cy = companyY + 14;
   doc.text(COMPLETED_JOB_INVOICE_COMPANY.abn, rightBlockX, cy, { width: 215 });
   cy += 13;
   COMPLETED_JOB_INVOICE_COMPANY.addressLines.forEach((line) => {
@@ -225,10 +225,10 @@ const drawItemRow = (doc, item, y) => {
   const rowH = Math.max(descHeight + 4, 18);
 
   doc.font("Helvetica").fontSize(9).fillColor("#0f172a")
-    .text(formatCurrency(netRate), COL.price.x,  y, { width: COL.price.w,  align: "right" })
-    .text(String(qty),             COL.qty.x,    y, { width: COL.qty.w,    align: "right" })
-    .text("10 %",                  COL.gst.x,    y, { width: COL.gst.w,    align: "right" })
-    .text(formatCurrency(netAmount), COL.amount.x, y, { width: COL.amount.w, align: "right" });
+    .text(formatCurrency(netRate),   COL.price.x,  y, { width: COL.price.w,  align: "right", lineBreak: false })
+    .text(String(qty),               COL.qty.x,    y, { width: COL.qty.w,    align: "right", lineBreak: false })
+    .text("10 %",                    COL.gst.x,    y, { width: COL.gst.w,    align: "right", lineBreak: false })
+    .text(formatCurrency(netAmount), COL.amount.x, y, { width: COL.amount.w, align: "right", lineBreak: false });
 
   return y + rowH + 8;
 };
@@ -240,31 +240,39 @@ const drawTotals = (doc, invoice, y) => {
   const gstTotal   = gstFromGross(grossTotal);
   const totalCost  = invoice.totalCost || grossTotal;
 
-  // Thin divider above totals
-  doc.moveTo(COL.gst.x, y).lineTo(PAGE.width - PAGE.margin, y).lineWidth(0.5).stroke("#cbd5e1");
-  y += 8;
-
-  const labelX = COL.gst.x;
+  // Totals occupy the right two columns (label + amount)
+  // labelX starts at the QTY column so "Net Amount :" has room; value right-aligns in the AMOUNT column
+  const totalsLineX = COL.qty.x;
+  const totalsLineEnd = PAGE.width - PAGE.margin;
+  const labelX = COL.qty.x;
+  const labelW = COL.amount.x - COL.qty.x - 8;   // ~88px — fits "Net Amount :"
   const valueX = COL.amount.x;
-  const labelW = COL.gst.w;
   const valueW = COL.amount.w;
 
+  // Thin divider above totals
+  doc.moveTo(totalsLineX, y).lineTo(totalsLineEnd, y).lineWidth(0.5).stroke("#cbd5e1");
+  y += 8;
+
   const rows = [
-    ["Net Amount :", formatCurrency(netTotal), false],
-    ["GST :",        formatCurrency(gstTotal), false],
+    ["Net Amount :", formatCurrency(netTotal)],
+    ["GST :",        formatCurrency(gstTotal)],
   ];
   rows.forEach(([label, value]) => {
-    doc.font("Helvetica").fontSize(9).fillColor("#334155").text(label, labelX, y, { width: labelW, align: "left" });
-    doc.font("Helvetica").fontSize(9).fillColor("#0f172a").text(value, valueX, y, { width: valueW, align: "right" });
+    doc.font("Helvetica").fontSize(9).fillColor("#334155")
+      .text(label, labelX, y, { width: labelW, align: "left", lineBreak: false });
+    doc.font("Helvetica").fontSize(9).fillColor("#0f172a")
+      .text(value, valueX, y, { width: valueW, align: "right", lineBreak: false });
     y += 16;
   });
 
   // Divider before Total
-  doc.moveTo(COL.gst.x, y).lineTo(PAGE.width - PAGE.margin, y).lineWidth(0.5).stroke("#cbd5e1");
+  doc.moveTo(totalsLineX, y).lineTo(totalsLineEnd, y).lineWidth(0.5).stroke("#cbd5e1");
   y += 6;
 
-  doc.font("Helvetica-Bold").fontSize(10).fillColor("#0f172a").text("Total :", labelX, y, { width: labelW, align: "left" });
-  doc.font("Helvetica-Bold").fontSize(10).fillColor("#0f172a").text(formatCurrency(totalCost), valueX, y, { width: valueW, align: "right" });
+  doc.font("Helvetica-Bold").fontSize(10).fillColor("#0f172a")
+    .text("Total :", labelX, y, { width: labelW, align: "left", lineBreak: false });
+  doc.font("Helvetica-Bold").fontSize(10).fillColor("#0f172a")
+    .text(formatCurrency(totalCost), valueX, y, { width: valueW, align: "right", lineBreak: false });
 
   return y + 24;
 };
