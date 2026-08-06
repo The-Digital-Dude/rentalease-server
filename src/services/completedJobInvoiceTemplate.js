@@ -140,7 +140,7 @@ const drawSectionBox = (doc, x, y, width, height, options = {}) => {
 
 const drawInvoiceHeader = (doc, reviewData, invoice) => {
   const headerY = PAGE.margin;
-  const headerHeight = 110;
+  const headerHeight = 126;
   const logoWidth = 115;
   const logoHeight = 28;
   const rightX = PAGE.width - PAGE.margin - 170;
