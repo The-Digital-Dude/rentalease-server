@@ -3,10 +3,11 @@ import PDFDocument from "pdfkit";
 
 export const COMPLETED_JOB_INVOICE_COMPANY = {
   name: "RentalEase Property Services Pty Ltd",
-  abn: "63 625 625 872",
-  addressLines: ["3/581 Dohertys Road", "Truganina VIC 3029"],
+  abn: "53 691 110 639",
+  addressLines: ["3/581 Dohertys Road Truganina", "Melbourne, Vic, 3029", "Australia"],
   phone: "03 5906 7723",
   email: "info@rentalease.com.au",
+  website: "https://rentalease.com.au/",
   tagline: "Property Compliance and Billing",
   logoPath: path.join(process.cwd(), "assets", "rentalease-logo.png"),
 };
@@ -30,26 +31,23 @@ export const COMPLETED_JOB_INVOICE_TERMS = [
   "Without prejudice to any other remedies the Contractor may have, if at any time the Client breaches any obligation under these terms and conditions, including payment obligations, the Contractor may suspend or terminate the supply of goods or services and is not liable for loss or damage arising from that action.",
 ];
 
+const GST_RATE = 0.1;
 const PAYMENT_DAYS = 30;
-const PAGE = {
-  width: 595,
-  height: 842,
-  margin: 36,
-};
+const PAGE = { width: 595, height: 842, margin: 40 };
+
+// ── GST helpers ──────────────────────────────────────────────────────────────
+// All prices stored in DB are GST-inclusive (gross).
+export const netFromGross = (gross = 0) => (gross || 0) / (1 + GST_RATE);
+export const gstFromGross = (gross = 0) => (gross || 0) / (1 + GST_RATE) * GST_RATE;
 
 export const formatCurrency = (amount = 0) =>
-  new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-  }).format(amount || 0);
+  new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(amount || 0);
 
 export const formatInvoiceDate = (value) => {
   if (!value) return "-";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "-";
-  const day = String(date.getDate()).padStart(2, "0");
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  return `${day}-${month}-${date.getFullYear()}`;
+  return `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}`;
 };
 
 export const addDays = (value, days) => {
@@ -62,24 +60,17 @@ export const addDays = (value, days) => {
 
 export const formatAddressLines = (address = "") => {
   if (!address) return ["Property"];
-  const parts = String(address)
-    .split(",")
-    .map((part) => part.trim())
-    .filter(Boolean);
-
+  const parts = String(address).split(",").map((p) => p.trim()).filter(Boolean);
   if (parts.length <= 1) return [address];
   if (parts.length === 2) return parts;
   return [parts.slice(0, -1).join(", "), parts[parts.length - 1]];
 };
 
-export const getAttentionName = (reviewData = {}) => {
-  return (
-    reviewData.attentionName?.trim() ||
-    reviewData.recipients?.to?.[0]?.name?.trim() ||
-    reviewData.agencyName?.trim() ||
-    "Landlord"
-  );
-};
+export const getAttentionName = (reviewData = {}) =>
+  reviewData.attentionName?.trim() ||
+  reviewData.recipients?.to?.[0]?.name?.trim() ||
+  reviewData.agencyName?.trim() ||
+  "Landlord";
 
 export const getWorksAuthorisedBy = (reviewData = {}) =>
   `Works authorised by ${getAttentionName(reviewData)} on behalf of the Landlord`;
@@ -88,389 +79,256 @@ export const getReportStatusLabel = (reviewData = {}, job = {}) => {
   if (reviewData.reportFile) {
     return job.reportFile ? "Available" : "Available from latest inspection report";
   }
-
   return "Missing";
 };
 
 export const buildInvoiceReviewDates = (invoice, reviewData = {}) => {
   const invoiceDate = reviewData.invoiceDate || invoice.createdAt;
-  const dueDate =
-    reviewData.dueDate || addDays(invoiceDate, PAYMENT_DAYS) || invoiceDate;
-
-  return {
-    invoiceDate,
-    dueDate,
-  };
+  const dueDate = reviewData.dueDate || addDays(invoiceDate, PAYMENT_DAYS) || invoiceDate;
+  return { invoiceDate, dueDate };
 };
 
 const escapeHtml = (value = "") =>
   String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
+    .replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;").replaceAll("'", "&#39;");
 
-const textLines = (doc, text, options = {}) => {
-  const startY = doc.y;
-  doc.text(text, options);
-  return doc.y - startY;
+// ── Column layout for line-items table ───────────────────────────────────────
+const COL = {
+  desc:   { x: PAGE.margin,       w: 220 },
+  price:  { x: PAGE.margin + 230, w:  60 },
+  qty:    { x: PAGE.margin + 298, w:  40 },
+  gst:    { x: PAGE.margin + 346, w:  40 },
+  amount: { x: PAGE.margin + 394, w:  82 },
 };
 
-const drawLabelValueRow = (doc, label, value, x, y, labelWidth = 110, valueWidth = 220) => {
-  doc
-    .fontSize(9)
-    .fillColor("#64748b")
-    .font("Helvetica-Bold")
-    .text(label, x, y, { width: labelWidth });
-  doc
-    .fontSize(9)
-    .fillColor("#0f172a")
-    .font("Helvetica")
-    .text(value, x + labelWidth + 10, y, { width: valueWidth, lineGap: 1 });
-};
+// ── Header: logo + company block (left), TAX INVOICE + meta (right) ──────────
+const drawHeader = (doc, reviewData, invoice) => {
+  const y = PAGE.margin;
+  const rightBlockX = 340;
 
-const drawSectionBox = (doc, x, y, width, height, options = {}) => {
-  const fillColor = options.fillColor || "#ffffff";
-  const borderColor = options.borderColor || "#dbe4ee";
-  doc.save();
-  doc.roundedRect(x, y, width, height, 12).fillAndStroke(fillColor, borderColor);
-  doc.restore();
-};
-
-const drawInvoiceHeader = (doc, reviewData, invoice) => {
-  const headerY = PAGE.margin;
-  const headerHeight = 126;
-  const logoWidth = 115;
-  const logoHeight = 28;
-  const rightX = PAGE.width - PAGE.margin - 170;
-
-  drawSectionBox(doc, PAGE.margin, headerY, PAGE.width - PAGE.margin * 2, headerHeight, {
-    fillColor: "#ffffff",
-    borderColor: "#ffffff",
-  });
-
+  // Logo
   try {
-    doc.image(COMPLETED_JOB_INVOICE_COMPANY.logoPath, PAGE.margin + 2, headerY + 6, {
-      width: logoWidth,
-      height: logoHeight,
-    });
+    doc.image(COMPLETED_JOB_INVOICE_COMPANY.logoPath, PAGE.margin, y, { width: 110 });
   } catch {
-    doc
-      .font("Helvetica-Bold")
-      .fontSize(16)
-      .fillColor("#0f4c81")
-      .text("RentalEase", PAGE.margin + 2, headerY + 10);
+    doc.font("Helvetica-Bold").fontSize(18).fillColor("#0f4c81")
+      .text("RentalEase", PAGE.margin, y + 4);
   }
 
-  doc
-    .font("Helvetica-Bold")
-    .fontSize(12)
-    .fillColor("#0f172a")
-    .text(COMPLETED_JOB_INVOICE_COMPANY.name, PAGE.margin + 2, headerY + 42, {
-      width: 250,
-    });
-  doc
-    .font("Helvetica")
-    .fontSize(8.8)
-    .fillColor("#334155")
-    .text(`A.B.N : ${COMPLETED_JOB_INVOICE_COMPANY.abn}`, PAGE.margin + 2, headerY + 58)
-    .text(COMPLETED_JOB_INVOICE_COMPANY.addressLines[0], PAGE.margin + 2, headerY + 70)
-    .text(COMPLETED_JOB_INVOICE_COMPANY.addressLines[1], PAGE.margin + 2, headerY + 82)
-    .text(COMPLETED_JOB_INVOICE_COMPANY.phone, PAGE.margin + 2, headerY + 94);
+  // "TAX INVOICE" heading
+  doc.font("Helvetica-Bold").fontSize(22).fillColor("#0f172a")
+    .text("TAX INVOICE", rightBlockX, y, { width: 215, align: "right" });
 
-  doc
-    .font("Helvetica")
-    .fontSize(8.8)
-    .fillColor("#334155")
-    .text(COMPLETED_JOB_INVOICE_COMPANY.email, PAGE.margin + 2, headerY + 106);
+  // Company details
+  const companyY = y + 36;
+  doc.font("Helvetica-Bold").fontSize(13).fillColor("#0f172a")
+    .text(COMPLETED_JOB_INVOICE_COMPANY.name, rightBlockX, companyY, { width: 215 });
+  doc.font("Helvetica").fontSize(9).fillColor("#334155");
+  let cy = companyY + 18;
+  doc.text(COMPLETED_JOB_INVOICE_COMPANY.abn, rightBlockX, cy, { width: 215 });
+  cy += 13;
+  COMPLETED_JOB_INVOICE_COMPANY.addressLines.forEach((line) => {
+    doc.text(line, rightBlockX, cy, { width: 215 });
+    cy += 13;
+  });
 
-  doc
-    .font("Helvetica-Bold")
-    .fontSize(16)
-    .fillColor("#0f4c81")
-    .text("TAX INVOICE", rightX, headerY + 2, { width: 170, align: "right" });
+  // Invoice meta grid (date / due date / invoice no)
+  const metaY = cy + 6;
+  const dates = buildInvoiceReviewDates(invoice, reviewData);
+  const metaRows = [
+    ["Invoice date:", formatInvoiceDate(dates.invoiceDate), "Invoice no:", String(invoice.invoiceNumber || "Draft")],
+    ["Due date:",    formatInvoiceDate(dates.dueDate),      "",            ""],
+  ];
+  metaRows.forEach(([l1, v1, l2, v2], i) => {
+    const ry = metaY + i * 16;
+    doc.font("Helvetica").fontSize(9).fillColor("#64748b").text(l1, rightBlockX, ry, { width: 65 });
+    doc.font("Helvetica").fontSize(9).fillColor("#0f172a").text(v1, rightBlockX + 68, ry, { width: 60 });
+    if (l2) {
+      doc.font("Helvetica").fontSize(9).fillColor("#64748b").text(l2, rightBlockX + 135, ry, { width: 60 });
+      doc.font("Helvetica").fontSize(9).fillColor("#0f172a").text(v2, rightBlockX + 198, ry, { width: 60 });
+    }
+  });
 
-  const invoiceMetaY = headerY + 26;
-  drawLabelValueRow(doc, "Invoice No:", invoice.invoiceNumber || "Draft", rightX - 30, invoiceMetaY, 78, 110);
-  drawLabelValueRow(
-    doc,
-    "Invoice Date:",
-    formatInvoiceDate(reviewData.invoiceDate || invoice.createdAt),
-    rightX - 30,
-    invoiceMetaY + 18,
-    78,
-    110
-  );
-  drawLabelValueRow(
-    doc,
-    "Due Date:",
-    formatInvoiceDate(reviewData.dueDate || addDays(reviewData.invoiceDate || invoice.createdAt, PAYMENT_DAYS)),
-    rightX - 30,
-    invoiceMetaY + 36,
-    78,
-    110
-  );
+  // Divider
+  const dividerY = Math.max(y + 90, metaY + 44);
+  doc.moveTo(PAGE.margin, dividerY).lineTo(PAGE.width - PAGE.margin, dividerY).lineWidth(0.5).stroke("#cbd5e1");
 
-  doc
-    .moveTo(PAGE.margin, headerY + headerHeight + 2)
-    .lineTo(PAGE.width - PAGE.margin, headerY + headerHeight + 2)
-    .stroke("#dbe4ee");
-
-  return headerY + headerHeight + 14;
+  return dividerY + 14;
 };
 
-const drawRecipientBlock = (doc, reviewData, invoice, job, startY) => {
-  const boxWidth = (PAGE.width - PAGE.margin * 2 - 12) / 2;
+// ── Recipient block: agency + property manager + address ─────────────────────
+const drawRecipientBlock = (doc, reviewData) => {
+  const startY = doc.y;
+  const agencyName = reviewData.agencyName || "Agency";
   const attentionName = getAttentionName(reviewData);
   const propertyAddress = reviewData.propertyAddress || "Property";
-  const addressLines = formatAddressLines(propertyAddress);
-  const recipientName = reviewData.agencyName || "Agency";
 
-  // Dynamically compute right-box height so items never overlap the totals section
-  const items = Array.isArray(invoice.items) ? invoice.items : [];
-  const itemsToShow = items.slice(0, 4);
-  // 12px top padding + description (~28px for 2 lines) + item rows (26px each) + gap (10px) + totals (52px) + 10px bottom
-  const rightBoxContentNeeded = 42 + itemsToShow.length * 26 + 10 + 52 + 10;
-  const boxHeight = Math.max(124, rightBoxContentNeeded);
+  doc.font("Helvetica-Bold").fontSize(14).fillColor("#0f172a")
+    .text(agencyName, PAGE.margin, startY, { width: 280 });
 
-  drawSectionBox(doc, PAGE.margin, startY, boxWidth, boxHeight);
-  drawSectionBox(doc, PAGE.margin + boxWidth + 12, startY, boxWidth, boxHeight);
+  let curY = doc.y + 3;
+  doc.font("Helvetica").fontSize(9).fillColor("#475569")
+    .text("Property Manager", PAGE.margin, curY, { width: 280 });
+  curY = doc.y + 2;
+  doc.font("Helvetica").fontSize(9).fillColor("#0f172a")
+    .text(attentionName, PAGE.margin, curY, { width: 280 });
 
-  doc
-    .font("Helvetica-Bold")
-    .fontSize(12)
-    .fillColor("#0f172a")
-    .text(recipientName, PAGE.margin + 14, startY + 12, {
-      width: boxWidth - 28,
-    });
-  doc
-    .font("Helvetica-Bold")
-    .fontSize(8.5)
-    .fillColor("#64748b")
-    .text("SERVICE ADDRESS", PAGE.margin + 14, startY + 32);
-  doc
-    .font("Helvetica")
-    .fontSize(9)
-    .fillColor("#1e293b");
+  curY = doc.y + 18;
+  doc.font("Helvetica-Oblique").fontSize(9).fillColor("#334155")
+    .text(propertyAddress, PAGE.margin, curY, { width: 280 });
 
-  let addressY = startY + 46;
-  addressLines.forEach((line) => {
-    doc.text(line, PAGE.margin + 14, addressY, { width: boxWidth - 28 });
-    addressY += 14;
-  });
-
-  doc
-    .font("Helvetica-Bold")
-    .fontSize(9)
-    .fillColor("#334155")
-    .text(`For attention of: ${attentionName}`, PAGE.margin + 14, startY + 92, {
-      width: boxWidth - 28,
-    });
-  doc
-    .font("Helvetica")
-    .fontSize(8.5)
-    .fillColor("#475569")
-    .text(getWorksAuthorisedBy(reviewData), PAGE.margin + 14, startY + 108, {
-      width: boxWidth - 28,
-    });
-
-  const summaryX = PAGE.margin + boxWidth + 26;
-  doc
-    .font("Helvetica-Bold")
-    .fontSize(8.5)
-    .fillColor("#64748b")
-    .text("DESCRIPTION", summaryX, startY + 12);
-  doc
-    .font("Helvetica")
-    .fontSize(9)
-    .fillColor("#0f172a")
-    .text(job.description || job.jobType || "Completed job invoice", summaryX, startY + 30, {
-      width: boxWidth - 40,
-      lineGap: 2,
-    });
-
-  doc
-    .font("Helvetica-Bold")
-    .fontSize(8.5)
-    .fillColor("#64748b")
-    .text("TOTAL", summaryX + boxWidth - 100, startY + 12, {
-      width: 80,
-      align: "right",
-    });
-  doc
-    .font("Helvetica-Bold")
-    .fontSize(16)
-    .fillColor("#0f4c81")
-    .text(formatCurrency(invoice.totalCost), summaryX + boxWidth - 135, startY + 26, {
-      width: 120,
-      align: "right",
-    });
-
-  // itemsToShow is already computed above; render them and track the last Y
-  let lastItemY = startY + 62;
-  if (itemsToShow.length > 0) {
-    itemsToShow.forEach((item) => {
-      doc
-        .font("Helvetica")
-        .fontSize(8.4)
-        .fillColor("#334155")
-        .text(`${item.name || "-"}`, summaryX, lastItemY, { width: boxWidth - 28 });
-      doc
-        .font("Helvetica")
-        .fontSize(8.4)
-        .fillColor("#475569")
-        .text(
-          `${Number(item.quantity || 0)} x ${formatCurrency(item.rate || 0)} = ${formatCurrency(item.amount || 0)}`,
-          summaryX,
-          lastItemY + 10,
-          { width: boxWidth - 28 }
-        );
-      lastItemY += 26;
-    });
-  }
-
-  // Place totals after items with a fixed gap — never at a hardcoded boxHeight offset
-  const totalsStartY = lastItemY + 10;
-  doc
-    .moveTo(summaryX, totalsStartY - 4)
-    .lineTo(summaryX + boxWidth - 36, totalsStartY - 4)
-    .stroke("#e2e8f0");
-
-  drawLabelValueRow(doc, "SUBTOTAL", formatCurrency(invoice.subtotal || 0), summaryX, totalsStartY, 72, 130);
-  drawLabelValueRow(doc, "GST", formatCurrency(invoice.tax || 0), summaryX, totalsStartY + 16, 72, 130);
-  doc
-    .font("Helvetica-Bold")
-    .fontSize(11)
-    .fillColor("#0f4c81")
-    .text("TOTAL", summaryX, totalsStartY + 32, { width: 72 });
-  doc
-    .font("Helvetica-Bold")
-    .fontSize(11)
-    .fillColor("#0f4c81")
-    .text(formatCurrency(invoice.totalCost || 0), summaryX + 72, totalsStartY + 32, {
-      width: 130,
-      align: "right",
-    });
-
-  return startY + boxHeight + 14;
+  return doc.y + 20;
 };
 
-const drawHowToPaySection = (doc, startY) => {
-  const sectionHeight = 118;
-  drawSectionBox(doc, PAGE.margin, startY, PAGE.width - PAGE.margin * 2, sectionHeight);
+// ── Items table header row ────────────────────────────────────────────────────
+const drawTableHeader = (doc, y) => {
+  // Header background
+  doc.rect(PAGE.margin - 4, y - 4, PAGE.width - PAGE.margin * 2 + 8, 18)
+    .fill("#f1f5f9");
 
-  doc
-    .font("Helvetica-Bold")
-    .fontSize(12)
-    .fillColor("#0f172a")
-    .text("HOW TO PAY", PAGE.margin + 14, startY + 12);
-
-  doc
-    .font("Helvetica")
-    .fontSize(9)
-    .fillColor("#334155")
-    .text("We accept payment by: Bank transfer", PAGE.margin + 14, startY + 30);
-
-  const leftX = PAGE.margin + 14;
-  const rightX = PAGE.margin + 250;
-  const bankRows = [
-    ["Name:", COMPLETED_JOB_INVOICE_BANK_DETAILS.accountName],
-    ["Bank:", COMPLETED_JOB_INVOICE_BANK_DETAILS.bankName],
-    ["BSB:", COMPLETED_JOB_INVOICE_BANK_DETAILS.bsb],
-    ["Account Number:", COMPLETED_JOB_INVOICE_BANK_DETAILS.accountNumber],
-    ["Payment Terms:", `Payment terms are ${COMPLETED_JOB_INVOICE_BANK_DETAILS.paymentTerms}`],
+  const cols = [
+    { label: "DESCRIPTION", x: COL.desc.x,   w: COL.desc.w,   align: "left"  },
+    { label: "PRICE",        x: COL.price.x,  w: COL.price.w,  align: "right" },
+    { label: "QTY",          x: COL.qty.x,    w: COL.qty.w,    align: "right" },
+    { label: "GST",          x: COL.gst.x,    w: COL.gst.w,    align: "right" },
+    { label: "AMOUNT",       x: COL.amount.x, w: COL.amount.w, align: "right" },
   ];
-
-  let rowY = startY + 48;
-  bankRows.forEach(([label, value], index) => {
-    const x = index < 3 ? leftX : rightX;
-    const y = index < 3 ? rowY + index * 18 : rowY + (index - 3) * 18;
-    drawLabelValueRow(doc, label, value, x, y, 90, 180);
+  cols.forEach(({ label, x, w, align }) => {
+    doc.font("Helvetica-Bold").fontSize(8.5).fillColor("#0f172a")
+      .text(label, x, y, { width: w, align });
   });
 
-  return startY + sectionHeight + 14;
+  return y + 18;
 };
 
-const drawTermsSection = (doc, startY) => {
-  doc
-    .font("Helvetica-Bold")
-    .fontSize(12)
-    .fillColor("#0f172a")
-    .text("Terms and conditions:", PAGE.margin, startY);
+// ── Single item row ───────────────────────────────────────────────────────────
+const drawItemRow = (doc, item, y) => {
+  // item.amount is gross (GST-inclusive); display net price
+  const grossAmount = item.amount || 0;
+  const netAmount   = netFromGross(grossAmount);
+  const qty         = Number(item.quantity || 1);
+  const netRate     = netAmount / qty;
 
-  let y = startY + 18;
-  COMPLETED_JOB_INVOICE_TERMS.forEach((term, index) => {
-    const prefix = `${index + 1}. `;
-    const textWidth = PAGE.width - PAGE.margin * 2 - 14;
-    const availableHeight = doc.page.height - PAGE.margin - y;
-    if (availableHeight < 60) {
-      doc.addPage();
-      y = PAGE.margin;
-    }
+  // Main description
+  doc.font("Helvetica").fontSize(9).fillColor("#0f172a")
+    .text(item.name || "-", COL.desc.x, y, { width: COL.desc.w });
 
-    doc
-      .font("Helvetica")
-      .fontSize(9)
-      .fillColor("#334155")
-      .text(`${prefix}${term}`, PAGE.margin + 6, y, {
-        width: textWidth,
-        lineGap: 2,
-      });
-    y = doc.y + 4;
-  });
-
-  return y + 10;
-};
-
-const drawFooter = (doc, y) => {
-  if (y > doc.page.height - PAGE.margin - 28) {
-    doc.addPage();
-    y = PAGE.margin;
+  // Sub-description (notes field on item if present, or second line of name)
+  const subDesc = item.notes || item.subDescription || "";
+  let descHeight = doc.currentLineHeight(true);
+  if (subDesc) {
+    doc.font("Helvetica").fontSize(8).fillColor("#64748b")
+      .text(subDesc, COL.desc.x, y + descHeight + 1, { width: COL.desc.w });
+    descHeight += doc.currentLineHeight(true) + 1;
   }
 
-  doc
-    .moveTo(PAGE.margin, y)
-    .lineTo(PAGE.width - PAGE.margin, y)
-    .stroke("#dbe4ee");
-  doc
-    .font("Helvetica")
-    .fontSize(8)
-    .fillColor("#64748b")
-    .text("Generated by RentalEase CRM", PAGE.margin, y + 8);
-  doc
-    .text(`Generated on ${formatInvoiceDate(new Date().toISOString())}`, PAGE.margin, y + 8, {
+  const rowH = Math.max(descHeight + 4, 18);
+
+  doc.font("Helvetica").fontSize(9).fillColor("#0f172a")
+    .text(formatCurrency(netRate), COL.price.x,  y, { width: COL.price.w,  align: "right" })
+    .text(String(qty),             COL.qty.x,    y, { width: COL.qty.w,    align: "right" })
+    .text("10 %",                  COL.gst.x,    y, { width: COL.gst.w,    align: "right" })
+    .text(formatCurrency(netAmount), COL.amount.x, y, { width: COL.amount.w, align: "right" });
+
+  return y + rowH + 8;
+};
+
+// ── Totals block ─────────────────────────────────────────────────────────────
+const drawTotals = (doc, invoice, y) => {
+  const grossTotal = invoice.subtotal || 0;
+  const netTotal   = netFromGross(grossTotal);
+  const gstTotal   = gstFromGross(grossTotal);
+  const totalCost  = invoice.totalCost || grossTotal;
+
+  // Thin divider above totals
+  doc.moveTo(COL.gst.x, y).lineTo(PAGE.width - PAGE.margin, y).lineWidth(0.5).stroke("#cbd5e1");
+  y += 8;
+
+  const labelX = COL.gst.x;
+  const valueX = COL.amount.x;
+  const labelW = COL.gst.w;
+  const valueW = COL.amount.w;
+
+  const rows = [
+    ["Net Amount :", formatCurrency(netTotal), false],
+    ["GST :",        formatCurrency(gstTotal), false],
+  ];
+  rows.forEach(([label, value]) => {
+    doc.font("Helvetica").fontSize(9).fillColor("#334155").text(label, labelX, y, { width: labelW, align: "left" });
+    doc.font("Helvetica").fontSize(9).fillColor("#0f172a").text(value, valueX, y, { width: valueW, align: "right" });
+    y += 16;
+  });
+
+  // Divider before Total
+  doc.moveTo(COL.gst.x, y).lineTo(PAGE.width - PAGE.margin, y).lineWidth(0.5).stroke("#cbd5e1");
+  y += 6;
+
+  doc.font("Helvetica-Bold").fontSize(10).fillColor("#0f172a").text("Total :", labelX, y, { width: labelW, align: "left" });
+  doc.font("Helvetica-Bold").fontSize(10).fillColor("#0f172a").text(formatCurrency(totalCost), valueX, y, { width: valueW, align: "right" });
+
+  return y + 24;
+};
+
+// ── Payment Information section ───────────────────────────────────────────────
+const drawPaymentSection = (doc, invoice, y) => {
+  const totalCost = invoice.totalCost || invoice.subtotal || 0;
+
+  doc.moveTo(PAGE.margin, y).lineTo(PAGE.width - PAGE.margin, y).lineWidth(0.5).stroke("#cbd5e1");
+  y += 14;
+
+  doc.font("Helvetica-Bold").fontSize(11).fillColor("#0f172a")
+    .text("PAYMENT INFORMATION", PAGE.margin, y);
+  y += 18;
+
+  // Left column: invoice summary
+  const leftX  = PAGE.margin;
+  const rightX = PAGE.margin + 220;
+
+  doc.font("Helvetica").fontSize(9).fillColor("#334155")
+    .text(`Invoice number: ${invoice.invoiceNumber || "Draft"}`, leftX, y)
+    .text(`Amount (AUD): ${formatCurrency(totalCost)}`, leftX, y + 14);
+
+  // Right column: bank details with emphasis
+  doc.font("Helvetica-Bold").fontSize(9).fillColor("#0f172a")
+    .text("Please add the invoice number to the payment transfer!", rightX, y, { width: 295 });
+
+  const bankRows = [
+    ["Bank account name:",   COMPLETED_JOB_INVOICE_BANK_DETAILS.accountName],
+    ["Bank account number:", COMPLETED_JOB_INVOICE_BANK_DETAILS.accountNumber],
+    ["Bank name:",           COMPLETED_JOB_INVOICE_BANK_DETAILS.bankName],
+    ["BSB:",                 COMPLETED_JOB_INVOICE_BANK_DETAILS.bsb],
+  ];
+  let by = y + 14;
+  bankRows.forEach(([label, value]) => {
+    doc.font("Helvetica").fontSize(9).fillColor("#64748b").text(label, rightX, by, { width: 120 });
+    doc.font("Helvetica").fontSize(9).fillColor("#0f172a").text(value, rightX + 124, by, { width: 170 });
+    by += 14;
+  });
+
+  return Math.max(doc.y, by) + 14;
+};
+
+// ── Footer bar ────────────────────────────────────────────────────────────────
+const drawFooter = (doc) => {
+  const footerY = PAGE.height - 28;
+  doc.rect(0, footerY - 4, PAGE.width, 32).fill("#f8fafc");
+  doc.moveTo(0, footerY - 5).lineTo(PAGE.width, footerY - 5).lineWidth(0.5).stroke("#e2e8f0");
+
+  const parts = [
+    COMPLETED_JOB_INVOICE_COMPANY.name,
+    COMPLETED_JOB_INVOICE_COMPANY.abn,
+    COMPLETED_JOB_INVOICE_COMPANY.website,
+    COMPLETED_JOB_INVOICE_COMPANY.email,
+    COMPLETED_JOB_INVOICE_COMPANY.phone,
+  ];
+  doc.font("Helvetica").fontSize(7.5).fillColor("#64748b")
+    .text(parts.join("   ·   "), PAGE.margin, footerY + 2, {
       width: PAGE.width - PAGE.margin * 2,
-      align: "right",
+      align: "center",
     });
 };
 
-export const buildCompletedJobInvoiceEmailPayload = ({
-  jobType,
-  propertyAddress,
-  invoiceNumber,
-}) => ({
-  subject: `Tax Invoice - ${jobType} - ${propertyAddress}`,
-  bodyHtml: `
-    <p>Hello,</p>
-    <p>Please find the tax invoice attached for <strong>${escapeHtml(propertyAddress)}</strong>.</p>
-    <p><strong>Invoice #:</strong> ${escapeHtml(invoiceNumber)}</p>
-    <p><strong>Payment terms:</strong> ${escapeHtml(COMPLETED_JOB_INVOICE_BANK_DETAILS.paymentTerms)}</p>
-    <p><strong>Bank:</strong> ${escapeHtml(COMPLETED_JOB_INVOICE_BANK_DETAILS.bankName)} | <strong>BSB:</strong> ${escapeHtml(COMPLETED_JOB_INVOICE_BANK_DETAILS.bsb)} | <strong>Account:</strong> ${escapeHtml(COMPLETED_JOB_INVOICE_BANK_DETAILS.accountNumber)}</p>
-    <p>Please also see the inspection report attached to the completed job documents.</p>
-  `,
-  bodyText: [
-    "Hello,",
-    "",
-    `Please find the tax invoice attached for ${propertyAddress}.`,
-    `Invoice #: ${invoiceNumber}`,
-    `Payment terms: ${COMPLETED_JOB_INVOICE_BANK_DETAILS.paymentTerms}`,
-    `Bank: ${COMPLETED_JOB_INVOICE_BANK_DETAILS.bankName} | BSB: ${COMPLETED_JOB_INVOICE_BANK_DETAILS.bsb} | Account: ${COMPLETED_JOB_INVOICE_BANK_DETAILS.accountNumber}`,
-    "",
-    "Please also see the inspection report attached to the completed job documents.",
-  ].join("\n"),
-});
-
+// ── Main PDF generator ────────────────────────────────────────────────────────
 export const generateCompletedJobInvoicePdfBuffer = async ({
   invoice,
   reviewData = {},
@@ -485,34 +343,93 @@ export const generateCompletedJobInvoicePdfBuffer = async ({
     doc.on("error", reject);
 
     doc.fillColor("#0f172a");
-    let cursorY = drawInvoiceHeader(doc, reviewData, invoice);
-    cursorY = drawRecipientBlock(doc, reviewData, invoice, job, cursorY);
-    cursorY = drawHowToPaySection(doc, cursorY);
-    cursorY = drawTermsSection(doc, cursorY);
-    if (invoice.notes) {
-      if (cursorY > doc.page.height - PAGE.margin - 60) {
+
+    // Header
+    let cursorY = drawHeader(doc, reviewData, invoice);
+
+    // Recipient
+    doc.y = cursorY;
+    cursorY = drawRecipientBlock(doc, reviewData);
+
+    // Items table
+    cursorY = drawTableHeader(doc, cursorY);
+    const items = Array.isArray(invoice.items) ? invoice.items : [];
+    items.forEach((item) => {
+      // New page if not enough room for a row (~40px)
+      if (cursorY > PAGE.height - PAGE.margin - 140) {
         doc.addPage();
         cursorY = PAGE.margin;
+        cursorY = drawTableHeader(doc, cursorY);
       }
-      doc
-        .font("Helvetica-Bold")
-        .fontSize(12)
-        .fillColor("#0f172a")
-        .text("Notes", PAGE.margin, cursorY);
-      doc
-        .font("Helvetica")
-        .fontSize(9)
-        .fillColor("#334155")
-        .text(invoice.notes, PAGE.margin, cursorY + 16, {
-          width: PAGE.width - PAGE.margin * 2,
-          lineGap: 2,
-        });
-      cursorY = doc.y + 8;
+      cursorY = drawItemRow(doc, item, cursorY);
+    });
+
+    // Thin rule after last item
+    doc.moveTo(PAGE.margin, cursorY).lineTo(PAGE.width - PAGE.margin, cursorY)
+      .lineWidth(0.3).stroke("#e2e8f0");
+    cursorY += 6;
+
+    // Totals
+    cursorY = drawTotals(doc, invoice, cursorY);
+
+    // Notes
+    if (invoice.notes) {
+      if (cursorY > PAGE.height - PAGE.margin - 80) { doc.addPage(); cursorY = PAGE.margin; }
+      doc.font("Helvetica-Bold").fontSize(10).fillColor("#0f172a").text("Notes", PAGE.margin, cursorY);
+      doc.font("Helvetica").fontSize(9).fillColor("#334155")
+        .text(invoice.notes, PAGE.margin, doc.y + 4, { width: PAGE.width - PAGE.margin * 2, lineGap: 2 });
+      cursorY = doc.y + 14;
     }
-    drawFooter(doc, cursorY + 8);
+
+    // Payment Information
+    if (cursorY > PAGE.height - PAGE.margin - 120) { doc.addPage(); cursorY = PAGE.margin; }
+    cursorY = drawPaymentSection(doc, invoice, cursorY);
+
+    // Terms
+    if (cursorY > PAGE.height - PAGE.margin - 60) { doc.addPage(); cursorY = PAGE.margin; }
+    doc.font("Helvetica-Bold").fontSize(10).fillColor("#0f172a").text("Terms and Conditions:", PAGE.margin, cursorY);
+    cursorY = doc.y + 6;
+    COMPLETED_JOB_INVOICE_TERMS.forEach((term, i) => {
+      if (cursorY > PAGE.height - PAGE.margin - 50) { doc.addPage(); cursorY = PAGE.margin; }
+      doc.font("Helvetica").fontSize(8).fillColor("#475569")
+        .text(`${i + 1}. ${term}`, PAGE.margin, cursorY, {
+          width: PAGE.width - PAGE.margin * 2,
+          lineGap: 1,
+        });
+      cursorY = doc.y + 4;
+    });
+
+    drawFooter(doc);
     doc.end();
   });
 };
+
+// ── Email body builders ───────────────────────────────────────────────────────
+export const buildCompletedJobInvoiceEmailPayload = ({
+  jobType,
+  propertyAddress,
+  invoiceNumber,
+}) => ({
+  subject: `Tax Invoice - ${jobType} - ${propertyAddress}`,
+  bodyHtml: `
+    <p>Hello,</p>
+    <p>Please find the tax invoice attached for <strong>${escapeHtml(propertyAddress)}</strong>.</p>
+    <p><strong>Invoice #:</strong> ${escapeHtml(invoiceNumber)}</p>
+    <p><strong>Payment terms:</strong> ${escapeHtml(COMPLETED_JOB_INVOICE_BANK_DETAILS.paymentTerms)}</p>
+    <p><strong>Bank:</strong> ${escapeHtml(COMPLETED_JOB_INVOICE_BANK_DETAILS.bankName)} | <strong>BSB:</strong> ${escapeHtml(COMPLETED_JOB_INVOICE_BANK_DETAILS.bsb)} | <strong>Account:</strong> ${escapeHtml(COMPLETED_JOB_INVOICE_BANK_DETAILS.accountNumber)}</p>
+    <p>The inspection report is also attached.</p>
+  `,
+  bodyText: [
+    "Hello,",
+    "",
+    `Please find the tax invoice attached for ${propertyAddress}.`,
+    `Invoice #: ${invoiceNumber}`,
+    `Payment terms: ${COMPLETED_JOB_INVOICE_BANK_DETAILS.paymentTerms}`,
+    `Bank: ${COMPLETED_JOB_INVOICE_BANK_DETAILS.bankName} | BSB: ${COMPLETED_JOB_INVOICE_BANK_DETAILS.bsb} | Account: ${COMPLETED_JOB_INVOICE_BANK_DETAILS.accountNumber}`,
+    "",
+    "The inspection report is also attached.",
+  ].join("\n"),
+});
 
 export const buildCompletedDocumentsHtml = ({
   customBodyHtml,
@@ -563,24 +480,21 @@ export const buildCompletedDocumentsText = ({
   if (invoice.items?.length) {
     lines.push("", "Invoice Items:");
     invoice.items.forEach((item) => {
+      const gross = item.amount || 0;
       lines.push(
-        `- ${item.name || "-"}: ${Number(item.quantity || 0)} x ${formatCurrency(
-          item.rate || 0
-        )} = ${formatCurrency(item.amount || 0)}`
+        `- ${item.name || "-"}: ${Number(item.quantity || 0)} x ${formatCurrency(netFromGross(item.rate || gross / Math.max(item.quantity, 1)))} = ${formatCurrency(netFromGross(gross))}`
       );
     });
   }
 
+  const grossTotal = invoice.subtotal || 0;
   lines.push(
     "",
-    `Subtotal: ${formatCurrency(invoice.subtotal || 0)}`,
-    `GST: ${formatCurrency(invoice.tax || 0)}`,
-    `Total: ${formatCurrency(invoice.totalCost || 0)}`
+    `Net Amount: ${formatCurrency(netFromGross(grossTotal))}`,
+    `GST: ${formatCurrency(gstFromGross(grossTotal))}`,
+    `Total: ${formatCurrency(invoice.totalCost || grossTotal)}`
   );
 
-  if (invoice.notes) {
-    lines.push("", `Notes: ${invoice.notes}`);
-  }
-
+  if (invoice.notes) lines.push("", `Notes: ${invoice.notes}`);
   return lines.join("\n").trim();
 };

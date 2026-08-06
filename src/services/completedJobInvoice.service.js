@@ -95,19 +95,16 @@ export const buildInvoiceReviewData = async (invoice) => {
       }).select("firstName lastName fullName email")
     : [];
 
+  const validManagers = propertyManagers.filter((m) => isValidEmail(m.email));
   const toRecipients = dedupeRecipients(
-    [
-      agency?.email
-        ? {
-            email: agency.email,
-            name: agency.contactPerson || agency.companyName,
-          }
-        : null,
-      ...propertyManagers.map((manager) => ({
-        email: manager.email,
-        name: formatRecipientName(manager),
-      })),
-    ].filter(Boolean)
+    validManagers.length > 0
+      ? validManagers.map((manager) => ({
+          email: manager.email,
+          name: formatRecipientName(manager),
+        }))
+      : agency?.email
+        ? [{ email: agency.email, name: agency.contactPerson || agency.companyName }]
+        : []
   );
 
   const resolvedReportFile =
