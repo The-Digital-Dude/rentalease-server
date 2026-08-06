@@ -222,11 +222,17 @@ const drawInvoiceHeader = (doc, reviewData, invoice) => {
 
 const drawRecipientBlock = (doc, reviewData, invoice, job, startY) => {
   const boxWidth = (PAGE.width - PAGE.margin * 2 - 12) / 2;
-  const boxHeight = 124;
   const attentionName = getAttentionName(reviewData);
   const propertyAddress = reviewData.propertyAddress || "Property";
   const addressLines = formatAddressLines(propertyAddress);
   const recipientName = reviewData.agencyName || "Agency";
+
+  // Dynamically compute right-box height so items never overlap the totals section
+  const items = Array.isArray(invoice.items) ? invoice.items : [];
+  const itemsToShow = items.slice(0, 4);
+  // 12px top padding + description (~28px for 2 lines) + item rows (26px each) + gap (10px) + totals (52px) + 10px bottom
+  const rightBoxContentNeeded = 42 + itemsToShow.length * 26 + 10 + 52 + 10;
+  const boxHeight = Math.max(124, rightBoxContentNeeded);
 
   drawSectionBox(doc, PAGE.margin, startY, boxWidth, boxHeight);
   drawSectionBox(doc, PAGE.margin + boxWidth + 12, startY, boxWidth, boxHeight);
@@ -301,15 +307,15 @@ const drawRecipientBlock = (doc, reviewData, invoice, job, startY) => {
       align: "right",
     });
 
-  const items = Array.isArray(invoice.items) ? invoice.items : [];
-  if (items.length > 0) {
-    let itemY = startY + 62;
-    items.slice(0, 4).forEach((item) => {
+  // itemsToShow is already computed above; render them and track the last Y
+  let lastItemY = startY + 62;
+  if (itemsToShow.length > 0) {
+    itemsToShow.forEach((item) => {
       doc
         .font("Helvetica")
         .fontSize(8.4)
         .fillColor("#334155")
-        .text(`${item.name || "-"}`, summaryX, itemY, { width: boxWidth - 28 });
+        .text(`${item.name || "-"}`, summaryX, lastItemY, { width: boxWidth - 28 });
       doc
         .font("Helvetica")
         .fontSize(8.4)
@@ -317,14 +323,15 @@ const drawRecipientBlock = (doc, reviewData, invoice, job, startY) => {
         .text(
           `${Number(item.quantity || 0)} x ${formatCurrency(item.rate || 0)} = ${formatCurrency(item.amount || 0)}`,
           summaryX,
-          itemY + 10,
+          lastItemY + 10,
           { width: boxWidth - 28 }
         );
-      itemY += 26;
+      lastItemY += 26;
     });
   }
 
-  const totalsStartY = startY + boxHeight - 52;
+  // Place totals after items with a fixed gap — never at a hardcoded boxHeight offset
+  const totalsStartY = lastItemY + 10;
   doc
     .moveTo(summaryX, totalsStartY - 4)
     .lineTo(summaryX + boxWidth - 36, totalsStartY - 4)

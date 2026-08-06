@@ -94,9 +94,12 @@ const jobSchema = new mongoose.Schema(
           if (this.status === "Completed") {
             return true;
           }
-          return value > new Date();
+          // Allow same-day jobs — reject only strictly past dates (before start of today)
+          const startOfToday = new Date();
+          startOfToday.setHours(0, 0, 0, 0);
+          return value >= startOfToday;
         },
-        message: "Due date must be in the future",
+        message: "Due date must be today or in the future",
       },
     },
     shift: {
