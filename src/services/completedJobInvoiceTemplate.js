@@ -380,15 +380,6 @@ export const generateCompletedJobInvoicePdfBuffer = async ({
     // Totals
     cursorY = drawTotals(doc, invoice, cursorY);
 
-    // Notes
-    if (invoice.notes) {
-      if (cursorY > PAGE.height - PAGE.margin - 80) { doc.addPage(); cursorY = PAGE.margin; }
-      doc.font("Helvetica-Bold").fontSize(10).fillColor("#0f172a").text("Notes", PAGE.margin, cursorY);
-      doc.font("Helvetica").fontSize(9).fillColor("#334155")
-        .text(invoice.notes, PAGE.margin, doc.y + 4, { width: PAGE.width - PAGE.margin * 2, lineGap: 2 });
-      cursorY = doc.y + 14;
-    }
-
     // Payment Information
     if (cursorY > PAGE.height - PAGE.margin - 120) { doc.addPage(); cursorY = PAGE.margin; }
     cursorY = drawPaymentSection(doc, invoice, cursorY);
