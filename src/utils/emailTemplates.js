@@ -1179,6 +1179,57 @@ const teamMemberCredentialsTemplate = (data) => ({
  * @param {string} data.loginUrl - Login URL for the system
  * @returns {Object} - Email template configuration
  */
+const technicianPasswordResetOTPTemplate = (data) => ({
+  subject: "Password Reset OTP - RentalEase Technician App",
+  html: `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+      <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #333; margin-bottom: 10px;">Password Reset Request</h1>
+          <div style="width: 50px; height: 3px; background-color: #007AFF; margin: 0 auto;"></div>
+        </div>
+
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">Hello ${data.fullName},</p>
+
+        <p style="color: #333; line-height: 1.6; margin-bottom: 20px;">
+          You have requested to reset your password for your <strong>RentalEase Technician</strong> account.
+          Use the OTP below to complete the process.
+        </p>
+
+        <div style="text-align: center; margin: 30px 0;">
+          <div style="display: inline-block; background-color: #007AFF; color: white; padding: 15px 30px; font-size: 32px; font-weight: bold; letter-spacing: 8px; border-radius: 8px; font-family: monospace;">
+            ${data.otp}
+          </div>
+        </div>
+
+        <div style="background-color: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <p style="color: #856404; margin: 0; font-size: 14px;">
+            <strong>⚠️ Important:</strong> This OTP will expire in ${data.expirationMinutes} minutes.
+            Please use it immediately.
+          </p>
+        </div>
+
+        <div style="background-color: #f8d7da; border: 1px solid #f5c6cb; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <p style="color: #721c24; margin: 0; font-size: 14px;">
+            <strong>🔒 Security Note:</strong> If you did not request this reset, please ignore this email or contact support immediately.
+          </p>
+        </div>
+
+        <div style="border-top: 1px solid #eee; padding-top: 20px; margin-top: 30px;">
+          <p style="color: #666; font-size: 12px; margin: 0;">
+            This is an automated message from RentalEase. Please do not reply to this email.
+          </p>
+        </div>
+
+        <p style="color: #333; margin-top: 30px;">
+          Best regards,<br>
+          <strong>The RentalEase Team</strong>
+        </p>
+      </div>
+    </div>
+  `,
+});
+
 const technicianCredentialsTemplate = (data) => ({
   subject: `Welcome to RentalEase CRM - Your Technician Account Credentials`,
   html: `
@@ -2479,6 +2530,7 @@ const templates = {
   agencyPasswordResetOTP: agencyPasswordResetOTPTemplate,
   agencyCredentials: agencyCredentialsTemplate,
   agencyPaymentLink: agencyPaymentLinkTemplate,
+  technicianPasswordResetOTP: technicianPasswordResetOTPTemplate,
   technicianCredentials: technicianCredentialsTemplate,
   teamMemberCredentials: teamMemberCredentialsTemplate,
 

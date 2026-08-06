@@ -1566,7 +1566,7 @@ class EmailService {
     otp,
     expirationMinutes = 10
   ) {
-    if (!technician || !technician.email || !technician.fullName) {
+    if (!technician || !technician.email) {
       throw new Error(
         "Invalid technician data provided for password reset email"
       );
@@ -1585,9 +1585,9 @@ class EmailService {
 
     return await this.sendTemplatedEmail({
       to: technician.email,
-      templateName: "technicianPasswordReset",
+      templateName: "technicianPasswordResetOTP",
       templateData: {
-        fullName: technician.fullName,
+        fullName: technician.fullName || `${technician.firstName} ${technician.lastName}`.trim(),
         otp: otp,
         expirationMinutes: expirationMinutes,
       },
