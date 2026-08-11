@@ -327,8 +327,9 @@ export const deriveScheduledTimes = (dueDate, shift, timeZone = "Australia/Sydne
   const tz = isValidTimeZone(timeZone) ? timeZone : "Australia/Sydney";
   const { start, end } = SHIFT_HOURS[shift];
 
-  // Parse the date part only (ignore any time component / timezone in the input)
-  const dateOnly = String(dueDate).slice(0, 10); // "YYYY-MM-DD"
+  // Normalize to "YYYY-MM-DD" regardless of whether dueDate is a Date object or string
+  const dueDateStr = dueDate instanceof Date ? dueDate.toISOString() : String(dueDate);
+  const dateOnly = dueDateStr.slice(0, 10); // "YYYY-MM-DD"
   const startLocal = `${dateOnly}T${String(start).padStart(2, "0")}:00:00`;
   const endLocal   = `${dateOnly}T${String(end).padStart(2, "0")}:00:00`;
 
