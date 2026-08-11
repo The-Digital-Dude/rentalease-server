@@ -37,7 +37,7 @@ import {
   AUTOMATED_COMPLETED_JOB_DOCUMENTS_ENABLED,
   TECHNICIAN_PAYMENTS_ENABLED,
 } from "../config/features.js";
-import { resolveEventTimestamp } from "../utils/timezone.js";
+import { resolveEventTimestamp, deriveScheduledTimes, resolvePropertyTimeZone } from "../utils/timezone.js";
 
 const router = express.Router();
 
@@ -995,6 +995,7 @@ router.post(
         priority,
         estimatedDuration,
         notes,
+        shift,
       } = req.body;
 
       // Validate required fields
@@ -1033,7 +1034,7 @@ router.post(
           ? null
           : assignedTechnician;
 
-      const propertyDoc = await Property.findById(property).select("agency");
+      const propertyDoc = await Property.findById(property).select("agency timezone address");
       if (!propertyDoc) {
         return res.status(400).json({
           status: "error",
@@ -1100,11 +1101,18 @@ router.post(
         }
       }
 
+      // Derive scheduled start/end from shift + property timezone
+      const propertyTz = resolvePropertyTimeZone(propertyDoc);
+      const { scheduledStartTime, scheduledEndTime } = deriveScheduledTimes(dueDate, shift, propertyTz);
+
       // Create new job
       const job = new Job({
         property,
         jobType,
         dueDate: new Date(dueDate),
+        shift: shift || "morning",
+        scheduledStartTime,
+        scheduledEndTime,
         assignedTechnician: technicianId,
         description,
         priority: priority || "Medium",
@@ -2273,6 +2281,9 @@ router.put(
               "property",
               "jobType",
               "dueDate",
+              "shift",
+              "scheduledStartTime",
+              "scheduledEndTime",
               "assignedTechnician",
               "status",
               "description",
@@ -2297,6 +2308,19 @@ router.put(
             }
           }
         });
+
+        // Re-derive scheduled times when dueDate or shift changes
+        if (canFullEdit && (updates.hasOwnProperty("dueDate") || updates.hasOwnProperty("shift"))) {
+          const updatedProperty = await Property.findById(job.property).select("timezone address");
+          const propertyTz = resolvePropertyTimeZone(updatedProperty);
+          const { scheduledStartTime: st, scheduledEndTime: et } = deriveScheduledTimes(
+            job.dueDate,
+            job.shift,
+            propertyTz
+          );
+          if (st) job.scheduledStartTime = st;
+          if (et) job.scheduledEndTime = et;
+        }
 
         // Update lastUpdatedBy
         job.lastUpdatedBy = getCreatorInfo(req);

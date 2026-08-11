@@ -303,3 +303,40 @@ export const formatDateTimeInTimeZone = (value, timeZone) => {
 
   return getDateTimeFormatter(timeZone, true).format(date);
 };
+
+// Shift → [startHour, endHour] in 24h local time
+const SHIFT_HOURS = {
+  morning:   { start: 8,  end: 12 },
+  afternoon: { start: 13, end: 17 },
+  evening:   { start: 17, end: 21 },
+};
+
+/**
+ * Given a dueDate string (YYYY-MM-DD or ISO), a shift name, and a property timezone,
+ * returns { scheduledStartTime, scheduledEndTime } as UTC Date objects.
+ *
+ * e.g. morning shift on 2026-08-11 in Australia/Sydney
+ *   → scheduledStartTime: 2026-08-10T22:00:00Z  (08:00 AEST = UTC+10)
+ *   → scheduledEndTime:   2026-08-11T02:00:00Z  (12:00 AEST)
+ */
+export const deriveScheduledTimes = (dueDate, shift, timeZone = "Australia/Sydney") => {
+  if (!dueDate || !shift || !SHIFT_HOURS[shift]) {
+    return { scheduledStartTime: null, scheduledEndTime: null };
+  }
+
+  const tz = isValidTimeZone(timeZone) ? timeZone : "Australia/Sydney";
+  const { start, end } = SHIFT_HOURS[shift];
+
+  // Parse the date part only (ignore any time component / timezone in the input)
+  const dateOnly = String(dueDate).slice(0, 10); // "YYYY-MM-DD"
+  const startLocal = `${dateOnly}T${String(start).padStart(2, "0")}:00:00`;
+  const endLocal   = `${dateOnly}T${String(end).padStart(2, "0")}:00:00`;
+
+  const startParts = parseLocalTimestampParts(startLocal);
+  const endParts   = parseLocalTimestampParts(endLocal);
+
+  return {
+    scheduledStartTime: convertLocalPartsToUtcDate(startParts, tz),
+    scheduledEndTime:   convertLocalPartsToUtcDate(endParts, tz),
+  };
+};

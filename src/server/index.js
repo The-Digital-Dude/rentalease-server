@@ -6,6 +6,7 @@ import ComplianceCronJob from "../services/complianceCronJob.js";
 import websocketService from "../services/websocket.service.js";
 import { ensureDefaultTemplates } from "../services/inspectionTemplate.service.js";
 import { COMPLIANCE_CRON_ENABLED } from "../config/features.js";
+import { startOverdueCron } from "../services/overdueJobsCron.js";
 
 const PORT = process.env.PORT || 4000;
 
@@ -40,6 +41,9 @@ const startServer = async () => {
       console.log("🔌 WebSocket server ready for connections");
       console.log("----------------------------------------");
     });
+
+    // Start overdue jobs cron (always on)
+    startOverdueCron();
 
     // Start compliance cron job only when explicitly enabled
     const complianceCronJob = new ComplianceCronJob();
