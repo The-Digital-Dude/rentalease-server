@@ -7,6 +7,7 @@ import websocketService from "../services/websocket.service.js";
 import { ensureDefaultTemplates } from "../services/inspectionTemplate.service.js";
 import { COMPLIANCE_CRON_ENABLED } from "../config/features.js";
 import { startOverdueCron } from "../services/overdueJobsCron.js";
+import { backfillStuckJobs } from "../services/backfillStuckJobs.js";
 
 const PORT = process.env.PORT || 4000;
 
@@ -41,6 +42,9 @@ const startServer = async () => {
       console.log("🔌 WebSocket server ready for connections");
       console.log("----------------------------------------");
     });
+
+    // One-time backfill: reset jobs wrongly marked Overdue due to UTC midnight date bug
+    await backfillStuckJobs();
 
     // Start overdue jobs cron (always on)
     startOverdueCron();
