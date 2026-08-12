@@ -35,6 +35,7 @@ const notificationSchema = new mongoose.Schema(
         "QUOTATION_REJECTED",
         "PROPERTY_ASSIGNED",
         "INSPECTION_REPORT_SUBMITTED",
+        "INVOICE_SENT",
       ],
     },
     title: {
