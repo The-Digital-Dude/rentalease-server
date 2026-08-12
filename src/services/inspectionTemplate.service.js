@@ -101,7 +101,8 @@ export const prefillTemplateWithJobData = (template, job, property, technician) 
   }
 
   const inspectorName = `${technician?.firstName || ''} ${technician?.lastName || ''}`.trim();
-  const currentDate = new Date().toISOString().split('T')[0];
+  // AEST = UTC+10 (August = Southern Hemisphere winter, no DST)
+  const currentDate = new Date(Date.now() + 10 * 60 * 60 * 1000).toISOString().split('T')[0];
   const complianceDateOffsets = {
     Gas: 2,
     Electrical: 2,
