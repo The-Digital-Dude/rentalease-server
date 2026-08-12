@@ -342,8 +342,21 @@ jobSchema.pre("save", async function (next) {
 });
 
 // Method to get full job details with populated fields
-jobSchema.methods.getFullDetails = function () {
+jobSchema.methods.getFullDetails = function ({ privileged = false } = {}) {
   const resolvedCompletedAt = this.getResolvedCompletedAt();
+
+  // Non-privileged callers (PropertyManager, Technician, etc.) only see technician name
+  let technicianData = this.assignedTechnician;
+  if (!privileged && this.assignedTechnician && typeof this.assignedTechnician === "object") {
+    const t = this.assignedTechnician;
+    technicianData = {
+      _id: t._id,
+      id: t._id,
+      fullName: t.fullName || `${t.firstName || ""} ${t.lastName || ""}`.trim(),
+      tradeType: t.tradeType,
+      availabilityStatus: t.availabilityStatus,
+    };
+  }
 
   return {
     id: this._id,
@@ -354,7 +367,7 @@ jobSchema.methods.getFullDetails = function () {
     shift: this.shift,
     scheduledStartTime: this.scheduledStartTime,
     scheduledEndTime: this.scheduledEndTime,
-    assignedTechnician: this.assignedTechnician,
+    assignedTechnician: technicianData,
     status: this.status,
     reportFile: this.reportFile,
     latestInspectionReport: this.latestInspectionReport,

@@ -818,7 +818,7 @@ class EmailService {
     tenant,
     job,
     property,
-    assignedTechnician = null,
+    assignedTechnician = null, // kept for call-site compatibility; not exposed to tenant
   }) {
     if (!tenant?.email) {
       throw new Error("Tenant email is required for scheduled job notification");
@@ -846,14 +846,6 @@ class EmailService {
         })
       : "To be confirmed";
 
-    const technicianName = assignedTechnician
-      ? assignedTechnician.fullName ||
-        [assignedTechnician.firstName, assignedTechnician.lastName]
-          .filter(Boolean)
-          .join(" ")
-          .trim()
-      : "";
-
     return await this.sendTemplatedEmail({
       to: tenant.email,
       templateName: "tenantScheduledJobNotification",
@@ -862,7 +854,7 @@ class EmailService {
         propertyAddress: property.address.fullAddress,
         jobType: job.jobType,
         scheduledDateTime,
-        technicianName,
+        // Technician details intentionally excluded from tenant notifications
         supportEmail: emailConfig.supportEmail,
       },
     });

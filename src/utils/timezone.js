@@ -319,6 +319,21 @@ const SHIFT_HOURS = {
  *   → scheduledStartTime: 2026-08-10T22:00:00Z  (08:00 AEST = UTC+10)
  *   → scheduledEndTime:   2026-08-11T02:00:00Z  (12:00 AEST)
  */
+/**
+ * Convert a date-only string ("YYYY-MM-DD") to the UTC instant for end-of-day
+ * (23:59:59) in the given IANA timezone.  Handles DST correctly.
+ * If dueDate already includes a time component it is returned as-is via new Date().
+ */
+export const dueDateToEndOfDayUtc = (dueDate, timeZone = "Australia/Sydney") => {
+  const tz = isValidTimeZone(timeZone) ? timeZone : "Australia/Sydney";
+  const raw = dueDate instanceof Date ? dueDate.toISOString() : String(dueDate);
+  const dateOnly = raw.slice(0, 10); // "YYYY-MM-DD"
+  // If it already has a time component, don't override it
+  if (raw.length > 10) return new Date(raw);
+  const parts = parseLocalTimestampParts(`${dateOnly}T23:59:59`);
+  return convertLocalPartsToUtcDate(parts, tz);
+};
+
 export const deriveScheduledTimes = (dueDate, shift, timeZone = "Australia/Sydney") => {
   if (!dueDate || !shift || !SHIFT_HOURS[shift]) {
     return { scheduledStartTime: null, scheduledEndTime: null };

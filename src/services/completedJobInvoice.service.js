@@ -115,10 +115,8 @@ export const buildInvoiceReviewData = async (invoice) => {
       ? "latestInspectionReport"
       : null;
   const dates = buildInvoiceReviewDates(invoice, {});
+  // Invoice is formally addressed to the Agency (the billed party)
   const attentionName =
-    propertyManagers
-      .map((manager) => formatRecipientName(manager))
-      .find(Boolean) ||
     agency?.contactPerson ||
     agency?.companyName ||
     "Landlord";

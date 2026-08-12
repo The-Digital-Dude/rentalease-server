@@ -37,7 +37,7 @@ import {
   AUTOMATED_COMPLETED_JOB_DOCUMENTS_ENABLED,
   TECHNICIAN_PAYMENTS_ENABLED,
 } from "../config/features.js";
-import { resolveEventTimestamp, deriveScheduledTimes, resolvePropertyTimeZone } from "../utils/timezone.js";
+import { resolveEventTimestamp, deriveScheduledTimes, resolvePropertyTimeZone, dueDateToEndOfDayUtc } from "../utils/timezone.js";
 
 const router = express.Router();
 
@@ -136,6 +136,10 @@ const normalizeLegacyCompletedJobs = async (match = {}) => {
     }
   );
 };
+
+// Agency and SuperUser callers may see full technician contact details
+const isPrivilegedCaller = (req) =>
+  req.agency != null || req.superUser != null;
 
 const appendAndCondition = (query, condition) => {
   if (!condition) {
@@ -481,7 +485,7 @@ const resolveSubmissionTechnicianId = (job, ownerInfo) => {
   return ownerInfo?.ownerId?.toString?.() || ownerInfo?.ownerId || null;
 };
 
-const buildCompletedJobSuccessResponse = async (job) => {
+const buildCompletedJobSuccessResponse = async (job, { privileged = false } = {}) => {
   await job.populate([
     {
       path: "assignedTechnician",
@@ -506,7 +510,7 @@ const buildCompletedJobSuccessResponse = async (job) => {
     status: "success",
     message: "Job is already completed",
     data: {
-      job: job.getFullDetails(),
+      job: job.getFullDetails({ privileged }),
       completionDetails: {
         completedAt: job.completedAt,
         dueDate: job.dueDate,
@@ -560,7 +564,7 @@ const finalizeJobCompletion = async ({
   resolvedEventTimestamp,
 }) => {
   if (job.status === "Completed") {
-    return buildCompletedJobSuccessResponse(job);
+    return buildCompletedJobSuccessResponse(job, { privileged: isPrivilegedCaller(req) });
   }
 
   let reportFileUrl = null;
@@ -939,7 +943,7 @@ const finalizeJobCompletion = async ({
     status: "success",
     message: "Job completed successfully",
     data: {
-      job: updatedJob.getFullDetails(),
+      job: updatedJob.getFullDetails({ privileged: isPrivilegedCaller(req) }),
       technician: technician
         ? {
             id: technician._id,
@@ -1103,13 +1107,14 @@ router.post(
 
       // Derive scheduled start/end from shift + property timezone
       const propertyTz = resolvePropertyTimeZone(propertyDoc);
+      const normalizedDueDate = dueDateToEndOfDayUtc(dueDate, propertyTz);
       const { scheduledStartTime, scheduledEndTime } = deriveScheduledTimes(dueDate, shift, propertyTz);
 
       // Create new job
       const job = new Job({
         property,
         jobType,
-        dueDate: new Date(dueDate),
+        dueDate: normalizedDueDate,
         shift: shift || "morning",
         scheduledStartTime,
         scheduledEndTime,
@@ -1192,7 +1197,7 @@ router.post(
         status: "success",
         message: "Job created successfully",
         data: {
-          job: job.getFullDetails(),
+          job: job.getFullDetails({ privileged: isPrivilegedCaller(req) }),
         },
       });
       // Handle validation errors in main catch block
@@ -2170,7 +2175,7 @@ router.get(
         status: "success",
         message: "Job retrieved successfully",
         data: {
-          job: job.getFullDetails(),
+          job: job.getFullDetails({ privileged: isPrivilegedCaller(req) }),
         },
       });
     } catch (error) {
@@ -2309,10 +2314,14 @@ router.put(
           }
         });
 
-        // Re-derive scheduled times when dueDate or shift changes
+        // Re-derive scheduled times and normalise dueDate when dueDate or shift changes
         if (canFullEdit && (updates.hasOwnProperty("dueDate") || updates.hasOwnProperty("shift"))) {
           const updatedProperty = await Property.findById(job.property).select("timezone address");
           const propertyTz = resolvePropertyTimeZone(updatedProperty);
+          // Normalise dueDate to end-of-day in property timezone (fixes UTC midnight bug)
+          if (updates.hasOwnProperty("dueDate")) {
+            job.dueDate = dueDateToEndOfDayUtc(job.dueDate, propertyTz);
+          }
           const { scheduledStartTime: st, scheduledEndTime: et } = deriveScheduledTimes(
             job.dueDate,
             job.shift,
@@ -2487,7 +2496,7 @@ router.put(
           status: "success",
           message: "Job updated successfully",
           data: {
-            job: job.getFullDetails(),
+            job: job.getFullDetails({ privileged: isPrivilegedCaller(req) }),
           },
         });
       } catch (error) {
@@ -2787,7 +2796,7 @@ router.patch("/:id/assign", authenticateAdminLevel, async (req, res) => {
         status: "success",
         message: "Job assigned successfully",
         data: {
-          job: job.getFullDetails(),
+          job: job.getFullDetails({ privileged: isPrivilegedCaller(req) }),
           technician: {
             id: technician._id,
             fullName: technician.fullName, // Virtual field
@@ -2930,7 +2939,7 @@ router.patch(
         status: "success",
         message: "Job claimed successfully",
         data: {
-          job: job.getFullDetails(),
+          job: job.getFullDetails({ privileged: isPrivilegedCaller(req) }),
           technician: {
             id: technician._id,
             fullName: technician.fullName,
