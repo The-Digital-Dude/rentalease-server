@@ -36,6 +36,8 @@ const notificationSchema = new mongoose.Schema(
         "PROPERTY_ASSIGNED",
         "INSPECTION_REPORT_SUBMITTED",
         "INVOICE_SENT",
+        "JOB_DUE",
+        "JOB_OVERDUE",
       ],
     },
     title: {

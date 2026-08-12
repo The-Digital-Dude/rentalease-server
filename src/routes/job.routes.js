@@ -2073,7 +2073,7 @@ router.get(
               "Repairs",
               "Routine Inspection",
             ],
-            availableStatuses: ["Pending", "Scheduled", "Completed", "Overdue"],
+            availableStatuses: ["Pending", "Scheduled", "Due", "Completed", "Overdue"],
             availablePriorities: ["Low", "Medium", "High", "Urgent"],
             availableSortFields: [
               "dueDate",
@@ -2588,7 +2588,7 @@ router.patch("/:id/status", authenticate, async (req, res) => {
       });
     }
 
-    const validStatuses = ["Pending", "Scheduled", "Completed", "Overdue"];
+    const validStatuses = ["Pending", "Scheduled", "Due", "Completed", "Overdue"];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({
         status: "error",
@@ -2615,10 +2615,10 @@ router.patch("/:id/status", authenticate, async (req, res) => {
     }
 
     // Only super users can change status to certain values
-    if (!canFullyEditJob(req) && ["Scheduled", "Overdue"].includes(status)) {
+    if (!canFullyEditJob(req) && ["Scheduled", "Due", "Overdue"].includes(status)) {
       return res.status(403).json({
         status: "error",
-        message: "Only super users can set status to Scheduled or Overdue",
+        message: "Only super users can set status to Scheduled, Due, or Overdue",
       });
     }
 

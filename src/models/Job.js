@@ -129,12 +129,13 @@ const jobSchema = new mongoose.Schema(
           "Pending Quotation",
           "Quotation Sent",
           "Scheduled",
+          "Due",
           "Completed",
           "Overdue",
           "Cancelled"
         ],
         message:
-          "Status must be one of: Pending, Pending Quotation, Quotation Sent, Scheduled, Completed, Overdue, Cancelled",
+          "Status must be one of: Pending, Pending Quotation, Quotation Sent, Scheduled, Due, Completed, Overdue, Cancelled",
       },
       default: "Pending",
     },
@@ -325,10 +326,7 @@ jobSchema.pre("save", async function (next) {
     }
   }
 
-  // Update status to overdue if needed
-  if (this.isOverdue && this.status !== "Completed") {
-    this.status = "Overdue";
-  }
+  // Status transitions (Due/Overdue) are managed by the scheduled cron, not on save
 
   // Calculate total cost
   this.cost.totalCost = this.cost.materialCost + this.cost.laborCost;
@@ -458,7 +456,7 @@ jobSchema.statics.checkForDuplicate = async function (
     jobType: jobType,
     jobCategory: jobCategory, // Include job category to allow same job type for different categories
     dueDate: { $gte: startOfDay, $lte: endOfDay },
-    status: { $in: ["Pending", "Scheduled", "Overdue"] },
+    status: { $in: ["Pending", "Scheduled", "Due", "Overdue"] },
   };
 
   if (excludeJobId) {
