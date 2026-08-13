@@ -413,16 +413,12 @@ const getAssignedTechnicianId = (job) => {
 };
 
 const canAccessAssignedJob = (job, ownerInfo) => {
-  if (!ownerInfo) {
+  if (!ownerInfo || !job?.assignedTechnician) {
     return false;
   }
 
   if (ownerInfo.ownerType === "SuperUser") {
     return true;
-  }
-
-  if (!job?.assignedTechnician) {
-    return false;
   }
 
   return getAssignedTechnicianId(job) === ownerInfo.ownerId.toString();
