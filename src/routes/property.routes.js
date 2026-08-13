@@ -1166,7 +1166,6 @@ router.get("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'Pro
       sortBy = "createdAt",
       sortOrder = "desc",
     } = req.query;
-    console.log(req.propertyManager);
 
     // Get agency filter based on user type
     let agencyFilter = getAgencyFilter(req);
@@ -1321,7 +1320,7 @@ router.get("/:id", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', '
     const filter = { _id: id, isActive: true, ...agencyFilter };
     const property = await Property.findOne(filter)
       .populate("agency", "companyName contactPerson email phone")
-      .populate("assignedPropertyManager", "firstName lastName email phone");
+      .populate("assignedPropertyManager", "firstName lastName fullName email phone status availabilityStatus");
 
     if (!property) {
       return res.status(404).json({
@@ -1410,7 +1409,7 @@ router.put("/:id", sanitizePropertyInput(), authenticateUserTypes(['SuperUser', 
     const filter = { _id: id, isActive: true, ...agencyFilter };
     const property = await Property.findOne(filter)
       .populate("agency", "companyName email")
-      .populate("assignedPropertyManager", "firstName lastName email");
+      .populate("assignedPropertyManager", "firstName lastName fullName email phone");
 
     if (!property) {
       return res.status(404).json({
@@ -1783,7 +1782,7 @@ router.post("/:id/assign-property-manager", authenticateUserTypes(['SuperUser', 
 
     const property = await Property.findOne(filter)
       .populate("agency", "companyName email")
-      .populate("assignedPropertyManager", "firstName lastName email");
+      .populate("assignedPropertyManager", "firstName lastName fullName email phone");
 
     if (!property) {
       return res.status(404).json({
@@ -2069,7 +2068,7 @@ router.delete(
       const filter = { _id: id, isActive: true, ...agencyFilter };
       const property = await Property.findOne(filter)
         .populate("agency", "companyName email")
-        .populate("assignedPropertyManager", "firstName lastName email");
+        .populate("assignedPropertyManager", "firstName lastName fullName email phone");
 
       if (!property) {
         return res.status(404).json({
