@@ -3,7 +3,7 @@ import jwt from "jsonwebtoken";
 import Technician from "../models/Technician.js";
 import Agency from "../models/Agency.js";
 import SuperUser from "../models/SuperUser.js";
-import { authenticate } from "../middleware/auth.middleware.js";
+import { authenticate, authenticateUserTypes } from "../middleware/auth.middleware.js";
 import emailService from "../services/email.service.js";
 import { generateOTP } from "../utils/otpGenerator.js";
 import fileUpload from "../services/fileUpload.service.js";
@@ -1015,5 +1015,67 @@ router.get("/jobs", authenticate, async (req, res) => {
     });
   }
 });
+
+// Resend credentials to a Technician (SuperUser, Agency, TeamMember only)
+router.post(
+  "/:id/resend-credentials",
+  authenticateUserTypes(["SuperUser", "Agency", "TeamMember"]),
+  async (req, res) => {
+    try {
+      const technician = await Technician.findById(req.params.id);
+      if (!technician) {
+        return res.status(404).json({ status: "error", message: "Technician not found" });
+      }
+
+      const generateRandomPassword = () => {
+        const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
+        let pwd = "";
+        for (let i = 0; i < 12; i++) pwd += charset.charAt(Math.floor(Math.random() * charset.length));
+        return pwd;
+      };
+
+      const newPassword = generateRandomPassword();
+      technician.password = newPassword;
+      await technician.save();
+
+      // Resolve owner details for the email
+      let ownerDetails = { name: "System Administrator", type: "SuperUser" };
+      try {
+        if (technician.owner?.ownerType === "Agency") {
+          const agency = await Agency.findById(technician.owner.ownerId);
+          if (agency) ownerDetails = { name: agency.contactPerson, type: "Agency" };
+        } else if (technician.owner?.ownerType === "SuperUser") {
+          const su = await SuperUser.findById(technician.owner.ownerId);
+          if (su) ownerDetails = { name: su.fullName || "Super User", type: "SuperUser" };
+        }
+      } catch (_) {}
+
+      try {
+        await emailService.sendTechnicianCredentialsEmail(
+          technician,
+          newPassword,
+          ownerDetails,
+          process.env.FRONTEND_URL || "https://rentalease-client.vercel.app/login"
+        );
+        console.log("Technician credentials resent:", {
+          technicianId: technician._id,
+          email: technician.email,
+          timestamp: new Date().toISOString(),
+        });
+        res.status(200).json({
+          status: "success",
+          message: "Credentials email resent successfully with a new password",
+          data: { email: technician.email, resentAt: new Date().toISOString() },
+        });
+      } catch (emailError) {
+        console.error("Failed to resend technician credentials email:", emailError);
+        res.status(500).json({ status: "error", message: "Failed to send credentials email. Please try again later." });
+      }
+    } catch (error) {
+      console.error("Resend technician credentials error:", error);
+      res.status(500).json({ status: "error", message: error.message || "An error occurred while resending credentials" });
+    }
+  }
+);
 
 export default router;

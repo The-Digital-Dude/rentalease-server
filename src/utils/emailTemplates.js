@@ -2545,6 +2545,39 @@ const templates = {
   complianceDue: complianceDueTemplate,
   general: generalTemplate,
 
+  // Invoice email template
+  invoiceEmail: (data) => ({
+    subject: `Tax Invoice #${data.invoiceNumber || "Draft"} - ${data.companyName || "RentalEase"}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+        <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+          <div style="text-align: center; margin-bottom: 30px;">
+            <h1 style="color: #024974; margin-bottom: 10px;">Tax Invoice</h1>
+            <div style="width: 50px; height: 3px; background-color: #024974; margin: 0 auto;"></div>
+          </div>
+
+          <p style="color: #333; line-height: 1.6;">Hello ${data.contactPerson || data.companyName || "there"},</p>
+          <p style="color: #333; line-height: 1.6;">Please find your invoice details below.</p>
+
+          <div style="background-color: #e8f4f8; border: 2px solid #024974; padding: 20px; border-radius: 8px; margin: 25px 0;">
+            <h3 style="color: #024974; margin: 0 0 15px 0;">Invoice Details</h3>
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr><td style="padding: 6px 0; color: #555;">Invoice #</td><td style="padding: 6px 0; font-weight: bold; color: #333;">${data.invoiceNumber || "Draft"}</td></tr>
+              ${data.description ? `<tr><td style="padding: 6px 0; color: #555;">Description</td><td style="padding: 6px 0; color: #333;">${data.description}</td></tr>` : ""}
+              ${data.subtotal != null ? `<tr><td style="padding: 6px 0; color: #555;">Subtotal</td><td style="padding: 6px 0; color: #333;">$${Number(data.subtotal).toFixed(2)}</td></tr>` : ""}
+              ${data.tax != null ? `<tr><td style="padding: 6px 0; color: #555;">GST (10%)</td><td style="padding: 6px 0; color: #333;">$${Number(data.tax).toFixed(2)}</td></tr>` : ""}
+              ${data.totalCost != null ? `<tr><td style="padding: 6px 0; color: #555; font-weight: bold;">Total</td><td style="padding: 6px 0; font-weight: bold; color: #024974; font-size: 18px;">$${Number(data.totalCost).toFixed(2)}</td></tr>` : ""}
+            </table>
+          </div>
+
+          ${data.notes ? `<div style="background-color: #fff8e1; border: 1px solid #ffe082; padding: 15px; border-radius: 5px; margin: 20px 0;"><p style="color: #5d4037; margin: 0;"><strong>Notes:</strong> ${data.notes}</p></div>` : ""}
+
+          <p style="color: #666; font-size: 13px; margin-top: 30px;">If you have any questions about this invoice, please contact us at <a href="mailto:support@rentalease.com.au" style="color: #024974;">support@rentalease.com.au</a>.</p>
+        </div>
+      </div>
+    `,
+  }),
+
   // Quotation templates
   quotationRequest: quotationRequestTemplate,
   quotationReceived: quotationReceivedTemplate,

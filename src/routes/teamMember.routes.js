@@ -1,6 +1,7 @@
 import express from 'express';
 import TeamMember from '../models/TeamMember.js';
 import { authenticateSuperUser } from '../middleware/auth.middleware.js';
+import emailService from '../services/email.service.js';
 
 const router = express.Router();
 
@@ -353,6 +354,50 @@ router.put('/:id/reset-password', async (req, res) => {
       message: 'Failed to reset team member password',
       timestamp: new Date().toISOString()
     });
+  }
+});
+
+// Resend credentials to a Team Member (SuperUser only — enforced by router.use above)
+router.post('/:id/resend-credentials', async (req, res) => {
+  try {
+    const teamMember = await TeamMember.findById(req.params.id);
+    if (!teamMember) {
+      return res.status(404).json({ status: 'error', message: 'Team member not found' });
+    }
+
+    const generateRandomPassword = () => {
+      const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
+      let pwd = '';
+      for (let i = 0; i < 12; i++) pwd += charset.charAt(Math.floor(Math.random() * charset.length));
+      return pwd;
+    };
+
+    const newPassword = generateRandomPassword();
+    teamMember.password = newPassword;
+    await teamMember.save();
+
+    try {
+      await emailService.sendTeamMemberCredentialsEmail(
+        { name: teamMember.name, email: teamMember.email },
+        newPassword
+      );
+      console.log('Team member credentials resent:', {
+        teamMemberId: teamMember._id,
+        email: teamMember.email,
+        timestamp: new Date().toISOString(),
+      });
+      res.status(200).json({
+        status: 'success',
+        message: 'Credentials email resent successfully with a new password',
+        data: { email: teamMember.email, resentAt: new Date().toISOString() },
+      });
+    } catch (emailError) {
+      console.error('Failed to resend team member credentials email:', emailError);
+      res.status(500).json({ status: 'error', message: 'Failed to send credentials email. Please try again later.' });
+    }
+  } catch (error) {
+    console.error('Resend team member credentials error:', error);
+    res.status(500).json({ status: 'error', message: error.message || 'An error occurred while resending credentials' });
   }
 });
 

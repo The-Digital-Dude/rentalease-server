@@ -14,6 +14,7 @@ import {
   authenticateSuperUser,
   authenticateAgency,
   authenticate,
+  authenticateUserTypes,
 } from "../middleware/auth.middleware.js";
 
 const router = express.Router();
@@ -737,5 +738,54 @@ router.patch("/profile", authenticate, async (req, res) => {
     });
   }
 });
+
+// Resend credentials to a Property Manager (SuperUser, Agency, TeamMember only)
+router.post(
+  "/:id/resend-credentials",
+  authenticateUserTypes(["SuperUser", "Agency", "TeamMember"]),
+  async (req, res) => {
+    try {
+      const propertyManager = await PropertyManager.findById(req.params.id);
+      if (!propertyManager) {
+        return res.status(404).json({ status: "error", message: "Property Manager not found" });
+      }
+
+      const generateRandomPassword = () => {
+        const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
+        let pwd = "";
+        for (let i = 0; i < 12; i++) pwd += charset.charAt(Math.floor(Math.random() * charset.length));
+        return pwd;
+      };
+
+      const newPassword = generateRandomPassword();
+      propertyManager.password = newPassword;
+      await propertyManager.save();
+
+      try {
+        await emailService.sendPropertyManagerCredentialsEmail(
+          propertyManager,
+          newPassword,
+          process.env.FRONTEND_URL || "https://rentalease-client.vercel.app/login"
+        );
+        console.log("Property Manager credentials resent:", {
+          propertyManagerId: propertyManager._id,
+          email: propertyManager.email,
+          timestamp: new Date().toISOString(),
+        });
+        res.status(200).json({
+          status: "success",
+          message: "Credentials email resent successfully with a new password",
+          data: { email: propertyManager.email, resentAt: new Date().toISOString() },
+        });
+      } catch (emailError) {
+        console.error("Failed to resend property manager credentials email:", emailError);
+        res.status(500).json({ status: "error", message: "Failed to send credentials email. Please try again later." });
+      }
+    } catch (error) {
+      console.error("Resend property manager credentials error:", error);
+      res.status(500).json({ status: "error", message: error.message || "An error occurred while resending credentials" });
+    }
+  }
+);
 
 export default router;
