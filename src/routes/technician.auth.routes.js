@@ -683,21 +683,26 @@ router.post("/push-token", authenticate, async (req, res) => {
       lastRegisteredAt: new Date(),
     };
 
+    // Keep only one token per platform — replace any existing token for this platform,
+    // then upsert the new token. This prevents stale tokens from accumulating across
+    // reinstalls or re-registrations on the same device platform.
     const technician = await Technician.findOneAndUpdate(
       { _id: req.user.id },
       [
         {
           $set: {
-            expoPushTokens: {
-              $setUnion: [{ $ifNull: ["$expoPushTokens", []] }, [token]],
-            },
             expoPushTokenDetails: {
               $concatArrays: [
                 {
                   $filter: {
                     input: { $ifNull: ["$expoPushTokenDetails", []] },
                     as: "detail",
-                    cond: { $ne: ["$$detail.token", token] },
+                    cond: {
+                      $and: [
+                        { $ne: ["$$detail.token", token] },
+                        { $ne: ["$$detail.platform", normalizedPlatform] },
+                      ],
+                    },
                   },
                 },
                 [nextDetail],
@@ -705,10 +710,13 @@ router.post("/push-token", authenticate, async (req, res) => {
             },
           },
         },
+        {
+          $set: {
+            expoPushTokens: "$expoPushTokenDetails.token",
+          },
+        },
       ],
-      {
-        new: true,
-      }
+      { new: true }
     );
 
     if (!technician) {

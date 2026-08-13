@@ -25,7 +25,7 @@ const router = express.Router();
 const getUserInfo = (req) => {
   if (req.superUser) {
     return {
-      name: req.superUser.name,
+      name: req.superUser.name || req.superUser.fullName || req.superUser.email || "Admin",
       type: "SuperUser",
       id: req.superUser.id,
     };

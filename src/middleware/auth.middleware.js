@@ -170,13 +170,11 @@ const authenticateAgency = async (req, res, next) => {
  * @param {Function} next - Express next function
  */
 const authenticate = async (req, res, next) => {
-  console.log("Authenticating user...");
   try {
     // Check if authorization header exists
     const authHeader = req.headers.authorization;
 
     if (!authHeader) {
-      console.log("No auth header found");
       return res.status(401).json({
         status: "error",
         message: "Authorization header is required",
@@ -186,7 +184,6 @@ const authenticate = async (req, res, next) => {
     // Extract token from "Bearer token" format
     const token = authHeader.split(" ")[1];
 
-    console.log(token, "token from header");
     if (!token) {
       return res.status(401).json({
         status: "error",
@@ -198,7 +195,6 @@ const authenticate = async (req, res, next) => {
     let decoded;
     try {
       decoded = jwt.verify(token, process.env.JWT_SECRET);
-      console.log(decoded, "decoded token");
     } catch (tokenError) {
       return res.status(401).json({
         status: "error",

@@ -691,14 +691,6 @@ class EmailService {
         return { id: "mock-email-id", status: "skipped" };
       }
 
-      console.log(`Preparing to send ${templateName} email...`);
-      console.log("Email details:", {
-        template: templateName,
-        to: to,
-        from: from,
-        timestamp: new Date().toISOString(),
-      });
-
       const resolvedRecipients = await this.resolveRecipientsForDelivery(to);
       const recipientEmails = resolvedRecipients.map((recipient) => recipient.email);
 

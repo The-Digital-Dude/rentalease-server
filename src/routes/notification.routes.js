@@ -116,7 +116,6 @@ router.get("/", authenticate, async (req, res) => {
 router.get("/unread-count", authenticate, async (req, res) => {
   try {
     const userInfo = getUserInfo(req);
-    console.log(userInfo, "userInfo...");
     if (!userInfo) {
       return res.status(401).json({
         status: "error",
