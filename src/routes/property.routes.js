@@ -1386,6 +1386,7 @@ router.put("/:id", sanitizePropertyInput(), authenticateUserTypes(['SuperUser', 
       complianceSchedule,
       notes,
       timezone,
+      agencyId,
     } = req.body;
 
     // Validate ObjectId
@@ -1540,6 +1541,22 @@ router.put("/:id", sanitizePropertyInput(), authenticateUserTypes(['SuperUser', 
     );
 
     if (notes !== undefined) property.notes = notes;
+
+    // SuperUser can update agency assignment
+    if (agencyId !== undefined && req.superUser) {
+      if (agencyId === null || agencyId === "") {
+        property.agency = null;
+      } else {
+        if (!mongoose.Types.ObjectId.isValid(agencyId)) {
+          return res.status(400).json({ status: "error", message: "Invalid agency ID" });
+        }
+        const agencyExists = await Agency.findById(agencyId);
+        if (!agencyExists) {
+          return res.status(400).json({ status: "error", message: "Agency not found" });
+        }
+        property.agency = agencyId;
+      }
+    }
 
     await property.save();
 
