@@ -2,6 +2,7 @@ import FormData from "form-data";
 import Mailgun from "mailgun.js";
 import postmark from "postmark";
 import nodemailer from "nodemailer";
+import PQueue from "p-queue";
 import emailConfig, { isValidEmail } from "../config/email.js";
 import emailTemplates from "../utils/emailTemplates.js";
 import SuperUser from "../models/SuperUser.js";
@@ -17,6 +18,9 @@ class EmailService {
     this.postmark = null;
     this.resend = null;
     this.providerName = "none";
+
+    // Max 2 concurrent sends, max 3 per second — prevents Mailgun burst 429s
+    this._sendQueue = new PQueue({ concurrency: 2, intervalCap: 3, interval: 1000 });
 
     if (emailConfig.mailgunApiKey && emailConfig.mailgunDomain) {
       const mailgun = new Mailgun(FormData);
@@ -102,7 +106,32 @@ class EmailService {
     this.sendWelcomeEmail = this.sendWelcomeEmail.bind(this);
   }
 
+  // Retries fn on transient errors (429, 503) with exponential backoff.
+  async _withRetry(fn, { maxAttempts = 4, baseDelayMs = 1000 } = {}) {
+    const RETRYABLE = new Set([429, 503, 502, 504]);
+    let lastError;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        return await fn();
+      } catch (err) {
+        const status = err?.status ?? err?.statusCode ?? err?.response?.status;
+        if (!RETRYABLE.has(status) || attempt === maxAttempts) throw err;
+        const delay = baseDelayMs * 2 ** (attempt - 1) + Math.random() * 200;
+        console.warn(
+          `[EmailService] Transient ${status} on attempt ${attempt}/${maxAttempts}. Retrying in ${Math.round(delay)}ms…`
+        );
+        await new Promise((res) => setTimeout(res, delay));
+        lastError = err;
+      }
+    }
+    throw lastError;
+  }
+
   async sendWithConfiguredProvider(payload = {}) {
+    return this._sendQueue.add(() => this._dispatchToProvider(payload));
+  }
+
+  async _dispatchToProvider(payload = {}) {
     if (emailConfig.emailProvider === "mailgun") {
       return this.sendWithMailgun(payload);
     }
@@ -154,9 +183,8 @@ class EmailService {
     }
 
     const messageData = await this.buildMailgunPayload(payload);
-    const result = await this.mailgun.client.messages.create(
-      this.mailgun.domain,
-      messageData
+    const result = await this._withRetry(() =>
+      this.mailgun.client.messages.create(this.mailgun.domain, messageData)
     );
 
     return {
