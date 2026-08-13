@@ -360,3 +360,65 @@ export const sendCompletedJobInvoiceDocuments = async ({
     reviewData,
   };
 };
+
+// Sends only the inspection report PDF (no invoice) to PM → agency fallback.
+// Used for auto-send on report submission.
+export const sendCompletedJobReport = async ({ job, property, sentBy = null }) => {
+  const reportUrl = job.reportFile || job.latestInspectionReport?.pdf?.url || null;
+  if (!reportUrl) {
+    throw new Error("No inspection report available to send");
+  }
+
+  // Resolve recipients: active PMs on the property → agency fallback
+  const Agency = (await import("../models/Agency.js")).default;
+  const propertyManagers = property?._id
+    ? await PropertyManager.find({
+        "assignedProperties.propertyId": property._id,
+        "assignedProperties.status": "Active",
+      }).select("firstName lastName fullName email")
+    : [];
+
+  const validManagers = propertyManagers.filter((m) => isValidEmail(m.email));
+  let toRecipients = dedupeRecipients(
+    validManagers.map((m) => ({ email: m.email, name: formatRecipientName(m) }))
+  );
+
+  if (!toRecipients.length) {
+    const agencyId = job.agencyId || job.owner?.ownerId;
+    if (agencyId) {
+      const agency = await Agency.findById(agencyId).select("companyName contactPerson email");
+      if (agency?.email && isValidEmail(agency.email)) {
+        toRecipients = [{ email: agency.email, name: agency.contactPerson || agency.companyName }];
+      }
+    }
+  }
+
+  if (!toRecipients.length) {
+    throw new Error("No valid recipient found for inspection report (no PM or agency email)");
+  }
+
+  const reportAttachment = await fetchAttachmentFromUrl(
+    reportUrl,
+    `inspection-report-${job.job_id || job._id}.pdf`
+  );
+
+  const propertyAddress = property?.address?.fullAddress || "Property";
+  const subject = `Inspection Report - ${job.jobType} - ${propertyAddress}`;
+  const bodyHtml = `<p>Hello,</p><p>Please find the inspection report attached for <strong>${propertyAddress}</strong>.</p>`;
+
+  await emailService.sendUserEmail({
+    from: emailService.defaultFrom,
+    to: toRecipients,
+    subject,
+    bodyHtml,
+    bodyText: `Hello,\n\nPlease find the inspection report attached for ${propertyAddress}.`,
+    attachments: reportAttachment ? [reportAttachment] : [],
+  });
+
+  console.log("[Report Email] Inspection report sent", {
+    jobId: job._id,
+    recipients: toRecipients.map((r) => r.email),
+    sentBy: sentBy?.name || sentBy?.id || "system",
+    timestamp: new Date().toISOString(),
+  });
+};

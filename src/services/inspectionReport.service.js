@@ -11,11 +11,7 @@ import fileUploadService from "./fileUpload.service.js";
 import buildInspectionReportPdf from "./inspectionReportPdf.service.js";
 import notificationService from "./notification.service.js";
 import complianceService from "./compliance.service.js";
-import {
-  buildDefaultCompletedJobInvoiceEmailPayload,
-  sendCompletedJobInvoiceDocuments,
-} from "./completedJobInvoice.service.js";
-import { AUTOMATED_COMPLETED_JOB_DOCUMENTS_ENABLED } from "../config/features.js";
+import { sendCompletedJobReport } from "./completedJobInvoice.service.js";
 import { validateNextComplianceDate } from "../utils/complianceValidation.js";
 import { resolveNextComplianceDate } from "../utils/inspectionComplianceDate.js";
 import { resolveEventTimestamp } from "../utils/timezone.js";
@@ -1101,42 +1097,26 @@ const finalizeInspectionReportSubmission = async ({
   await job.save();
   console.log("[Inspection Submit] Job updated with report reference");
 
-  if (
-    AUTOMATED_COMPLETED_JOB_DOCUMENTS_ENABLED &&
-    job.status === "Completed" &&
-    job.invoice
-  ) {
+  if (job.status === "Completed") {
     try {
-      const invoice = await Invoice.findById(job.invoice);
-      if (invoice && invoice.status === "Draft") {
-        const autoSendPayload = buildDefaultCompletedJobInvoiceEmailPayload({
-          jobType: job.jobType,
-          propertyAddress: property.address?.fullAddress || "Property",
-          invoiceNumber: invoice.invoiceNumber,
-        });
-
-        await sendCompletedJobInvoiceDocuments({
-          invoice,
-          subject: autoSendPayload.subject,
-          bodyHtml: autoSendPayload.bodyHtml,
-          bodyText: autoSendPayload.bodyText,
-          sentBy: {
-            id: technician._id?.toString?.() || technicianId?.toString?.(),
-            name:
-              technician.fullName ||
-              `${technician.firstName || ""} ${technician.lastName || ""}`.trim() ||
-              technician.email ||
-              "Technician",
-            type: "Technician",
-          },
-        });
-      }
-    } catch (autoSendError) {
-      console.error("[Inspection Submit] Failed to auto-send completed job invoice after report submission", {
+      await sendCompletedJobReport({
+        job,
+        property,
+        sentBy: {
+          id: technician._id?.toString?.() || technicianId?.toString?.(),
+          name:
+            technician.fullName ||
+            `${technician.firstName || ""} ${technician.lastName || ""}`.trim() ||
+            technician.email ||
+            "Technician",
+          type: "Technician",
+        },
+      });
+    } catch (reportSendError) {
+      console.error("[Inspection Submit] Failed to send inspection report after submission", {
         jobId: job._id,
         reportId: report._id,
-        invoiceId: job.invoice,
-        error: autoSendError.message,
+        error: reportSendError.message,
       });
     }
   }

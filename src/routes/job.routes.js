@@ -192,59 +192,6 @@ const resolvePropertyManagerPropertyIds = async (propertyManager) => {
   return [...new Set([...assignedPropertyIds, ...directPropertyIds])];
 };
 
-const shouldSendTenantScheduledEmail = ({
-  previousJob = null,
-  currentJob,
-  tenantEmail,
-}) => {
-  if (!currentJob || currentJob.status !== "Scheduled" || !tenantEmail) {
-    return false;
-  }
-
-  if (!previousJob) {
-    return true;
-  }
-
-  if (previousJob.status !== "Scheduled") {
-    return true;
-  }
-
-  const previousDate = getJobScheduleDate(previousJob);
-  const currentDate = getJobScheduleDate(currentJob);
-
-  if (!previousDate || !currentDate) {
-    return false;
-  }
-
-  return new Date(previousDate).getTime() !== new Date(currentDate).getTime();
-};
-
-const sendTenantScheduledNotificationIfNeeded = async ({
-  previousJob = null,
-  currentJob,
-  property,
-  assignedTechnician = null,
-}) => {
-  const tenant = property?.currentTenant;
-  if (
-    !shouldSendTenantScheduledEmail({
-      previousJob,
-      currentJob,
-      tenantEmail: tenant?.email,
-    })
-  ) {
-    return false;
-  }
-
-  await emailService.sendTenantScheduledJobNotification({
-    tenant,
-    job: currentJob,
-    property,
-    assignedTechnician,
-  });
-
-  return true;
-};
 
 // Helper function to get owner info based on user type
 const getOwnerInfo = (req) => {
@@ -1176,13 +1123,7 @@ router.post(
             }
           }
 
-          if (technician) {
-            await sendTenantScheduledNotificationIfNeeded({
-              currentJob: job,
-              property,
-              assignedTechnician: technician,
-            });
-          }
+          // tenant scheduled notification removed
         }
       } catch (notificationError) {
         // Log error but don't fail the job creation
@@ -2477,12 +2418,6 @@ router.put(
               }
             }
 
-            await sendTenantScheduledNotificationIfNeeded({
-              previousJob: previousJobState,
-              currentJob: job,
-              property,
-              assignedTechnician,
-            });
           } catch (notificationError) {
             console.error("Failed to send job scheduling notifications:", {
               jobId: job._id,
@@ -2775,12 +2710,6 @@ router.patch("/:id/assign", authenticateAdminLevel, async (req, res) => {
             assignedBy
           );
 
-          await sendTenantScheduledNotificationIfNeeded({
-            previousJob: { status: "Pending", dueDate: job.dueDate, scheduledStartTime: null },
-            currentJob: job,
-            property,
-            assignedTechnician: technician,
-          });
         } catch (notificationError) {
           // Log error but don't fail the job assignment
           console.error("Failed to send job assignment notifications:", {
