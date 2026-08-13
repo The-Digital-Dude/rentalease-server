@@ -1200,7 +1200,9 @@ class EmailController {
         typeof recipient === "object" &&
         typeof recipient.email === "string";
 
-      const isValidRecipientInput = (recipient, emailRegex) => {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+      const isValidRecipientInput = (recipient) => {
         if (!recipient) return false;
         if (typeof recipient === "string") {
           return emailRegex.test(recipient);
@@ -1215,13 +1217,12 @@ class EmailController {
         errors.to = "Recipient email(s) required";
       } else {
         const emails = Array.isArray(to) ? to : [to];
-        const emailRegex = /^\w+([-.]?\w+)*@\w+([-.]?\w+)*(\.\w{2,3})+$/;
 
         if (emails.length === 0) {
           errors.to = "At least one recipient email is required";
         } else {
           const invalidEmails = emails.filter(
-            (email) => !isValidRecipientInput(email, emailRegex)
+            (email) => !isValidRecipientInput(email)
           );
           if (invalidEmails.length > 0) {
             errors.to =
@@ -1232,9 +1233,8 @@ class EmailController {
 
       if (cc) {
         const ccEmails = Array.isArray(cc) ? cc : [cc];
-        const emailRegex = /^\w+([-.]?\w+)*@\w+([-.]?\w+)*(\.\w{2,3})+$/;
         const invalidCcEmails = ccEmails.filter(
-          (email) => email && !isValidRecipientInput(email, emailRegex)
+          (email) => email && !isValidRecipientInput(email)
         );
         if (invalidCcEmails.length > 0) {
           errors.cc =

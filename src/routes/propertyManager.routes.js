@@ -32,7 +32,6 @@ router.get("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'Pro
 
     // Agency can only see their own PropertyManagers
     if (req.agency) {
-      console.log(req.agency, "req agency....");
       filter["owner.ownerType"] = "Agency";
       filter["owner.ownerId"] = req.agency.id.toString();
     } else if (agencyId) {
@@ -145,15 +144,6 @@ router.get("/", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'Pro
 // Get PropertyManager by ID (Agency/SuperUser only)
 router.get("/:id", authenticateUserTypes(['SuperUser', 'TeamMember', 'Agency', 'PropertyManager']), async (req, res) => {
   try {
-    // Check if user is Agency or SuperUser
-    if (!req.agency && !req.superUser) {
-      return res.status(403).json({
-        success: false,
-        message:
-          "Access denied. Only Agency and SuperUser can view PropertyManager details.",
-      });
-    }
-
     const { id } = req.params;
 
     // Build filter

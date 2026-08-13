@@ -17,6 +17,10 @@ const propertyManagerSchema = new mongoose.Schema(
       trim: true,
       minlength: [2, "Last name must be at least 2 characters long"],
     },
+    fullName: {
+      type: String,
+      trim: true,
+    },
 
     // Contact Information
     email: {
