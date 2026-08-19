@@ -743,6 +743,7 @@ const extractSummaryInsights = ({ report, template, job, technician }) => {
     rectifications: dedupeItems(urgentRectifications).slice(0, 8),
     ongoingIssues: dedupeItems(ongoingIssues).slice(0, 4),
     technicianName:
+      technician?.fullName ||
       `${technician?.firstName || ""} ${technician?.lastName || ""}`.trim() ||
       findFirstReportValue(formData, [
         "technician-full-name",
@@ -1124,6 +1125,13 @@ const drawPropertyDetailsSection = (
   const labelWidth = Math.floor(tableWidth * 0.34);
   const valueWidth = tableWidth - labelWidth;
 
+  const licenceNumber =
+    technician?.licenseNumber ||
+    report?.formData?.["inspection-summary"]?.["license-number"] ||
+    report?.formData?.["technician-details"]?.["licence-registration-number"] ||
+    report?.formData?.["technician-details"]?.["license-number"] ||
+    null;
+
   const details = [
     { label: "Job ID", value: job?.job_id || "—" },
     { label: "Address", value: propertyAddress },
@@ -1131,9 +1139,12 @@ const drawPropertyDetailsSection = (
     { label: "Inspection Summary", value: summaryInsights.reportStatus },
     { label: "Next Compliance Date", value: nextComplianceDate },
     {
-      label: "Technician Details",
+      label: "Technician",
       value: summaryInsights.technicianName,
     },
+    ...(licenceNumber
+      ? [{ label: "Licence / Registration No.", value: licenceNumber }]
+      : []),
   ];
 
   let rowY = doc.y;
