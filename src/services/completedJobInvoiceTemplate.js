@@ -246,7 +246,7 @@ const drawTotals = (doc, invoice, y) => {
 
   const rows = [
     ["Net Amount :", formatCurrency(netTotal)],
-    ["GST :",        formatCurrency(gstTotal)],
+    ["GST (10%) :",  formatCurrency(gstTotal)],
   ];
   rows.forEach(([label, value]) => {
     doc.font("Helvetica").fontSize(9).fillColor("#334155")
