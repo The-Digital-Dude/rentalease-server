@@ -2078,7 +2078,7 @@ router.get(
         })
         .populate(
           "assignedTechnician",
-          "firstName lastName fullName phone email availabilityStatus serviceRegions"
+          "firstName lastName fullName phone email availabilityStatus serviceRegions licenseNumber licenseExpiry"
         )
         .populate({
           path: "latestInspectionReport",
