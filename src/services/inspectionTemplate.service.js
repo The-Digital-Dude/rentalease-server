@@ -127,7 +127,10 @@ export const prefillTemplateWithJobData = (template, job, property, technician) 
     'certification-electrician-name': inspectorName,
     'license-number': technician?.licenseNumber || '',
     'inspector-details-license': technician?.licenseNumber || '',
-    'registration-number': technician?.registrationNumber || '',
+    'inspector-license': technician?.licenseNumber || '',
+    'gasfitter-license': technician?.licenseNumber || '',
+    'electrical-license': technician?.licenseNumber || '',
+    'registration-number': technician?.registrationNumber || technician?.licenseNumber || '',
     'licence-registration-number': technician?.licenseNumber || '',
     'certification-licence-number': technician?.licenseNumber || '',
 
