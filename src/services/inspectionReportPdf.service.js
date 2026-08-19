@@ -1213,6 +1213,30 @@ const drawPropertyDetailsSection = (
   if (summaryInsights.ongoingIssues.length) {
     drawSummaryList(doc, "Ongoing Issues Raised On Site", summaryInsights.ongoingIssues);
   }
+
+  // Vacant Property declaration
+  ensurePageSpace(doc, 60);
+  const vpY = doc.y + 8;
+  const boxSize = 14;
+  doc
+    .rect(PAGE.margin, vpY, boxSize, boxSize)
+    .stroke(COLORS.border);
+  doc
+    .fillColor(COLORS.text)
+    .font("Helvetica-Bold")
+    .fontSize(11)
+    .text("Vacant Property", PAGE.margin + boxSize + 10, vpY);
+  doc
+    .fillColor(COLORS.textSecondary)
+    .font("Helvetica")
+    .fontSize(10)
+    .text(
+      "In the event of a vacant property, it is assumed that permission has been given for myself to carry out the inspection on behalf of the rental provider or agent.",
+      PAGE.margin + boxSize + 10,
+      vpY + 16,
+      { width: doc.page.width - PAGE.margin * 2 - boxSize - 10, lineGap: 2 }
+    );
+  doc.y += 12;
 };
 
 // New function to draw checks conducted and outcomes section
