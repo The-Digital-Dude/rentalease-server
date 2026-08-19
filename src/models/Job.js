@@ -350,7 +350,10 @@ jobSchema.methods.getFullDetails = function ({ privileged = false } = {}) {
     technicianData = {
       _id: t._id,
       id: t._id,
+      firstName: t.firstName,
+      lastName: t.lastName,
       fullName: t.fullName || `${t.firstName || ""} ${t.lastName || ""}`.trim(),
+      licenseNumber: t.licenseNumber,
       tradeType: t.tradeType,
       availabilityStatus: t.availabilityStatus,
     };
