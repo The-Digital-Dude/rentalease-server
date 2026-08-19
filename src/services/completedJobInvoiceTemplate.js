@@ -166,14 +166,7 @@ const drawRecipientBlock = (doc, reviewData) => {
   doc.font("Helvetica-Bold").fontSize(14).fillColor("#0f172a")
     .text(agencyName, PAGE.margin, startY, { width: 280 });
 
-  let curY = doc.y + 3;
-  doc.font("Helvetica").fontSize(9).fillColor("#475569")
-    .text("Property Manager", PAGE.margin, curY, { width: 280 });
-  curY = doc.y + 2;
-  doc.font("Helvetica").fontSize(9).fillColor("#0f172a")
-    .text(attentionName, PAGE.margin, curY, { width: 280 });
-
-  curY = doc.y + 18;
+  const curY = doc.y + 10;
   doc.font("Helvetica-Oblique").fontSize(9).fillColor("#334155")
     .text(propertyAddress, PAGE.margin, curY, { width: 280 });
 
@@ -190,7 +183,6 @@ const drawTableHeader = (doc, y) => {
     { label: "DESCRIPTION", x: COL.desc.x,   w: COL.desc.w,   align: "left"  },
     { label: "PRICE",        x: COL.price.x,  w: COL.price.w,  align: "right" },
     { label: "QTY",          x: COL.qty.x,    w: COL.qty.w,    align: "right" },
-    { label: "GST",          x: COL.gst.x,    w: COL.gst.w,    align: "right" },
     { label: "AMOUNT",       x: COL.amount.x, w: COL.amount.w, align: "right" },
   ];
   cols.forEach(({ label, x, w, align }) => {
@@ -227,7 +219,6 @@ const drawItemRow = (doc, item, y) => {
   doc.font("Helvetica").fontSize(9).fillColor("#0f172a")
     .text(formatCurrency(netRate),   COL.price.x,  y, { width: COL.price.w,  align: "right", lineBreak: false })
     .text(String(qty),               COL.qty.x,    y, { width: COL.qty.w,    align: "right", lineBreak: false })
-    .text("10 %",                    COL.gst.x,    y, { width: COL.gst.w,    align: "right", lineBreak: false })
     .text(formatCurrency(netAmount), COL.amount.x, y, { width: COL.amount.w, align: "right", lineBreak: false });
 
   return y + rowH + 8;
