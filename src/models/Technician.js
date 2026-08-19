@@ -56,6 +56,13 @@ const technicianSchema = new mongoose.Schema(
       trim: true,
       default: "Technician",
     },
+    licenseNumber: {
+      type: String,
+      trim: true,
+    },
+    licenseExpiry: {
+      type: Date,
+    },
     availabilityStatus: {
       type: String,
       enum: ["Available", "Busy", "Unavailable", "On Leave"],
