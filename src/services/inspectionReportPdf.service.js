@@ -1125,6 +1125,7 @@ const drawPropertyDetailsSection = (
   const valueWidth = tableWidth - labelWidth;
 
   const details = [
+    { label: "Job ID", value: job?.job_id || "—" },
     { label: "Address", value: propertyAddress },
     { label: "Inspection Date", value: inspectionDate },
     { label: "Inspection Summary", value: summaryInsights.reportStatus },
