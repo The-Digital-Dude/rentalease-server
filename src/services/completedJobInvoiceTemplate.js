@@ -439,7 +439,6 @@ export const buildCompletedDocumentsHtml = ({
       <p><strong>Invoice Date:</strong> ${escapeHtml(formatInvoiceDate(dates.invoiceDate))}</p>
       <p><strong>Due Date:</strong> ${escapeHtml(formatInvoiceDate(dates.dueDate))}</p>
       <p><strong>Property:</strong> ${escapeHtml(propertyAddress)}</p>
-      <p><strong>Attention:</strong> ${escapeHtml(attentionName)}</p>
       <p><strong>Inspection Report:</strong> ${escapeHtml(reportStatus)}</p>
       <p><strong>Payment Terms:</strong> ${escapeHtml(COMPLETED_JOB_INVOICE_BANK_DETAILS.paymentTerms)}</p>
       <p><strong>Bank:</strong> ${escapeHtml(COMPLETED_JOB_INVOICE_BANK_DETAILS.bankName)} | <strong>BSB:</strong> ${escapeHtml(COMPLETED_JOB_INVOICE_BANK_DETAILS.bsb)} | <strong>Account:</strong> ${escapeHtml(COMPLETED_JOB_INVOICE_BANK_DETAILS.accountNumber)}</p>
@@ -461,7 +460,6 @@ export const buildCompletedDocumentsText = ({
     `Invoice Date: ${formatInvoiceDate(dates.invoiceDate)}`,
     `Due Date: ${formatInvoiceDate(dates.dueDate)}`,
     `Property: ${reviewData?.propertyAddress || "Property"}`,
-    `Attention: ${getAttentionName(reviewData)}`,
     `Inspection Report: ${getReportStatusLabel(reviewData, { reportFile: reviewData?.reportFile })}`,
     `Payment Terms: ${COMPLETED_JOB_INVOICE_BANK_DETAILS.paymentTerms}`,
     `Bank: ${COMPLETED_JOB_INVOICE_BANK_DETAILS.bankName} | BSB: ${COMPLETED_JOB_INVOICE_BANK_DETAILS.bsb} | Account: ${COMPLETED_JOB_INVOICE_BANK_DETAILS.accountNumber}`,
@@ -481,7 +479,7 @@ export const buildCompletedDocumentsText = ({
   lines.push(
     "",
     `Net Amount: ${formatCurrency(netFromGross(grossTotal))}`,
-    `GST: ${formatCurrency(gstFromGross(grossTotal))}`,
+    `GST (10%): ${formatCurrency(gstFromGross(grossTotal))}`,
     `Total: ${formatCurrency(invoice.totalCost || grossTotal)}`
   );
 

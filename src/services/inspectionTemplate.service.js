@@ -155,7 +155,6 @@ export const prefillTemplateWithJobData = (template, job, property, technician) 
     'signed-date': currentDate,
     'technician-full-name': inspectorName,
     'business-name': 'RentalEase Property Services Pty Ltd',
-    'licence-registration-number': technician?.licenseNumber || '',
     'sign-off-date': currentDate,
 
     // Contact information
