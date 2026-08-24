@@ -328,7 +328,10 @@ const ensureRequiredValue = (value, message) => {
     value === "" ||
     isEmptyArray
   ) {
-    throw new Error(message);
+    const error = new Error(message);
+    error.statusCode = 400;
+    error.code = "VALIDATION_ERROR";
+    throw error;
   }
 };
 
@@ -539,7 +542,10 @@ const validateGasReportV3 = (formData = {}, job) => {
   }
 
   if (!appliances.length) {
-    throw new Error("At least one gas appliance must be included in the report");
+    const error = new Error("At least one gas appliance must be included in the report");
+    error.statusCode = 400;
+    error.code = "VALIDATION_ERROR";
+    throw error;
   }
 
   appliances.forEach((appliance, index) => {
@@ -607,7 +613,10 @@ const validateGasReportMediaUploads = (formData = {}, mediaUploads = []) => {
     });
 
   if (!hasFieldMedia("gas-meter-photo")) {
-    throw new Error('General gas checks require an uploaded "gas-meter-photo" image');
+    const error = new Error('General gas checks require an uploaded "gas-meter-photo" image');
+    error.statusCode = 400;
+    error.code = "VALIDATION_ERROR";
+    throw error;
   }
 
   const appliances = Array.isArray(formData["gas-appliances"])
@@ -616,7 +625,10 @@ const validateGasReportMediaUploads = (formData = {}, mediaUploads = []) => {
 
   appliances.forEach((_, index) => {
     if (!hasFieldMedia("appliance-photo", index)) {
-      throw new Error(`Gas appliance ${index + 1} requires an uploaded appliance photo`);
+      const error = new Error(`Gas appliance ${index + 1} requires an uploaded appliance photo`);
+      error.statusCode = 400;
+      error.code = "VALIDATION_ERROR";
+      throw error;
     }
   });
 };
@@ -918,6 +930,14 @@ const loadInspectionSubmissionContext = async ({
   }
 
   const normalizedFormData = normalizeFormData(formData);
+  
+  if (technician.licenseNumber) {
+    if (!normalizedFormData["technician-details"]) {
+      normalizedFormData["technician-details"] = {};
+    }
+    normalizedFormData["technician-details"]["licence-registration-number"] = technician.licenseNumber;
+  }
+  
   let gasComplianceOutcome = null;
   let minimumSafetyStandardOutcome = null;
 

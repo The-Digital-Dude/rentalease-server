@@ -15,7 +15,7 @@ describe("Gas report v3 validation and outcome", () => {
     const helperSource = source
       .slice(
       0,
-      source.indexOf("export const submitInspectionReport = async")
+      source.indexOf("export const submitInspectionReportFromStoredMedia = async")
       )
       .replace(/^\s*import[\s\S]*?;\r?\n?/gm, "");
     const executableSource = helperSource.concat(
