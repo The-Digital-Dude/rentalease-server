@@ -523,7 +523,7 @@ const validateGasReportV3 = (formData = {}, job) => {
   ["site-address", "suburb", "state", "postcode", "property-type"].forEach((fieldId) =>
     ensureRequiredValue(propertyDetails[fieldId], `Property field "${fieldId}" is required`)
   );
-  ["technician-full-name", "licence-registration-number", "business-name", "inspection-date", "inspection-time"].forEach((fieldId) =>
+  ["technician-full-name", "business-name", "inspection-date", "inspection-time"].forEach((fieldId) =>
     ensureRequiredValue(technicianDetails[fieldId], `Technician field "${fieldId}" is required`)
   );
   ["lp-gas-cylinders", "gas-leakage-test"].forEach((fieldId) =>
