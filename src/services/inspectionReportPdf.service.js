@@ -1060,6 +1060,38 @@ const drawProfessionalCoverPage = (
   doc.fillColor(COLORS.text);
 };
 
+// Licence/registration field ids used across the compliance templates. Each
+// report type stores the technician's licence under a different id and section,
+// so historical reports are scanned rather than read from a fixed path.
+const LICENCE_FIELD_IDS = new Set([
+  "license-number",
+  "licence-number",
+  "licence-registration-number",
+  "license-registration-number",
+  "registration-number",
+  "inspector-license",
+  "inspector-details-license",
+  "gasfitter-license",
+  "electrical-license",
+  "certification-licence-number",
+  "technician-license",
+]);
+
+const findLicenceInFormData = (formData) => {
+  for (const section of Object.values(formData || {})) {
+    if (!section || typeof section !== "object" || Array.isArray(section)) {
+      continue;
+    }
+    for (const fieldId of LICENCE_FIELD_IDS) {
+      const value = section[fieldId];
+      if (value !== undefined && value !== null && String(value).trim() !== "") {
+        return String(value).trim();
+      }
+    }
+  }
+  return null;
+};
+
 // New function to draw property details section on page 2
 const drawPropertyDetailsSection = (
   doc,
@@ -1126,11 +1158,7 @@ const drawPropertyDetailsSection = (
   const valueWidth = tableWidth - labelWidth;
 
   const licenceNumber =
-    technician?.licenseNumber ||
-    report?.formData?.["inspection-summary"]?.["license-number"] ||
-    report?.formData?.["technician-details"]?.["licence-registration-number"] ||
-    report?.formData?.["technician-details"]?.["license-number"] ||
-    null;
+    technician?.licenseNumber || findLicenceInFormData(report?.formData) || null;
 
   const details = [
     { label: "Job ID", value: job?.job_id || "—" },

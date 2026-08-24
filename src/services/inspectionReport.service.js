@@ -509,6 +509,47 @@ const calculateMinimumSafetyStandardOutcome = (formData = {}, template = null) =
   return "compliant";
 };
 
+// Licence/registration field ids used across the compliance templates. These are
+// auto-filled from the technician record rather than entered by the technician.
+const TECHNICIAN_LICENCE_FIELD_IDS = new Set([
+  "license-number",
+  "licence-number",
+  "licence-registration-number",
+  "license-registration-number",
+  "registration-number",
+  "inspector-license",
+  "inspector-details-license",
+  "gasfitter-license",
+  "electrical-license",
+  "certification-licence-number",
+  "technician-license",
+]);
+
+// Writes the technician's licence into whichever licence field(s) the template
+// declares, in whichever section they live. Each compliance report uses a
+// different id/section (Gas: technician-details.licence-registration-number,
+// Smoke/Electrical: inspection-summary.license-number, Minimum Standard:
+// property-summary.inspector-license), so this resolves them from the template
+// instead of hardcoding one path.
+const injectTechnicianLicence = (formData, template, technician) => {
+  const licence = technician?.licenseNumber;
+  if (!licence) {
+    return;
+  }
+
+  for (const section of template?.sections || []) {
+    for (const field of section.fields || []) {
+      if (!TECHNICIAN_LICENCE_FIELD_IDS.has(field.id)) {
+        continue;
+      }
+      if (!formData[section.id] || typeof formData[section.id] !== "object") {
+        formData[section.id] = {};
+      }
+      formData[section.id][field.id] = licence;
+    }
+  }
+};
+
 const validateGasReportV3 = (formData = {}, job) => {
   const propertyDetails = formData["property-details"] || {};
   const technicianDetails = formData["technician-details"] || {};
@@ -931,12 +972,7 @@ const loadInspectionSubmissionContext = async ({
 
   const normalizedFormData = normalizeFormData(formData);
   
-  if (technician.licenseNumber) {
-    if (!normalizedFormData["technician-details"]) {
-      normalizedFormData["technician-details"] = {};
-    }
-    normalizedFormData["technician-details"]["licence-registration-number"] = technician.licenseNumber;
-  }
+  injectTechnicianLicence(normalizedFormData, template, technician);
   
   let gasComplianceOutcome = null;
   let minimumSafetyStandardOutcome = null;
