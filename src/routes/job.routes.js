@@ -2996,6 +2996,133 @@ router.put(
   completeJobHandler
 );
 
+// Reconciles jobs that have an inspection report attached but were never moved
+// to Completed. This happens with the legacy two-call mobile flow: the report
+// upload (POST /inspections/jobs/:jobId) succeeds, but the follow-up completion
+// call (PATCH /jobs/:id/complete) never arrives because the app was closed,
+// backgrounded, or timed out mid-upload. The report is saved and linked; only
+// the status write is missing.
+//
+// Runs in dry-run mode by default and reports what it would do. Pass
+// { "apply": true } to actually complete them. Completion goes through the
+// normal finalizeJobCompletion path, so behaviour matches a real completion
+// exactly — including the JOB_COMPLETED notifications it sends.
+router.post(
+  "/admin/reconcile-incomplete-reports",
+  authenticateUserTypes(["SuperUser"]),
+  async (req, res) => {
+    try {
+      const apply = req.body?.apply === true;
+      const limit = Math.min(
+        Math.max(Number.parseInt(req.body?.limit ?? "50", 10) || 50, 1),
+        200
+      );
+
+      const orphanedJobs = await Job.find({
+        latestInspectionReport: { $ne: null },
+        status: { $ne: "Completed" },
+      })
+        .populate("property", "address")
+        .populate("assignedTechnician", "firstName lastName fullName")
+        .sort({ updatedAt: -1 })
+        .limit(limit);
+
+      const results = [];
+
+      for (const job of orphanedJobs) {
+        const summary = {
+          jobId: job._id,
+          job_id: job.job_id,
+          jobType: job.jobType,
+          currentStatus: job.status,
+          inspectionReportId: job.latestInspectionReport,
+          hasReportFile: !!job.reportFile,
+          propertyAddress: job.property?.address?.fullAddress || null,
+          technician:
+            job.assignedTechnician?.fullName ||
+            `${job.assignedTechnician?.firstName || ""} ${
+              job.assignedTechnician?.lastName || ""
+            }`.trim() ||
+            null,
+        };
+
+        if (!apply) {
+          results.push({ ...summary, action: "would-complete" });
+          continue;
+        }
+
+        try {
+          // Reuse the report's own submission time so completedAt reflects when
+          // the technician actually finished, not when this reconciliation ran.
+          const report = await InspectionReport.findById(
+            job.latestInspectionReport
+          ).select("submittedAt submittedTimezone submittedLocalInput");
+
+          const resolvedEventTimestamp = resolveEventTimestamp({
+            eventLocalTimestamp: report?.submittedLocalInput || null,
+            eventTimezone: report?.submittedTimezone || null,
+            timestampSource: report?.submittedAt ? "manual_override" : undefined,
+          });
+
+          if (report?.submittedAt) {
+            resolvedEventTimestamp.eventAt = report.submittedAt;
+          }
+
+          await finalizeJobCompletion({
+            req,
+            // The SuperUser running the reconciliation, not the job's owning
+            // agency — finalizeJobCompletion gates report access on this, and a
+            // reassigned job would otherwise fail its technician-match check.
+            ownerInfo: getOwnerInfo(req),
+            job,
+            technicianId: getAssignedTechnicianId(job),
+            inspectionReportId: job.latestInspectionReport?.toString(),
+            hasInvoice: "false",
+            resolvedEventTimestamp,
+          });
+
+          results.push({ ...summary, action: "completed" });
+        } catch (error) {
+          console.error("[Reconcile] Failed to complete job", {
+            jobId: job._id,
+            error: error.message,
+          });
+          results.push({
+            ...summary,
+            action: "failed",
+            error: error.message,
+          });
+        }
+      }
+
+      const counts = results.reduce((acc, item) => {
+        acc[item.action] = (acc[item.action] || 0) + 1;
+        return acc;
+      }, {});
+
+      console.log("[Reconcile] Incomplete report reconciliation finished", {
+        apply,
+        examined: results.length,
+        counts,
+      });
+
+      res.status(200).json({
+        status: "success",
+        message: apply
+          ? "Reconciliation applied"
+          : "Dry run — no jobs were modified. Send { \"apply\": true } to complete them.",
+        data: { dryRun: !apply, examined: results.length, counts, results },
+      });
+    } catch (error) {
+      console.error("Reconcile incomplete reports error:", error);
+      res.status(error.statusCode || 500).json({
+        status: "error",
+        message: error.message || "Failed to reconcile incomplete reports",
+      });
+    }
+  }
+);
+
 router.post(
   "/:id/inspection-submissions",
   authenticateUserTypes(["Technician", "SuperUser"]),
