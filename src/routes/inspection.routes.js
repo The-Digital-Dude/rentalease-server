@@ -240,6 +240,13 @@ router.get(
   }
 );
 
+// Jobs whose inspection submission is currently being processed. A large
+// submission can take minutes (media upload + PDF generation); without this
+// guard a technician retrying a seemingly-stalled upload starts a second full
+// pipeline while the first is still running, and the concurrent image buffers
+// exhaust the container's memory.
+const inFlightSubmissions = new Map();
+
 router.post(
   "/jobs/:jobId",
   authenticateUserTypes(["Technician"]),
@@ -247,7 +254,28 @@ router.post(
   async (req, res) => {
     const startTime = Date.now();
     const { jobId } = req.params;
-    
+
+    const existingSubmission = inFlightSubmissions.get(jobId);
+    if (existingSubmission) {
+      await cleanupInspectionTempFiles(req.files || []);
+      const elapsedMs = Date.now() - existingSubmission.startedAt;
+      console.warn("[Inspection Submit] Rejected concurrent submission", {
+        jobId,
+        originalStartedAt: new Date(existingSubmission.startedAt).toISOString(),
+        elapsedMs,
+      });
+
+      return res.status(409).json({
+        status: "error",
+        message:
+          "This report is already being submitted. Please wait for it to finish before trying again.",
+        code: "INSPECTION_SUBMISSION_IN_PROGRESS",
+        data: { elapsedMs },
+      });
+    }
+
+    inFlightSubmissions.set(jobId, { startedAt: startTime });
+
     try {
       const parsedMediaMeta = parseInspectionMediaMetaForLogging(
         req.body?.mediaMeta
@@ -375,6 +403,8 @@ router.post(
         message: error.message || "Failed to submit inspection report",
         code: error.code,
       });
+    } finally {
+      inFlightSubmissions.delete(jobId);
     }
   }
 );

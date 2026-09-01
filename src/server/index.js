@@ -31,6 +31,15 @@ const startServer = async () => {
     // Create HTTP server
     const server = createServer(app);
 
+    // Inspection submissions upload up to 300 MB of photos, so the request
+    // timeout has to allow for a slow mobile connection. The header and
+    // keep-alive timeouts stay short so an abandoned upload releases its
+    // socket, temp files and handlers promptly instead of holding memory
+    // until the default 5-minute request timeout expires.
+    server.requestTimeout = 15 * 60 * 1000;
+    server.headersTimeout = 65 * 1000;
+    server.keepAliveTimeout = 61 * 1000;
+
     // Initialize WebSocket server
     websocketService.initialize(server);
 

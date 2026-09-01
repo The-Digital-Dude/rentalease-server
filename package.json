@@ -7,7 +7,7 @@
   "scripts": {
     "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js",
     "dev": "nodemon index.js",
-    "start": "node index.js",
+    "start": "node --max-old-space-size=384 index.js",
     "fix-property-counts": "node src/scripts/fixAgencyPropertyCounts.js",
     "test-email": "node src/scripts/testPostmarkEmail.js",
     "test-postmark": "node src/scripts/testPostmarkEmail.js"
