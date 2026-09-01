@@ -54,9 +54,16 @@ app.use(
   express.raw({ type: "application/json" })
 );
 
-// Other middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Other middleware.
+//
+// The default body limit is 100kb, which inspection submissions exceed: the
+// staged submission endpoint posts the whole form as JSON, and signature fields
+// are stored inline as base64 PNG data URIs (see SignatureCapture in the mobile
+// app), each of which alone can be a few hundred kilobytes. Photos are not
+// affected — they upload as multipart and are handled by multer.
+const JSON_BODY_LIMIT = "10mb";
+app.use(express.json({ limit: JSON_BODY_LIMIT }));
+app.use(express.urlencoded({ extended: true, limit: JSON_BODY_LIMIT }));
 app.use(cors());
 app.use(helmet());
 app.use(morgan("dev"));
