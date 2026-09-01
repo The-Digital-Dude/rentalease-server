@@ -3018,14 +3018,35 @@ router.post(
         200
       );
 
+      // assignedTechnician is deliberately left unpopulated: finalizeJobCompletion
+      // reads it as an ObjectId (for the technician lookup and the draft invoice),
+      // and a populated document breaks both. Technician names for the report are
+      // resolved separately below.
       const orphanedJobs = await Job.find({
         latestInspectionReport: { $ne: null },
         status: { $ne: "Completed" },
       })
         .populate("property", "address")
-        .populate("assignedTechnician", "firstName lastName fullName")
         .sort({ updatedAt: -1 })
         .limit(limit);
+
+      const technicianIds = [
+        ...new Set(
+          orphanedJobs
+            .map((job) => getAssignedTechnicianId(job))
+            .filter(Boolean)
+        ),
+      ];
+      const technicians = await Technician.find({
+        _id: { $in: technicianIds },
+      }).select("firstName lastName fullName");
+      const technicianNameById = new Map(
+        technicians.map((tech) => [
+          tech._id.toString(),
+          tech.fullName ||
+            `${tech.firstName || ""} ${tech.lastName || ""}`.trim(),
+        ])
+      );
 
       const results = [];
 
@@ -3039,11 +3060,7 @@ router.post(
           hasReportFile: !!job.reportFile,
           propertyAddress: job.property?.address?.fullAddress || null,
           technician:
-            job.assignedTechnician?.fullName ||
-            `${job.assignedTechnician?.firstName || ""} ${
-              job.assignedTechnician?.lastName || ""
-            }`.trim() ||
-            null,
+            technicianNameById.get(getAssignedTechnicianId(job) || "") || null,
         };
 
         if (!apply) {
