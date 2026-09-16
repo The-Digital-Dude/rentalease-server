@@ -5805,6 +5805,801 @@ const renderSmokeOnlyReport = async (
   // Footer removed as requested
 };
 
+/* ============================================================================
+ * Electrical & Smoke audit report (template v7+)
+ *
+ * Matches the issued RentalEase "Electrical and Smoke Alarm Report" layout:
+ * a Part-by-Part checklist where each row shows all four options with the
+ * selected one filled as a pill, then support photos, observations and the
+ * AS/NZS 3019 declaration.
+ *
+ * Ordering note: photos attached to anything flagged Attention or
+ * Unsatisfactory are pulled forward into a summary immediately after the
+ * property details, and are then excluded from the support grid at the bottom
+ * so nothing appears twice. That exclusion is not only cosmetic -
+ * processImageForPdf releases mediaItem.imageBuffer once drawn, so a second
+ * render of the same item would fail.
+ * ========================================================================== */
+
+const AUDIT_SCALE = ["Satisfactory", "Attention", "Unsatisfactory", "N/A"];
+const AUDIT_PASS_SCALE = ["Pass", "Fail", "N/A"];
+const AUDIT_YES_NO = ["Yes", "No"];
+const AUDIT_YES_NO_NA = ["Yes", "No", "N/A"];
+
+const AUDIT_COLORS = {
+  navy: "#16253D",
+  green: "#16A34A",
+  red: "#DC2626",
+  amber: "#CA8A04",
+  textGray: "#555555",
+  muted: "#777777",
+  dark: "#111111",
+  border: "#E2E4E8",
+  tableBorder: "#EDF0F2",
+  partHeaderBg: "#F5F7F9",
+};
+
+/** Colour for a selected option pill. Anything not good news is coloured. */
+const auditOptionColor = (label) => {
+  const normalized = String(label).toLowerCase();
+  if (normalized === "satisfactory" || normalized === "pass" || normalized === "yes") {
+    return AUDIT_COLORS.green;
+  }
+  if (normalized === "attention") {
+    return AUDIT_COLORS.amber;
+  }
+  if (normalized === "unsatisfactory" || normalized === "fail") {
+    return AUDIT_COLORS.red;
+  }
+  return AUDIT_COLORS.muted;
+};
+
+/** Maps a stored value to its display label within a given scale. */
+const auditValueLabel = (value, scale) => {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+  const normalized = String(value).trim().toLowerCase().replace(/[\s_]+/g, "-");
+  const direct = scale.find(
+    (option) => option.toLowerCase().replace(/\//g, "-") === normalized
+  );
+  if (direct) {
+    return direct;
+  }
+  const aliases = {
+    na: "N/A",
+    "n-a": "N/A",
+    "not-applicable": "N/A",
+    sat: "Satisfactory",
+    unsat: "Unsatisfactory",
+    true: "Yes",
+    false: "No",
+  };
+  const aliased = aliases[normalized];
+  return aliased && scale.includes(aliased) ? aliased : null;
+};
+
+const isFlaggedAuditValue = (label) =>
+  label === "Attention" || label === "Unsatisfactory" || label === "Fail";
+
+/**
+ * Draws one checklist row: label on the left, the full option set on the
+ * right with the chosen one filled. Showing every option (rather than only the
+ * answer) is deliberate - it is what makes the printed report auditable.
+ */
+const drawAuditRow = (doc, label, selectedLabel, scale) => {
+  const rowHeight = 22;
+  ensurePageSpace(doc, rowHeight + 6);
+
+  const left = PAGE.margin + 10;
+  const right = doc.page.width - PAGE.margin - 10;
+  const y = doc.y;
+
+  doc
+    .fillColor(AUDIT_COLORS.dark)
+    .fontSize(9)
+    .font("Helvetica")
+    .text(label, left, y + 6, { width: 200, lineBreak: false });
+
+  // Options are laid out from the right edge so they stay aligned down the
+  // page. Widths are measured in the bold face used for the selected pill -
+  // measuring in regular made the bold label overflow its pill and wrap.
+  doc.fontSize(8.5).font("Helvetica-Bold");
+  const pillWidths = scale.map((option) => doc.widthOfString(option) + 24);
+  const totalWidth = pillWidths.reduce((sum, w) => sum + w + 6, 0) - 6;
+  let x = right - totalWidth;
+
+  scale.forEach((option, index) => {
+    const width = pillWidths[index];
+    const isSelected = option === selectedLabel;
+    const color = auditOptionColor(option);
+
+    if (isSelected) {
+      doc
+        .roundedRect(x, y + 2, width, 16, 8)
+        .fillColor(color)
+        .fill();
+      doc.circle(x + 9, y + 10, 3).fillColor("#FFFFFF").fill();
+      doc
+        .fillColor("#FFFFFF")
+        .fontSize(8.5)
+        .font("Helvetica-Bold")
+        .text(option, x + 16, y + 6, { width: width - 20, lineBreak: false });
+    } else {
+      doc
+        .circle(x + 9, y + 10, 3.5)
+        .lineWidth(0.8)
+        .strokeColor(AUDIT_COLORS.border)
+        .stroke();
+      doc
+        .fillColor(AUDIT_COLORS.textGray)
+        .fontSize(8.5)
+        .font("Helvetica")
+        .text(option, x + 16, y + 6, { width: width - 20, lineBreak: false });
+    }
+
+    x += width + 6;
+  });
+
+  doc
+    .moveTo(PAGE.margin, y + rowHeight)
+    .lineTo(doc.page.width - PAGE.margin, y + rowHeight)
+    .lineWidth(0.5)
+    .strokeColor(AUDIT_COLORS.tableBorder)
+    .stroke();
+
+  doc.y = y + rowHeight;
+};
+
+/** Free-text row used for Part 6's supply type and the Part 7 comment lines. */
+const drawAuditTextRow = (doc, label, value) => {
+  const text = String(value ?? "").trim();
+  ensurePageSpace(doc, 26);
+  const y = doc.y;
+
+  doc
+    .fillColor(AUDIT_COLORS.textGray)
+    .fontSize(8.5)
+    .font("Helvetica-Bold")
+    .text(label, PAGE.margin + 10, y + 5, { width: 150, lineBreak: false });
+
+  doc
+    .fillColor(AUDIT_COLORS.dark)
+    .fontSize(9)
+    .font("Helvetica")
+    .text(text || "-", PAGE.margin + 170, y + 5, {
+      width: doc.page.width - PAGE.margin * 2 - 180,
+    });
+
+  doc.y = Math.max(doc.y, y + 22);
+};
+
+const drawAuditPartHeader = (doc, title) => {
+  // Reserve the header plus a couple of rows so a Part heading is never left
+  // stranded at the foot of a page with its rows overleaf.
+  ensurePageSpace(doc, 78);
+  const y = doc.y;
+  const width = doc.page.width - PAGE.margin * 2;
+
+  doc.rect(PAGE.margin, y, width, 20).fillColor(AUDIT_COLORS.partHeaderBg).fill();
+  doc
+    .fillColor(AUDIT_COLORS.navy)
+    .fontSize(9.5)
+    .font("Helvetica-Bold")
+    .text(String(title).toUpperCase(), PAGE.margin + 10, y + 6, {
+      width: width - 20,
+      lineBreak: false,
+    });
+
+  doc.y = y + 22;
+};
+
+/** Title row with the overall status badge, mirroring the issued report. */
+const drawAuditTitleRow = (doc, title, statusLabel) => {
+  const y = doc.y;
+  doc
+    .fillColor(AUDIT_COLORS.navy)
+    .fontSize(17)
+    .font("Helvetica-Bold")
+    .text(title, PAGE.margin, y, { width: 340 });
+
+  if (statusLabel) {
+    const color =
+      statusLabel === "SATISFACTORY" ? AUDIT_COLORS.green : AUDIT_COLORS.red;
+    const width = doc.widthOfString(statusLabel, { size: 9 }) + 24;
+    const x = doc.page.width - PAGE.margin - width;
+    doc.roundedRect(x, y + 2, width, 20, 10).fillColor(color).fill();
+    doc
+      .fillColor("#FFFFFF")
+      .fontSize(9)
+      .font("Helvetica-Bold")
+      .text(statusLabel, x, y + 8, { width, align: "center", lineBreak: false });
+  }
+
+  doc.y = y + 32;
+};
+
+/**
+ * Two independent columns, as the issued report lays them out: the address and
+ * agent stack on the left, the job/technician facts on the right. Each column
+ * flows on its own so a long address does not push the right-hand column down.
+ */
+const drawAuditInfoGrid = (doc, leftEntries, rightEntries) => {
+  const columnWidth = (doc.page.width - PAGE.margin * 2) / 2;
+  const startY = doc.y;
+  let leftY = startY;
+  let rightY = startY;
+
+  const entries = [
+    ...leftEntries.map((entry) => ({ ...entry, isLeft: true })),
+    ...rightEntries.map((entry) => ({ ...entry, isLeft: false })),
+  ];
+
+  entries.forEach((entry) => {
+    const isLeft = entry.isLeft;
+    const x = PAGE.margin + (isLeft ? 0 : columnWidth);
+    const y = isLeft ? leftY : rightY;
+
+    doc
+      .fillColor(AUDIT_COLORS.textGray)
+      .fontSize(8)
+      .font("Helvetica-Bold")
+      .text(entry.label, x, y, { width: columnWidth - 16 });
+
+    doc
+      .fillColor(AUDIT_COLORS.dark)
+      .fontSize(9.5)
+      .font("Helvetica")
+      .text(entry.value || "-", x, y + 11, { width: columnWidth - 16 });
+
+    const consumed = 11 + doc.heightOfString(entry.value || "-", {
+      width: columnWidth - 16,
+      size: 9.5,
+    }) + 8;
+
+    if (isLeft) {
+      leftY = y + consumed;
+    } else {
+      rightY = y + consumed;
+    }
+  });
+
+  doc.y = Math.max(leftY, rightY) + 6;
+};
+
+/**
+ * Walks the v7 Parts and returns every row the technician flagged, together
+ * with the photo field ids that document that area.
+ *
+ * The mapping is by Part because photos are attached per upload field, not per
+ * row - the template has no per-row photo capture, so "the switchboard photos"
+ * is the closest honest answer to "show me the photo of this fault".
+ */
+const AUDIT_PART_PHOTO_FIELDS = {
+  "part-1-supply-mains": ["meter-photos"],
+  "part-2-switchboard": ["switchboard-photos"],
+  "part-3-wiring-accessories": ["gpo-tester-photos"],
+  "part-4-fixed-appliances": [
+    "oven-photos",
+    "rangehood-photos",
+    "aircon-photos",
+  ],
+  "part-7-audit-tests": ["gpo-tester-photos"],
+};
+
+const collectAuditFlaggedGroups = (report, template) => {
+  const formData = report.formData || {};
+  const media = report.media || [];
+  const groups = [];
+  const usedMediaIds = new Set();
+
+  const takeMedia = (fieldIds) => {
+    const picked = media.filter(
+      (item) =>
+        fieldIds.includes(String(item?.fieldId || "")) &&
+        !usedMediaIds.has(item)
+    );
+    picked.forEach((item) => usedMediaIds.add(item));
+    return picked;
+  };
+
+  // 1. Rectification photos - the explicit "this needed fixing" flag.
+  const rectification = formData["rectification-works-required"] || {};
+  if (String(rectification["issues-identified"]).toLowerCase() === "yes") {
+    const photos = takeMedia(["rectification-photos"]);
+    if (photos.length) {
+      groups.push({
+        heading: "Rectification Works Required",
+        status: "Unsatisfactory",
+        detail: rectification["issue-description"] || "",
+        photos,
+      });
+    }
+  }
+
+  // 2. Parts carrying an Attention or Unsatisfactory row.
+  for (const section of template?.sections || []) {
+    const photoFields = AUDIT_PART_PHOTO_FIELDS[section.id];
+    if (!photoFields) {
+      continue;
+    }
+
+    const responses = formData[section.id] || {};
+    const flagged = [];
+    let worst = "Attention";
+
+    for (const field of section.fields || []) {
+      const scale =
+        field.type === "pass-fail-na" ? AUDIT_PASS_SCALE : AUDIT_SCALE;
+      const label = auditValueLabel(responses[field.id], scale);
+      if (isFlaggedAuditValue(label)) {
+        flagged.push(`${field.label}: ${label}`);
+        if (label !== "Attention") {
+          worst = "Unsatisfactory";
+        }
+      }
+    }
+
+    if (!flagged.length) {
+      continue;
+    }
+
+    const photos = takeMedia(photoFields);
+    if (photos.length) {
+      groups.push({
+        heading: section.title,
+        status: worst,
+        detail: flagged.join("  ·  "),
+        photos,
+      });
+    }
+  }
+
+  return { groups, usedMediaIds };
+};
+
+/** The summary block of flagged photos, drawn after the property details. */
+const drawAuditFlaggedPhotos = async (doc, groups) => {
+  if (!groups.length) {
+    return;
+  }
+
+  ensurePageSpace(doc, 120);
+  doc
+    .fillColor(AUDIT_COLORS.navy)
+    .fontSize(12)
+    .font("Helvetica-Bold")
+    .text("Items Requiring Attention", PAGE.margin, doc.y);
+  doc.y += 6;
+  doc
+    .moveTo(PAGE.margin, doc.y)
+    .lineTo(doc.page.width - PAGE.margin, doc.y)
+    .lineWidth(1)
+    .strokeColor(AUDIT_COLORS.navy)
+    .stroke();
+  doc.y += 10;
+
+  for (const group of groups) {
+    ensurePageSpace(doc, 60);
+
+    const color =
+      group.status === "Unsatisfactory" ? AUDIT_COLORS.red : AUDIT_COLORS.amber;
+    const y = doc.y;
+
+    doc
+      .fillColor(AUDIT_COLORS.dark)
+      .fontSize(10)
+      .font("Helvetica-Bold")
+      .text(group.heading, PAGE.margin, y + 4, { width: 320 });
+
+    const badgeWidth = doc.widthOfString(group.status, { size: 8 }) + 20;
+    const badgeX = doc.page.width - PAGE.margin - badgeWidth;
+    doc.roundedRect(badgeX, y + 2, badgeWidth, 15, 7.5).fillColor(color).fill();
+    doc
+      .fillColor("#FFFFFF")
+      .fontSize(8)
+      .font("Helvetica-Bold")
+      .text(group.status, badgeX, y + 6, {
+        width: badgeWidth,
+        align: "center",
+        lineBreak: false,
+      });
+
+    doc.y = y + 20;
+
+    if (group.detail) {
+      doc
+        .fillColor(AUDIT_COLORS.textGray)
+        .fontSize(8.5)
+        .font("Helvetica")
+        .text(group.detail, PAGE.margin, doc.y, {
+          width: doc.page.width - PAGE.margin * 2,
+        });
+      doc.y += 6;
+    }
+
+    await renderInlinePhotos(doc, group.photos, {});
+    doc.y += 4;
+  }
+
+  doc.y += 6;
+};
+
+const drawAuditObservations = (doc, observations, complianceWorks, notes) => {
+  if (!observations && !complianceWorks && !notes) {
+    return;
+  }
+
+  ensurePageSpace(doc, 100);
+  doc
+    .fillColor(AUDIT_COLORS.navy)
+    .fontSize(12)
+    .font("Helvetica-Bold")
+    .text("Observations And Recommendations", PAGE.margin, doc.y);
+  doc.y += 14;
+
+  const blocks = [
+    {
+      label: "The following observations and recommendations are made:",
+      value: observations,
+    },
+    {
+      label: "The following work is required for compliance purposes:",
+      value: complianceWorks,
+    },
+    // Free-text notes from the completion form. Folded in here rather than
+    // given their own section so the page still matches the issued layout.
+    { label: "Additional technician notes:", value: notes },
+  ];
+
+  for (const block of blocks) {
+    if (!block.value) {
+      continue;
+    }
+    ensurePageSpace(doc, 50);
+    doc
+      .fillColor(AUDIT_COLORS.textGray)
+      .fontSize(8.5)
+      .font("Helvetica-Bold")
+      .text(block.label, PAGE.margin, doc.y, {
+        width: doc.page.width - PAGE.margin * 2,
+      });
+    doc.y += 2;
+    doc
+      .fillColor(AUDIT_COLORS.dark)
+      .fontSize(9.5)
+      .font("Helvetica")
+      .text(block.value, PAGE.margin, doc.y, {
+        width: doc.page.width - PAGE.margin * 2,
+      });
+    doc.y += 10;
+  }
+};
+
+const AUDIT_DECLARATION_INTRO =
+  "I, being the person responsible for the audit of the Electrical & Smoke Alarm Safety Check installation (as indicated by my approval below), particulars of which are described above, having exercised reasonable skill and care when carrying out the audit, hereby declare that the information in this report, including the observations, provides an accurate assessment of the condition of the Electrical & Smoke Alarm Safety Check installation taking into account the stated extent of the audit and the limitations of the visual inspection and testing.";
+
+const AUDIT_DECLARATION_JUDGMENT =
+  "I further declare that in my judgment, the condition of the said installation was (below selection) at the time the audit was carried out. This does not preclude the possibility that other defects may exist.";
+
+const AUDIT_DECLARATION_REGULATION =
+  'I the above named licenced electrician have carried out an Electrical safety check of this residential tenancies per the requirements of the Residential Tenancies Regulations 2021 and set out in the Australian/New Zealand Standard AS/NZS 3019, "Electrical installations - Periodic verification, and have recorded my observations and recommendations.';
+
+const drawAuditDeclaration = async (
+  doc,
+  { statusLabel, nextInspectionDue, technicianName, signatureValue }
+) => {
+  ensurePageSpace(doc, 300);
+
+  doc
+    .fillColor(AUDIT_COLORS.navy)
+    .fontSize(12)
+    .font("Helvetica-Bold")
+    .text("Declaration", PAGE.margin, doc.y);
+  doc.y += 14;
+
+  const width = doc.page.width - PAGE.margin * 2;
+
+  doc
+    .fillColor(AUDIT_COLORS.textGray)
+    .fontSize(8.5)
+    .font("Helvetica")
+    .text(AUDIT_DECLARATION_INTRO, PAGE.margin, doc.y, { width, lineGap: 1.5 });
+  doc.y += 8;
+
+  doc
+    .fillColor(AUDIT_COLORS.dark)
+    .fontSize(8.5)
+    .font("Helvetica")
+    .text(AUDIT_DECLARATION_JUDGMENT, PAGE.margin, doc.y, {
+      width,
+      lineGap: 1.5,
+    });
+  doc.y += 12;
+
+  // No outcome means no selection - defaulting to "Unsatisfactory" would put a
+  // finding on the declaration that the technician never made.
+  drawAuditRow(
+    doc,
+    "Condition of installation",
+    statusLabel === "SATISFACTORY"
+      ? "Safe"
+      : statusLabel === "UNSATISFACTORY"
+        ? "Unsatisfactory"
+        : null,
+    ["Safe", "Unsatisfactory"]
+  );
+  doc.y += 8;
+
+  if (nextInspectionDue) {
+    doc
+      .fillColor(AUDIT_COLORS.dark)
+      .fontSize(9.5)
+      .font("Helvetica-Bold")
+      .text(`Next Inspection Due Date: ${nextInspectionDue}`, PAGE.margin, doc.y);
+    doc.y += 16;
+  }
+
+  doc
+    .fillColor(AUDIT_COLORS.textGray)
+    .fontSize(8)
+    .font("Helvetica")
+    .text(AUDIT_DECLARATION_REGULATION, PAGE.margin, doc.y, {
+      width,
+      lineGap: 1.5,
+    });
+  doc.y += 14;
+
+  doc
+    .fillColor(AUDIT_COLORS.textGray)
+    .fontSize(8.5)
+    .font("Helvetica-Bold")
+    .text("Signature of technician", PAGE.margin, doc.y);
+  doc.y += 12;
+
+  if (signatureValue) {
+    await drawSignatureFromData(doc, signatureValue, PAGE.margin, doc.y, 160, 55);
+    doc.y += 58;
+  }
+
+  doc
+    .fillColor(AUDIT_COLORS.dark)
+    .fontSize(10)
+    .font("Helvetica-Bold")
+    .text(technicianName || "", PAGE.margin, doc.y);
+  doc.y += 16;
+};
+
+const renderElectricalSmokeAuditReport = async (
+  doc,
+  { report, template, job, property, technician }
+) => {
+  const formData = report.formData || {};
+  const getSection = (id) => formData[id] || {};
+  const reportTimeZone = resolvePropertyTimeZone(property);
+
+  const declaration = getSection("final-declaration");
+  const outcome = String(
+    declaration["final-compliance-outcome"] || ""
+  ).toLowerCase();
+  const statusLabel =
+    outcome === "compliant" ? "SATISFACTORY" : outcome ? "UNSATISFACTORY" : null;
+
+  // --- Page 2 header block -------------------------------------------------
+  drawAuditTitleRow(doc, "Electrical and Smoke Alarm Report", statusLabel);
+
+  const summary = getSection("inspection-summary");
+  const address =
+    property?.address?.fullAddress ||
+    property?.fullAddress ||
+    [property?.address?.street, property?.address?.suburb, property?.address?.state]
+      .filter(Boolean)
+      .join(", ");
+
+  drawAuditInfoGrid(
+    doc,
+    [
+      { label: "Property Address:", value: address },
+      {
+        label: "Agent:",
+        value:
+          property?.agency?.contactPerson ||
+          property?.agency?.name ||
+          job?.agent ||
+          "-",
+      },
+    ],
+    [
+      {
+        label: "Job Date:",
+        value: formatNumericDate(
+          job?.dueDate || report?.createdAt,
+          reportTimeZone
+        ),
+      },
+      { label: "Service Number:", value: job?.job_id || job?.jobId || "-" },
+      {
+        label: "Technician Name:",
+        value:
+          technician?.fullName ||
+          summary["inspector-name"] ||
+          [technician?.firstName, technician?.lastName]
+            .filter(Boolean)
+            .join(" "),
+      },
+      {
+        label: "Licence Number:",
+        value: technician?.licenseNumber || summary["license-number"] || "-",
+      },
+      {
+        label: "Agency",
+        value: property?.agency?.name || property?.agencyName || "-",
+      },
+    ]
+  );
+
+  // --- Flagged photos, pulled forward -------------------------------------
+  const { groups, usedMediaIds } = collectAuditFlaggedGroups(report, template);
+  await drawAuditFlaggedPhotos(doc, groups);
+
+  // --- Checklist -----------------------------------------------------------
+  ensurePageSpace(doc, 80);
+  doc
+    .fillColor(AUDIT_COLORS.navy)
+    .fontSize(12)
+    .font("Helvetica-Bold")
+    .text("Electrical & Smoke Alarm Safety Check", PAGE.margin, doc.y);
+  doc.y += 16;
+
+  const scaleForField = (field) => {
+    switch (field.type) {
+      case "pass-fail":
+      case "pass-fail-na":
+        return AUDIT_PASS_SCALE;
+      case "yes-no":
+        return AUDIT_YES_NO;
+      case "yes-no-na":
+        return AUDIT_YES_NO_NA;
+      default:
+        return AUDIT_SCALE;
+    }
+  };
+
+  const checklistSectionIds = [
+    "part-1-supply-mains",
+    "part-2-switchboard",
+    "part-3-wiring-accessories",
+    "part-4-fixed-appliances",
+    "part-5-distribution-boards",
+    "part-6-standby-supply",
+    "part-7-audit-tests",
+    "part-8-overall",
+  ];
+
+  for (const sectionId of checklistSectionIds) {
+    const section = template?.sections?.find((item) => item.id === sectionId);
+    if (!section) {
+      continue;
+    }
+
+    const responses = getSection(sectionId);
+    drawAuditPartHeader(doc, section.title);
+
+    for (const field of section.fields || []) {
+      if (field.type === "textarea") {
+        // Part 7 comment lines sit under the row they belong to.
+        drawAuditTextRow(doc, "Comments:", responses[field.id]);
+        continue;
+      }
+      if (field.type === "text") {
+        drawAuditTextRow(doc, field.label, responses[field.id]);
+        continue;
+      }
+      const scale = scaleForField(field);
+      drawAuditRow(
+        doc,
+        field.label,
+        auditValueLabel(responses[field.id], scale),
+        scale
+      );
+    }
+
+    doc.y += 8;
+  }
+
+  // --- Additional optional tests ------------------------------------------
+  const optionalTests = getSection("additional-optional-tests");
+  const alarmRows = Array.isArray(optionalTests["smoke-alarm-tests"])
+    ? optionalTests["smoke-alarm-tests"]
+    : [];
+  if (alarmRows.length) {
+    drawAuditPartHeader(doc, "Additional Optional Tests");
+    for (const row of alarmRows) {
+      drawAuditRow(
+        doc,
+        row["alarm-location"] || "Smoke alarm",
+        auditValueLabel(row["alarm-result"], AUDIT_PASS_SCALE),
+        AUDIT_PASS_SCALE
+      );
+    }
+    doc.y += 8;
+  }
+
+  // --- Safety alarm --------------------------------------------------------
+  const safetyAlarm = getSection("safety-alarm");
+  if (Object.keys(safetyAlarm).length) {
+    // Header, statement, answer row and due date read as one block.
+    ensurePageSpace(doc, 150);
+    drawAuditPartHeader(doc, "Safety Alarm");
+    const safetySection = template?.sections?.find(
+      (item) => item.id === "safety-alarm"
+    );
+    const statement = safetySection?.fields?.find(
+      (field) => field.id === "safety-alarm-confirmed"
+    );
+    if (statement) {
+      // Statement and its answer row are one unit - splitting them across a
+      // page break leaves a bare "Yes No N/A" with nothing to answer.
+      ensurePageSpace(doc, 80);
+      doc
+        .fillColor(AUDIT_COLORS.textGray)
+        .fontSize(8.5)
+        .font("Helvetica")
+        .text(statement.label, PAGE.margin + 10, doc.y + 4, {
+          width: doc.page.width - PAGE.margin * 2 - 20,
+        });
+      doc.y += 6;
+      drawAuditRow(
+        doc,
+        "",
+        auditValueLabel(safetyAlarm["safety-alarm-confirmed"], AUDIT_YES_NO_NA),
+        AUDIT_YES_NO_NA
+      );
+    }
+    if (safetyAlarm["next-smoke-check-due"]) {
+      drawAuditTextRow(
+        doc,
+        "Next smoke alarms check is due by:",
+        formatNumericDate(safetyAlarm["next-smoke-check-due"], reportTimeZone)
+      );
+    }
+    doc.y += 8;
+  }
+
+  // --- Support photos: everything not already shown in the summary ---------
+  const remainingMedia = (report.media || []).filter(
+    (item) => !usedMediaIds.has(item)
+  );
+  if (remainingMedia.length) {
+    drawAuditPartHeader(doc, "Support Pictures For Application");
+    await renderInlinePhotos(doc, remainingMedia, { template });
+    doc.y += 8;
+  }
+
+  // --- Observations and declaration ---------------------------------------
+  const observationsSection = getSection("observations-recommendations");
+  drawAuditObservations(
+    doc,
+    observationsSection["observations"],
+    observationsSection["compliance-works"],
+    report.notes
+  );
+
+  await drawAuditDeclaration(doc, {
+    statusLabel,
+    nextInspectionDue: declaration["next-inspection-due"]
+      ? formatNumericDate(declaration["next-inspection-due"], reportTimeZone)
+      : null,
+    technicianName:
+      technician?.fullName ||
+      [technician?.firstName, technician?.lastName].filter(Boolean).join(" "),
+    signatureValue:
+      declaration["technician-signature"] ||
+      resolveReportSignatureData(formData) ||
+      null,
+  });
+};
+
 export const buildInspectionReportPdf = async ({
   report,
   template,
@@ -5837,16 +6632,32 @@ export const buildInspectionReportPdf = async ({
     template,
   });
 
-  // Draw property details section at top of first content page
-  drawPropertyDetailsSection(doc, {
-    property,
-    job,
-    technician,
-    report: preparedReport,
-    template,
-  });
+  // The v7 electrical audit draws its own title row and info grid so the
+  // flagged-photo summary can sit directly beneath the property details, as
+  // the issued report does. Every other report keeps the shared block.
+  const isElectricalAuditReport =
+    template?.jobType === "Electrical" && (template?.version ?? 1) >= 7;
 
-  if (template?.jobType === "Gas") {
+  if (!isElectricalAuditReport) {
+    // Draw property details section at top of first content page
+    drawPropertyDetailsSection(doc, {
+      property,
+      job,
+      technician,
+      report: preparedReport,
+      template,
+    });
+  }
+
+  if (isElectricalAuditReport) {
+    await renderElectricalSmokeAuditReport(doc, {
+      template,
+      report: preparedReport,
+      job,
+      property,
+      technician,
+    });
+  } else if (template?.jobType === "Gas") {
     await renderGasReport(doc, {
       template,
       report: preparedReport,
@@ -5917,36 +6728,41 @@ export const buildInspectionReportPdf = async ({
     });
   }
 
-  // Technician notes
-  if (preparedReport.notes) {
-    ensurePageSpace(doc, 120);
-    drawSectionHeader(doc, "Inspector Observations and Suggestions");
-    doc
-      .fillColor(COLORS.textSecondary)
-      .fontSize(10)
-      .font("Helvetica")
-      .text(preparedReport.notes, PAGE.margin, doc.y, {
-        width: doc.page.width - PAGE.margin * 2,
-        lineGap: 3,
-      });
+  // The v7 electrical audit folds the technician's notes into its own
+  // Observations block and draws the AS/NZS 3019 declaration itself, so the
+  // shared notes and declaration sections would duplicate both.
+  if (!isElectricalAuditReport) {
+    // Technician notes
+    if (preparedReport.notes) {
+      ensurePageSpace(doc, 120);
+      drawSectionHeader(doc, "Inspector Observations and Suggestions");
+      doc
+        .fillColor(COLORS.textSecondary)
+        .fontSize(10)
+        .font("Helvetica")
+        .text(preparedReport.notes, PAGE.margin, doc.y, {
+          width: doc.page.width - PAGE.margin * 2,
+          lineGap: 3,
+        });
 
-    doc.y += 40;
-  }
+      doc.y += 40;
+    }
 
-  // Declaration and Certification
-  if (
-    template?.jobType === "Gas" ||
-    template?.title?.toLowerCase().includes("gas")
-  ) {
-    drawGasHazardsSection(doc);
+    // Declaration and Certification
+    if (
+      template?.jobType === "Gas" ||
+      template?.title?.toLowerCase().includes("gas")
+    ) {
+      drawGasHazardsSection(doc);
+    }
+    await drawDeclarationSection(doc, {
+      template,
+      job,
+      property,
+      technician,
+      report: preparedReport,
+    });
   }
-  await drawDeclarationSection(doc, {
-    template,
-    job,
-    property,
-    technician,
-    report: preparedReport,
-  });
 
   // Add footer to final content page
   drawPageFooter(doc, currentPageNumber);

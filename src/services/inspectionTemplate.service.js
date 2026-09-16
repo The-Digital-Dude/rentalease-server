@@ -40,10 +40,12 @@ export const cleanupOldTemplateVersions = async () => {
     { isActive: false }
   );
 
-  // Electrical inspections have moved to a dedicated electrical-only template
-  // at version 6. Keep older templates for historical reports only.
+  // Electrical inspections now use the version 7 AS/NZS 3019 audit checklist.
+  // v6 must be deactivated too: the app lists every active template and lets
+  // the technician choose, so leaving v6 active would offer two Electrical
+  // forms. Older versions are kept for historical reports only.
   await InspectionTemplate.updateMany(
-    { jobType: "Electrical", version: { $lt: 6 } },
+    { jobType: "Electrical", version: { $lt: 7 } },
     { isActive: false }
   );
 
@@ -55,7 +57,7 @@ export const cleanupOldTemplateVersions = async () => {
   );
 
   console.log(
-    "Deactivated legacy inspection templates: versions <4 for Gas, versions <4 for Smoke, versions <6 for Electrical, versions <4 for MinimumSafetyStandard"
+    "Deactivated legacy inspection templates: versions <4 for Gas, versions <4 for Smoke, versions <7 for Electrical, versions <4 for MinimumSafetyStandard"
   );
 };
 
@@ -170,7 +172,16 @@ export const prefillTemplateWithJobData = (template, job, property, technician) 
     prefillMap["next-service-due"] = nextComplianceDate;
     prefillMap["certification-next-inspection-due"] = nextComplianceDate;
     prefillMap["next-inspection-date"] = nextComplianceDate;
+    prefillMap["next-inspection-due"] = nextComplianceDate;
   }
+
+  // Smoke alarms are checked annually regardless of the report's own cycle, so
+  // the Electrical v7 "next smoke alarms check" date is always one year out.
+  prefillMap["next-smoke-check-due"] = new Date(
+    Date.now() + 365 * 24 * 60 * 60 * 1000
+  )
+    .toISOString()
+    .split("T")[0];
 
   // Deep clone the template to avoid modifying the original
   const prefilledTemplate = JSON.parse(JSON.stringify(template));

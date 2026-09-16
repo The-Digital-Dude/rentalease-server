@@ -2,6 +2,8 @@ const NEXT_COMPLIANCE_FIELD_IDS = [
   "next-inspection-date",
   "certification-next-inspection-due",
   "next-service-due",
+  // Electrical v7 declaration - the date the technician signs off against.
+  "next-inspection-due",
 ];
 
 const hasMeaningfulValue = (value) => {

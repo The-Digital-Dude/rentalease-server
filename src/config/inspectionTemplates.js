@@ -4735,6 +4735,392 @@ const createBasicMinimumSafetyStandardTemplate = () => ({
   ],
 });
 
+/* ============================================================================
+ * Electrical & Smoke v7 - AS/NZS 3019 audit checklist
+ *
+ * v6 asked for free-text notes per area; the report the agency actually
+ * receives is a Part-by-Part checklist where every item is marked
+ * Satisfactory / Attention / Unsatisfactory / N-A. v7 collects those rows
+ * directly so the PDF reflects what the technician assessed.
+ *
+ * Where v6 already asked the same question the field carries across rather
+ * than being duplicated: rcd-test-result becomes Part 7 "RCD Operation", and
+ * the per-area notes fields become the Part 7 comment lines and the
+ * observations block. Photo field ids are deliberately unchanged - the report
+ * maps a flagged Part back to its photos through them.
+ *
+ * Every field type used here is one the mobile form already renders, so these
+ * rows reach technicians on a server deploy without an app release.
+ * ========================================================================== */
+
+const satisfactoryScaleOptions = [
+  { value: "satisfactory", label: "Satisfactory" },
+  { value: "attention", label: "Attention" },
+  { value: "unsatisfactory", label: "Unsatisfactory" },
+  { value: "na", label: "N/A" },
+];
+
+/** One checklist row on the Satisfactory/Attention/Unsatisfactory/N-A scale. */
+const auditRow = (id, label) => ({
+  id,
+  label,
+  type: "select",
+  options: satisfactoryScaleOptions,
+  required: true,
+});
+
+const createElectricalSmokeAuditSections = () => [
+  {
+    id: "inspection-summary",
+    title: "Inspection Summary",
+    description: "Record key inspection details and outcomes.",
+    fields: [
+      {
+        id: "inspection-date",
+        label: "Inspection Date",
+        type: "date",
+        required: true,
+        defaultValue: new Date().toISOString().split("T")[0],
+      },
+      {
+        id: "inspector-name",
+        label: "Inspector name",
+        type: "text",
+        required: true,
+        metadata: serverPrefilledFieldMetadata,
+      },
+      {
+        id: "license-number",
+        label: "Licence/registration number",
+        type: "text",
+        required: true,
+        metadata: serverPrefilledFieldMetadata,
+      },
+      {
+        id: "electrical-outcome",
+        label: "Electrical safety check outcome",
+        type: "select",
+        options: [
+          { value: "no-faults", label: "No faults identified" },
+          { value: "faults-identified", label: "Faults identified" },
+          { value: "repairs-required", label: "Repairs required" },
+        ],
+        required: true,
+      },
+      {
+        id: "smoke-outcome",
+        label: "Smoke alarm check outcome",
+        type: "select",
+        options: [
+          { value: "no-faults", label: "No faults identified" },
+          { value: "faults-identified", label: "Faults identified" },
+          { value: "repairs-required", label: "Repairs required" },
+        ],
+        required: true,
+      },
+    ],
+  },
+  {
+    id: "part-1-supply-mains",
+    title: "Part 1 - SUPPLY MAINS",
+    fields: [
+      auditRow("supply-mains", "Supply Mains"),
+      auditRow("consumer-mains", "Consumer Mains"),
+      auditRow("meter-enclosure", "Meter Enclosure"),
+    ],
+  },
+  {
+    id: "part-2-switchboard",
+    title: "Part 2 - SWITCHBOARD",
+    fields: [
+      auditRow("locations-accessibility", "Locations and Accessibility"),
+      auditRow("fire-resistance", "Fire Resistance"),
+      auditRow("switchboard-enclosure", "Switchboard Enclosure"),
+      auditRow("circuit-interconnection", "Circuit Interconnection"),
+      auditRow("circuit-protection", "Circuit Protection"),
+      auditRow("main-earth", "Main Earth"),
+      {
+        id: "safety-switches-installed",
+        label: "Safety Switches Installed?",
+        type: "yes-no",
+        options: yesNoOptions,
+        required: true,
+      },
+    ],
+  },
+  {
+    id: "part-3-wiring-accessories",
+    title: "Part 3 - WIRING AND ACCESSORIES",
+    fields: [
+      auditRow("power-circuits", "Power Circuits"),
+      auditRow("lighting-circuits", "Lighting Circuits"),
+      auditRow("cooking-circuit", "Cooking Circuit"),
+      auditRow("hot-water-circuit", "Hot Water Circuit"),
+      auditRow("wiring-air-con-unit", "Air Con Unit"),
+      auditRow("socket-outlet", "Socket Outlet"),
+      auditRow("light-fittings", "Light Fittings"),
+      auditRow("light-switches", "Light Switches"),
+      auditRow("wiring-smoke-alarm", "Smoke Alarm"),
+      auditRow("carbon-monoxide-alarm", "Carbon Monoxide Alarm"),
+      auditRow("emergency-lighting", "Emergency Lighting"),
+    ],
+  },
+  {
+    id: "part-4-fixed-appliances",
+    title: "Part 4 - FIXED ELECTRICAL APPLIANCES",
+    fields: [
+      auditRow("appliance-oven", "Oven"),
+      auditRow("appliance-hot-plates", "Hot Plates"),
+      auditRow("appliance-dishwasher", "Dishwasher"),
+      auditRow("appliance-hot-water-system", "Hot Water System"),
+      auditRow("appliance-rangehood", "Rangehood"),
+      auditRow("appliance-exhaust-fans", "Exhaust Fans"),
+      auditRow("appliance-air-con-unit", "Air Con Unit"),
+      auditRow("appliance-ceiling-fans", "Ceiling Fans"),
+    ],
+  },
+  {
+    id: "part-5-distribution-boards",
+    title: "Part 5 - DISTRIBUTION BOARDS",
+    fields: [
+      {
+        id: "boards-installed",
+        label: "Boards Installed?",
+        type: "yes-no",
+        options: yesNoOptions,
+        required: true,
+      },
+    ],
+  },
+  {
+    id: "part-6-standby-supply",
+    title: "Part 6 - SUPPLEMENTARY/STANDBY ENERGY SUPPLY",
+    fields: [
+      {
+        id: "generator-supply-type",
+        label: "Generator Supply Type",
+        type: "text",
+        helpText: "Enter NA if no standby supply is installed.",
+      },
+    ],
+  },
+  {
+    id: "part-7-audit-tests",
+    title: "Part 7 - Audit Tests",
+    description: "Record test results and any supporting comments.",
+    fields: [
+      {
+        id: "main-earth-conductor",
+        label: "Main Earth Conductor",
+        type: "pass-fail-na",
+        options: passFailNaOptions,
+        required: true,
+      },
+      {
+        id: "main-earth-conductor-comments",
+        label: "Main Earth Conductor comments",
+        type: "textarea",
+      },
+      {
+        id: "socket-polarity",
+        label: "Socket Polarity",
+        type: "pass-fail-na",
+        options: passFailNaOptions,
+        required: true,
+      },
+      {
+        id: "socket-polarity-comments",
+        label: "Socket Polarity comments",
+        type: "textarea",
+      },
+      {
+        id: "rcd-operation",
+        label: "RCD Operation",
+        type: "pass-fail-na",
+        options: passFailNaOptions,
+        required: true,
+      },
+      {
+        id: "rcd-operation-comments",
+        label: "RCD Operation comments",
+        type: "textarea",
+      },
+    ],
+  },
+  {
+    id: "part-8-overall",
+    title: "Part 8",
+    fields: [auditRow("es-sa-overall", "ES/SA - Electrical and Smoke Alarm")],
+  },
+  {
+    id: "additional-optional-tests",
+    title: "Additional Optional Tests",
+    description: "Record each smoke alarm tested and its location.",
+    fields: [
+      {
+        id: "smoke-alarm-tests",
+        label: "Smoke alarm tests",
+        type: "table",
+        columns: [
+          {
+            id: "alarm-location",
+            label: "Location",
+            type: "text",
+            required: true,
+          },
+          {
+            id: "alarm-result",
+            label: "Result",
+            type: "pass-fail-na",
+            options: passFailNaOptions,
+            required: true,
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "safety-alarm",
+    title: "Safety Alarm",
+    fields: [
+      {
+        id: "safety-alarm-confirmed",
+        label:
+          "All smoke alarms are correctly installed and in working condition; and have been tested according to the manufacturer's instructions.",
+        type: "yes-no-na",
+        options: yesNoNaOptions,
+        required: true,
+      },
+      {
+        id: "next-smoke-check-due",
+        label: "Next smoke alarms check is due by",
+        type: "date",
+        required: true,
+      },
+    ],
+  },
+  {
+    id: "support-photos",
+    title: "Support Pictures For Application",
+    description: "Attach supporting photos for the audit.",
+    fields: [
+      {
+        id: "switchboard-photos",
+        label: "Switchboard Photos",
+        type: "photo-multi",
+      },
+      { id: "meter-photos", label: "Meter Photos", type: "photo-multi" },
+      { id: "aircon-photos", label: "Aircon Photos", type: "photo-multi" },
+      { id: "oven-photos", label: "Oven Photos", type: "photo-multi" },
+      { id: "rangehood-photos", label: "Rangehood Photos", type: "photo-multi" },
+      {
+        id: "gpo-tester-photos",
+        label: "GPO Test Evidence",
+        type: "photo-multi",
+      },
+    ],
+  },
+  {
+    id: "rectification-works-required",
+    title: "Rectification Works Required",
+    description: "Record issues and risk if rectification work is required",
+    fields: [
+      {
+        id: "issues-identified",
+        label: "Issues Identified?",
+        type: "yes-no",
+        required: true,
+        options: yesNoOptions,
+      },
+      {
+        id: "issue-description",
+        label: "Issue Description",
+        type: "textarea",
+        metadata: {
+          visibleWhen: { fieldId: "issues-identified", equals: "yes" },
+        },
+      },
+      {
+        id: "risk-level",
+        label: "Risk Level",
+        type: "select",
+        options: [
+          { value: "immediate-unsafe", label: "Immediate (Unsafe)" },
+          { value: "non-urgent", label: "Non-Urgent" },
+        ],
+        metadata: {
+          visibleWhen: { fieldId: "issues-identified", equals: "yes" },
+        },
+      },
+      {
+        id: "rectification-photos",
+        label: "Rectification Photos",
+        type: "photo-multi",
+      },
+    ],
+  },
+  {
+    id: "observations-recommendations",
+    title: "Observations And Recommendations",
+    fields: [
+      {
+        id: "observations",
+        label: "The following observations and recommendations are made:",
+        type: "textarea",
+      },
+      {
+        id: "compliance-works",
+        label: "The following work is required for compliance purposes:",
+        type: "textarea",
+      },
+    ],
+  },
+  {
+    id: "final-declaration",
+    title: "Audit Declaration & Sign-Off",
+    description: "System-calculated outcome and technician sign-off",
+    fields: [
+      {
+        id: "final-compliance-outcome",
+        label: "Final Compliance Outcome",
+        type: "select",
+        options: [
+          { value: "compliant", label: "Compliant" },
+          { value: "non-compliant", label: "Non-Compliant" },
+          { value: "unsafe", label: "Unsafe" },
+        ],
+        metadata: { readOnly: true, systemCalculated: true },
+      },
+      {
+        id: "next-inspection-due",
+        label: "Next Inspection Due Date",
+        type: "date",
+        required: true,
+      },
+      {
+        id: "technician-signature",
+        label: "Signature of technician",
+        type: "signature",
+        required: true,
+      },
+    ],
+  },
+];
+
+const createElectricalSmokeAuditTemplate = () => ({
+  jobType: "Electrical",
+  title: "Electrical & Smoke Safety Inspection",
+  version: 7,
+  metadata: {
+    category: "compliance",
+    durationEstimateMins: 90,
+    requiresSignature: true,
+    requiresPhotos: true,
+    summary: "Comprehensive electrical and smoke alarm safety inspection",
+  },
+  sections: createElectricalSmokeAuditSections(),
+});
+
 // NEW: Comprehensive Electrical & Smoke Safety Inspection Template
 const createComprehensiveElectricalSmokeTemplate = () => ({
   jobType: "Electrical",
@@ -4753,7 +5139,7 @@ const createComprehensiveElectricalSmokeTemplate = () => ({
 export const defaultInspectionTemplates = [
   createSmokeTemplate(), // Smoke report
   gasTemplate, // Gas report
-  createComprehensiveElectricalSmokeTemplate(), // Electric and Smoke report combined
+  createElectricalSmokeAuditTemplate(), // Electric and Smoke report combined (v7)
   createBasicMinimumSafetyStandardTemplate(), // Minimum Standard
 ];
 

@@ -509,6 +509,83 @@ const calculateMinimumSafetyStandardOutcome = (formData = {}, template = null) =
   return "compliant";
 };
 
+/**
+ * Electrical & Smoke audit (template v7+): derives the system-calculated
+ * `final-compliance-outcome` from the checklist.
+ *
+ * The template marks that field readOnly/systemCalculated, but until v7 nothing
+ * on the server computed it for Electrical - Gas and Minimum Standard had
+ * calculators, Electrical did not - so it was always empty. The v7 report's
+ * status badge and declaration read from it, so it must be filled here.
+ *
+ *  - "unsafe"         rectification recorded with risk-level immediate-unsafe
+ *  - "non-compliant"  any Unsatisfactory row, any failed audit test, rectification
+ *                     issues identified, safety-alarm statement answered No, or
+ *                     either headline outcome not "no-faults"
+ *  - "compliant"      otherwise. "Attention" rows are advisory and do not fail the
+ *                     report on their own; they surface in the flagged summary.
+ */
+const ELECTRICAL_AUDIT_PART_SECTION_IDS = [
+  "part-1-supply-mains",
+  "part-2-switchboard",
+  "part-3-wiring-accessories",
+  "part-4-fixed-appliances",
+  "part-7-audit-tests",
+  "part-8-overall",
+];
+
+const isElectricalAuditTemplate = (template) =>
+  template?.jobType === "Electrical" && Number(template?.version ?? 0) >= 7;
+
+const calculateElectricalAuditOutcome = (formData = {}) => {
+  const normalize = (value) =>
+    String(value ?? "").trim().toLowerCase().replace(/[\s_]+/g, "-");
+
+  const rectification = formData["rectification-works-required"] || {};
+  if (
+    normalize(rectification["issues-identified"]) === "yes" &&
+    normalize(rectification["risk-level"]) === "immediate-unsafe"
+  ) {
+    return "unsafe";
+  }
+
+  const failing = new Set(["unsatisfactory", "fail"]);
+  for (const sectionId of ELECTRICAL_AUDIT_PART_SECTION_IDS) {
+    for (const value of Object.values(formData[sectionId] || {})) {
+      if (failing.has(normalize(value))) {
+        return "non-compliant";
+      }
+    }
+  }
+
+  const optionalTests = formData["additional-optional-tests"] || {};
+  const alarmRows = Array.isArray(optionalTests["smoke-alarm-tests"])
+    ? optionalTests["smoke-alarm-tests"]
+    : [];
+  if (alarmRows.some((row) => normalize(row?.["alarm-result"]) === "fail")) {
+    return "non-compliant";
+  }
+
+  if (normalize(rectification["issues-identified"]) === "yes") {
+    return "non-compliant";
+  }
+
+  const safetyAlarm = formData["safety-alarm"] || {};
+  if (normalize(safetyAlarm["safety-alarm-confirmed"]) === "no") {
+    return "non-compliant";
+  }
+
+  const summary = formData["inspection-summary"] || {};
+  for (const fieldId of ["electrical-outcome", "smoke-outcome"]) {
+    const value = normalize(summary[fieldId]);
+    if (value && value !== "no-faults") {
+      return "non-compliant";
+    }
+  }
+
+  return "compliant";
+};
+
 // Licence/registration field ids used across the compliance templates. These are
 // auto-filled from the technician record rather than entered by the technician.
 const TECHNICIAN_LICENCE_FIELD_IDS = new Set([
@@ -996,6 +1073,15 @@ const loadInspectionSubmissionContext = async ({
     };
   }
 
+  if (isElectricalAuditTemplate(template)) {
+    normalizedFormData["final-declaration"] = {
+      ...(normalizedFormData["final-declaration"] || {}),
+      "final-compliance-outcome": calculateElectricalAuditOutcome(
+        normalizedFormData
+      ),
+    };
+  }
+
   validateConditionallyRequiredFields(template, normalizedFormData);
 
   let resolvedNextComplianceDate = resolveNextComplianceDate(
@@ -1300,4 +1386,8 @@ export const submitInspectionReport = async ({
 
 export default submitInspectionReport;
 
-export { cleanupInspectionTempFiles, uploadInspectionMedia };
+export {
+  cleanupInspectionTempFiles,
+  uploadInspectionMedia,
+  calculateElectricalAuditOutcome,
+};
