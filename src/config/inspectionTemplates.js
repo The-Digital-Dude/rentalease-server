@@ -5175,6 +5175,293 @@ const createElectricalSmokeAuditSections = () => [
   },
 ];
 
+/* ============================================================================
+ * Gas Safety Check v5 - issued-report question set
+ *
+ * v4 asked seventeen checks per appliance; the report RentalEase issues asks
+ * five. v5 collects the issued set exactly, so the PDF and the form agree.
+ *
+ * Deliberate consequence, recorded here because it is not obvious from the
+ * template alone: the CO spillage test, flue and cowl condition, heat
+ * exchanger, burner pressure and flame, negative pressure, gastightness to
+ * AS/NZS 5601.1, certification evidence, restraint, servicing access and
+ * cleaning are no longer asked. Those v4 answers survive on existing reports;
+ * they are simply not collected from v5 onward.
+ *
+ * Faults are not entered twice. Every check carries a Rectification note that
+ * appears only when the answer fails, and the report's fault table is built
+ * from those, so the table can never contradict the checklist above it.
+ * ========================================================================== */
+
+/** A gas check plus the rectification note that appears when it fails. */
+const gasCheckWithRectification = (id, label, type, failValue = "no") => {
+  const optionsByType = {
+    "yes-no": yesNoOptions,
+    "yes-no-na": yesNoNaOptions,
+    "pass-fail": passFailOptions,
+    "pass-fail-na": passFailNaOptions,
+  };
+  return [
+    { id, label, type, options: optionsByType[type], required: true },
+    {
+      id: `${id}-rectification`,
+      label: "Rectification",
+      type: "textarea",
+      required: true,
+      metadata: { visibleWhen: { fieldId: id, equals: failValue } },
+    },
+  ];
+};
+
+const createGasSafetyAuditSections = () => [
+  {
+    id: "inspection-summary",
+    title: "Inspection Summary",
+    description: "Record key inspection details.",
+    fields: [
+      {
+        id: "inspection-date",
+        label: "Inspection Date",
+        type: "date",
+        required: true,
+        defaultValue: new Date().toISOString().split("T")[0],
+      },
+      {
+        id: "inspector-name",
+        label: "Gasfitter name",
+        type: "text",
+        required: true,
+        metadata: serverPrefilledFieldMetadata,
+      },
+      {
+        id: "license-number",
+        label: "Licence/registration number",
+        type: "text",
+        required: true,
+        metadata: serverPrefilledFieldMetadata,
+      },
+    ],
+  },
+  {
+    id: "gas-installation",
+    title: "Gas Installation",
+    description:
+      "Regulation 12(4) of the Gas Safety (Gas Installation) Regulations 2018 prescribes AS 4575 as the standard for Type A appliance servicing work on an appliance that is part of a standard gas installation.",
+    fields: [
+      ...gasCheckWithRectification(
+        "lp-gas-cylinders",
+        "LP Gas cylinders and associated components (i.e. regulators, pigtails) installed correctly",
+        "yes-no-na"
+      ),
+      ...gasCheckWithRectification(
+        "gas-leakage-test",
+        "Gas installation leakage test",
+        "pass-fail",
+        "fail"
+      ),
+      { id: "gas-installation-comments", label: "Comments", type: "textarea" },
+      {
+        id: "gas-installation-photo",
+        label: "Gas Installation Photo",
+        type: "photo-multi",
+      },
+    ],
+  },
+  {
+    id: "gas-appliances",
+    title: "Gas Appliances Installation",
+    description: "Add one entry for each gas appliance inspected.",
+    repeatable: true,
+    minItems: 1,
+    addButtonLabel: "Add appliance",
+    itemLabel: "Appliance",
+    metadata: { summaryFieldId: "appliance-name" },
+    fields: [
+      {
+        id: "appliance-name",
+        label: "Appliance",
+        type: "text",
+        required: true,
+        helpText: "For example: Cooker, Hot water heater, Ducted heater",
+      },
+      ...gasCheckWithRectification(
+        "appliance-isolation-valve",
+        "Appliance isolation valve",
+        "yes-no-na"
+      ),
+      ...gasCheckWithRectification(
+        "electrically-safe",
+        "Electrically safe",
+        "yes-no"
+      ),
+      ...gasCheckWithRectification(
+        "adequate-ventilation",
+        "Adequate ventilation",
+        "yes-no"
+      ),
+      ...gasCheckWithRectification(
+        "adequate-clearances",
+        "Adequate clearances to combustible surfaces",
+        "yes-no"
+      ),
+      ...gasCheckWithRectification(
+        "as4575-service-completed",
+        "Completed service in accordance with AS 4575 (VBA online system report)",
+        "yes-no"
+      ),
+      { id: "appliance-comments", label: "Comments", type: "textarea" },
+      { id: "location-photo", label: "Location Photo", type: "photo" },
+      {
+        id: "location-photo-na",
+        label: "Location photo not applicable",
+        type: "checkbox",
+      },
+      { id: "data-plate-photo", label: "Data Plate", type: "photo" },
+      {
+        id: "data-plate-photo-na",
+        label: "Data plate not applicable",
+        type: "checkbox",
+      },
+    ],
+  },
+  {
+    id: "appliance-servicing",
+    title: "Appliance Servicing",
+    description:
+      "Regulation 12(4) of the Gas Safety (Gas Installation) Regulations 2018 prescribes AS 4575 as the standard for Type A appliance servicing work on an appliance that is part of a standard gas installation.",
+    fields: [
+      {
+        id: "serviced-per-as4575",
+        label: "I have serviced all appliances in accordance with AS 4575",
+        type: "yes-no-na",
+        options: yesNoNaOptions,
+        required: true,
+      },
+      {
+        id: "vba-record-created",
+        label:
+          "I have created a record (VBA online) under regulation 36(2) or 37(2) of the Gas Safety (Gas Installation) Regulations 2018 and provided a copy to the rental provider under regulation 30(1)(ab) of the Residential Tenancies Regulations 2021",
+        type: "yes-no-na",
+        options: yesNoNaOptions,
+        required: true,
+      },
+    ],
+  },
+  {
+    id: "rectification-works-required",
+    title: "Rectification Works Required",
+    description: "Record issues and risk if rectification work is required.",
+    fields: [
+      {
+        id: "issues-identified",
+        label: "Issues Identified?",
+        type: "yes-no",
+        options: yesNoOptions,
+        required: true,
+      },
+      {
+        id: "issue-description",
+        label: "Issue Description",
+        type: "textarea",
+        metadata: {
+          visibleWhen: { fieldId: "issues-identified", equals: "yes" },
+        },
+      },
+      {
+        id: "risk-level",
+        label: "Risk Level",
+        type: "select",
+        options: [
+          { value: "immediate-unsafe", label: "Immediate (Unsafe)" },
+          { value: "non-urgent", label: "Non-Urgent" },
+        ],
+        metadata: {
+          visibleWhen: { fieldId: "issues-identified", equals: "yes" },
+        },
+      },
+      {
+        // Fills the issued summary's "Repair Completed?" column. Asked once
+        // rather than per fault: gas rectification is normally quoted and
+        // returned for, so the answer is the same for every fault on a visit.
+        id: "repairs-completed-on-site",
+        label: "Were the identified repairs completed during this visit?",
+        type: "yes-no",
+        options: yesNoOptions,
+        metadata: {
+          visibleWhen: { fieldId: "issues-identified", equals: "yes" },
+        },
+      },
+      {
+        id: "rectification-photos",
+        label: "Rectification Photos",
+        type: "photo-multi",
+      },
+    ],
+  },
+  {
+    id: "observations-recommendations",
+    title: "Observations And Recommendations",
+    fields: [
+      {
+        id: "checks-conducted",
+        label: "Checks conducted and outcomes",
+        type: "textarea",
+      },
+      {
+        id: "observations",
+        label:
+          "Observations and recommendations for any actions to be taken",
+        type: "textarea",
+      },
+    ],
+  },
+  {
+    id: "final-declaration",
+    title: "Declaration",
+    description: "System-calculated outcome and gasfitter sign-off.",
+    fields: [
+      {
+        id: "final-compliance-outcome",
+        label: "Final Compliance Outcome",
+        type: "select",
+        options: [
+          { value: "compliant", label: "Compliant" },
+          { value: "non-compliant", label: "Non-Compliant" },
+          { value: "unsafe", label: "Unsafe" },
+        ],
+        metadata: { readOnly: true, systemCalculated: true },
+      },
+      {
+        id: "next-gas-check-due",
+        label: "Next gas safety check due",
+        type: "date",
+        required: true,
+        helpText: "Gas safety checks are due within 24 months.",
+      },
+      {
+        id: "technician-signature",
+        label: "Signed by gasfitter",
+        type: "signature",
+        required: true,
+      },
+    ],
+  },
+];
+
+const createGasSafetyAuditTemplate = () => ({
+  jobType: "Gas",
+  title: "Gas Safety Check",
+  version: 5,
+  metadata: {
+    category: "compliance",
+    durationEstimateMins: 90,
+    requiresSignature: true,
+    requiresPhotos: true,
+    summary: "Gas safety check for rental compliance",
+  },
+  sections: createGasSafetyAuditSections(),
+});
+
 const createElectricalSmokeAuditTemplate = () => ({
   jobType: "Electrical",
   title: "Electrical & Smoke Safety Inspection",
@@ -5206,7 +5493,7 @@ const createComprehensiveElectricalSmokeTemplate = () => ({
 
 export const defaultInspectionTemplates = [
   createSmokeTemplate(), // Smoke report
-  gasTemplate, // Gas report
+  createGasSafetyAuditTemplate(), // Gas report (v5)
   createElectricalSmokeAuditTemplate(), // Electric and Smoke report combined (v7)
   createBasicMinimumSafetyStandardTemplate(), // Minimum Standard
 ];

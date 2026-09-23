@@ -602,6 +602,68 @@ const calculateElectricalAuditOutcome = (formData = {}) => {
   return "compliant";
 };
 
+/**
+ * Gas Safety Check (template v5+): derives the system-calculated
+ * `final-compliance-outcome` from the checklist.
+ *
+ * Mirrors the three outcomes the issued declaration offers:
+ *  - "unsafe"         rectification recorded with risk-level immediate-unsafe
+ *  - "non-compliant"  any installation or appliance check answered No or Fail,
+ *                     or issues identified
+ *  - "compliant"      otherwise. N/A is not a failure.
+ */
+const GAS_INSTALLATION_CHECK_IDS = ["lp-gas-cylinders", "gas-leakage-test"];
+const GAS_APPLIANCE_CHECK_IDS = [
+  "appliance-isolation-valve",
+  "electrically-safe",
+  "adequate-ventilation",
+  "adequate-clearances",
+  "as4575-service-completed",
+];
+
+const isGasSafetyAuditTemplate = (template) =>
+  template?.jobType === "Gas" && Number(template?.version ?? 0) >= 5;
+
+const calculateGasSafetyAuditOutcome = (formData = {}) => {
+  const normalize = (value) =>
+    String(value ?? "").trim().toLowerCase().replace(/[\s_]+/g, "-");
+  const failing = new Set(["no", "fail"]);
+
+  const rectification = formData["rectification-works-required"] || {};
+  if (
+    normalize(rectification["issues-identified"]) === "yes" &&
+    normalize(rectification["risk-level"]) === "immediate-unsafe"
+  ) {
+    return "unsafe";
+  }
+
+  const installation = formData["gas-installation"] || {};
+  if (
+    GAS_INSTALLATION_CHECK_IDS.some((id) =>
+      failing.has(normalize(installation[id]))
+    )
+  ) {
+    return "non-compliant";
+  }
+
+  const appliances = Array.isArray(formData["gas-appliances"])
+    ? formData["gas-appliances"]
+    : [];
+  if (
+    appliances.some((appliance) =>
+      GAS_APPLIANCE_CHECK_IDS.some((id) => failing.has(normalize(appliance?.[id])))
+    )
+  ) {
+    return "non-compliant";
+  }
+
+  if (normalize(rectification["issues-identified"]) === "yes") {
+    return "non-compliant";
+  }
+
+  return "compliant";
+};
+
 // Licence/registration field ids used across the compliance templates. These are
 // auto-filled from the technician record rather than entered by the technician.
 const TECHNICIAN_LICENCE_FIELD_IDS = new Set([
@@ -1098,6 +1160,14 @@ const loadInspectionSubmissionContext = async ({
     };
   }
 
+  if (isGasSafetyAuditTemplate(template)) {
+    normalizedFormData["final-declaration"] = {
+      ...(normalizedFormData["final-declaration"] || {}),
+      "final-compliance-outcome":
+        calculateGasSafetyAuditOutcome(normalizedFormData),
+    };
+  }
+
   validateConditionallyRequiredFields(template, normalizedFormData);
 
   let resolvedNextComplianceDate = resolveNextComplianceDate(
@@ -1406,4 +1476,5 @@ export {
   cleanupInspectionTempFiles,
   uploadInspectionMedia,
   calculateElectricalAuditOutcome,
+  calculateGasSafetyAuditOutcome,
 };

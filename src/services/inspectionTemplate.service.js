@@ -25,10 +25,11 @@ export const cleanupOldTemplateVersions = async () => {
     );
   }
 
-  // Gas inspections now use version 4 with conditional rectification fields.
-  // Keep older templates for historical reports only.
+  // Gas inspections now use the version 5 issued-report question set. v4 must
+  // be deactivated too: the app lists every active template and lets the
+  // technician choose, so leaving v4 active would offer two Gas forms.
   await InspectionTemplate.updateMany(
-    { jobType: "Gas", version: { $lt: 4 } },
+    { jobType: "Gas", version: { $lt: 5 } },
     { isActive: false }
   );
 
@@ -57,7 +58,7 @@ export const cleanupOldTemplateVersions = async () => {
   );
 
   console.log(
-    "Deactivated legacy inspection templates: versions <4 for Gas, versions <4 for Smoke, versions <7 for Electrical, versions <4 for MinimumSafetyStandard"
+    "Deactivated legacy inspection templates: versions <5 for Gas, versions <4 for Smoke, versions <7 for Electrical, versions <4 for MinimumSafetyStandard"
   );
 };
 
@@ -173,6 +174,9 @@ export const prefillTemplateWithJobData = (template, job, property, technician) 
     prefillMap["certification-next-inspection-due"] = nextComplianceDate;
     prefillMap["next-inspection-date"] = nextComplianceDate;
     prefillMap["next-inspection-due"] = nextComplianceDate;
+    // Gas v5 declaration - checks are due within 24 months, which is the Gas
+    // offset already applied above.
+    prefillMap["next-gas-check-due"] = nextComplianceDate;
   }
 
   // Smoke alarms are checked annually regardless of the report's own cycle, so

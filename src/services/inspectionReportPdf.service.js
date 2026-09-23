@@ -5999,9 +5999,12 @@ const drawAuditRecordsTable = (doc, columns, rows) => {
         .fillColor(AUDIT_COLORS.textGray)
         .fontSize(7.5)
         .font("Helvetica-Bold")
+        // Headers stay on one line; a column too narrow for its own heading is
+        // a layout bug to fix by widening it, not something to wrap silently.
         .text(column.label.toUpperCase(), x + padding, y + 5, {
           width: widths[index] - padding * 2,
           lineBreak: false,
+          ellipsis: true,
         });
       x += widths[index];
     });
@@ -6307,7 +6310,14 @@ const drawAuditFlaggedPhotos = async (doc, groups) => {
   doc.y += 6;
 };
 
-const drawAuditObservations = (doc, observations, complianceWorks, notes) => {
+const drawAuditObservations = (
+  doc,
+  observations,
+  complianceWorks,
+  notes,
+  // Gas and Electrical head these two blocks differently on the issued forms.
+  labels = {}
+) => {
   if (!observations && !complianceWorks && !notes) {
     return;
   }
@@ -6322,11 +6332,15 @@ const drawAuditObservations = (doc, observations, complianceWorks, notes) => {
 
   const blocks = [
     {
-      label: "The following observations and recommendations are made:",
+      label:
+        labels.observations ||
+        "The following observations and recommendations are made:",
       value: observations,
     },
     {
-      label: "The following work is required for compliance purposes:",
+      label:
+        labels.complianceWorks ||
+        "The following work is required for compliance purposes:",
       value: complianceWorks,
     },
     // Free-text notes from the completion form. Folded in here rather than
@@ -6727,6 +6741,571 @@ const renderElectricalSmokeAuditReport = async (
   });
 };
 
+/* ============================================================================
+ * Gas Safety Check report (template v5+)
+ *
+ * Shares the Electrical audit's visual language - cover, header/footer, title
+ * row with outcome badge, info grid, part boxes with pill rows, flagged-photo
+ * summary and support grid - against the gas question set.
+ *
+ * The fault table is derived, never typed: any check answered No or Fail
+ * becomes a row carrying its own Rectification note, the appliance it belongs
+ * to, and the outcome. It therefore cannot disagree with the checklist.
+ * ========================================================================== */
+
+const GAS_INSTALLATION_CHECKS = [
+  { id: "lp-gas-cylinders", type: "yes-no-na" },
+  { id: "gas-leakage-test", type: "pass-fail" },
+];
+
+const GAS_APPLIANCE_CHECKS = [
+  { id: "appliance-isolation-valve", type: "yes-no-na" },
+  { id: "electrically-safe", type: "yes-no" },
+  { id: "adequate-ventilation", type: "yes-no" },
+  { id: "adequate-clearances", type: "yes-no" },
+  { id: "as4575-service-completed", type: "yes-no" },
+];
+
+const gasScaleFor = (type) =>
+  type === "pass-fail" || type === "pass-fail-na"
+    ? AUDIT_PASS_SCALE
+    : type === "yes-no"
+      ? AUDIT_YES_NO
+      : AUDIT_YES_NO_NA;
+
+const isFailedGasAnswer = (label) => label === "No" || label === "Fail";
+
+/**
+ * Builds the fault table and the flagged-photo groups in one pass, so a fault
+ * and its evidence always agree about which appliance they belong to.
+ */
+const collectGasFaults = (report, template) => {
+  const formData = report.formData || {};
+  const media = report.media || [];
+  const used = new Set();
+  const faults = [];
+  const groups = [];
+
+  const labelFor = (sectionId, fieldId) =>
+    template?.sections
+      ?.find((section) => section.id === sectionId)
+      ?.fields?.find((field) => field.id === fieldId)?.label || fieldId;
+
+  const takeMedia = (predicate) => {
+    const picked = media.filter(
+      (item) => !used.has(item) && predicate(String(item?.fieldId || ""))
+    );
+    picked.forEach((item) => used.add(item));
+    return picked;
+  };
+
+  const repairsCompleted =
+    String(
+      (formData["rectification-works-required"] || {})[
+        "repairs-completed-on-site"
+      ] ?? ""
+    ).toLowerCase() === "yes"
+      ? "Yes"
+      : "No";
+
+  // Installation-level checks.
+  const installation = formData["gas-installation"] || {};
+  const installationFaults = [];
+  for (const check of GAS_INSTALLATION_CHECKS) {
+    const label = auditValueLabel(
+      installation[check.id],
+      gasScaleFor(check.type)
+    );
+    if (!isFailedGasAnswer(label)) continue;
+    installationFaults.push(`${labelFor("gas-installation", check.id)}: ${label}`);
+    faults.push({
+      fault: labelFor("gas-installation", check.id),
+      rectification: installation[`${check.id}-rectification`] || "-",
+      location: "Gas installation",
+      assessment: "Non Compliant",
+      repair: repairsCompleted,
+    });
+  }
+  if (installationFaults.length) {
+    const photos = takeMedia((fieldId) =>
+      fieldId.startsWith("gas-installation-photo")
+    );
+    if (photos.length) {
+      groups.push({
+        heading: "Gas Installation",
+        status: "Unsatisfactory",
+        detail: installationFaults.join("  ·  "),
+        photos,
+      });
+    }
+  }
+
+  // Per-appliance checks. Repeatable-section photos arrive as
+  // "<fieldId>-<itemIndex>", so each appliance's evidence is matched by index.
+  const appliances = Array.isArray(formData["gas-appliances"])
+    ? formData["gas-appliances"]
+    : [];
+  appliances.forEach((appliance, index) => {
+    const name = appliance?.["appliance-name"] || `Appliance ${index + 1}`;
+    const applianceFaults = [];
+
+    for (const check of GAS_APPLIANCE_CHECKS) {
+      const label = auditValueLabel(
+        appliance?.[check.id],
+        gasScaleFor(check.type)
+      );
+      if (!isFailedGasAnswer(label)) continue;
+      applianceFaults.push(`${labelFor("gas-appliances", check.id)}: ${label}`);
+      faults.push({
+        fault: labelFor("gas-appliances", check.id),
+        rectification: appliance?.[`${check.id}-rectification`] || "-",
+        location: name,
+        assessment: "Non Compliant",
+        repair: repairsCompleted,
+      });
+    }
+
+    if (!applianceFaults.length) return;
+    const photos = takeMedia(
+      (fieldId) =>
+        fieldId === `location-photo-${index}` ||
+        fieldId === `data-plate-photo-${index}`
+    );
+    if (photos.length) {
+      groups.push({
+        heading: name,
+        status: "Unsatisfactory",
+        detail: applianceFaults.join("  ·  "),
+        photos,
+      });
+    }
+  });
+
+  // Free-text rectification recorded separately from the checks.
+  const rectification = formData["rectification-works-required"] || {};
+  if (String(rectification["issues-identified"]).toLowerCase() === "yes") {
+    const photos = takeMedia((fieldId) =>
+      fieldId.startsWith("rectification-photos")
+    );
+    if (rectification["issue-description"]) {
+      faults.push({
+        fault: rectification["issue-description"],
+        rectification:
+          String(rectification["risk-level"]) === "immediate-unsafe"
+            ? "Immediate (Unsafe) - disconnection and urgent work required"
+            : "Non-urgent remedial work required",
+        location: "Property",
+        assessment:
+          String(rectification["risk-level"]) === "immediate-unsafe"
+            ? "Unsafe"
+            : "Non Compliant",
+        repair: repairsCompleted,
+      });
+    }
+    if (photos.length) {
+      groups.push({
+        heading: "Rectification Works Required",
+        status: "Unsatisfactory",
+        detail: rectification["issue-description"] || "",
+        photos,
+      });
+    }
+  }
+
+  return { faults, groups, usedMediaIds: used };
+};
+
+const GAS_DANGEROUS_INSTALLATIONS = [
+  "1. If a person carrying out gasfitting work on a gas installation becomes aware of a danger arising from a defect in the gas installation, the person must without delay - (a) take all steps that are necessary to make the installation safe; and (b) notify the owner of the gas installation and the occupier of the premises in which the installation is situated of the defect.",
+  "2. Sub regulation (1)(a) does not apply if the person is unable, or it is unreasonable for the person, to take the necessary steps to make the gas installation safe.",
+  "3. If the person carrying out the gasfitting work is unable, or it is unreasonable for the person, to make the gas installation safe, he or she must, without delay, notify Energy Safe Victoria and - (a) if the gas installation uses natural gas, the gas distribution company which supplies that gas to the gas installation of the defect; or (b) if the gas installation uses LPG, the gas retailer which supplies that gas to the gas installation of the defect.",
+];
+
+const GAS_DECLARATION_INTRO =
+  "I, being the person responsible for the inspection of the identified gas appliances or installations in the rental property or rooming house, particulars of which are described here, having exercised reasonable skill and care when carrying out the inspection, hereby declare on the date of inspection that the information in this report, including the observations and recommendations, provides an accurate assessment of the condition of the gas appliances or installations in the rental property or rooming house taking into account the stated extent of the installation and the limitations of the inspection and testing.";
+
+const GAS_OUTCOME_DESCRIPTIONS = [
+  ["Compliant", "gas appliance or gas installation complies with the criteria for a “gas safety check” in the residential tenancies regulations."],
+  ["Non-Compliant", "no immediate risk, however the customer should be advised that remedial work is required to be carried out to bring the gas appliance or its installation up to standard."],
+  ["Unsafe", "gas appliance or its installation is unsafe and requires disconnection and urgent work as the safety of persons may be at risk or there may be damage to property."],
+];
+
+const drawGasDeclaration = async (
+  doc,
+  { outcomeLabel, nextCheckDue, technicianName, signatureValue }
+) => {
+  ensurePageSpace(doc, 200);
+  const width = doc.page.width - PAGE.margin * 2;
+
+  doc
+    .fillColor(AUDIT_COLORS.navy)
+    .fontSize(12)
+    .font("Helvetica-Bold")
+    .text("Dangerous Gas Installations", PAGE.margin, doc.y);
+  doc.y += 4;
+  doc
+    .fillColor(AUDIT_COLORS.muted)
+    .fontSize(7.5)
+    .font("Helvetica-Oblique")
+    .text(
+      "Gas Safety (Gas Installation) Regulations 2018, Part 3, Division 3, Section 21",
+      PAGE.margin,
+      doc.y,
+      { width }
+    );
+  doc.y += 8;
+  for (const paragraph of GAS_DANGEROUS_INSTALLATIONS) {
+    ensurePageSpace(doc, 40);
+    doc
+      .fillColor(AUDIT_COLORS.textGray)
+      .fontSize(7.5)
+      .font("Helvetica")
+      .text(paragraph, PAGE.margin, doc.y, { width, lineGap: 1.5 });
+    doc.y += 5;
+  }
+
+  ensurePageSpace(doc, 220);
+  doc.y += 6;
+  doc
+    .fillColor(AUDIT_COLORS.navy)
+    .fontSize(12)
+    .font("Helvetica-Bold")
+    .text("Declaration", PAGE.margin, doc.y);
+  doc.y += 14;
+
+  doc
+    .fillColor(AUDIT_COLORS.textGray)
+    .fontSize(8.5)
+    .font("Helvetica")
+    .text(GAS_DECLARATION_INTRO, PAGE.margin, doc.y, { width, lineGap: 1.5 });
+  doc.y += 8;
+
+  doc
+    .fillColor(AUDIT_COLORS.dark)
+    .fontSize(8.5)
+    .font("Helvetica")
+    .text(
+      "I further declare that in my judgment, the said appliance(s) and corresponding installation(s) is/are:",
+      PAGE.margin,
+      doc.y,
+      { width }
+    );
+  doc.y += 10;
+
+  for (const [label, description] of GAS_OUTCOME_DESCRIPTIONS) {
+    ensurePageSpace(doc, 34);
+    const selected = label === outcomeLabel;
+    const y = doc.y;
+    const color = selected
+      ? label === "Compliant"
+        ? AUDIT_COLORS.green
+        : label === "Unsafe"
+          ? AUDIT_COLORS.red
+          : AUDIT_COLORS.amber
+      : AUDIT_COLORS.border;
+
+    if (selected) {
+      doc.circle(PAGE.margin + 5, y + 5, 4).fillColor(color).fill();
+    } else {
+      doc
+        .circle(PAGE.margin + 5, y + 5, 4)
+        .lineWidth(0.8)
+        .strokeColor(AUDIT_COLORS.border)
+        .stroke();
+    }
+
+    doc
+      .fillColor(selected ? color : AUDIT_COLORS.textGray)
+      .fontSize(8.5)
+      .font(selected ? "Helvetica-Bold" : "Helvetica")
+      .text(label, PAGE.margin + 16, y + 1, { width: 90, lineBreak: false });
+    doc
+      .fillColor(AUDIT_COLORS.textGray)
+      .fontSize(8)
+      .font("Helvetica")
+      .text(description, PAGE.margin + 100, y + 1, {
+        width: width - 100,
+        lineGap: 1,
+      });
+    doc.y = Math.max(doc.y, y + 16) + 4;
+  }
+
+  doc.y += 6;
+  if (nextCheckDue) {
+    doc
+      .fillColor(AUDIT_COLORS.dark)
+      .fontSize(9.5)
+      .font("Helvetica-Bold")
+      .text(
+        `Next gas safety check is due within 24 months. Next gas safety check due: ${nextCheckDue}`,
+        PAGE.margin,
+        doc.y,
+        { width }
+      );
+    doc.y += 18;
+  }
+
+  doc
+    .fillColor(AUDIT_COLORS.textGray)
+    .fontSize(8.5)
+    .font("Helvetica-Bold")
+    .text("Signed by gasfitter", PAGE.margin, doc.y);
+  doc.y += 12;
+
+  if (signatureValue) {
+    await drawSignatureFromData(doc, signatureValue, PAGE.margin, doc.y, 160, 55);
+    doc.y += 58;
+  }
+
+  doc
+    .fillColor(AUDIT_COLORS.dark)
+    .fontSize(10)
+    .font("Helvetica-Bold")
+    .text(technicianName || "", PAGE.margin, doc.y);
+  doc.y += 16;
+};
+
+const renderGasSafetyAuditReport = async (
+  doc,
+  { report, template, job, property, technician }
+) => {
+  const formData = report.formData || {};
+  const getSection = (id) => formData[id] || {};
+  const reportTimeZone = resolvePropertyTimeZone(property);
+
+  const declaration = getSection("final-declaration");
+  const outcome = String(
+    declaration["final-compliance-outcome"] || ""
+  ).toLowerCase();
+  const outcomeLabel =
+    outcome === "compliant"
+      ? "Compliant"
+      : outcome === "unsafe"
+        ? "Unsafe"
+        : outcome === "non-compliant"
+          ? "Non-Compliant"
+          : null;
+  const statusLabel =
+    outcome === "compliant"
+      ? "SATISFACTORY"
+      : outcome
+        ? "UNSATISFACTORY"
+        : null;
+
+  drawAuditTitleRow(doc, "Gas Safety Check Report", statusLabel);
+
+  const summary = getSection("inspection-summary");
+  const address =
+    property?.address?.fullAddress ||
+    property?.fullAddress ||
+    [property?.address?.street, property?.address?.suburb, property?.address?.state]
+      .filter(Boolean)
+      .join(", ");
+
+  drawAuditInfoGrid(
+    doc,
+    [
+      { label: "Property Address:", value: address },
+      {
+        label: "Agent:",
+        value:
+          property?.agency?.contactPerson ||
+          property?.agency?.name ||
+          job?.agent ||
+          "-",
+      },
+    ],
+    [
+      {
+        label: "Job Date:",
+        value: formatNumericDate(
+          job?.dueDate || report?.createdAt,
+          reportTimeZone
+        ),
+      },
+      { label: "Service Number:", value: job?.job_id || job?.jobId || "-" },
+      {
+        label: "Gasfitter Name:",
+        value:
+          technician?.fullName ||
+          summary["inspector-name"] ||
+          [technician?.firstName, technician?.lastName]
+            .filter(Boolean)
+            .join(" "),
+      },
+      {
+        label: "Licence Number:",
+        value: technician?.licenseNumber || summary["license-number"] || "-",
+      },
+      {
+        label: "Agency",
+        value: property?.agency?.name || property?.agencyName || "-",
+      },
+    ]
+  );
+
+  const { faults, groups, usedMediaIds } = collectGasFaults(report, template);
+
+  // --- Fault summary, derived from the checks -----------------------------
+  if (faults.length) {
+    ensurePageSpace(doc, 110);
+    doc
+      .fillColor(AUDIT_COLORS.navy)
+      .fontSize(12)
+      .font("Helvetica-Bold")
+      .text("Property Report Summary", PAGE.margin, doc.y);
+    doc.y += 6;
+    doc
+      .moveTo(PAGE.margin, doc.y)
+      .lineTo(doc.page.width - PAGE.margin, doc.y)
+      .lineWidth(1)
+      .strokeColor(AUDIT_COLORS.navy)
+      .stroke();
+    doc.y += 10;
+
+    drawAuditRecordsTable(
+      doc,
+      [
+        { label: "Fault", key: "fault", width: 23 },
+        { label: "Required Rectification", key: "rectification", width: 30 },
+        { label: "Location", key: "location", width: 16 },
+        { label: "Assessment", key: "assessment", width: 18, status: true },
+        {
+          label: "Repaired",
+          key: "repair",
+          width: 13,
+          status: true,
+          invertStatus: true,
+        },
+      ],
+      faults
+    );
+    doc.y += 12;
+  }
+
+  await drawAuditFlaggedPhotos(doc, groups);
+
+  // --- Checklist -----------------------------------------------------------
+  const drawChecks = (sectionId, checks, responses, headerTitle) => {
+    const section = template?.sections?.find((item) => item.id === sectionId);
+    if (!section) return;
+    drawAuditPartHeader(doc, headerTitle || section.title);
+    for (const check of checks) {
+      const field = section.fields?.find((item) => item.id === check.id);
+      if (!field) continue;
+      const scale = gasScaleFor(check.type);
+      drawAuditRow(
+        doc,
+        field.label,
+        auditValueLabel(responses?.[check.id], scale),
+        scale
+      );
+      const note = responses?.[`${check.id}-rectification`];
+      if (note) {
+        drawAuditTextRow(doc, "Rectification:", note);
+      }
+    }
+  };
+
+  ensurePageSpace(doc, 80);
+  doc
+    .fillColor(AUDIT_COLORS.navy)
+    .fontSize(12)
+    .font("Helvetica-Bold")
+    .text("Gas Safety Check", PAGE.margin, doc.y);
+  doc.y += 16;
+
+  const installation = getSection("gas-installation");
+  drawChecks("gas-installation", GAS_INSTALLATION_CHECKS, installation);
+  if (installation["gas-installation-comments"]) {
+    drawAuditTextRow(doc, "Comments:", installation["gas-installation-comments"]);
+  }
+  doc.y += 8;
+
+  const appliances = Array.isArray(formData["gas-appliances"])
+    ? formData["gas-appliances"]
+    : [];
+  appliances.forEach((appliance, index) => {
+    const name = appliance?.["appliance-name"] || `Appliance ${index + 1}`;
+    drawChecks(
+      "gas-appliances",
+      GAS_APPLIANCE_CHECKS,
+      appliance,
+      `Appliance ${index + 1}: ${name}`
+    );
+    if (appliance?.["appliance-comments"]) {
+      drawAuditTextRow(doc, "Comments:", appliance["appliance-comments"]);
+    }
+    doc.y += 8;
+  });
+
+  const servicing = getSection("appliance-servicing");
+  if (Object.keys(servicing).length) {
+    const section = template?.sections?.find(
+      (item) => item.id === "appliance-servicing"
+    );
+    ensurePageSpace(doc, 110);
+    drawAuditPartHeader(doc, "Appliance Servicing");
+    for (const fieldId of ["serviced-per-as4575", "vba-record-created"]) {
+      const field = section?.fields?.find((item) => item.id === fieldId);
+      if (!field) continue;
+      ensurePageSpace(doc, 50);
+      doc
+        .fillColor(AUDIT_COLORS.textGray)
+        .fontSize(8)
+        .font("Helvetica")
+        .text(field.label, PAGE.margin + 10, doc.y + 4, {
+          width: doc.page.width - PAGE.margin * 2 - 20,
+        });
+      doc.y += 6;
+      drawAuditRow(
+        doc,
+        "",
+        auditValueLabel(servicing[fieldId], AUDIT_YES_NO_NA),
+        AUDIT_YES_NO_NA
+      );
+    }
+    doc.y += 8;
+  }
+
+  // --- Support photos: everything not already shown up front --------------
+  const remainingMedia = (report.media || []).filter(
+    (item) => !usedMediaIds.has(item)
+  );
+  if (remainingMedia.length) {
+    drawAuditPartHeader(doc, "Annex: Photos");
+    await renderInlinePhotos(doc, remainingMedia, { template });
+    doc.y += 8;
+  }
+
+  const observationsSection = getSection("observations-recommendations");
+  drawAuditObservations(
+    doc,
+    observationsSection["checks-conducted"],
+    observationsSection["observations"],
+    report.notes,
+    {
+      observations: "Checks conducted and outcomes:",
+      complianceWorks:
+        "Observations and recommendations for any actions to be taken:",
+    }
+  );
+
+  await drawGasDeclaration(doc, {
+    outcomeLabel,
+    nextCheckDue: declaration["next-gas-check-due"]
+      ? formatNumericDate(declaration["next-gas-check-due"], reportTimeZone)
+      : null,
+    technicianName:
+      technician?.fullName ||
+      [technician?.firstName, technician?.lastName].filter(Boolean).join(" "),
+    signatureValue:
+      declaration["technician-signature"] ||
+      resolveReportSignatureData(formData) ||
+      null,
+  });
+};
+
 export const buildInspectionReportPdf = async ({
   report,
   template,
@@ -6764,8 +7343,11 @@ export const buildInspectionReportPdf = async ({
   // the issued report does. Every other report keeps the shared block.
   const isElectricalAuditReport =
     template?.jobType === "Electrical" && (template?.version ?? 1) >= 7;
+  const isGasAuditReport =
+    template?.jobType === "Gas" && (template?.version ?? 1) >= 5;
+  const isAuditStyleReport = isElectricalAuditReport || isGasAuditReport;
 
-  if (!isElectricalAuditReport) {
+  if (!isAuditStyleReport) {
     // Draw property details section at top of first content page
     drawPropertyDetailsSection(doc, {
       property,
@@ -6778,6 +7360,14 @@ export const buildInspectionReportPdf = async ({
 
   if (isElectricalAuditReport) {
     await renderElectricalSmokeAuditReport(doc, {
+      template,
+      report: preparedReport,
+      job,
+      property,
+      technician,
+    });
+  } else if (isGasAuditReport) {
+    await renderGasSafetyAuditReport(doc, {
       template,
       report: preparedReport,
       job,
@@ -6858,7 +7448,7 @@ export const buildInspectionReportPdf = async ({
   // The v7 electrical audit folds the technician's notes into its own
   // Observations block and draws the AS/NZS 3019 declaration itself, so the
   // shared notes and declaration sections would duplicate both.
-  if (!isElectricalAuditReport) {
+  if (!isAuditStyleReport) {
     // Technician notes
     if (preparedReport.notes) {
       ensurePageSpace(doc, 120);
