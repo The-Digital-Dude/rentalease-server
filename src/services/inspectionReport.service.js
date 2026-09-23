@@ -566,6 +566,22 @@ const calculateElectricalAuditOutcome = (formData = {}) => {
     return "non-compliant";
   }
 
+  // Inventory: an alarm past its ten-year life or failing its test fails the
+  // report, whatever the summary rows say.
+  const inventory = formData["smoke-alarm-inventory"] || {};
+  const alarmRecords = Array.isArray(inventory["alarm-records"])
+    ? inventory["alarm-records"]
+    : [];
+  if (
+    alarmRecords.some(
+      (record) =>
+        normalize(record?.["expired-over-10-years"]) === "yes" ||
+        normalize(record?.["test-result"]) === "fail"
+    )
+  ) {
+    return "non-compliant";
+  }
+
   if (normalize(rectification["issues-identified"]) === "yes") {
     return "non-compliant";
   }

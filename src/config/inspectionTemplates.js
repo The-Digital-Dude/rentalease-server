@@ -4769,6 +4769,25 @@ const auditRow = (id, label) => ({
   required: true,
 });
 
+/**
+ * A checklist row that can only ever be N/A.
+ *
+ * Some items on the printed form are outside the scope of an electrical safety
+ * check - a gas hot plate and a carbon monoxide alarm are assessed by the gas
+ * inspection, not this one. The row still prints so the report matches the
+ * issued document, but the technician cannot mark it Satisfactory or
+ * Unsatisfactory and imply an assessment that was never made.
+ */
+const notApplicableRow = (id, label) => ({
+  id,
+  label,
+  type: "select",
+  options: [{ value: "na", label: "N/A" }],
+  defaultValue: "na",
+  required: true,
+  metadata: { readOnly: true, notAssessed: true },
+});
+
 const createElectricalSmokeAuditSections = () => [
   {
     id: "inspection-summary",
@@ -4861,7 +4880,7 @@ const createElectricalSmokeAuditSections = () => [
       auditRow("light-fittings", "Light Fittings"),
       auditRow("light-switches", "Light Switches"),
       auditRow("wiring-smoke-alarm", "Smoke Alarm"),
-      auditRow("carbon-monoxide-alarm", "Carbon Monoxide Alarm"),
+      notApplicableRow("carbon-monoxide-alarm", "Carbon Monoxide Alarm"),
       auditRow("emergency-lighting", "Emergency Lighting"),
     ],
   },
@@ -4870,7 +4889,7 @@ const createElectricalSmokeAuditSections = () => [
     title: "Part 4 - FIXED ELECTRICAL APPLIANCES",
     fields: [
       auditRow("appliance-oven", "Oven"),
-      auditRow("appliance-hot-plates", "Hot Plates"),
+      notApplicableRow("appliance-hot-plates", "Hot Plates"),
       auditRow("appliance-dishwasher", "Dishwasher"),
       auditRow("appliance-hot-water-system", "Hot Water System"),
       auditRow("appliance-rangehood", "Rangehood"),
@@ -4971,6 +4990,55 @@ const createElectricalSmokeAuditSections = () => [
           {
             id: "alarm-result",
             label: "Result",
+            type: "pass-fail-na",
+            options: passFailNaOptions,
+            required: true,
+          },
+        ],
+      },
+    ],
+  },
+  {
+    // A property normally has several alarms, so each one is recorded
+    // individually. Trimmed from the Smoke-only template's inventory to the
+    // columns an electrical audit needs. Age is tracked by manufacture date
+    // plus the ten-year flag, the same as the Smoke report - alarms are dated
+    // by manufacture, not by a printed expiry.
+    id: "smoke-alarm-inventory",
+    title: "Smoke Alarm Inventory",
+    description: "Record every smoke alarm on the property individually.",
+    fields: [
+      {
+        id: "alarm-records",
+        label: "Smoke alarm records",
+        type: "table",
+        columns: [
+          {
+            id: "location",
+            label: "Location",
+            type: "text",
+            required: true,
+          },
+          {
+            id: "brand-model",
+            label: "Brand & Model",
+            type: "text",
+          },
+          {
+            id: "manufacture-date",
+            label: "Manufacture Date",
+            type: "date",
+          },
+          {
+            id: "expired-over-10-years",
+            label: "Expired (over 10 years old)",
+            type: "yes-no",
+            options: yesNoOptions,
+            required: true,
+          },
+          {
+            id: "test-result",
+            label: "Test Result",
             type: "pass-fail-na",
             options: passFailNaOptions,
             required: true,

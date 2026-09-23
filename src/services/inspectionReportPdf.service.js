@@ -5974,6 +5974,88 @@ const drawAuditTextRow = (doc, label, value) => {
   doc.y = Math.max(doc.y, y + 22);
 };
 
+/**
+ * A bordered table for repeatable records, used by the Smoke Alarm Inventory.
+ *
+ * `columns` are `{ label, key, width, align }`; widths are proportional and
+ * scaled to the content width. Cells wrap, so the row height follows the
+ * tallest cell rather than a fixed value - alarm locations and model names are
+ * unpredictable in length.
+ */
+const drawAuditRecordsTable = (doc, columns, rows) => {
+  const contentWidth = doc.page.width - PAGE.margin * 2;
+  const totalWeight = columns.reduce((sum, column) => sum + column.width, 0);
+  const widths = columns.map(
+    (column) => (column.width / totalWeight) * contentWidth
+  );
+  const padding = 5;
+
+  const drawHeader = () => {
+    const y = doc.y;
+    doc.rect(PAGE.margin, y, contentWidth, 18).fillColor("#F0F3F6").fill();
+    let x = PAGE.margin;
+    columns.forEach((column, index) => {
+      doc
+        .fillColor(AUDIT_COLORS.textGray)
+        .fontSize(7.5)
+        .font("Helvetica-Bold")
+        .text(column.label.toUpperCase(), x + padding, y + 5, {
+          width: widths[index] - padding * 2,
+          lineBreak: false,
+        });
+      x += widths[index];
+    });
+    doc.y = y + 18;
+  };
+
+  ensurePageSpace(doc, 70);
+  drawHeader();
+
+  for (const row of rows) {
+    // Measure first so the row is never split across a page boundary.
+    doc.fontSize(8).font("Helvetica");
+    const heights = columns.map((column, index) =>
+      doc.heightOfString(String(row[column.key] ?? "-") || "-", {
+        width: widths[index] - padding * 2,
+      })
+    );
+    const rowHeight = Math.max(18, Math.max(...heights) + 9);
+
+    if (ensurePageSpace(doc, rowHeight + 4)) {
+      drawHeader();
+    }
+
+    const y = doc.y;
+    let x = PAGE.margin;
+    columns.forEach((column, index) => {
+      const value = String(row[column.key] ?? "-") || "-";
+      const isStatus = column.status === true;
+      // "Expired: Yes" is the bad answer, so its colouring is inverted -
+      // otherwise an expired alarm would print in green.
+      const colorValue = column.invertStatus
+        ? { Yes: "Fail", No: "Pass" }[value] || value
+        : value;
+      doc
+        .fillColor(isStatus ? auditOptionColor(colorValue) : AUDIT_COLORS.dark)
+        .fontSize(8)
+        .font(isStatus ? "Helvetica-Bold" : "Helvetica")
+        .text(value, x + padding, y + 5, {
+          width: widths[index] - padding * 2,
+        });
+      x += widths[index];
+    });
+
+    doc
+      .moveTo(PAGE.margin, y + rowHeight)
+      .lineTo(PAGE.margin + contentWidth, y + rowHeight)
+      .lineWidth(0.5)
+      .strokeColor(AUDIT_COLORS.tableBorder)
+      .stroke();
+
+    doc.y = y + rowHeight;
+  }
+};
+
 const drawAuditPartHeader = (doc, title) => {
   // Reserve the header plus a couple of rows so a Part heading is never left
   // stranded at the foot of a page with its rows overleaf.
@@ -6451,7 +6533,13 @@ const renderElectricalSmokeAuditReport = async (
     .text("Electrical & Smoke Alarm Safety Check", PAGE.margin, doc.y);
   doc.y += 16;
 
+  // The field's own options win when it declares them, so a row restricted to
+  // a single choice (Hot Plates and Carbon Monoxide are N/A only) prints just
+  // that choice instead of the full four-point scale.
   const scaleForField = (field) => {
+    if (Array.isArray(field.options) && field.options.length) {
+      return field.options.map((option) => option.label);
+    }
     switch (field.type) {
       case "pass-fail":
       case "pass-fail-na":
@@ -6523,6 +6611,45 @@ const renderElectricalSmokeAuditReport = async (
       );
     }
     doc.y += 8;
+  }
+
+  // --- Smoke alarm inventory ----------------------------------------------
+  const inventory = getSection("smoke-alarm-inventory");
+  const alarmRecords = Array.isArray(inventory["alarm-records"])
+    ? inventory["alarm-records"].filter(
+        (record) => record && Object.values(record).some((value) => value)
+      )
+    : [];
+  if (alarmRecords.length) {
+    ensurePageSpace(doc, 120);
+    drawAuditPartHeader(doc, "Smoke Alarm Inventory");
+    drawAuditRecordsTable(
+      doc,
+      [
+        { label: "Location", key: "location", width: 26 },
+        { label: "Brand & Model", key: "brandModel", width: 26 },
+        { label: "Manufactured", key: "manufactured", width: 18 },
+        {
+          label: "Expired >10 yrs",
+          key: "expired",
+          width: 16,
+          status: true,
+          invertStatus: true,
+        },
+        { label: "Test", key: "test", width: 14, status: true },
+      ],
+      alarmRecords.map((record) => ({
+        location: record["location"] || "-",
+        brandModel: record["brand-model"] || "-",
+        manufactured: record["manufacture-date"]
+          ? formatNumericDate(record["manufacture-date"], reportTimeZone)
+          : "-",
+        expired:
+          auditValueLabel(record["expired-over-10-years"], AUDIT_YES_NO) || "-",
+        test: auditValueLabel(record["test-result"], AUDIT_PASS_SCALE) || "-",
+      }))
+    );
+    doc.y += 10;
   }
 
   // --- Safety alarm --------------------------------------------------------
