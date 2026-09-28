@@ -4972,9 +4972,13 @@ const createElectricalSmokeAuditSections = () => [
     fields: [auditRow("es-sa-overall", "ES/SA - Electrical and Smoke Alarm")],
   },
   {
+    // One row per alarm, and only one. A separate inventory section listed the
+    // same alarms a second time, so location and result were captured twice
+    // and could disagree. The expiry date lives here instead.
     id: "additional-optional-tests",
     title: "Additional Optional Tests",
-    description: "Record each smoke alarm tested and its location.",
+    description:
+      "Record each smoke alarm tested, its location and its expiry date.",
     fields: [
       {
         id: "smoke-alarm-tests",
@@ -4994,54 +4998,10 @@ const createElectricalSmokeAuditSections = () => [
             options: passFailNaOptions,
             required: true,
           },
-        ],
-      },
-    ],
-  },
-  {
-    // A property normally has several alarms, so each one is recorded
-    // individually. Trimmed from the Smoke-only template's inventory to the
-    // columns an electrical audit needs. Age is tracked by manufacture date
-    // plus the ten-year flag, the same as the Smoke report - alarms are dated
-    // by manufacture, not by a printed expiry.
-    id: "smoke-alarm-inventory",
-    title: "Smoke Alarm Inventory",
-    description: "Record every smoke alarm on the property individually.",
-    fields: [
-      {
-        id: "alarm-records",
-        label: "Smoke alarm records",
-        type: "table",
-        columns: [
           {
-            id: "location",
-            label: "Location",
-            type: "text",
-            required: true,
-          },
-          {
-            id: "brand-model",
-            label: "Brand & Model",
-            type: "text",
-          },
-          {
-            id: "manufacture-date",
-            label: "Manufacture Date",
+            id: "alarm-expiry-date",
+            label: "Expiry Date",
             type: "date",
-          },
-          {
-            id: "expired-over-10-years",
-            label: "Expired (over 10 years old)",
-            type: "yes-no",
-            options: yesNoOptions,
-            required: true,
-          },
-          {
-            id: "test-result",
-            label: "Test Result",
-            type: "pass-fail-na",
-            options: passFailNaOptions,
-            required: true,
           },
         ],
       },

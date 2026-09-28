@@ -5883,11 +5883,30 @@ const isFlaggedAuditValue = (label) =>
   label === "Attention" || label === "Unsatisfactory" || label === "Fail";
 
 /**
+ * True when a smoke alarm's printed expiry date has passed. Mirrors the rule
+ * the outcome calculator applies, so the row and the overall result agree.
+ * An unreadable or missing date is not treated as expired.
+ */
+const isAlarmExpired = (value) => {
+  if (!value) {
+    return false;
+  }
+  const expiry = new Date(value);
+  if (Number.isNaN(expiry.getTime())) {
+    return false;
+  }
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  expiry.setHours(0, 0, 0, 0);
+  return expiry < today;
+};
+
+/**
  * Draws one checklist row: label on the left, the full option set on the
  * right with the chosen one filled. Showing every option (rather than only the
  * answer) is deliberate - it is what makes the printed report auditable.
  */
-const drawAuditRow = (doc, label, selectedLabel, scale) => {
+const drawAuditRow = (doc, label, selectedLabel, scale, options = {}) => {
   const rowHeight = 22;
   ensurePageSpace(doc, rowHeight + 6);
 
@@ -5900,6 +5919,19 @@ const drawAuditRow = (doc, label, selectedLabel, scale) => {
     .fontSize(9)
     .font("Helvetica")
     .text(label, left, y + 6, { width: 200, lineBreak: false });
+
+  // Optional detail sitting between the label and the option pills - used for
+  // a smoke alarm's expiry date, which belongs on the row it describes.
+  if (options.middleText) {
+    doc
+      .fillColor(options.middleColor || AUDIT_COLORS.textGray)
+      .fontSize(8)
+      .font("Helvetica")
+      .text(options.middleText, left + 210, y + 7, {
+        width: 150,
+        lineBreak: false,
+      });
+  }
 
   // Options are laid out from the right edge so they stay aligned down the
   // page. Widths are measured in the bold face used for the selected pill -
@@ -6617,53 +6649,27 @@ const renderElectricalSmokeAuditReport = async (
   if (alarmRows.length) {
     drawAuditPartHeader(doc, "Additional Optional Tests");
     for (const row of alarmRows) {
+      const expiry = row["alarm-expiry-date"]
+        ? formatNumericDate(row["alarm-expiry-date"], reportTimeZone)
+        : null;
       drawAuditRow(
         doc,
         row["alarm-location"] || "Smoke alarm",
         auditValueLabel(row["alarm-result"], AUDIT_PASS_SCALE),
-        AUDIT_PASS_SCALE
+        AUDIT_PASS_SCALE,
+        // An alarm past its expiry is called out on its own row in red, not
+        // only in the overall outcome.
+        expiry
+          ? {
+              middleText: `Expires ${expiry}`,
+              middleColor: isAlarmExpired(row["alarm-expiry-date"])
+                ? AUDIT_COLORS.red
+                : AUDIT_COLORS.textGray,
+            }
+          : undefined
       );
     }
     doc.y += 8;
-  }
-
-  // --- Smoke alarm inventory ----------------------------------------------
-  const inventory = getSection("smoke-alarm-inventory");
-  const alarmRecords = Array.isArray(inventory["alarm-records"])
-    ? inventory["alarm-records"].filter(
-        (record) => record && Object.values(record).some((value) => value)
-      )
-    : [];
-  if (alarmRecords.length) {
-    ensurePageSpace(doc, 120);
-    drawAuditPartHeader(doc, "Smoke Alarm Inventory");
-    drawAuditRecordsTable(
-      doc,
-      [
-        { label: "Location", key: "location", width: 26 },
-        { label: "Brand & Model", key: "brandModel", width: 26 },
-        { label: "Manufactured", key: "manufactured", width: 18 },
-        {
-          label: "Expired >10 yrs",
-          key: "expired",
-          width: 16,
-          status: true,
-          invertStatus: true,
-        },
-        { label: "Test", key: "test", width: 14, status: true },
-      ],
-      alarmRecords.map((record) => ({
-        location: record["location"] || "-",
-        brandModel: record["brand-model"] || "-",
-        manufactured: record["manufacture-date"]
-          ? formatNumericDate(record["manufacture-date"], reportTimeZone)
-          : "-",
-        expired:
-          auditValueLabel(record["expired-over-10-years"], AUDIT_YES_NO) || "-",
-        test: auditValueLabel(record["test-result"], AUDIT_PASS_SCALE) || "-",
-      }))
-    );
-    doc.y += 10;
   }
 
   // --- Safety alarm --------------------------------------------------------

@@ -525,6 +525,28 @@ const calculateMinimumSafetyStandardOutcome = (formData = {}, template = null) =
  *  - "compliant"      otherwise. "Attention" rows are advisory and do not fail the
  *                     report on their own; they surface in the flagged summary.
  */
+/**
+ * True when a smoke alarm's printed expiry date has passed.
+ *
+ * Compared against the date only, so an alarm expiring today is still in date.
+ * A missing or unparseable date is not treated as expired - the technician may
+ * simply not have been able to read the label, and guessing against them would
+ * fail the report on no evidence.
+ */
+const isAlarmExpired = (value) => {
+  if (!value) {
+    return false;
+  }
+  const expiry = new Date(value);
+  if (Number.isNaN(expiry.getTime())) {
+    return false;
+  }
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  expiry.setHours(0, 0, 0, 0);
+  return expiry < today;
+};
+
 const ELECTRICAL_AUDIT_PART_SECTION_IDS = [
   "part-1-supply-mains",
   "part-2-switchboard",
@@ -566,19 +588,10 @@ const calculateElectricalAuditOutcome = (formData = {}) => {
     return "non-compliant";
   }
 
-  // Inventory: an alarm past its ten-year life or failing its test fails the
-  // report, whatever the summary rows say.
-  const inventory = formData["smoke-alarm-inventory"] || {};
-  const alarmRecords = Array.isArray(inventory["alarm-records"])
-    ? inventory["alarm-records"]
-    : [];
-  if (
-    alarmRecords.some(
-      (record) =>
-        normalize(record?.["expired-over-10-years"]) === "yes" ||
-        normalize(record?.["test-result"]) === "fail"
-    )
-  ) {
+  // An alarm past its printed expiry fails the report, whatever the summary
+  // rows say. Alarms and their expiry dates live on the optional-tests rows
+  // above; there is no separate inventory.
+  if (alarmRows.some((row) => isAlarmExpired(row?.["alarm-expiry-date"]))) {
     return "non-compliant";
   }
 
@@ -1477,4 +1490,5 @@ export {
   uploadInspectionMedia,
   calculateElectricalAuditOutcome,
   calculateGasSafetyAuditOutcome,
+  isAlarmExpired,
 };
