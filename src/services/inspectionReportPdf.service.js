@@ -5907,18 +5907,29 @@ const isAlarmExpired = (value) => {
  * answer) is deliberate - it is what makes the printed report auditable.
  */
 const drawAuditRow = (doc, label, selectedLabel, scale, options = {}) => {
-  const rowHeight = 22;
+  const LABEL_WIDTH = 200;
+
+  // Size the row to its label. A fixed height let a two-line label such as
+  // "LP Gas cylinders and associated components (i.e. regulators, pigtails)
+  // installed correctly" spill onto the divider and into the row below.
+  doc.fontSize(9).font("Helvetica");
+  const labelHeight = label
+    ? doc.heightOfString(label, { width: LABEL_WIDTH })
+    : 0;
+  const rowHeight = Math.max(22, labelHeight + 12);
   ensurePageSpace(doc, rowHeight + 6);
 
   const left = PAGE.margin + 10;
   const right = doc.page.width - PAGE.margin - 10;
   const y = doc.y;
+  // The pills stay vertically centred however tall the row grows.
+  const pillTop = y + Math.max(2, (rowHeight - 18) / 2);
 
   doc
     .fillColor(AUDIT_COLORS.dark)
     .fontSize(9)
     .font("Helvetica")
-    .text(label, left, y + 6, { width: 200, lineBreak: false });
+    .text(label, left, y + 6, { width: LABEL_WIDTH });
 
   // Optional detail sitting between the label and the option pills - used for
   // a smoke alarm's expiry date, which belongs on the row it describes.
@@ -5927,7 +5938,7 @@ const drawAuditRow = (doc, label, selectedLabel, scale, options = {}) => {
       .fillColor(options.middleColor || AUDIT_COLORS.textGray)
       .fontSize(8)
       .font("Helvetica")
-      .text(options.middleText, left + 210, y + 7, {
+      .text(options.middleText, left + 210, pillTop + 5, {
         width: 150,
         lineBreak: false,
       });
@@ -5948,18 +5959,21 @@ const drawAuditRow = (doc, label, selectedLabel, scale, options = {}) => {
 
     if (isSelected) {
       doc
-        .roundedRect(x, y + 2, width, 16, 8)
+        .roundedRect(x, pillTop, width, 16, 8)
         .fillColor(color)
         .fill();
-      doc.circle(x + 9, y + 10, 3).fillColor("#FFFFFF").fill();
+      doc.circle(x + 9, pillTop + 8, 3).fillColor("#FFFFFF").fill();
       doc
         .fillColor("#FFFFFF")
         .fontSize(8.5)
         .font("Helvetica-Bold")
-        .text(option, x + 16, y + 6, { width: width - 20, lineBreak: false });
+        .text(option, x + 16, pillTop + 4, {
+          width: width - 20,
+          lineBreak: false,
+        });
     } else {
       doc
-        .circle(x + 9, y + 10, 3.5)
+        .circle(x + 9, pillTop + 8, 3.5)
         .lineWidth(0.8)
         .strokeColor(AUDIT_COLORS.border)
         .stroke();
@@ -5967,7 +5981,10 @@ const drawAuditRow = (doc, label, selectedLabel, scale, options = {}) => {
         .fillColor(AUDIT_COLORS.textGray)
         .fontSize(8.5)
         .font("Helvetica")
-        .text(option, x + 16, y + 6, { width: width - 20, lineBreak: false });
+        .text(option, x + 16, pillTop + 4, {
+          width: width - 20,
+          lineBreak: false,
+        });
     }
 
     x += width + 6;
@@ -6005,6 +6022,14 @@ const drawAuditTextRow = (doc, label, value) => {
 
   doc.y = Math.max(doc.y, y + 22);
 };
+
+/**
+ * Height renderInlinePhotos needs for its first row of photos, so a heading can
+ * reserve exactly that much. Mirrors its own layout: one photo is drawn large on
+ * its own, two or more share a row at a smaller size.
+ */
+const auditFirstPhotoRowHeight = (photoCount) =>
+  photoCount === 1 ? 220 + 42 + 14 : 150 + 42 + 14;
 
 /**
  * A bordered table for repeatable records, used by the Smoke Alarm Inventory.
@@ -6091,10 +6116,13 @@ const drawAuditRecordsTable = (doc, columns, rows) => {
   }
 };
 
-const drawAuditPartHeader = (doc, title) => {
-  // Reserve the header plus a couple of rows so a Part heading is never left
-  // stranded at the foot of a page with its rows overleaf.
-  ensurePageSpace(doc, 78);
+const drawAuditPartHeader = (doc, title, minContentHeight = 56) => {
+  // Reserve the header plus the first piece of content so a Part heading is
+  // never left stranded at the foot of a page with its content overleaf. The
+  // default suits a couple of checklist rows; a photo section passes the height
+  // of a photo, because 78pt left the Annex heading alone on one page and its
+  // only photo on the next.
+  ensurePageSpace(doc, minContentHeight + 22);
   const y = doc.y;
   const width = doc.page.width - PAGE.margin * 2;
 
@@ -6718,7 +6746,11 @@ const renderElectricalSmokeAuditReport = async (
     (item) => !usedMediaIds.has(item)
   );
   if (remainingMedia.length) {
-    drawAuditPartHeader(doc, "Support Pictures For Application");
+    drawAuditPartHeader(
+      doc,
+      "Support Pictures For Application",
+      auditFirstPhotoRowHeight(remainingMedia.length)
+    );
     await renderInlinePhotos(doc, remainingMedia, { template });
     doc.y += 8;
   }
@@ -6921,6 +6953,52 @@ const collectGasFaults = (report, template) => {
   return { faults, groups, usedMediaIds: used };
 };
 
+const GAS_APPLIANCE_PHOTO_FIELD = /^(location|data-plate)-photo-(\d+)$/;
+
+/**
+ * Names each appliance's photos after the appliance.
+ *
+ * A caption is otherwise just the field label, so a three-appliance job printed
+ * three photos captioned "Location Photo" and three "Data Plate" with nothing
+ * saying which appliance they showed. Repeatable-section photos arrive as
+ * "<fieldId>-<itemIndex>", so the index recovers the appliance.
+ *
+ * Mutates the report's own media items, which are already a per-render copy.
+ */
+const captionGasAppliancePhotos = (media = [], appliances = []) => {
+  for (const item of media) {
+    const match = GAS_APPLIANCE_PHOTO_FIELD.exec(String(item?.fieldId || ""));
+    if (!match) continue;
+    const index = Number(match[2]);
+    const name = appliances[index]?.["appliance-name"] || `Appliance ${index + 1}`;
+    item.metadata = {
+      ...normalizeMediaMetadata(item.metadata),
+      caption: name,
+    };
+  }
+};
+
+/**
+ * Orders annex photos so each appliance's pictures sit together: installation
+ * first, then appliance by appliance with the location shot before its data
+ * plate, then anything else in upload order.
+ */
+const sortGasAnnexMedia = (media = []) => {
+  const rank = (item) => {
+    const fieldId = String(item?.fieldId || "");
+    if (fieldId.startsWith("gas-installation-photo")) return [0, 0];
+    const match = GAS_APPLIANCE_PHOTO_FIELD.exec(fieldId);
+    if (match) {
+      return [1 + Number(match[2]), match[1] === "location" ? 0 : 1];
+    }
+    return [10000, 0];
+  };
+  return media
+    .map((item, order) => ({ item, order, key: rank(item) }))
+    .sort((a, b) => a.key[0] - b.key[0] || a.key[1] - b.key[1] || a.order - b.order)
+    .map(({ item }) => item);
+};
+
 const GAS_DANGEROUS_INSTALLATIONS = [
   "1. If a person carrying out gasfitting work on a gas installation becomes aware of a danger arising from a defect in the gas installation, the person must without delay - (a) take all steps that are necessary to make the installation safe; and (b) notify the owner of the gas installation and the occupier of the premises in which the installation is situated of the defect.",
   "2. Sub regulation (1)(a) does not apply if the person is unable, or it is unreasonable for the person, to take the necessary steps to make the gas installation safe.",
@@ -6929,6 +7007,11 @@ const GAS_DANGEROUS_INSTALLATIONS = [
 
 const GAS_DECLARATION_INTRO =
   "I, being the person responsible for the inspection of the identified gas appliances or installations in the rental property or rooming house, particulars of which are described here, having exercised reasonable skill and care when carrying out the inspection, hereby declare on the date of inspection that the information in this report, including the observations and recommendations, provides an accurate assessment of the condition of the gas appliances or installations in the rental property or rooming house taking into account the stated extent of the installation and the limitations of the inspection and testing.";
+
+/** Vertical space the declaration block needs, heading to gasfitter name. Kept
+ *  as a named constant and checked against a real render in the tests, because
+ *  the wording above it is long and a short reserve fails silently. */
+const GAS_DECLARATION_BLOCK_HEIGHT = 380;
 
 const GAS_OUTCOME_DESCRIPTIONS = [
   ["Compliant", "gas appliance or gas installation complies with the criteria for a “gas safety check” in the residential tenancies regulations."],
@@ -6970,7 +7053,11 @@ const drawGasDeclaration = async (
     doc.y += 5;
   }
 
-  ensurePageSpace(doc, 220);
+  // The whole declaration - heading, wording, the three outcomes, due date,
+  // signature and name - is one legal unit. Reserving only the heading and intro
+  // let the signature and the gasfitter's name run off the bottom of the page,
+  // below the footer. If it will not fit it moves to a fresh page together.
+  ensurePageSpace(doc, GAS_DECLARATION_BLOCK_HEIGHT);
   doc.y += 6;
   doc
     .fillColor(AUDIT_COLORS.navy)
@@ -7051,6 +7138,10 @@ const drawGasDeclaration = async (
     doc.y += 18;
   }
 
+  // Label, signature image and name together. The block reserve above should
+  // already guarantee this; it is here so a signature can never be drawn into
+  // or below the footer if the wording above it ever grows.
+  ensurePageSpace(doc, 110);
   doc
     .fillColor(AUDIT_COLORS.textGray)
     .fontSize(8.5)
@@ -7148,6 +7239,13 @@ const renderGasSafetyAuditReport = async (
         value: property?.agency?.name || property?.agencyName || "-",
       },
     ]
+  );
+
+  // Caption before collecting: flagged-photo groups and the annex both draw the
+  // same items, so naming them once covers both.
+  captionGasAppliancePhotos(
+    report.media,
+    Array.isArray(formData["gas-appliances"]) ? formData["gas-appliances"] : []
   );
 
   const { faults, groups, usedMediaIds } = collectGasFaults(report, template);
@@ -7275,11 +7373,15 @@ const renderGasSafetyAuditReport = async (
   }
 
   // --- Support photos: everything not already shown up front --------------
-  const remainingMedia = (report.media || []).filter(
-    (item) => !usedMediaIds.has(item)
+  const remainingMedia = sortGasAnnexMedia(
+    (report.media || []).filter((item) => !usedMediaIds.has(item))
   );
   if (remainingMedia.length) {
-    drawAuditPartHeader(doc, "Annex: Photos");
+    drawAuditPartHeader(
+      doc,
+      "Annex: Photos",
+      auditFirstPhotoRowHeight(remainingMedia.length)
+    );
     await renderInlinePhotos(doc, remainingMedia, { template });
     doc.y += 8;
   }
