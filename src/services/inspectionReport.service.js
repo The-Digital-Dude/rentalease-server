@@ -3,6 +3,8 @@ import sharp from "sharp";
 import fs from "fs/promises";
 import Job from "../models/Job.js";
 import Property from "../models/Property.js";
+import Agency from "../models/Agency.js";
+import PropertyManager from "../models/PropertyManager.js";
 import Technician from "../models/Technician.js";
 import InspectionReport from "../models/InspectionReport.js";
 import Invoice from "../models/Invoice.js";
@@ -533,6 +535,53 @@ const calculateMinimumSafetyStandardOutcome = (formData = {}, template = null) =
  *  - "compliant"      otherwise. "Attention" rows are advisory and do not fail the
  *                     report on their own; they surface in the flagged summary.
  */
+/**
+ * Resolves the agency and agent names a report prints.
+ *
+ * `Property.findById` returns the agency and the assigned property manager as
+ * bare ObjectIds, so the renderer had nothing to read and printed "-" for both.
+ * (It also read `agency.name`; the Agency model's field is `companyName`.) The
+ * names are looked up here, where the database is available, and handed to the
+ * renderer as plain strings.
+ *
+ * The agent is the property manager assigned to the property, falling back to
+ * the agency's contact person. A failed lookup must never block a report - the
+ * names are presentation, so any error degrades to the "-" placeholder.
+ */
+const resolveAgencyContext = async (property) => {
+  try {
+    const agencyId = property?.agency?._id ?? property?.agency;
+    const managerId =
+      property?.assignedPropertyManager?._id ?? property?.assignedPropertyManager;
+
+    const [agency, manager] = await Promise.all([
+      agencyId
+        ? Agency.findById(agencyId).select("companyName contactPerson").lean()
+        : null,
+      managerId
+        ? PropertyManager.findById(managerId)
+            .select("firstName lastName fullName")
+            .lean()
+        : null,
+    ]);
+
+    const managerName =
+      manager?.fullName ||
+      [manager?.firstName, manager?.lastName].filter(Boolean).join(" ");
+
+    return {
+      agencyName: agency?.companyName || null,
+      agentName: managerName || agency?.contactPerson || null,
+    };
+  } catch (error) {
+    console.warn("[Inspection Submit] Could not resolve agency names", {
+      propertyId: property?._id,
+      message: error?.message,
+    });
+    return {};
+  }
+};
+
 /**
  * True when a smoke alarm's printed expiry date has passed.
  *
@@ -1338,6 +1387,7 @@ const finalizeInspectionReportSubmission = async ({
     templateType: template.jobType,
     templateVersion: template.version,
   });
+  const agencyContext = await resolveAgencyContext(property);
   const pdfStartTime = Date.now();
   const PDF_GENERATION_TIMEOUT = 5 * 60 * 1000;
   const pdfBuffer = await Promise.race([
@@ -1347,6 +1397,7 @@ const finalizeInspectionReportSubmission = async ({
       job,
       property,
       technician,
+      agencyContext,
     }),
     new Promise((_, reject) =>
       setTimeout(
@@ -1541,4 +1592,5 @@ export {
   calculateElectricalAuditOutcome,
   calculateGasSafetyAuditOutcome,
   isAlarmExpired,
+  resolveAgencyContext,
 };

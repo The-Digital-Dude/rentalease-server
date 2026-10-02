@@ -6526,13 +6526,36 @@ const drawAuditDeclaration = async (
   doc.y += 16;
 };
 
+/**
+ * The Agent and Agency lines for an audit-style report.
+ *
+ * Prefers the names resolved by the caller (the database lookup lives with the
+ * submit pipeline, not here). The fallbacks cover callers that hand in an
+ * already-populated agency, such as the demo scripts. Field names follow the
+ * Agency model: `companyName` for the agency, `contactPerson` for its contact.
+ */
+const resolveAuditAgencyLabels = ({ agencyContext, property, job }) => ({
+  agent:
+    agencyContext?.agentName ||
+    property?.agency?.contactPerson ||
+    job?.agent ||
+    "-",
+  agency:
+    agencyContext?.agencyName ||
+    property?.agency?.companyName ||
+    property?.agency?.name ||
+    property?.agencyName ||
+    "-",
+});
+
 const renderElectricalSmokeAuditReport = async (
   doc,
-  { report, template, job, property, technician }
+  { report, template, job, property, technician, agencyContext }
 ) => {
   const formData = report.formData || {};
   const getSection = (id) => formData[id] || {};
   const reportTimeZone = resolvePropertyTimeZone(property);
+  const auditAgency = resolveAuditAgencyLabels({ agencyContext, property, job });
 
   const declaration = getSection("final-declaration");
   const outcome = String(
@@ -6558,11 +6581,7 @@ const renderElectricalSmokeAuditReport = async (
       { label: "Property Address:", value: address },
       {
         label: "Agent:",
-        value:
-          property?.agency?.contactPerson ||
-          property?.agency?.name ||
-          job?.agent ||
-          "-",
+        value: auditAgency.agent,
       },
     ],
     [
@@ -6589,7 +6608,7 @@ const renderElectricalSmokeAuditReport = async (
       },
       {
         label: "Agency",
-        value: property?.agency?.name || property?.agencyName || "-",
+        value: auditAgency.agency,
       },
     ]
   );
@@ -7164,11 +7183,12 @@ const drawGasDeclaration = async (
 
 const renderGasSafetyAuditReport = async (
   doc,
-  { report, template, job, property, technician }
+  { report, template, job, property, technician, agencyContext }
 ) => {
   const formData = report.formData || {};
   const getSection = (id) => formData[id] || {};
   const reportTimeZone = resolvePropertyTimeZone(property);
+  const auditAgency = resolveAuditAgencyLabels({ agencyContext, property, job });
 
   const declaration = getSection("final-declaration");
   const outcome = String(
@@ -7205,11 +7225,7 @@ const renderGasSafetyAuditReport = async (
       { label: "Property Address:", value: address },
       {
         label: "Agent:",
-        value:
-          property?.agency?.contactPerson ||
-          property?.agency?.name ||
-          job?.agent ||
-          "-",
+        value: auditAgency.agent,
       },
     ],
     [
@@ -7236,7 +7252,7 @@ const renderGasSafetyAuditReport = async (
       },
       {
         label: "Agency",
-        value: property?.agency?.name || property?.agencyName || "-",
+        value: auditAgency.agency,
       },
     ]
   );
@@ -7420,6 +7436,9 @@ export const buildInspectionReportPdf = async ({
   job,
   property,
   technician,
+  // Pre-resolved { agencyName, agentName } strings. Optional: callers that hand
+  // in an already-populated agency need not supply it.
+  agencyContext,
 }) => {
   const preparedReport = report?.toObject ? report.toObject() : { ...report };
   preparedReport.media = await prepareRenderableMedia(report?.media || []);
@@ -7473,6 +7492,7 @@ export const buildInspectionReportPdf = async ({
       job,
       property,
       technician,
+      agencyContext,
     });
   } else if (isGasAuditReport) {
     await renderGasSafetyAuditReport(doc, {
@@ -7481,6 +7501,7 @@ export const buildInspectionReportPdf = async ({
       job,
       property,
       technician,
+      agencyContext,
     });
   } else if (template?.jobType === "Gas") {
     await renderGasReport(doc, {
