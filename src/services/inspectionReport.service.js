@@ -311,6 +311,14 @@ const isGasTemplateV3 = (template, formData = {}) => {
     return false;
   }
 
+  // v5 replaced the section layout this validator checks - property-details,
+  // technician-details, lp-gas-checklist and general-gas-checks no longer
+  // exist - so running it against a v5 submission threw on the first field and
+  // no report was ever created. v5 has its own outcome calculator.
+  if ((template?.version ?? 1) >= 5) {
+    return false;
+  }
+
   if ((template?.version ?? 1) >= 3) {
     return true;
   }
@@ -636,6 +644,47 @@ const GAS_APPLIANCE_CHECK_IDS = [
 
 const isGasSafetyAuditTemplate = (template) =>
   template?.jobType === "Gas" && Number(template?.version ?? 0) >= 5;
+
+/**
+ * Server-side required-field check for Gas v5.
+ *
+ * v4 had validateGasReportV3; v5 skips it because that validator checks a
+ * section layout v5 no longer has. Without this, a v5 submission reached the
+ * database with no server-side validation at all - the mobile form was the
+ * only guard, and an older app build could submit anything.
+ *
+ * Scoped to what the issued report cannot be produced without.
+ */
+const validateGasSafetyAuditReport = (formData = {}) => {
+  const installation = formData["gas-installation"] || {};
+  ["lp-gas-cylinders", "gas-leakage-test"].forEach((fieldId) =>
+    ensureRequiredValue(
+      installation[fieldId],
+      `Gas installation field "${fieldId}" is required`
+    )
+  );
+
+  const appliances = Array.isArray(formData["gas-appliances"])
+    ? formData["gas-appliances"]
+    : [];
+  if (!appliances.length) {
+    const error = new Error(
+      "At least one gas appliance must be included in the report"
+    );
+    error.statusCode = 400;
+    error.code = "VALIDATION_ERROR";
+    throw error;
+  }
+
+  appliances.forEach((appliance, index) => {
+    GAS_APPLIANCE_CHECK_IDS.forEach((fieldId) =>
+      ensureRequiredValue(
+        appliance?.[fieldId],
+        `Appliance ${index + 1} field "${fieldId}" is required`
+      )
+    );
+  });
+};
 
 const calculateGasSafetyAuditOutcome = (formData = {}) => {
   const normalize = (value) =>
@@ -1174,6 +1223,7 @@ const loadInspectionSubmissionContext = async ({
   }
 
   if (isGasSafetyAuditTemplate(template)) {
+    validateGasSafetyAuditReport(normalizedFormData);
     normalizedFormData["final-declaration"] = {
       ...(normalizedFormData["final-declaration"] || {}),
       "final-compliance-outcome":
